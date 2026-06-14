@@ -53,6 +53,13 @@ const RIGHT_OFFSET_SLIDESHOW_MAX = 110;
 /** Extra width for longer right-axis level titles (Support H/L/Break, Resistance…). */
 const RIGHT_PRICE_SCALE_MIN_WIDTH = 108;
 const RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH = 152;
+/** Mobile: left cluster labels are hidden; use a slimmer axis + smaller bar gap. */
+const RIGHT_OFFSET_MOBILE = 6;
+const RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN = 8;
+const RIGHT_OFFSET_SLIDESHOW_MOBILE_MAX = 18;
+const RIGHT_PRICE_SCALE_MOBILE_MIN_WIDTH = 72;
+const RIGHT_PRICE_SCALE_MOBILE_SLIDESHOW_WIDTH = 84;
+const NARROW_CHART_MQ = "(max-width: 767px)";
 /** Default zoom: ~5 NSE sessions visible (15m ≈ 25 bars/day). */
 const DEFAULT_VISIBLE_BARS = 125;
 
@@ -162,23 +169,43 @@ export const NativeCandlesChart = forwardRef<
   visualFocusRef.current = visualFocus;
   const defaultFullHistoryRef = useRef(defaultFullHistory);
   defaultFullHistoryRef.current = defaultFullHistory;
+  const isNarrowChartRef = useRef(false);
+
+  function isNarrowChart(): boolean {
+    return isNarrowChartRef.current;
+  }
+
+  function priceScaleMinWidth(): number {
+    const narrow = isNarrowChart();
+    const wideHistory = defaultFullHistoryRef.current;
+    if (narrow) {
+      return wideHistory
+        ? RIGHT_PRICE_SCALE_MOBILE_SLIDESHOW_WIDTH
+        : RIGHT_PRICE_SCALE_MOBILE_MIN_WIDTH;
+    }
+    return wideHistory ? RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH : RIGHT_PRICE_SCALE_MIN_WIDTH;
+  }
 
   function rightOffsetBars(barCount: number): number {
-    const wide = defaultFullHistoryRef.current || fullHistoryZoomRef.current;
-    if (!wide) return RIGHT_OFFSET_BARS;
-    const scaled = Math.round(barCount * 0.12);
-    return Math.min(RIGHT_OFFSET_SLIDESHOW_MAX, Math.max(RIGHT_OFFSET_SLIDESHOW_MIN, scaled));
+    const wideHistory = defaultFullHistoryRef.current || fullHistoryZoomRef.current;
+    const narrow = isNarrowChart();
+    if (!wideHistory) return narrow ? RIGHT_OFFSET_MOBILE : RIGHT_OFFSET_BARS;
+    const ratio = narrow ? 0.04 : 0.12;
+    const min = narrow ? RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN : RIGHT_OFFSET_SLIDESHOW_MIN;
+    const max = narrow ? RIGHT_OFFSET_SLIDESHOW_MOBILE_MAX : RIGHT_OFFSET_SLIDESHOW_MAX;
+    const scaled = Math.round(barCount * ratio);
+    return Math.min(max, Math.max(min, scaled));
   }
 
   function applyRightPadding(barCount = candlesRef.current.length) {
     const offset = rightOffsetBars(barCount);
     const ts = chartRef.current?.timeScale();
     if (!ts) return;
+    const narrow = isNarrowChart();
+    chartRef.current?.applyOptions({ layout: { fontSize: narrow ? 9 : 11 } });
     ts.applyOptions({ rightOffset: offset });
     chartRef.current?.priceScale("right").applyOptions({
-      minimumWidth: defaultFullHistoryRef.current
-        ? RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH
-        : RIGHT_PRICE_SCALE_MIN_WIDTH,
+      minimumWidth: priceScaleMinWidth(),
     });
     // Re-apply after layout so fitPriceScale does not collapse the gap.
     requestAnimationFrame(() => {
@@ -186,12 +213,26 @@ export const NativeCandlesChart = forwardRef<
       const off = rightOffsetBars(n);
       chartRef.current?.timeScale().applyOptions({ rightOffset: off });
       chartRef.current?.priceScale("right").applyOptions({
-        minimumWidth: defaultFullHistoryRef.current
-          ? RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH
-          : RIGHT_PRICE_SCALE_MIN_WIDTH,
+        minimumWidth: priceScaleMinWidth(),
       });
       chartRef.current?.timeScale().scrollToRealTime();
     });
+  }
+
+  function refreshChartLayout() {
+    const series = seriesRef.current;
+    const n = candlesRef.current.length;
+    if (!series || n < 2) return;
+    applyLevelPriceLines(
+      series,
+      priceLinesRef,
+      levelsRef.current,
+      visualFocusRef.current,
+      isNarrowChart(),
+    );
+    applyRightPadding(n);
+    if (fullHistoryZoomRef.current) applyFullHistoryZoom(n);
+    else applyDefaultZoom(n);
   }
 
   /** Show recent sessions by default; older history available on scroll-left. */
@@ -285,12 +326,17 @@ export const NativeCandlesChart = forwardRef<
     const el = containerRef.current;
     if (!el) return;
 
+    if (typeof window !== "undefined") {
+      isNarrowChartRef.current = window.matchMedia(NARROW_CHART_MQ).matches;
+    }
+    const narrow = isNarrowChartRef.current;
+
     const chart = createChart(el, {
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#94a3b8",
-        fontSize: 11,
+        fontSize: narrow ? 9 : 11,
       },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.04)" },
@@ -299,15 +345,25 @@ export const NativeCandlesChart = forwardRef<
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: {
         borderColor: "rgba(255,255,255,0.08)",
-        minimumWidth: defaultFullHistory
-          ? RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH
-          : RIGHT_PRICE_SCALE_MIN_WIDTH,
+        minimumWidth: narrow
+          ? defaultFullHistory
+            ? RIGHT_PRICE_SCALE_MOBILE_SLIDESHOW_WIDTH
+            : RIGHT_PRICE_SCALE_MOBILE_MIN_WIDTH
+          : defaultFullHistory
+            ? RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH
+            : RIGHT_PRICE_SCALE_MIN_WIDTH,
       },
       timeScale: {
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: defaultFullHistory ? RIGHT_OFFSET_SLIDESHOW_MIN : RIGHT_OFFSET_BARS,
+        rightOffset: narrow
+          ? defaultFullHistory
+            ? RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN
+            : RIGHT_OFFSET_MOBILE
+          : defaultFullHistory
+            ? RIGHT_OFFSET_SLIDESHOW_MIN
+            : RIGHT_OFFSET_BARS,
         fixRightEdge: false,
         minimumHeight: defaultFullHistory ? 30 : 28,
         ticksVisible: true,
@@ -349,6 +405,20 @@ export const NativeCandlesChart = forwardRef<
     };
   }, []);
 
+  // Re-fit candles + axis when crossing the mobile breakpoint.
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW_CHART_MQ);
+    const onChange = () => {
+      const next = mq.matches;
+      if (next === isNarrowChartRef.current) return;
+      isNarrowChartRef.current = next;
+      refreshChartLayout();
+    };
+    isNarrowChartRef.current = mq.matches;
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   function applyCandlesToChart(
     data: CandlestickData[],
     isPoll: boolean,
@@ -357,7 +427,13 @@ export const NativeCandlesChart = forwardRef<
     if (!series) return false;
     series.setData(data);
     syncZoneBands(data, levelsRef.current);
-    applyLevelPriceLines(series, priceLinesRef, levelsRef.current, visualFocusRef.current);
+    applyLevelPriceLines(
+      series,
+      priceLinesRef,
+      levelsRef.current,
+      visualFocusRef.current,
+      isNarrowChart(),
+    );
     fitPriceScale();
     if (!isPoll) {
       if (fullHistoryZoomRef.current) applyFullHistoryZoom(data.length);
@@ -384,7 +460,7 @@ export const NativeCandlesChart = forwardRef<
     if (!series) return;
     series.setData([]);
     syncZoneBands([], null);
-    applyLevelPriceLines(series, priceLinesRef, null);
+    applyLevelPriceLines(series, priceLinesRef, null, null, isNarrowChart());
   }
 
   // Apply parent-provided candles (learn guide shares one fetch across sections).
@@ -536,7 +612,13 @@ export const NativeCandlesChart = forwardRef<
     if (loadedForSymbolRef.current !== symbol) return;
 
     syncZoneBands(candlesRef.current, levels);
-    applyLevelPriceLines(series, priceLinesRef, levels, visualFocus);
+    applyLevelPriceLines(
+      series,
+      priceLinesRef,
+      levels,
+      visualFocus,
+      isNarrowChart(),
+    );
     fitPriceScale();
     applyRightPadding(candlesRef.current.length);
   }, [levels, defaultFullHistory, symbol, visualFocus]);

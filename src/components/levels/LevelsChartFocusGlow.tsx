@@ -151,13 +151,13 @@ export function LevelsChartFocusGlow({
       {glows.map((glow, i) => (
         <div
           key={i}
-          className="absolute left-2 right-[4.5rem] rounded-md transition-all duration-300"
+          className="absolute left-2 right-[5.25rem] md:right-[9.5rem] rounded-md transition-all duration-300"
           style={{ top: glow.top, height: glow.height, ...glow.style }}
         />
       ))}
       {focus === "maxPain" ? (
         <div
-          className="absolute left-2 right-[4.5rem] pointer-events-none"
+          className="absolute left-2 right-[5.25rem] md:right-[9.5rem] pointer-events-none"
           style={{
             top: glows[0]?.top ?? 0,
             height: glows[0]?.height ?? 0,

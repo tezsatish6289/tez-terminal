@@ -135,11 +135,27 @@ export function bandFillForFocus(
   };
 }
 
+const COMPACT_PRICE_LINE_TITLES: Record<string, string> = {
+  "Resistance H": "Res H",
+  "Resistance L": "Res L",
+  "Call OI peak": "Call OI",
+  "Resistance Break": "Res Brk",
+  "Support H": "Sup H",
+  "Support L": "Sup L",
+  "Put OI peak": "Put OI",
+  "Support Break": "Sup Brk",
+};
+
+function priceLineTitle(title: string, compactTitles: boolean): string {
+  return compactTitles ? (COMPACT_PRICE_LINE_TITLES[title] ?? title) : title;
+}
+
 export function applyLevelPriceLines(
   series: ISeriesApi<"Candlestick">,
   priceLinesRef: { current: IPriceLine[] },
   levels: PublicLevels | null | undefined,
   visualFocus?: LevelVisualFocus | null,
+  compactTitles = false,
 ): void {
   for (const line of priceLinesRef.current) series.removePriceLine(line);
   priceLinesRef.current = [];
@@ -165,7 +181,7 @@ export function applyLevelPriceLines(
         lineWidth,
         lineStyle: style,
         axisLabelVisible: true,
-        title,
+        title: priceLineTitle(title, compactTitles),
       }),
     );
   };

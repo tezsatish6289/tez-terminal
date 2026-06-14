@@ -20,6 +20,11 @@ import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_LEVELS_MAIN } from "@/lib/fnoninja/responsive";
+import {
+  LEVELS_CHART_COLUMN,
+  LEVELS_CHART_NEWS_ROW,
+  LEVELS_NEWS_COLUMN,
+} from "@/lib/levels/layout-responsive";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { isFnoNinjaAppContext, requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
@@ -208,8 +213,8 @@ function ChartContent() {
           </p>
         ) : null}
 
-        <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-2 sm:gap-3 mt-1.5 sm:mt-2">
-          <div className="w-full lg:flex-[7] lg:min-w-0 min-h-0 flex flex-col">
+        <div className={`${LEVELS_CHART_NEWS_ROW} w-full mt-1.5 sm:mt-2`}>
+          <div className={LEVELS_CHART_COLUMN}>
             <LevelsTradingViewChart
               className="flex-1 min-h-0 h-full"
               config={config}
@@ -232,7 +237,7 @@ function ChartContent() {
           <LevelsNewsPanel
             scope={scope ?? "stock"}
             symbol={symbol}
-            className="w-full lg:flex-[3] lg:min-w-0 min-h-[18rem] lg:min-h-0"
+            className={LEVELS_NEWS_COLUMN}
           />
         </div>
         </div>

@@ -4,6 +4,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { ZonePriceLadder, formatHeroPrice, type PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { FNO_BG_CANVAS, FNO_FAVSLIDE_ACCENT } from "@/lib/fnoninja/theme";
+import {
+  LEVELS_SLIDESHOW_CHART_MIN,
+  LEVELS_SLIDESHOW_NEWS_MIN,
+  LEVELS_SLIDESHOW_PANEL_ROW,
+  LEVELS_SPLIT_DIVIDER,
+} from "@/lib/levels/layout-responsive";
 
 export type LevelsStripAccent = "liveslide" | "favslide";
 
@@ -365,7 +371,7 @@ export function LevelsChartPanel({
 function ColumnDivider() {
   return (
     <div
-      className="hidden lg:block w-px shrink-0 self-stretch"
+      className={LEVELS_SPLIT_DIVIDER}
       style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
       aria-hidden
     />
@@ -450,15 +456,15 @@ export function LevelsTripleColumnShell({
   chartChrome?: ReactNode;
 }) {
   if (listAboveChart) {
-    const chartMinH = compactHeight ? "min-h-0" : "min-h-[min(40dvh,360px)] lg:min-h-0";
-    const newsMinH = compactHeight ? "min-h-0" : "min-h-[20rem] lg:min-h-0";
+    const chartMinH = compactHeight ? "min-h-0" : LEVELS_SLIDESHOW_CHART_MIN;
+    const newsMinH = compactHeight ? "min-h-0" : LEVELS_SLIDESHOW_NEWS_MIN;
     return (
       <div
-        className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4 items-stretch pt-2 sm:pt-3 overflow-hidden min-w-0"
+        className={LEVELS_SLIDESHOW_PANEL_ROW}
         style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
       >
         <div
-          className={`flex flex-col min-h-0 min-w-0 w-full ${news ? "lg:flex-[7] lg:min-w-0" : "lg:flex-1"}`}
+          className={`flex flex-col min-h-0 min-w-0 w-full ${news ? "md:flex-[7] md:min-w-0" : "md:flex-1"}`}
         >
           {chartChrome ? <div className="shrink-0 mb-1.5 sm:mb-2 min-w-0">{chartChrome}</div> : null}
           <div className={`flex flex-col flex-1 ${chartMinH} min-w-0`}>
@@ -468,7 +474,7 @@ export function LevelsTripleColumnShell({
         {news && (
           <>
             <ColumnDivider />
-            <div className={`flex flex-col ${newsMinH} w-full lg:flex-[3] lg:min-w-0`}>
+            <div className={`flex flex-col h-full ${newsMinH} w-full md:flex-[3] md:min-w-0`}>
               {news}
             </div>
           </>

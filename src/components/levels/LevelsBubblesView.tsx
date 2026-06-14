@@ -219,12 +219,12 @@ export function LevelsBubblesView({
   }, []);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 h-full">
+    <div className="flex flex-col flex-1 min-h-0 h-full max-md:flex-none max-md:min-h-[min(62dvh,560px)]">
       <style dangerouslySetInnerHTML={{ __html: BUBBLE_ANIM_CSS }} />
 
       <div
         ref={containerRef}
-        className="relative flex-1 min-h-0 rounded-xl overflow-hidden"
+        className="relative flex-1 min-h-0 max-md:min-h-[min(58dvh,520px)] rounded-xl overflow-hidden"
         style={{
           ...FNO_BUBBLE_MAP_SURFACE_STYLE,
           border: "1px solid rgba(255,255,255,0.08)",

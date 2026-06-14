@@ -119,14 +119,14 @@ export function LevelsSymbolList({
   const stripScrollClass =
     layout === "horizontal"
       ? runnerMode
-        ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pr-0.5 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        ? "flex flex-row gap-1.5 max-md:flex-nowrap max-md:overflow-visible md:flex-1 md:min-h-0 md:overflow-x-auto md:overflow-y-hidden md:pr-0.5 md:snap-x md:snap-mandatory md:scroll-smooth md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden"
         : "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin]"
       : layout === "responsive"
         ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:snap-none lg:pb-0"
         : "flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-0.5";
 
   return (
-    <aside className="flex flex-col min-h-0 w-full h-full">
+    <aside className="flex flex-col min-h-0 w-full h-full max-md:h-auto max-md:shrink-0">
       {header}
       {countLabel && (
         <p
@@ -136,7 +136,7 @@ export function LevelsSymbolList({
           {countLabel}
         </p>
       )}
-      <div className={runnerMode && layout === "horizontal" ? "relative flex-1 min-h-0 min-w-0" : "flex flex-col flex-1 min-h-0"}>
+      <div className={runnerMode && layout === "horizontal" ? "relative flex-1 min-h-0 min-w-0 max-md:flex-none max-md:w-auto" : "flex flex-col flex-1 min-h-0"}>
         {runnerMode && layout === "horizontal" ? (
           <>
             <div
@@ -463,7 +463,7 @@ export function LevelsTripleColumnShell({
 
   return (
     <div
-      className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4 items-stretch pt-2 sm:pt-3 overflow-hidden min-w-0"
+      className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4 items-stretch pt-2 sm:pt-3 max-md:overflow-visible md:overflow-hidden min-w-0"
       style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
     >
       <div className="order-2 lg:order-none flex flex-col min-h-0 w-full min-w-0 max-h-[min(32dvh,240px)] sm:max-h-[min(36dvh,280px)] lg:max-h-none lg:w-[min(220px,22vw)] lg:shrink-0 lg:max-w-[240px]">

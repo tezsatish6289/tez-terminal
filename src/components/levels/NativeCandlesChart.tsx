@@ -343,6 +343,14 @@ export const NativeCandlesChart = forwardRef<
         horzLines: { color: "rgba(255,255,255,0.04)" },
       },
       crosshair: { mode: CrosshairMode.Normal },
+      handleScroll: narrow
+        ? {
+            mouseWheel: true,
+            pressedMouseMove: true,
+            horzTouchDrag: true,
+            vertTouchDrag: false,
+          }
+        : true,
       rightPriceScale: {
         borderColor: "rgba(255,255,255,0.08)",
         minimumWidth: narrow
@@ -412,6 +420,16 @@ export const NativeCandlesChart = forwardRef<
       const next = mq.matches;
       if (next === isNarrowChartRef.current) return;
       isNarrowChartRef.current = next;
+      chartRef.current?.applyOptions({
+        handleScroll: next
+          ? {
+              mouseWheel: true,
+              pressedMouseMove: true,
+              horzTouchDrag: true,
+              vertTouchDrag: false,
+            }
+          : true,
+      });
       refreshChartLayout();
     };
     isNarrowChartRef.current = mq.matches;

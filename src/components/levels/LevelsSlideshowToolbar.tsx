@@ -12,7 +12,7 @@ import {
   type BubbleMapFilter,
   type SlideshowMapFilter,
 } from "@/lib/zones/bubble-map-filter";
-import { LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS } from "@/components/levels/levels-symbol-strip";
+import { LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS, LEVELS_MOBILE_HSTRIP_SCROLL_CLASS } from "@/components/levels/levels-symbol-strip";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
 
 const FILTER_OPTIONS: {
@@ -180,41 +180,45 @@ export function LevelsSlideshowToolbar({
 
   if (filtersOnly) {
     return (
-      <div
-        className={`shrink-0 flex items-stretch gap-1.5 sm:gap-2 mb-1.5 px-0.5 min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
-      >
-        <LevelsSlideshowStripControls
-          zoneFilter={zoneFilter ?? "all"}
-          onZoneFilterChange={onZoneFilterChange ?? (() => {})}
-          filterCounts={
-            filterCounts ?? {
-              all: 0,
-              bull: 0,
-              bear: 0,
-              near_bull: 0,
-              near_bear: 0,
+      <div className={`shrink-0 mb-1.5 px-0.5 min-w-0 ${LEVELS_MOBILE_HSTRIP_SCROLL_CLASS}`}>
+        <div
+          className={`flex items-stretch gap-1.5 sm:gap-2 max-md:flex-nowrap max-md:w-max md:min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
+        >
+          <LevelsSlideshowStripControls
+            zoneFilter={zoneFilter ?? "all"}
+            onZoneFilterChange={onZoneFilterChange ?? (() => {})}
+            filterCounts={
+              filterCounts ?? {
+                all: 0,
+                bull: 0,
+                bear: 0,
+                near_bull: 0,
+                near_bear: 0,
+              }
             }
-          }
-          showFilter={false}
-          mapFilter={
-            slideshowFilter != null &&
-            onSlideshowFilterChange &&
-            slideshowFilterCounts
-              ? {
-                  filter: slideshowFilter,
-                  onChange: onSlideshowFilterChange,
-                  counts: slideshowFilterCounts,
-                }
-              : undefined
-          }
-          slideshowControl={slideshowControl}
-          viewToggle={viewModeToggle}
-          slideModePill={slideModePill}
-          stripTrailing={stripTrailing}
-        />
-        {symbolStrip ? (
-          <div className="flex-1 min-w-0 min-h-0 h-full">{symbolStrip}</div>
-        ) : null}
+            showFilter={false}
+            mapFilter={
+              slideshowFilter != null &&
+              onSlideshowFilterChange &&
+              slideshowFilterCounts
+                ? {
+                    filter: slideshowFilter,
+                    onChange: onSlideshowFilterChange,
+                    counts: slideshowFilterCounts,
+                  }
+                : undefined
+            }
+            slideshowControl={slideshowControl}
+            viewToggle={viewModeToggle}
+            slideModePill={slideModePill}
+            stripTrailing={stripTrailing}
+          />
+          {symbolStrip ? (
+            <div className="flex-1 min-w-0 min-h-0 h-full max-md:flex-none max-md:shrink-0 max-md:w-auto">
+              {symbolStrip}
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   }

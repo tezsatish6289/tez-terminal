@@ -793,7 +793,7 @@ export default function LevelsPage() {
       listAboveChart?: boolean;
     },
   ) => (
-    <div className="flex flex-col flex-1 min-h-0 max-md:overflow-visible md:overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
       <LevelsTripleColumnShell
         list={opts?.listAboveChart ? <></> : list}
         levels={levels}
@@ -802,8 +802,8 @@ export default function LevelsPage() {
         listAboveChart={opts?.listAboveChart}
         chartChrome={opts?.listAboveChart ? slideshowChartChrome : undefined}
         chart={
-          <div className="flex flex-col h-full min-h-0 min-w-0">
-            <div className="flex flex-1 min-h-0 min-w-0 flex-col">{tvChartColumn}</div>
+          <div className="flex flex-col max-md:flex-none max-md:min-h-0 h-full min-h-0 min-w-0">
+            <div className="flex flex-1 min-h-0 min-w-0 flex-col max-md:flex-none">{tvChartColumn}</div>
             {opts?.chartFooter ? (
               <div className="shrink-0 min-w-0">{opts.chartFooter}</div>
             ) : null}
@@ -1020,8 +1020,8 @@ export default function LevelsPage() {
     );
 
   const levelsWorkspace = (
-    <div className="flex flex-col flex-1 min-h-0 max-md:overflow-visible md:overflow-hidden">
-      <div className="flex flex-col flex-1 min-h-0 max-md:overflow-visible md:overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
         {levelsSlideshowToolbar}
         {levelsMainPane}
       </div>
@@ -1030,7 +1030,11 @@ export default function LevelsPage() {
 
   return (
     <main
-      className={`${isFnoNinjaHost ? FNO_LEVELS_MAIN : `${FB_FULL_HEIGHT_MAIN} shrink-0`} min-w-0`}
+      className={`${
+        isFnoNinjaHost
+          ? FNO_LEVELS_MAIN
+          : `${FB_FULL_HEIGHT_MAIN} max-md:h-auto max-md:min-h-0 max-md:overflow-visible shrink-0`
+      } min-w-0`}
       style={FNO_APP_SURFACE_STYLE}
     >
       {isFnoNinjaHost ? (
@@ -1038,7 +1042,7 @@ export default function LevelsPage() {
           <FnoNinjaLiveslideWalkthroughBridge onPrepare={prepareSlideshowWalkthrough} />
         </Suspense>
       ) : null}
-      <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col max-md:overflow-visible md:overflow-hidden`}>
+      <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden`}>
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />

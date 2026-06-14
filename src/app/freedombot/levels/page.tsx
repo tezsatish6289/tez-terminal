@@ -793,7 +793,7 @@ export default function LevelsPage() {
       listAboveChart?: boolean;
     },
   ) => (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 max-md:overflow-visible md:overflow-hidden">
       <LevelsTripleColumnShell
         list={opts?.listAboveChart ? <></> : list}
         levels={levels}
@@ -1018,8 +1018,8 @@ export default function LevelsPage() {
     );
 
   const levelsWorkspace = (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 max-md:overflow-visible md:overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 max-md:overflow-visible md:overflow-hidden">
         {levelsSlideshowToolbar}
         {levelsMainPane}
       </div>
@@ -1036,7 +1036,7 @@ export default function LevelsPage() {
           <FnoNinjaLiveslideWalkthroughBridge onPrepare={prepareSlideshowWalkthrough} />
         </Suspense>
       ) : null}
-      <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
+      <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col max-md:overflow-visible md:overflow-hidden`}>
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />

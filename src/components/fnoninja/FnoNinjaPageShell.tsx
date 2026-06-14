@@ -23,7 +23,11 @@ export function FnoNinjaPageShell({ children }: { children: React.ReactNode }) {
     >
       <FnoNinjaNav />
       <div
-        className={`${FB_VIEWPORT_MAIN} flex flex-col flex-1 min-h-0 min-w-0 ${isLevelsApp ? FNO_APP_TOP_GAP_CLASS : ""}`}
+        className={`${FB_VIEWPORT_MAIN} flex flex-col min-w-0 ${
+          isLevelsApp
+            ? `${FNO_APP_TOP_GAP_CLASS} max-md:flex-none max-md:overflow-visible md:flex-1 md:min-h-0`
+            : "flex-1 min-h-0"
+        }`}
       >
         {children}
       </div>

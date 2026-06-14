@@ -11,13 +11,13 @@ export const FNO_NAV_CLEARANCE_PX = 72;
 /** Breathing room below the fixed nav on full-screen analytics surfaces. */
 export const FNO_APP_TOP_GAP_CLASS = "pt-2";
 
-/** Levels/chart main — fills the flex viewport below nav (used with FNO_LEVELS_PAGE_ROOT). */
+/** Levels/chart main — fills viewport on desktop; scrollable on mobile. */
 export const FNO_LEVELS_MAIN =
-  "flex-1 min-h-0 w-full min-w-0 overflow-hidden flex flex-col";
+  "flex-1 min-h-0 w-full min-w-0 flex flex-col max-md:overflow-visible md:overflow-hidden";
 
-/** /levels and /levels/chart — lock to viewport height (footer hidden). */
+/** /levels and /levels/chart — locked viewport on desktop; page scroll on mobile. */
 export const FNO_LEVELS_PAGE_ROOT =
-  "h-dvh max-h-dvh overflow-hidden w-full flex flex-col";
+  "min-h-dvh w-full flex flex-col max-md:overflow-y-auto max-md:overflow-x-hidden md:h-dvh md:max-h-dvh md:overflow-hidden";
 
 export const FNO_CONTENT_SHELL = "max-w-[1100px] mx-auto w-full px-4 sm:px-6";
 

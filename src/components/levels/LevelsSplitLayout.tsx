@@ -4,11 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { ZonePriceLadder, formatHeroPrice, type PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { FNO_BG_CANVAS, FNO_FAVSLIDE_ACCENT } from "@/lib/fnoninja/theme";
-import {
-  LEVELS_SLIDESHOW_CHART_COLUMN,
-  LEVELS_SLIDESHOW_NEWS_COLUMN,
-  LEVELS_SLIDESHOW_PANEL_ROW,
-} from "@/lib/levels/layout-responsive";
+import { LevelsChartNewsSplit } from "@/components/levels/LevelsChartNewsSplit";
 
 export type LevelsStripAccent = "liveslide" | "favslide";
 
@@ -456,20 +452,12 @@ export function LevelsTripleColumnShell({
 }) {
   if (listAboveChart) {
     return (
-      <div
-        className={LEVELS_SLIDESHOW_PANEL_ROW}
-        style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
-      >
-        <div className={news ? LEVELS_SLIDESHOW_CHART_COLUMN : "flex flex-col flex-1 min-h-0 min-w-0 w-full h-full overflow-hidden"}>
-          {chartChrome ? <div className="shrink-0 mb-1.5 sm:mb-2 min-w-0">{chartChrome}</div> : null}
-          <div className="flex flex-col flex-1 min-h-0 min-w-0">
-            {chart}
-          </div>
-        </div>
-        {news && (
-          <div className={LEVELS_SLIDESHOW_NEWS_COLUMN}>{news}</div>
-        )}
-      </div>
+      <LevelsChartNewsSplit
+        className="pt-2 sm:pt-3 border-t border-white/[0.04]"
+        chartHeader={chartChrome}
+        chart={chart}
+        news={news}
+      />
     );
   }
 

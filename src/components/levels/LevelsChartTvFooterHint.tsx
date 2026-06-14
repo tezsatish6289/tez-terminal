@@ -37,7 +37,7 @@ export function LevelsChartTvFooterHint({
     <button
       type="button"
       onClick={() => window.open(webChartUrl, "_blank", "noopener,noreferrer")}
-      className="absolute bottom-[28px] left-0 right-0 z-20 flex justify-center px-3 pointer-events-auto"
+      className="absolute bottom-[28px] left-0 right-0 z-20 hidden md:flex justify-center px-3 pointer-events-auto"
       aria-label="Open full chart on TradingView in a new tab. Press T or click."
     >
       <span

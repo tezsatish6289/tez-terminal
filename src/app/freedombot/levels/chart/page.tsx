@@ -19,12 +19,8 @@ import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradin
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
+import { LevelsChartNewsSplit } from "@/components/levels/LevelsChartNewsSplit";
 import { FNO_LEVELS_MAIN } from "@/lib/fnoninja/responsive";
-import {
-  LEVELS_CHART_COLUMN,
-  LEVELS_CHART_NEWS_ROW,
-  LEVELS_NEWS_COLUMN,
-} from "@/lib/levels/layout-responsive";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { isFnoNinjaAppContext, requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
@@ -213,33 +209,34 @@ function ChartContent() {
           </p>
         ) : null}
 
-        <div className={`${LEVELS_CHART_NEWS_ROW} w-full mt-1.5 sm:mt-2`}>
-          <div className={LEVELS_CHART_COLUMN}>
-            <LevelsTradingViewChart
-              className="flex-1 min-h-0 h-full"
-              config={config}
-              ticker={symbol}
-              levels={levels}
-              loading={loading}
-              hideChartShortcuts
-              defaultFullHistory
-              showHeader={false}
-              nativeChartRef={nativeChartRef}
-              onFullHistoryZoomChange={setChartFullHistory}
-            />
-            <LevelsChartMetaFooter
-              slideCount={1}
-              activeIndex={0}
-              onGoTo={() => {}}
-              zonesUpdatedLabel={zonesUpdatedLabel}
-            />
-          </div>
-          <LevelsNewsPanel
-            scope={scope ?? "stock"}
-            symbol={symbol}
-            className={LEVELS_NEWS_COLUMN}
-          />
-        </div>
+        <LevelsChartNewsSplit
+          className="mt-1.5 sm:mt-2"
+          chart={
+            <>
+              <LevelsTradingViewChart
+                className="flex-1 min-h-0 h-full"
+                config={config}
+                ticker={symbol}
+                levels={levels}
+                loading={loading}
+                hideChartShortcuts
+                defaultFullHistory
+                showHeader={false}
+                nativeChartRef={nativeChartRef}
+                onFullHistoryZoomChange={setChartFullHistory}
+              />
+              <LevelsChartMetaFooter
+                slideCount={1}
+                activeIndex={0}
+                onGoTo={() => {}}
+                zonesUpdatedLabel={zonesUpdatedLabel}
+              />
+            </>
+          }
+          news={
+            <LevelsNewsPanel scope={scope ?? "stock"} symbol={symbol} className="h-full" />
+          }
+        />
         </div>
       </div>
     </main>

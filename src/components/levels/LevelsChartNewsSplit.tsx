@@ -40,8 +40,8 @@ export function LevelsChartNewsSplit({
         <div className="flex flex-col flex-1 min-h-0 min-w-0 h-full">{chart}</div>
       </div>
 
-      {/* News — mobile: below chart (scroll to reach); md+: right 40% */}
-      <div className="flex flex-col min-w-0 w-full shrink-0 min-h-[min(40dvh,360px)] md:min-h-0 md:h-full md:w-[40%] md:overflow-hidden md:border-l md:border-white/[0.06]">
+      {/* News — mobile: below chart (page scroll); md+: right 40% rail */}
+      <div className="flex flex-col min-w-0 w-full shrink-0 min-h-[min(44dvh,400px)] max-md:h-auto md:min-h-0 md:h-full md:w-[40%] md:overflow-hidden md:border-l md:border-white/[0.06]">
         {news}
       </div>
     </div>

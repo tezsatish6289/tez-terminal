@@ -423,6 +423,7 @@ export function LevelsSlideshowStripControls({
   slideModePill,
   showFilter = true,
   stripTrailing,
+  className = "",
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -456,6 +457,7 @@ export function LevelsSlideshowStripControls({
   showFilter?: boolean;
   /** Extra icon boxes after Bubbles (e.g. favslide add). */
   stripTrailing?: React.ReactNode;
+  className?: string;
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const activeMeta = FILTER_OPTIONS.find((o) => o.key === zoneFilter) ?? FILTER_OPTIONS[0];
@@ -489,7 +491,7 @@ export function LevelsSlideshowStripControls({
   }, [slideshowControl, viewToggle]);
 
   return (
-    <div className={`flex items-stretch gap-1.5 shrink-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}>
+    <div className={`flex items-stretch gap-1.5 shrink-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS} ${className}`.trim()}>
       {search ? (
         <StripSearchIconBox value={search.value} onChange={search.onChange} />
       ) : null}

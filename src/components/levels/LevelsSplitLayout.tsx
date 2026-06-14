@@ -126,7 +126,7 @@ export function LevelsSymbolList({
         : "flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-0.5";
 
   return (
-    <aside className="flex flex-col min-h-0 w-full h-full max-md:h-auto max-md:shrink-0">
+    <aside className="flex flex-col min-h-0 w-full max-md:w-auto max-md:shrink-0 h-full max-md:h-auto">
       {header}
       {countLabel && (
         <p
@@ -140,13 +140,13 @@ export function LevelsSymbolList({
         {runnerMode && layout === "horizontal" ? (
           <>
             <div
-              className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10"
+              className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10 max-md:hidden"
               style={{
                 background: `linear-gradient(to right, ${FNO_BG_CANVAS} 0%, ${FNO_BG_CANVAS} 35%, transparent 100%)`,
               }}
             />
             <div
-              className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10"
+              className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10 max-md:hidden"
               style={{
                 background: `linear-gradient(to left, ${FNO_BG_CANVAS} 0%, ${FNO_BG_CANVAS} 35%, transparent 100%)`,
               }}
@@ -172,7 +172,7 @@ export function LevelsSymbolList({
               key={entry.id}
               data-strip-index={i}
               onClick={() => onSelect(i)}
-              className={`flex flex-col gap-1 px-3 py-2 rounded-lg text-left shrink-0 h-full ${stripCard} ${
+              className={`flex flex-col gap-1 px-3 py-2 rounded-lg text-left shrink-0 h-12 md:h-full ${stripCard} ${
                 runnerMode ? "transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out" : "transition-all"
               }`}
               style={{

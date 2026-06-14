@@ -721,11 +721,15 @@ export default function LevelsPage() {
 
   const slideshowNews =
     inZoneActive != null && activeTicker ? (
-      <div data-liveslide-tour="news" data-favslide-tour="news" className="h-full min-h-0">
+      <div
+        data-liveslide-tour="news"
+        data-favslide-tour="news"
+        className="h-full min-h-0 max-md:h-auto max-md:min-h-[min(44dvh,400px)]"
+      >
         <LevelsNewsPanel
           scope={inZoneActive.scope}
           symbol={activeTicker}
-          className="h-full"
+          className="h-full max-md:h-auto"
         />
       </div>
     ) : null;
@@ -793,7 +797,7 @@ export default function LevelsPage() {
       listAboveChart?: boolean;
     },
   ) => (
-    <div className="flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden max-md:pb-6">
       <LevelsTripleColumnShell
         list={opts?.listAboveChart ? <></> : list}
         levels={levels}
@@ -802,10 +806,10 @@ export default function LevelsPage() {
         listAboveChart={opts?.listAboveChart}
         chartChrome={opts?.listAboveChart ? slideshowChartChrome : undefined}
         chart={
-          <div className="flex flex-col max-md:flex-none max-md:min-h-0 h-full min-h-0 min-w-0">
+          <div className="flex flex-col max-md:flex-none max-md:min-h-0 h-full min-h-0 min-w-0 max-md:touch-pan-y">
             <div className="flex flex-1 min-h-0 min-w-0 flex-col max-md:flex-none">{tvChartColumn}</div>
             {opts?.chartFooter ? (
-              <div className="shrink-0 min-w-0">{opts.chartFooter}</div>
+              <div className="shrink-0 min-w-0 max-md:pb-1">{opts.chartFooter}</div>
             ) : null}
           </div>
         }
@@ -938,7 +942,11 @@ export default function LevelsPage() {
       filtersOnly={isSlideView}
       symbolStrip={
         isSlideView && slideshowSymbolStrip ? (
-          <div data-liveslide-tour="strip" data-favslide-tour="strip" className="h-full min-w-0 flex-1">
+          <div
+            data-liveslide-tour="strip"
+            data-favslide-tour="strip"
+            className="h-full min-w-0 flex-1 max-md:flex-none max-md:shrink-0 max-md:w-auto"
+          >
             {slideshowSymbolStrip}
           </div>
         ) : undefined

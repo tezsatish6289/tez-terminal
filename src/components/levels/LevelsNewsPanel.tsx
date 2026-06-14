@@ -125,7 +125,7 @@ export function LevelsNewsPanel({
 
   return (
     <section
-      className={`flex flex-col min-h-0 h-full rounded-xl overflow-hidden ${className}`.trim()}
+      className={`flex flex-col min-h-0 h-full max-md:h-auto max-md:overflow-visible rounded-xl overflow-hidden ${className}`.trim()}
       style={{
         border: "1px solid rgba(255,255,255,0.06)",
         backgroundColor: "rgba(0,0,0,0.35)",
@@ -164,7 +164,7 @@ export function LevelsNewsPanel({
         ) : null}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5 [scrollbar-width:thin]">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5 [scrollbar-width:thin] max-md:overflow-visible max-md:flex-none">
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
             <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#60a5fa" }} />

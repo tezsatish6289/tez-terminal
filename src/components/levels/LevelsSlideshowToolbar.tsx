@@ -212,9 +212,10 @@ export function LevelsSlideshowToolbar({
             viewToggle={viewModeToggle}
             slideModePill={slideModePill}
             stripTrailing={stripTrailing}
+            className="max-md:shrink-0 max-md:relative max-md:z-10"
           />
           {symbolStrip ? (
-            <div className="flex-1 min-w-0 min-h-0 h-full max-md:flex-none max-md:shrink-0 max-md:w-auto">
+            <div className="flex-1 min-w-0 min-h-0 h-full max-md:flex-none max-md:shrink-0 max-md:w-auto max-md:pl-0.5">
               {symbolStrip}
             </div>
           ) : null}

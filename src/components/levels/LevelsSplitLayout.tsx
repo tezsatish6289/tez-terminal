@@ -8,7 +8,6 @@ import {
   LEVELS_SLIDESHOW_CHART_COLUMN,
   LEVELS_SLIDESHOW_NEWS_COLUMN,
   LEVELS_SLIDESHOW_PANEL_ROW,
-  LEVELS_SPLIT_DIVIDER,
 } from "@/lib/levels/layout-responsive";
 
 export type LevelsStripAccent = "liveslide" | "favslide";
@@ -371,7 +370,7 @@ export function LevelsChartPanel({
 function ColumnDivider() {
   return (
     <div
-      className={LEVELS_SPLIT_DIVIDER}
+      className="hidden lg:block w-px shrink-0 self-stretch"
       style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
       aria-hidden
     />
@@ -468,10 +467,7 @@ export function LevelsTripleColumnShell({
           </div>
         </div>
         {news && (
-          <>
-            <ColumnDivider />
-            <div className={LEVELS_SLIDESHOW_NEWS_COLUMN}>{news}</div>
-          </>
+          <div className={LEVELS_SLIDESHOW_NEWS_COLUMN}>{news}</div>
         )}
       </div>
     );

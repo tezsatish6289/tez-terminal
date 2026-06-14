@@ -40,10 +40,7 @@ import {
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import {
   FNO_LEVELS_MAIN,
-  FNO_LEVELS_SLIDE_MAIN,
   FNO_MOBILE_SLIDE_BODY_MIN_CLASS,
-  FNO_MOBILE_SLIDE_SCROLL_CLASS,
-  FNO_MOBILE_SLIDE_WORKSPACE_CLASS,
 } from "@/lib/fnoninja/responsive";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import {
@@ -1040,19 +1037,9 @@ export default function LevelsPage() {
     );
 
   const levelsWorkspace = (
-    <div
-      className={
-        isSlideView
-          ? FNO_MOBILE_SLIDE_WORKSPACE_CLASS
-          : "flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden"
-      }
-    >
+    <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
       <div className="shrink-0">{levelsSlideshowToolbar}</div>
-      <div
-        className={`flex flex-col flex-1 min-h-0 w-full min-w-0 md:overflow-hidden ${
-          isSlideView ? FNO_MOBILE_SLIDE_SCROLL_CLASS : "max-md:flex-none max-md:overflow-visible"
-        }`}
-      >
+      <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
         {levelsMainPane}
       </div>
     </div>
@@ -1062,9 +1049,7 @@ export default function LevelsPage() {
     <main
       className={`${
         isFnoNinjaHost
-          ? isSlideView
-            ? FNO_LEVELS_SLIDE_MAIN
-            : FNO_LEVELS_MAIN
+          ? FNO_LEVELS_MAIN
           : `${FB_FULL_HEIGHT_MAIN} max-md:h-auto max-md:min-h-0 max-md:overflow-visible shrink-0`
       } min-w-0`}
       style={FNO_APP_SURFACE_STYLE}
@@ -1074,7 +1059,7 @@ export default function LevelsPage() {
           <FnoNinjaLiveslideWalkthroughBridge onPrepare={prepareSlideshowWalkthrough} />
         </Suspense>
       ) : null}
-      <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col md:overflow-hidden ${isSlideView ? "max-md:min-h-0 max-md:overflow-hidden" : "max-md:flex-none max-md:overflow-visible"}`}>
+      <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden`}>
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />

@@ -83,9 +83,9 @@ export function FnoNinjaChartLoginGate({
     if (overlay) {
       return (
         <div
-          className={`relative flex flex-1 min-h-0 w-full flex-col overflow-hidden ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
+          className={`relative flex flex-1 min-h-0 w-full flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
         >
-          <div className="flex flex-1 min-h-0 flex-col pointer-events-none select-none opacity-90">
+          <div className="flex flex-1 min-h-0 flex-col max-md:flex-none max-md:overflow-visible pointer-events-none select-none opacity-90">
             {children}
           </div>
           <div className="fixed inset-0 z-[180] flex items-center justify-center">
@@ -108,7 +108,7 @@ export function FnoNinjaChartLoginGate({
     return (
       <>
         <div
-          className={`flex flex-1 min-h-0 w-full flex-col overflow-hidden pointer-events-none select-none ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
+          className={`flex flex-1 min-h-0 w-full flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden pointer-events-none select-none ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
         >
           {children}
         </div>

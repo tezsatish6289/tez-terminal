@@ -1,28 +1,31 @@
 /**
- * Levels chart + news layout — 70% chart : 30% news via CSS grid (not flex content sizing).
- * Stacked on phones; side-by-side from tablet (Tailwind `md`, 768px).
+ * Levels chart + news — chart left 60%, news right 40%.
+ * Phones: stacked (chart top, news bottom). Tablet+ (640px): side-by-side.
+ * Uses standard Tailwind grid-cols-5 / col-span-* (reliable in production builds).
  */
 
-/** Chart + news grid — fills remaining viewport below chrome. */
-export const LEVELS_CHART_NEWS_ROW =
-  "grid flex-1 min-h-0 min-w-0 gap-2 sm:gap-3 md:gap-4 grid-cols-1 grid-rows-[minmax(0,7fr)_minmax(0,3fr)] md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] md:grid-rows-1";
+const CHART_NEWS_GRID =
+  "grid flex-1 min-h-0 min-w-0 gap-2 sm:gap-3 md:gap-4 grid-cols-1 grid-rows-[minmax(0,3fr)_minmax(0,2fr)] sm:grid-cols-5 sm:grid-rows-1";
 
-/** Chart cell — grid assigns ~70% width (md+) or height (phone). */
+/** Chart + news grid on symbol chart page. */
+export const LEVELS_CHART_NEWS_ROW = CHART_NEWS_GRID;
+
+/** Chart cell — left, 3/5 (60%) from sm+. */
 export const LEVELS_CHART_COLUMN =
-  "flex flex-col min-h-0 min-w-0 h-full overflow-hidden";
+  "flex flex-col min-h-0 min-w-0 h-full overflow-hidden sm:col-span-3";
 
-/** News cell — grid assigns ~30% width (md+) or height (phone). */
+/** News cell — right, 2/5 (40%) from sm+. */
 export const LEVELS_NEWS_COLUMN =
-  "flex flex-col min-h-0 min-w-0 h-full overflow-hidden md:border-l md:border-white/[0.06]";
+  "flex flex-col min-h-0 min-w-0 h-full overflow-hidden sm:col-span-2 sm:border-l sm:border-white/[0.06]";
 
-/** Slideshow shell: chart + news below strip row. */
+/** Slideshow: chart + news below strip row. */
 export const LEVELS_SLIDESHOW_PANEL_ROW =
-  "grid flex-1 min-h-0 min-w-0 gap-2 sm:gap-3 md:gap-4 items-stretch pt-2 sm:pt-3 overflow-hidden grid-cols-1 grid-rows-[minmax(0,7fr)_minmax(0,3fr)] md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] md:grid-rows-1";
+  `${CHART_NEWS_GRID} items-stretch pt-2 sm:pt-3 overflow-hidden`;
 
-/** Slideshow chart cell (~70%). */
+/** Slideshow chart cell (left 60%). */
 export const LEVELS_SLIDESHOW_CHART_COLUMN =
-  "flex flex-col min-h-0 min-w-0 h-full overflow-hidden";
+  "flex flex-col min-h-0 min-w-0 h-full overflow-hidden sm:col-span-3";
 
-/** Slideshow news cell (~30%). */
+/** Slideshow news cell (right 40%). */
 export const LEVELS_SLIDESHOW_NEWS_COLUMN =
-  "flex flex-col min-h-0 min-w-0 h-full overflow-hidden md:border-l md:border-white/[0.06]";
+  "flex flex-col min-h-0 min-w-0 h-full overflow-hidden sm:col-span-2 sm:border-l sm:border-white/[0.06]";

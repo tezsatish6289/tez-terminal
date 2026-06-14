@@ -443,11 +443,11 @@ export function LevelsTripleColumnShell({
   list: ReactNode;
   levels: ReactNode;
   chart: ReactNode;
-  /** Optional recent-news rail. With listAboveChart chart 70% : news 30% from md+. */
+  /** Optional recent-news rail. With listAboveChart chart 60% : news 40% from sm+. */
   news?: ReactNode;
   /** Native chart already draws POC / bull / bear — drop the center ladder. */
   hideLevelsColumn?: boolean;
-  /** Slideshow: filters + tickers in one row above; chart 7 : news 3 from md+. */
+  /** Slideshow: filters + tickers in one row above; chart 60% : news 40% from sm+. */
   listAboveChart?: boolean;
   /** Learn embed: drop mobile min-heights so parent height clamp applies. */
   compactHeight?: boolean;
@@ -460,7 +460,7 @@ export function LevelsTripleColumnShell({
         className={LEVELS_SLIDESHOW_PANEL_ROW}
         style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
       >
-        <div className={news ? LEVELS_SLIDESHOW_CHART_COLUMN : "flex flex-col flex-1 min-h-0 min-w-0 w-full"}>
+        <div className={news ? LEVELS_SLIDESHOW_CHART_COLUMN : "flex flex-col flex-1 min-h-0 min-w-0 h-full overflow-hidden sm:col-span-5"}>
           {chartChrome ? <div className="shrink-0 mb-1.5 sm:mb-2 min-w-0">{chartChrome}</div> : null}
           <div className="flex flex-col flex-1 min-h-0 min-w-0">
             {chart}

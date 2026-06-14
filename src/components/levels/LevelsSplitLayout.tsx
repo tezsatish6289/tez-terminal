@@ -5,8 +5,8 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { ZonePriceLadder, formatHeroPrice, type PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { FNO_BG_CANVAS, FNO_FAVSLIDE_ACCENT } from "@/lib/fnoninja/theme";
 import {
-  LEVELS_SLIDESHOW_CHART_MIN,
-  LEVELS_SLIDESHOW_NEWS_MIN,
+  LEVELS_SLIDESHOW_CHART_COLUMN,
+  LEVELS_SLIDESHOW_NEWS_COLUMN,
   LEVELS_SLIDESHOW_PANEL_ROW,
   LEVELS_SPLIT_DIVIDER,
 } from "@/lib/levels/layout-responsive";
@@ -444,11 +444,11 @@ export function LevelsTripleColumnShell({
   list: ReactNode;
   levels: ReactNode;
   chart: ReactNode;
-  /** Optional recent-news rail. With listAboveChart chart 70% : news 30% on lg+. */
+  /** Optional recent-news rail. With listAboveChart chart 70% : news 30% from md+. */
   news?: ReactNode;
   /** Native chart already draws POC / bull / bear — drop the center ladder. */
   hideLevelsColumn?: boolean;
-  /** Slideshow: filters + tickers in one row above; chart 7 : news 3 on lg+. */
+  /** Slideshow: filters + tickers in one row above; chart 7 : news 3 from md+. */
   listAboveChart?: boolean;
   /** Learn embed: drop mobile min-heights so parent height clamp applies. */
   compactHeight?: boolean;
@@ -456,27 +456,21 @@ export function LevelsTripleColumnShell({
   chartChrome?: ReactNode;
 }) {
   if (listAboveChart) {
-    const chartMinH = compactHeight ? "min-h-0" : LEVELS_SLIDESHOW_CHART_MIN;
-    const newsMinH = compactHeight ? "min-h-0" : LEVELS_SLIDESHOW_NEWS_MIN;
     return (
       <div
         className={LEVELS_SLIDESHOW_PANEL_ROW}
         style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
       >
-        <div
-          className={`flex flex-col min-h-0 min-w-0 w-full ${news ? "md:flex-[7] md:min-w-0" : "md:flex-1"}`}
-        >
+        <div className={news ? LEVELS_SLIDESHOW_CHART_COLUMN : "flex flex-col flex-1 min-h-0 min-w-0 w-full"}>
           {chartChrome ? <div className="shrink-0 mb-1.5 sm:mb-2 min-w-0">{chartChrome}</div> : null}
-          <div className={`flex flex-col flex-1 ${chartMinH} min-w-0`}>
+          <div className="flex flex-col flex-1 min-h-0 min-w-0">
             {chart}
           </div>
         </div>
         {news && (
           <>
             <ColumnDivider />
-            <div className={`flex flex-col h-full ${newsMinH} w-full md:flex-[3] md:min-w-0`}>
-              {news}
-            </div>
+            <div className={LEVELS_SLIDESHOW_NEWS_COLUMN}>{news}</div>
           </>
         )}
       </div>

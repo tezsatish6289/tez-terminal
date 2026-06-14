@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
+import { FNO_MOBILE_SLIDE_BODY_MIN_CLASS } from "@/lib/fnoninja/responsive";
 import { FNO_ACCENT, FNO_APP_SURFACE_STYLE, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const DEFAULT_DESCRIPTION =
@@ -11,20 +12,25 @@ const DEFAULT_DESCRIPTION =
 
 function FnoNinjaLoginShimmerOverlay({
   backAction,
+  fixed = false,
 }: {
   backAction?: { label: string; onClick: () => void };
+  /** Fixed overlay — does not depend on parent flex height (mobile liveslide preview). */
+  fixed?: boolean;
 }) {
   return (
     <div
-      className="absolute inset-0 z-20 flex items-center justify-center"
+      className={
+        fixed
+          ? "fixed inset-0 z-[180] flex items-center justify-center px-6"
+          : "absolute inset-0 z-20 flex items-center justify-center"
+      }
       role="dialog"
       aria-modal="true"
       aria-label="Sign in required"
     >
-      {/* Very subtle dim — page content stays visible underneath */}
       <div className="absolute inset-0" style={{ backgroundColor: "rgba(8, 15, 30, 0.28)" }} />
 
-      {/* Shimmer sweep */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
         <div
           className="absolute inset-y-0 w-[55%] animate-fno-shimmer-sweep"
@@ -71,14 +77,18 @@ export function FnoNinjaChartLoginGate({
 }) {
   const { user, isUserLoading } = useUser();
 
+  if (user) return <>{children}</>;
+
   if (isUserLoading) {
     if (overlay) {
       return (
-        <div className="relative flex flex-1 min-h-0 flex-col max-md:overflow-hidden md:overflow-hidden">
+        <div
+          className={`relative flex flex-1 min-h-0 w-full flex-col overflow-hidden ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
+        >
           <div className="flex flex-1 min-h-0 flex-col pointer-events-none select-none opacity-90">
             {children}
           </div>
-          <div className="absolute inset-0 z-20 flex items-center justify-center">
+          <div className="fixed inset-0 z-[180] flex items-center justify-center">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: FNO_ACCENT }} />
           </div>
         </div>
@@ -94,14 +104,16 @@ export function FnoNinjaChartLoginGate({
     );
   }
 
-  if (user) return <>{children}</>;
-
   if (overlay) {
     return (
-      <div className="relative flex flex-1 min-h-0 flex-col max-md:overflow-hidden md:overflow-hidden">
-        <div className="flex flex-1 min-h-0 flex-col pointer-events-none select-none">{children}</div>
-        <FnoNinjaLoginShimmerOverlay backAction={backAction} />
-      </div>
+      <>
+        <div
+          className={`flex flex-1 min-h-0 w-full flex-col overflow-hidden pointer-events-none select-none ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
+        >
+          {children}
+        </div>
+        <FnoNinjaLoginShimmerOverlay backAction={backAction} fixed />
+      </>
     );
   }
 

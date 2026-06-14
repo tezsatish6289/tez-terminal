@@ -41,6 +41,7 @@ import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsiv
 import {
   FNO_LEVELS_MAIN,
   FNO_LEVELS_SLIDE_MAIN,
+  FNO_MOBILE_SLIDE_BODY_MIN_CLASS,
   FNO_MOBILE_SLIDE_SCROLL_CLASS,
   FNO_MOBILE_SLIDE_WORKSPACE_CLASS,
 } from "@/lib/fnoninja/responsive";
@@ -69,6 +70,7 @@ import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { isFnoNinjaAppContext } from "@/lib/fnoninja/auth";
+import { useUser } from "@/firebase";
 
 interface RawItem {
   symbol?: string;
@@ -228,6 +230,7 @@ export default function LevelsPage() {
 
   const isSlideView = viewMode === "liveslide" || viewMode === "favslide";
   const slideSignInGate = isFnoNinjaHost && isSlideView;
+  const { user: slideAuthUser, isUserLoading: slideAuthLoading } = useUser();
 
   useEffect(() => {
     setIsFnoNinjaHost(isFnoNinjaAppContext(window.location.pathname, window.location.hostname));
@@ -806,7 +809,7 @@ export default function LevelsPage() {
       listAboveChart?: boolean;
     },
   ) => (
-    <div className="flex flex-col w-full min-w-0 md:flex-1 md:min-h-0 md:overflow-hidden max-md:pb-4">
+    <div className={`flex flex-col w-full min-w-0 md:flex-1 md:min-h-0 md:overflow-hidden max-md:pb-4 ${isSlideView ? FNO_MOBILE_SLIDE_BODY_MIN_CLASS : ""}`}>
       <LevelsTripleColumnShell
         list={opts?.listAboveChart ? <></> : list}
         levels={levels}
@@ -1076,13 +1079,19 @@ export default function LevelsPage() {
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
-        ) : slideSignInGate ? (
+        ) : slideSignInGate && !slideAuthUser ? (
           <FnoNinjaChartLoginGate
             overlay
             backAction={{ label: "Back to Market Map", onClick: enterBubbles }}
           >
             {levelsWorkspace}
           </FnoNinjaChartLoginGate>
+        ) : slideSignInGate && slideAuthLoading ? (
+          <div
+            className={`flex flex-1 min-h-0 w-full flex-col items-center justify-center ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
+          >
+            <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
+          </div>
         ) : (
           levelsWorkspace
         )}

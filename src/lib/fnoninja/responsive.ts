@@ -23,13 +23,16 @@ export const FNO_LEVELS_SLIDE_MAIN =
 export const FNO_LEVELS_PAGE_ROOT =
   "min-h-dvh w-full flex flex-col overflow-x-hidden max-md:h-auto max-md:overflow-visible md:h-dvh md:max-h-dvh md:overflow-hidden";
 
-/** Mobile liveslide/favslide workspace — column fill inside slide main. */
+/** Mobile liveslide/favslide workspace — toolbar row + scrollport below. */
 export const FNO_MOBILE_SLIDE_WORKSPACE_CLASS =
-  "flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:overflow-hidden md:overflow-hidden";
+  "flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:grid max-md:grid-rows-[auto_minmax(0,1fr)] max-md:overflow-hidden md:overflow-hidden";
 
 /** Scrollport for chart + news below the slideshow toolbar on mobile. */
 export const FNO_MOBILE_SLIDE_SCROLL_CLASS =
-  "flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:overflow-y-auto max-md:overscroll-y-contain max-md:touch-pan-y max-md:[-webkit-overflow-scrolling:touch] md:overflow-hidden";
+  "flex min-h-0 w-full min-w-0 flex-col max-md:overflow-y-auto max-md:overscroll-y-contain max-md:touch-pan-y max-md:[-webkit-overflow-scrolling:touch] md:flex-1 md:overflow-hidden";
+
+/** Min height for slide auth gate + scroll content on mobile (below nav + toolbar). */
+export const FNO_MOBILE_SLIDE_BODY_MIN_CLASS = "max-md:min-h-[calc(100dvh-3.5rem-0.5rem-4.5rem)]";
 
 export const FNO_CONTENT_SHELL = "max-w-[1100px] mx-auto w-full px-4 sm:px-6";
 

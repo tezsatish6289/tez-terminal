@@ -23,6 +23,7 @@ import {
   syncSimZoneBands,
 } from "@/components/simulator/sim-native-chart-overlays";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
+import { epochUtcToChartIstSeconds } from "@/lib/market-hours";
 import { noClusterLine } from "@/components/simulator/heatmap-types";
 
 interface ApiCandle {
@@ -363,7 +364,7 @@ export function SimZoneCandlesChart({
         }
         fetchRetries = 0;
         const data: CandlestickData[] = json.candles.map((c) => ({
-          time: c.time as UTCTimestamp,
+          time: epochUtcToChartIstSeconds(c.time) as UTCTimestamp,
           open: c.open,
           high: c.high,
           low: c.low,

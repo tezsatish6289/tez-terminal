@@ -9,7 +9,13 @@
  *   Close:       3:30 PM IST
  */
 
-const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+const IST_OFFSET_SECONDS = 5.5 * 60 * 60;
+const IST_OFFSET_MS = IST_OFFSET_SECONDS * 1000;
+
+/** Shift epoch-UTC seconds for lightweight-charts display in IST (no native TZ support). */
+export function epochUtcToChartIstSeconds(utcSeconds: number): number {
+  return utcSeconds + IST_OFFSET_SECONDS;
+}
 
 function getISTDate(utcDate: Date = new Date()): Date {
   return new Date(utcDate.getTime() + IST_OFFSET_MS);

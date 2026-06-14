@@ -25,11 +25,11 @@ export const FNO_LEVELS_PAGE_ROOT =
 
 /** Mobile liveslide/favslide workspace — column fill inside slide main. */
 export const FNO_MOBILE_SLIDE_WORKSPACE_CLASS =
-  "flex flex-col flex-1 min-h-0 max-md:overflow-hidden md:overflow-hidden";
+  "flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:overflow-hidden md:overflow-hidden";
 
 /** Scrollport for chart + news below the slideshow toolbar on mobile. */
 export const FNO_MOBILE_SLIDE_SCROLL_CLASS =
-  "max-md:flex-1 max-md:min-h-0 max-md:overflow-y-auto max-md:overscroll-y-contain max-md:touch-pan-y max-md:[-webkit-overflow-scrolling:touch]";
+  "flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:overflow-y-auto max-md:overscroll-y-contain max-md:touch-pan-y max-md:[-webkit-overflow-scrolling:touch] md:overflow-hidden";
 
 export const FNO_CONTENT_SHELL = "max-w-[1100px] mx-auto w-full px-4 sm:px-6";
 

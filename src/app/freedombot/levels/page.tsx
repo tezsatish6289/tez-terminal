@@ -699,10 +699,10 @@ export default function LevelsPage() {
       <div
         data-liveslide-tour="chart"
         data-favslide-tour="chart"
-        className="flex flex-1 min-h-0 h-full flex-col max-md:flex-none max-md:h-auto max-md:touch-pan-y"
+        className="flex flex-1 min-h-0 h-full w-full flex-col max-md:touch-pan-y"
       >
         <LevelsTradingViewChart
-          className="flex-1 min-h-0 h-full max-md:flex-none max-md:h-[min(48dvh,460px)]"
+          className="flex-1 min-h-0 h-full w-full"
           config={activeTv}
           ticker={activeTicker ?? activeTv.symbol}
           companyName={activeCompanyName ?? undefined}
@@ -806,7 +806,7 @@ export default function LevelsPage() {
       listAboveChart?: boolean;
     },
   ) => (
-    <div className="flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden max-md:pb-4">
+    <div className="flex flex-col w-full min-w-0 md:flex-1 md:min-h-0 md:overflow-hidden max-md:pb-4">
       <LevelsTripleColumnShell
         list={opts?.listAboveChart ? <></> : list}
         levels={levels}
@@ -815,8 +815,8 @@ export default function LevelsPage() {
         listAboveChart={opts?.listAboveChart}
         chartChrome={opts?.listAboveChart ? slideshowChartChrome : undefined}
         chart={
-          <div className="flex flex-col max-md:flex-none max-md:min-h-0 h-full min-h-0 min-w-0 max-md:touch-pan-y">
-            <div className="flex flex-1 min-h-0 min-w-0 flex-col max-md:flex-none">{tvChartColumn}</div>
+          <div className="flex flex-col flex-1 min-h-0 min-w-0 w-full max-md:touch-pan-y">
+            <div className="flex flex-1 min-h-0 min-w-0 w-full flex-col">{tvChartColumn}</div>
             {opts?.chartFooter ? (
               <div className="shrink-0 min-w-0 max-md:pb-1">{opts.chartFooter}</div>
             ) : null}
@@ -1046,7 +1046,7 @@ export default function LevelsPage() {
     >
       <div className="shrink-0">{levelsSlideshowToolbar}</div>
       <div
-        className={`flex flex-col flex-1 min-h-0 md:overflow-hidden ${
+        className={`flex flex-col flex-1 min-h-0 w-full min-w-0 md:overflow-hidden ${
           isSlideView ? FNO_MOBILE_SLIDE_SCROLL_CLASS : "max-md:flex-none max-md:overflow-visible"
         }`}
       >

@@ -45,6 +45,12 @@ interface ApiCandle {
 }
 
 const POLL_MS = 60_000;
+/**
+ * lightweight-charts has no native time-zone support and renders the axis in UTC.
+ * Dhan returns true epoch-UTC seconds, so shift bars by IST (+5:30, no DST) to
+ * make the axis + crosshair read in IST. Display-only; ordering/spacing unchanged.
+ */
+const IST_OFFSET_SECONDS = 5.5 * 60 * 60;
 /** Empty bars on the right so candles sit left of zone price labels (Support/Resistance). */
 const RIGHT_OFFSET_BARS = 40;
 /** Slideshow / 30-day view: scale offset with bar count so labels stay clear when bars are dense. */
@@ -569,7 +575,7 @@ export const NativeCandlesChart = forwardRef<
         }
         fetchRetries = 0;
         const data: CandlestickData[] = json.candles.map((c) => ({
-          time: c.time as UTCTimestamp,
+          time: (c.time + IST_OFFSET_SECONDS) as UTCTimestamp,
           open: c.open,
           high: c.high,
           low: c.low,

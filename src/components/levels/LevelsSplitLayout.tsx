@@ -460,7 +460,7 @@ export function LevelsTripleColumnShell({
         className={LEVELS_SLIDESHOW_PANEL_ROW}
         style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
       >
-        <div className={news ? LEVELS_SLIDESHOW_CHART_COLUMN : "flex flex-col flex-1 min-h-0 min-w-0 h-full overflow-hidden sm:col-span-5"}>
+        <div className={news ? LEVELS_SLIDESHOW_CHART_COLUMN : "flex flex-col flex-1 min-h-0 min-w-0 w-full h-full overflow-hidden"}>
           {chartChrome ? <div className="shrink-0 mb-1.5 sm:mb-2 min-w-0">{chartChrome}</div> : null}
           <div className="flex flex-col flex-1 min-h-0 min-w-0">
             {chart}

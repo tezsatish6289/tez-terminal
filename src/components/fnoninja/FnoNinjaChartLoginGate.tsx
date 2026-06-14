@@ -74,7 +74,7 @@ export function FnoNinjaChartLoginGate({
   if (isUserLoading) {
     if (overlay) {
       return (
-        <div className="relative flex flex-1 min-h-0 flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden">
+        <div className="relative flex flex-1 min-h-0 flex-col max-md:overflow-hidden md:overflow-hidden">
           <div className="flex flex-1 min-h-0 flex-col pointer-events-none select-none opacity-90">
             {children}
           </div>
@@ -98,7 +98,7 @@ export function FnoNinjaChartLoginGate({
 
   if (overlay) {
     return (
-      <div className="relative flex flex-1 min-h-0 flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden">
+      <div className="relative flex flex-1 min-h-0 flex-col max-md:overflow-hidden md:overflow-hidden">
         <div className="flex flex-1 min-h-0 flex-col pointer-events-none select-none">{children}</div>
         <FnoNinjaLoginShimmerOverlay backAction={backAction} />
       </div>

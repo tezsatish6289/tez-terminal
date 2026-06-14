@@ -351,6 +351,7 @@ export const NativeCandlesChart = forwardRef<
             vertTouchDrag: false,
           }
         : true,
+      kineticScroll: narrow ? { touch: false, mouse: false } : { touch: true, mouse: false },
       rightPriceScale: {
         borderColor: "rgba(255,255,255,0.08)",
         minimumWidth: narrow
@@ -429,6 +430,7 @@ export const NativeCandlesChart = forwardRef<
               vertTouchDrag: false,
             }
           : true,
+        kineticScroll: next ? { touch: false, mouse: false } : { touch: true, mouse: false },
       });
       refreshChartLayout();
     };
@@ -660,7 +662,7 @@ export const NativeCandlesChart = forwardRef<
   }, [levels, showSlideshowControl]);
 
   return (
-    <div className="relative w-full h-full min-h-[180px] flex-1">
+    <div className="relative w-full h-full min-h-[180px] flex-1 max-md:touch-pan-y">
       <div
         ref={containerRef}
         className="absolute inset-0"

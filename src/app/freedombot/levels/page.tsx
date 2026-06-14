@@ -38,7 +38,12 @@ import {
   zonesUpdatedFooterLabel,
 } from "@/lib/levels/slideshow-zones";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_LEVELS_MAIN } from "@/lib/fnoninja/responsive";
+import {
+  FNO_LEVELS_MAIN,
+  FNO_LEVELS_SLIDE_MAIN,
+  FNO_MOBILE_SLIDE_SCROLL_CLASS,
+  FNO_MOBILE_SLIDE_WORKSPACE_CLASS,
+} from "@/lib/fnoninja/responsive";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import {
   bubbleMatchesMapFilter,
@@ -691,9 +696,13 @@ export default function LevelsPage() {
 
   const tvChartColumn =
     activeTv != null ? (
-      <div data-liveslide-tour="chart" data-favslide-tour="chart" className="flex flex-1 min-h-0 h-full flex-col">
+      <div
+        data-liveslide-tour="chart"
+        data-favslide-tour="chart"
+        className="flex flex-1 min-h-0 h-full flex-col max-md:flex-none max-md:h-auto max-md:touch-pan-y"
+      >
         <LevelsTradingViewChart
-          className="flex-1 min-h-0 h-full"
+          className="flex-1 min-h-0 h-full max-md:flex-none max-md:h-[min(48dvh,460px)]"
           config={activeTv}
           ticker={activeTicker ?? activeTv.symbol}
           companyName={activeCompanyName ?? undefined}
@@ -797,7 +806,7 @@ export default function LevelsPage() {
       listAboveChart?: boolean;
     },
   ) => (
-    <div className="flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden max-md:pb-6">
+    <div className="flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden max-md:pb-4">
       <LevelsTripleColumnShell
         list={opts?.listAboveChart ? <></> : list}
         levels={levels}
@@ -1028,9 +1037,19 @@ export default function LevelsPage() {
     );
 
   const levelsWorkspace = (
-    <div className="flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
-      <div className="flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
-        {levelsSlideshowToolbar}
+    <div
+      className={
+        isSlideView
+          ? FNO_MOBILE_SLIDE_WORKSPACE_CLASS
+          : "flex flex-col flex-1 min-h-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden"
+      }
+    >
+      <div className="shrink-0">{levelsSlideshowToolbar}</div>
+      <div
+        className={`flex flex-col flex-1 min-h-0 md:overflow-hidden ${
+          isSlideView ? FNO_MOBILE_SLIDE_SCROLL_CLASS : "max-md:flex-none max-md:overflow-visible"
+        }`}
+      >
         {levelsMainPane}
       </div>
     </div>
@@ -1040,7 +1059,9 @@ export default function LevelsPage() {
     <main
       className={`${
         isFnoNinjaHost
-          ? FNO_LEVELS_MAIN
+          ? isSlideView
+            ? FNO_LEVELS_SLIDE_MAIN
+            : FNO_LEVELS_MAIN
           : `${FB_FULL_HEIGHT_MAIN} max-md:h-auto max-md:min-h-0 max-md:overflow-visible shrink-0`
       } min-w-0`}
       style={FNO_APP_SURFACE_STYLE}
@@ -1050,7 +1071,7 @@ export default function LevelsPage() {
           <FnoNinjaLiveslideWalkthroughBridge onPrepare={prepareSlideshowWalkthrough} />
         </Suspense>
       ) : null}
-      <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden`}>
+      <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col md:overflow-hidden ${isSlideView ? "max-md:min-h-0 max-md:overflow-hidden" : "max-md:flex-none max-md:overflow-visible"}`}>
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />

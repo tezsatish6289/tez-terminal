@@ -34,14 +34,16 @@ export function LevelsChartNewsSplit({
     <div
       className={`flex flex-col md:flex-row max-md:flex-none w-full gap-2 md:gap-3 lg:gap-4 md:flex-1 md:min-h-0 max-md:overflow-visible md:overflow-hidden ${className}`.trim()}
     >
-      {/* Chart — mobile: fixed height so canvas fills the area; md+: left 60% */}
-      <div className="flex flex-col min-w-0 w-full shrink-0 h-[min(52dvh,500px)] md:h-full md:min-h-0 md:w-[60%] md:overflow-hidden">
+      {/* Chart — mobile: fixed height in slide scrollport; md+: left 60% */}
+      <div className="flex flex-col min-w-0 w-full shrink-0 h-[min(48dvh,460px)] md:h-full md:min-h-0 md:w-[60%] md:overflow-hidden">
         {chartHeader ? <div className="shrink-0 mb-1.5 sm:mb-2 min-w-0">{chartHeader}</div> : null}
-        <div className="flex flex-col flex-1 min-h-0 min-w-0 h-full">{chart}</div>
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 h-full max-md:flex-none max-md:h-auto max-md:touch-pan-y">
+          {chart}
+        </div>
       </div>
 
-      {/* News — mobile: below chart (page scroll); md+: right 40% rail */}
-      <div className="flex flex-col min-w-0 w-full shrink-0 min-h-[min(44dvh,400px)] max-md:h-auto md:min-h-0 md:h-full md:w-[40%] md:overflow-hidden md:border-l md:border-white/[0.06]">
+      {/* News — mobile: below chart inside slide scrollport; md+: right 40% rail */}
+      <div className="flex flex-col min-w-0 w-full shrink-0 min-h-[min(40dvh,360px)] max-md:h-auto max-md:pb-4 md:min-h-0 md:h-full md:w-[40%] md:overflow-hidden md:border-l md:border-white/[0.06]">
         {news}
       </div>
     </div>

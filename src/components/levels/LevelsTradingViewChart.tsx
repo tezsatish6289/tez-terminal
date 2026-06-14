@@ -90,7 +90,7 @@ export function LevelsTradingViewChart({
         </div>
       ) : null}
       <div
-        className="relative flex-1 min-h-0 h-full w-full rounded-xl overflow-hidden max-md:min-h-[220px]"
+        className="relative flex-1 min-h-0 h-full w-full rounded-xl overflow-hidden max-md:min-h-[220px] max-md:touch-pan-y"
         style={{
           border: BLACKBOARD_FIELD_BORDER,
           backgroundColor: "rgba(0,0,0,0.45)",

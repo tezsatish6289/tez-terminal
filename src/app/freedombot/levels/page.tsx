@@ -691,9 +691,9 @@ export default function LevelsPage() {
 
   const tvChartColumn =
     activeTv != null ? (
-      <div data-liveslide-tour="chart" data-favslide-tour="chart" className="flex flex-1 min-h-0 flex-col">
+      <div data-liveslide-tour="chart" data-favslide-tour="chart" className="flex flex-1 min-h-0 h-full flex-col">
         <LevelsTradingViewChart
-          className="flex-1 min-h-0"
+          className="flex-1 min-h-0 h-full"
           config={activeTv}
           ticker={activeTicker ?? activeTv.symbol}
           companyName={activeCompanyName ?? undefined}
@@ -802,9 +802,11 @@ export default function LevelsPage() {
         listAboveChart={opts?.listAboveChart}
         chartChrome={opts?.listAboveChart ? slideshowChartChrome : undefined}
         chart={
-          <div className="flex flex-col flex-1 min-h-0 min-w-0">
+          <div className="flex flex-col h-full min-h-0 min-w-0">
             <div className="flex flex-1 min-h-0 min-w-0 flex-col">{tvChartColumn}</div>
-            {opts?.chartFooter}
+            {opts?.chartFooter ? (
+              <div className="shrink-0 min-w-0">{opts.chartFooter}</div>
+            ) : null}
           </div>
         }
       />

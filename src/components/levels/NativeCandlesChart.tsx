@@ -560,10 +560,10 @@ export const NativeCandlesChart = forwardRef<
   }, [levels, showSlideshowControl]);
 
   return (
-    <div className="relative w-full h-full min-h-[200px] flex-1">
+    <div className="relative w-full h-full min-h-[180px] flex-1">
       <div
         ref={containerRef}
-        className="absolute inset-0 min-h-[200px]"
+        className="absolute inset-0"
         style={{
           opacity: chartReady ? 1 : 0,
           visibility: chartReady ? "visible" : "hidden",

@@ -167,7 +167,7 @@ export function LevelsChartClusterBandLabels({
   if (labels.length === 0) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-[15]">
+    <div className="pointer-events-none absolute inset-0 z-[15] hidden md:block">
       {labels.map((label) => (
         <BandChartLabel key={label.id} top={label.top} text={label.text} style={label.style} />
       ))}

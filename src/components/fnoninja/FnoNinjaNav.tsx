@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, LogOut, Menu, X } from "lucide-react";
-import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
 import { useAuth, useUser } from "@/firebase";
@@ -15,14 +14,16 @@ import { FnoNinjaNavLearn } from "@/components/fnoninja/FnoNinjaNavLearn";
 import { FnoNinjaNavLiveslideHelp } from "@/components/fnoninja/FnoNinjaNavLiveslideHelp";
 import { FnoNinjaNavSearch } from "@/components/fnoninja/FnoNinjaNavSearch";
 import {
+  fnoAnalyticsHref,
   fnoHomeHref,
   fnoLearnHref,
   fnoMarketingHash,
   isFnoNinjaLandingPath,
 } from "@/lib/fnoninja/paths";
+import { consumeFnoPostLoginRedirect } from "@/lib/fnoninja/post-login-redirect";
 import { FNO_NAV_SPACER_CLASS } from "@/lib/fnoninja/responsive";
 import { FB_CONTENT_SHELL, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
+import { FNO_BG, FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 /** Reserve space below the fixed header in page layout. */
 export const FNO_NAV_HEIGHT_CLASS = "h-14 sm:h-16";
@@ -47,6 +48,52 @@ const MENU_BTN_STYLE = {
   border: "1px solid rgba(90,140,220,0.15)",
   backgroundColor: "rgba(37,99,235,0.06)",
 } as const;
+
+/** Landing header CTA — log in → bubbles; signed-in users go straight to the map. */
+function FnoNinjaLandingNavCta({
+  className = "",
+  onAction,
+}: {
+  className?: string;
+  onAction?: () => void;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, isUserLoading } = useUser();
+  const bubblesHref = fnoAnalyticsHref(pathname);
+
+  if (isUserLoading) return null;
+
+  if (user) {
+    return (
+      <Link
+        href={bubblesHref}
+        onClick={onAction}
+        className={`inline-flex items-center justify-center font-bold transition-all hover:scale-105 gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${className}`}
+        style={{
+          background: FNO_CTA_GRADIENT,
+          boxShadow: FNO_CTA_SHADOW,
+        }}
+      >
+        Explore live market map
+      </Link>
+    );
+  }
+
+  return (
+    <FnoNinjaGoogleSignInButton
+      className={className}
+      label="Log in"
+      showGoogleIcon={false}
+      postSignInHref={bubblesHref}
+      onSignedIn={() => {
+        consumeFnoPostLoginRedirect();
+        onAction?.();
+        router.replace(bubblesHref);
+      }}
+    />
+  );
+}
 
 export function FnoNinjaNav() {
   const pathname = usePathname();
@@ -113,7 +160,7 @@ export function FnoNinjaNav() {
             {!isLevelsApp && isFnoNinjaLandingPath(pathname) ? (
               <>
                 <div className="hidden md:block">
-                  <FnoNinjaCtaLink variant="nav">Explore live market map</FnoNinjaCtaLink>
+                  <FnoNinjaLandingNavCta />
                 </div>
                 <button
                   type="button"
@@ -274,7 +321,7 @@ export function FnoNinjaNav() {
             </nav>
 
             <div className="p-4 border-t flex-shrink-0" style={{ borderColor: FNO_NAV_BORDER }}>
-              <FnoNinjaCtaLink variant="nav">Explore live market map</FnoNinjaCtaLink>
+              <FnoNinjaLandingNavCta className="w-full" onAction={() => setMenuOpen(false)} />
             </div>
           </div>
         </div>

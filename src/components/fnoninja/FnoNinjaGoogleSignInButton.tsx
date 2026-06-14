@@ -3,21 +3,30 @@
 import { useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { toast } from "@/hooks/use-toast";
+import { setFnoPostLoginRedirect } from "@/lib/fnoninja/post-login-redirect";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaGoogleSignInButton({
   className = "",
   size = "nav",
+  label = "Sign in with Google",
+  showGoogleIcon = true,
+  postSignInHref,
   onSignedIn,
 }: {
   className?: string;
   size?: "nav" | "hero";
+  label?: string;
+  showGoogleIcon?: boolean;
+  /** After sign-in, navigate here (stored for redirect auth as well). */
+  postSignInHref?: string;
   onSignedIn?: () => void;
 }) {
   const auth = useAuth();
 
   const handleSignIn = async () => {
     if (!auth) return;
+    if (postSignInHref) setFnoPostLoginRedirect(postSignInHref);
     try {
       await initiateGoogleSignIn(auth);
       onSignedIn?.();
@@ -43,8 +52,8 @@ export function FnoNinjaGoogleSignInButton({
       className={`inline-flex items-center justify-center font-bold text-white transition-all hover:scale-[1.02] disabled:opacity-70 ${sizing} ${className}`}
       style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
     >
-      <GoogleMark />
-      Sign in with Google
+      {showGoogleIcon ? <GoogleMark /> : null}
+      {label}
     </button>
   );
 }

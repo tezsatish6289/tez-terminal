@@ -119,17 +119,17 @@ export function isNearResistance(bands: ZoneBands): boolean {
 /** Minimum reward:risk from spot → POC vs band invalidation (Bull/Bear Inv.). */
 export const MIN_POC_RISK_REWARD = 2;
 
-/** Reward:risk from actual entry → day-0 max pain vs computed SL (zone bots). */
-export function entryPocRiskRewardRatio(
+/** Reward:risk from entry → reward target vs computed SL. */
+function entryRiskRewardRatio(
   side: "BUY" | "SELL",
   entryPrice: number,
   stopLoss: number,
-  poc: number,
+  rewardTarget: number,
 ): number | null {
   if (
     !Number.isFinite(entryPrice) ||
     !Number.isFinite(stopLoss) ||
-    !Number.isFinite(poc) ||
+    !Number.isFinite(rewardTarget) ||
     entryPrice <= 0
   ) {
     return null;
@@ -137,15 +137,35 @@ export function entryPocRiskRewardRatio(
 
   if (side === "BUY") {
     const risk = entryPrice - stopLoss;
-    const reward = poc - entryPrice;
+    const reward = rewardTarget - entryPrice;
     if (risk <= 0 || reward <= 0) return null;
     return reward / risk;
   }
 
   const risk = stopLoss - entryPrice;
-  const reward = entryPrice - poc;
+  const reward = entryPrice - rewardTarget;
   if (risk <= 0 || reward <= 0) return null;
   return reward / risk;
+}
+
+/** Reward:risk from entry → day-0 max pain vs SL (slideshow / liveslide). */
+export function entryPocRiskRewardRatio(
+  side: "BUY" | "SELL",
+  entryPrice: number,
+  stopLoss: number,
+  poc: number,
+): number | null {
+  return entryRiskRewardRatio(side, entryPrice, stopLoss, poc);
+}
+
+/** Reward:risk from entry → opposite zone center vs SL (zone bots). */
+export function entryZoneRiskRewardRatio(
+  side: "BUY" | "SELL",
+  entryPrice: number,
+  stopLoss: number,
+  oppositeZoneCenter: number,
+): number | null {
+  return entryRiskRewardRatio(side, entryPrice, stopLoss, oppositeZoneCenter);
 }
 
 export function entryMeetsMinPocRR(
@@ -157,6 +177,18 @@ export function entryMeetsMinPocRR(
 ): boolean {
   if (poc == null || !Number.isFinite(poc)) return false;
   const rr = entryPocRiskRewardRatio(side, entryPrice, stopLoss, poc);
+  return rr != null && rr >= minRatio;
+}
+
+export function entryMeetsMinZoneRR(
+  side: "BUY" | "SELL",
+  entryPrice: number,
+  stopLoss: number,
+  oppositeZoneCenter: number | null | undefined,
+  minRatio = MIN_POC_RISK_REWARD,
+): boolean {
+  if (oppositeZoneCenter == null || !Number.isFinite(oppositeZoneCenter)) return false;
+  const rr = entryZoneRiskRewardRatio(side, entryPrice, stopLoss, oppositeZoneCenter);
   return rr != null && rr >= minRatio;
 }
 

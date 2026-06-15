@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import {
   entryMeetsMinPocRR,
+  entryMeetsMinZoneRR,
   entryPocRiskRewardRatio,
+  entryZoneRiskRewardRatio,
   MIN_POC_RISK_REWARD,
 } from "../../src/lib/zones/zone-status";
 import {
@@ -15,14 +17,21 @@ import { evaluateZoneBot, resolveDay0MaxPain } from "../../src/lib/zone-bot-engi
 import type { ZoneBotSettings } from "../../src/lib/zone-bot-config";
 import type { ZoneBotState } from "../../src/lib/zone-bot-state";
 
-// Entry RR — bad shape at top of bull band
+// Entry RR to max pain (slideshow) — bad shape at top of bull band
 {
   const rr = entryPocRiskRewardRatio("BUY", 104, 90, 110);
   assert.ok(rr != null && rr < MIN_POC_RISK_REWARD);
   assert.equal(entryMeetsMinPocRR("BUY", 104, 90, 110), false);
 }
 
-// Entry RR — major level at band center
+// Entry RR to opposite zone center — major bear fade from resistance
+{
+  const rr = entryZoneRiskRewardRatio("SELL", 1770, 1825, 1600);
+  assert.ok(rr != null && rr >= MIN_POC_RISK_REWARD);
+  assert.equal(entryMeetsMinZoneRR("SELL", 1770, 1825, 1600), true);
+}
+
+// Entry RR to max pain — major level at band center (slideshow)
 {
   const rr = entryPocRiskRewardRatio("BUY", 100, 90, 120);
   assert.ok(rr != null && rr >= MIN_POC_RISK_REWARD);
@@ -69,7 +78,7 @@ import type { ZoneBotState } from "../../src/lib/zone-bot-state";
   assert.equal(clustersTooBalanced(200, 180), true);
 }
 
-// Engine skips OPEN when entry POC RR fails
+// Engine skips OPEN when entry zone RR fails (opposite wall too close)
 {
   const settings: ZoneBotSettings = {
     manualOverride: "AUTO",
@@ -96,12 +105,14 @@ import type { ZoneBotState } from "../../src/lib/zone-bot-state";
     asset: "btc",
     spot: 100,
     suggested: {
+      bullStrike: 100,
+      bearStrike: 106,
       bullZoneLow: 98,
       bullZoneHigh: 102,
       bullExitAbove: 102,
-      bearZoneHigh: 120,
-      bearZoneLow: 115,
-      bearExitBelow: 115,
+      bearZoneHigh: 108,
+      bearZoneLow: 104,
+      bearExitBelow: 104,
       maxPain: 106,
       computedAt: new Date(now).toISOString(),
       bullActionable: true,
@@ -114,7 +125,7 @@ import type { ZoneBotState } from "../../src/lib/zone-bot-state";
   });
 
   assert.equal(action.type, "NONE");
-  assert.match(nextState.reason, /POC RR/i);
+  assert.match(nextState.reason, /zone RR/i);
 }
 
 // resolveDay0MaxPain prefers today's expiry pin

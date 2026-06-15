@@ -96,7 +96,7 @@ function fromEngineReason(reason: string): CockpitCardStatus | null {
     if (/between zones/i.test(body)) return waiting("Price between zones", body);
     if (/confirming/i.test(body)) return waiting("Zone confirming", body);
     if (/not actionable/i.test(body)) return waiting("Zone not actionable yet", body);
-    if (/POC RR/i.test(body)) return waiting("POC RR too low", body);
+    if (/POC RR|zone RR/i.test(body)) return waiting("Zone RR too low", body);
     return waiting(body.charAt(0).toUpperCase() + body.slice(1));
   }
 
@@ -119,7 +119,7 @@ function fromEngineReason(reason: string): CockpitCardStatus | null {
 
   if (/confirming/i.test(r)) return waiting("Zone confirming", shortDetail(r));
 
-  if (/POC RR/i.test(r)) return waiting("POC RR too low", shortDetail(r));
+  if (/POC RR|zone RR/i.test(r)) return waiting("Zone RR too low", shortDetail(r));
 
   if (/ACTIVE|opening trade|FLIP/i.test(r)) {
     return ready("In zone", shortDetail(r));

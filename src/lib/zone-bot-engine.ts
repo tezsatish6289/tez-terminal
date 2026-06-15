@@ -39,8 +39,8 @@
 import type { ZoneBotAsset, ZoneBotSettings } from "./zone-bot-config";
 import type { PricePoint, ZoneBotState } from "./zone-bot-state";
 import {
-  entryMeetsMinPocRR,
-  entryPocRiskRewardRatio,
+  entryMeetsMinZoneRR,
+  entryZoneRiskRewardRatio,
   formatPocRR,
   MIN_POC_RISK_REWARD,
 } from "./zones/zone-status";
@@ -55,6 +55,8 @@ import {
  *  They're optional so old docs in Firestore continue to work — when
  *  missing, the engine treats them as permissive defaults. */
 export interface ZoneBotSuggestedZones {
+  bullStrike:    number | null;
+  bearStrike:    number | null;
   bullZoneLow:   number | null;
   bullZoneHigh:  number | null;
   bullExitAbove: number | null;
@@ -173,28 +175,30 @@ export function resolveDay0MaxPain(input: {
   return null;
 }
 
-function pocRRSkipReason(
-  side:      "BULL" | "BEAR",
-  tradeSide: "BUY" | "SELL",
-  entry:     number,
-  stopLoss:  number,
-  maxPain:   number | null,
+function zoneRRSkipReason(
+  side:                 "BULL" | "BEAR",
+  tradeSide:            "BUY" | "SELL",
+  entry:                number,
+  stopLoss:             number,
+  oppositeZoneCenter:   number | null,
 ): string {
-  const rr = maxPain != null
-    ? entryPocRiskRewardRatio(tradeSide, entry, stopLoss, maxPain)
+  const rr = oppositeZoneCenter != null
+    ? entryZoneRiskRewardRatio(tradeSide, entry, stopLoss, oppositeZoneCenter)
     : null;
-  return `${side} confirmed but POC RR ${formatPocRR(rr)} < ${MIN_POC_RISK_REWARD}:1 — need major level`;
+  return `${side} confirmed but zone RR ${formatPocRR(rr)} < ${MIN_POC_RISK_REWARD}:1 — need major level`;
 }
 
-function passesEntryPocRR(
-  side:      "BULL" | "BEAR",
+function passesEntryZoneRR(
+  side:   "BULL" | "BEAR",
   tradeSide: "BUY" | "SELL",
-  entry:     number,
-  stopLoss:  number,
-  maxPain:   number | null,
+  entry:  number,
+  stopLoss: number,
+  zones:  ZonesView,
 ): boolean {
-  if (maxPain == null) return true; // permissive when magnet unknown (legacy docs)
-  return entryMeetsMinPocRR(tradeSide, entry, stopLoss, maxPain);
+  const oppositeCenter =
+    side === "BULL" ? zones.bearStrike : zones.bullStrike;
+  if (oppositeCenter == null) return false;
+  return entryMeetsMinZoneRR(tradeSide, entry, stopLoss, oppositeCenter);
 }
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -473,6 +477,8 @@ interface ZonesView {
   hasBear:        boolean;
   priceInBull:    boolean;
   priceInBear:    boolean;
+  bullStrike:     number | null;
+  bearStrike:     number | null;
   bullZoneLow:    number | null;
   bullZoneHigh:   number | null;
   bullExitAbove:  number | null;
@@ -487,6 +493,17 @@ function deriveZones(spot: number, s: ZoneBotSuggestedZones): ZonesView {
   const hasBull = s.bullZoneLow != null && s.bullExitAbove != null;
   const hasBear = s.bearZoneHigh != null && s.bearExitBelow != null;
 
+  const bullStrike =
+    s.bullStrike ??
+    (s.bullZoneLow != null && s.bullZoneHigh != null
+      ? (s.bullZoneLow + s.bullZoneHigh) / 2
+      : null);
+  const bearStrike =
+    s.bearStrike ??
+    (s.bearZoneLow != null && s.bearZoneHigh != null
+      ? (s.bearZoneLow + s.bearZoneHigh) / 2
+      : null);
+
   return {
     hasBull,
     hasBear,
@@ -496,6 +513,8 @@ function deriveZones(spot: number, s: ZoneBotSuggestedZones): ZonesView {
     priceInBear: hasBear &&
       spot <= (s.bearZoneHigh  as number) &&
       spot >= (s.bearExitBelow as number),
+    bullStrike,
+    bearStrike,
     bullZoneLow:   s.bullZoneLow,
     bullZoneHigh:  s.bullZoneHigh ?? null,
     bullExitAbove: s.bullExitAbove,
@@ -613,10 +632,10 @@ export function evaluateZoneBot(input: EvaluateZoneBotInput): EvaluateZoneBotRes
           },
         );
         if (params && params.slDistancePct <= MAX_SL_DISTANCE_PCT) {
-          if (!passesEntryPocRR(oppositeDir, newSide, spot, params.stopLoss, zones.maxPain)) {
+          if (!passesEntryZoneRR(oppositeDir, newSide, spot, params.stopLoss, zones)) {
             next.direction  = "IDLE";
             next.confirming = null;
-            next.reason     = pocRRSkipReason(oppositeDir, newSide, spot, params.stopLoss, zones.maxPain);
+            next.reason     = zoneRRSkipReason(oppositeDir, newSide, spot, params.stopLoss, oppositeDir === "BULL" ? zones.bearStrike : zones.bullStrike);
             return { nextState: next, action: { type: "NONE", reason: next.reason } };
           }
           next.direction     = oppositeDir;
@@ -822,14 +841,20 @@ function tryOpen(
     return { nextState: next, action: { type: "NONE", reason: next.reason } };
   }
 
-  if (!passesEntryPocRR(side, tradeSide, spot, params.stopLoss, zones.maxPain)) {
+  if (!passesEntryZoneRR(side, tradeSide, spot, params.stopLoss, zones)) {
     next.direction  = "IDLE";
     next.confirming = {
       side,
       minutesHeld: check.minutesHeld,
       startedAt:   state.confirming?.startedAt ?? new Date(now).toISOString(),
     };
-    next.reason = pocRRSkipReason(side, tradeSide, spot, params.stopLoss, zones.maxPain);
+    next.reason = zoneRRSkipReason(
+      side,
+      tradeSide,
+      spot,
+      params.stopLoss,
+      side === "BULL" ? zones.bearStrike : zones.bullStrike,
+    );
     return { nextState: next, action: { type: "NONE", reason: next.reason } };
   }
 

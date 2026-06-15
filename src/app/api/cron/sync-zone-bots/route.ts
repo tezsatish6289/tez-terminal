@@ -190,6 +190,8 @@ async function loadSuggestedZones(
       if (!snap.exists) continue;
       const d = snap.data() as Record<string, unknown>;
       return {
+        bullStrike:          typeof d.bullStrike    === "number" ? d.bullStrike    : null,
+        bearStrike:          typeof d.bearStrike    === "number" ? d.bearStrike    : null,
         bullZoneLow:         typeof d.bullZoneLow   === "number" ? d.bullZoneLow   : null,
         bullZoneHigh:        typeof d.bullZoneHigh  === "number" ? d.bullZoneHigh  : null,
         bullExitAbove:       typeof d.bullExitAbove === "number" ? d.bullExitAbove : null,

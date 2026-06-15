@@ -6,6 +6,7 @@ import {
   BOT_SOURCE_SOL_ZONE,
   BOT_SOURCE_XRP_ZONE,
   classifyBotSource,
+  isZoneBotSource,
   type BotSourceFilter,
 } from "@/lib/bot-source-constants";
 

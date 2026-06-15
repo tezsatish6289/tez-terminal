@@ -774,6 +774,7 @@ export async function GET(request: NextRequest) {
 
           if (livePrice != null) {
             const isBuy = t.side === "BUY";
+            const zoneBot = isZoneBotSource(t.botSource);
             const currentHwm = (t as any).highWatermark as number | null;
             const updatedHwm = currentHwm == null
               ? livePrice
@@ -782,12 +783,21 @@ export async function GET(request: NextRequest) {
                 : Math.min(currentHwm, livePrice);
 
             const tradeWithHwm = { ...t, highWatermark: updatedHwm };
-            const newTrailingSl = computeTrailingSl(tradeWithHwm, livePrice);
-            const effectiveSl = newTrailingSl ?? t.stopLoss;
+            // Zone bots: no early BE trail before day-0 max pain partial.
+            // After partial, runner SL is pinned at cost (entry).
+            const newTrailingSl = zoneBot
+              ? (t.maxPainHit ? t.entryPrice : null)
+              : computeTrailingSl(tradeWithHwm, livePrice);
+            const effectiveSl = zoneBot
+              ? (t.maxPainHit ? t.entryPrice : t.stopLoss)
+              : (newTrailingSl ?? t.stopLoss);
 
-            const trailingSlHit = isBuy
-              ? livePrice <= effectiveSl && newTrailingSl != null
-              : livePrice >= effectiveSl && newTrailingSl != null;
+            const trailingSlHit = zoneBot
+              ? t.maxPainHit === true &&
+                (isBuy ? livePrice <= t.entryPrice : livePrice >= t.entryPrice)
+              : isBuy
+                ? livePrice <= effectiveSl && newTrailingSl != null
+                : livePrice >= effectiveSl && newTrailingSl != null;
 
             if (trailingSlHit) {
               const exitResult = processTradeExit({
@@ -826,19 +836,26 @@ export async function GET(request: NextRequest) {
                 currentScore: liveScore,
                 currentScorePattern: livePattern,
               };
-              if (newTrailingSl !== t.trailingSl && newTrailingSl != null && t.trailingSl == null) {
-                updatePayload.trailingSl = newTrailingSl;
-                const slToBeEvent = {
-                  type: "SL_TO_BE",
-                  price: livePrice,
-                  pnl: 0,
-                  fee: 0,
-                  closePct: 0,
-                  timestamp: new Date().toISOString(),
-                };
-                updatePayload.events = [...(t.events || []), slToBeEvent];
-              } else if (newTrailingSl !== t.trailingSl) {
-                updatePayload.trailingSl = newTrailingSl;
+              if (zoneBot && t.maxPainHit) {
+                if (t.trailingSl !== t.entryPrice || t.stopLoss !== t.entryPrice) {
+                  updatePayload.trailingSl = t.entryPrice;
+                  updatePayload.stopLoss = t.entryPrice;
+                }
+              } else if (!zoneBot) {
+                if (newTrailingSl !== t.trailingSl && newTrailingSl != null && t.trailingSl == null) {
+                  updatePayload.trailingSl = newTrailingSl;
+                  const slToBeEvent = {
+                    type: "SL_TO_BE",
+                    price: livePrice,
+                    pnl: 0,
+                    fee: 0,
+                    closePct: 0,
+                    timestamp: new Date().toISOString(),
+                  };
+                  updatePayload.events = [...(t.events || []), slToBeEvent];
+                } else if (newTrailingSl !== t.trailingSl) {
+                  updatePayload.trailingSl = newTrailingSl;
+                }
               }
               await db.collection("simulator_trades").doc(simDoc.id).update(updatePayload);
               priceUpdates++;

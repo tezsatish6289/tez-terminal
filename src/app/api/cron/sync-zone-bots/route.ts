@@ -115,6 +115,7 @@ import type { BotSourceFilter } from "@/lib/bot-source-filter";
 import {
   evaluateZoneBot,
   priceReachedMaxPain,
+  resolveDay0MaxPain,
   type ZoneBotAction,
   type ZoneBotSuggestedZones,
 } from "@/lib/zone-bot-engine";
@@ -321,7 +322,7 @@ async function openZoneBotTrade(args: {
   riskPerTradePct?:  number;
   leverageOverride?: number;
   attachedZoneBots:  AttachedZoneBots;
-  /** Day-0 max pain — 50% partial exit + TP ladder anchor for the runner. */
+  /** Day-0 max pain at entry — 50% partial + runner management target. */
   maxPainTarget?:    number | null;
 }): Promise<{ tradeId: string; updatedState: SimulatorState; log: SimLog; sizing: PositionSizeResult }> {
   const {
@@ -342,13 +343,16 @@ async function openZoneBotTrade(args: {
   const side = action.type === "OPEN" ? action.side : action.openSide;
   const { entryPrice, stopLoss, tp1, tp2, tp3 } = action;
 
-  const magnetTp =
+  // Zone bots do not use the 1R/2R/3R ladder — partial is 50% at day-0 max
+  // pain only. Keep tp fields at the 1R values for chart compat; sync-simulator
+  // skips TP processing for zone-bot trades.
+  const day0MaxPain =
     maxPainTarget != null && Number.isFinite(maxPainTarget) && maxPainTarget > 0
       ? maxPainTarget
       : null;
-  const effectiveTp1 = magnetTp ?? tp1;
-  const effectiveTp2 = magnetTp ?? tp2;
-  const effectiveTp3 = magnetTp ?? tp3;
+  const effectiveTp1 = tp1;
+  const effectiveTp2 = tp2;
+  const effectiveTp3 = tp3;
 
   const sizing = computePositionSize(
     state,
@@ -410,7 +414,7 @@ async function openZoneBotTrade(args: {
     ...result.trade,
     botSource: ZONE_BOT_SOURCE[asset],
     leverage: sizing.leverage,
-    maxPainTarget: magnetTp,
+    maxPainTarget: day0MaxPain,
     maxPainHit: false,
   };
 
@@ -612,7 +616,7 @@ async function closeZoneBotTrade(args: {
   return { updatedState: exitResult.updatedState, log: decoratedLog };
 }
 
-/** Zone-bot lifecycle: take 50% at day-0 max pain; runner exits on flip/SL. */
+/** Zone-bot lifecycle: 50% at live day-0 max pain; runner SL → cost. */
 async function maybeTakeMaxPainPartial(args: {
   db:         FirebaseFirestore.Firestore;
   asset:      ZoneBotAsset;
@@ -620,10 +624,11 @@ async function maybeTakeMaxPainPartial(args: {
   state:      SimulatorState;
   simConfig:  SimConfigType;
   spot:       number;
-  maxPain:    number;
+  /** Today's (day-0 expiry) max pain from the latest zones snapshot. */
+  day0MaxPain: number;
   halfWidth?: number | null;
 }): Promise<{ updatedState: SimulatorState; log: SimLog | null }> {
-  const { db, asset, tradeId, state, simConfig, spot, maxPain, halfWidth } = args;
+  const { db, asset, tradeId, state, simConfig, spot, day0MaxPain, halfWidth } = args;
 
   const snap = await db.collection("simulator_trades").doc(tradeId).get();
   if (!snap.exists) return { updatedState: state, log: null };
@@ -633,10 +638,11 @@ async function maybeTakeMaxPainPartial(args: {
     return { updatedState: state, log: null };
   }
 
-  const target = trade.maxPainTarget ?? maxPain;
-  if (target == null || !Number.isFinite(target)) return { updatedState: state, log: null };
+  if (!Number.isFinite(day0MaxPain) || day0MaxPain <= 0) {
+    return { updatedState: state, log: null };
+  }
 
-  if (!priceReachedMaxPain(trade.side, spot, target, halfWidth ?? undefined)) {
+  if (!priceReachedMaxPain(trade.side, spot, day0MaxPain, halfWidth ?? undefined)) {
     return { updatedState: state, log: null };
   }
 
@@ -649,9 +655,20 @@ async function maybeTakeMaxPainPartial(args: {
   });
   if (!exitResult) return { updatedState: state, log: null };
 
+  const slToCostEvent = {
+    type: "SL_TO_BE" as const,
+    price: trade.entryPrice,
+    pnl: 0,
+    fee: 0,
+    closePct: 0,
+    timestamp: new Date().toISOString(),
+  };
+
   const runner = {
     ...exitResult.updatedTrade,
+    stopLoss: trade.entryPrice,
     trailingSl: trade.entryPrice,
+    events: [...(exitResult.updatedTrade.events || []), slToCostEvent],
   };
 
   const { id: _id, ...fields } = runner;
@@ -665,7 +682,7 @@ async function maybeTakeMaxPainPartial(args: {
   const decoratedLog: SimLog = {
     ...exitResult.log,
     action: "ZONE_BOT_MAX_PAIN",
-    details: `[${ZONE_BOT_SOURCE[asset]}] ${trade.symbol} ${trade.side} — 50% at max pain ${Math.round(target)} @ $${spot} — runner to flip`,
+    details: `[${ZONE_BOT_SOURCE[asset]}] ${trade.symbol} ${trade.side} — 50% at day-0 max pain ${Math.round(day0MaxPain)} @ $${spot}; runner SL → cost $${trade.entryPrice}`,
   };
   await db.collection("simulator_logs").add(decoratedLog);
 
@@ -788,7 +805,7 @@ async function tickAsset(
           riskPerTradePct: botSettings.riskPerTradePct,
           leverageOverride: botSettings.leverage,
           attachedZoneBots,
-          maxPainTarget: suggested?.maxPain ?? null,
+          maxPainTarget: resolveDay0MaxPain(suggested),
         });
         if (opened.tradeId) {
           workingState.openTradeId = opened.tradeId;
@@ -858,7 +875,7 @@ async function tickAsset(
             riskPerTradePct: botSettings.riskPerTradePct,
             leverageOverride: botSettings.leverage,
             attachedZoneBots,
-            maxPainTarget: suggested?.maxPain ?? null,
+            maxPainTarget: resolveDay0MaxPain(suggested),
           });
           if (opened.tradeId) {
             workingState.openTradeId = opened.tradeId;
@@ -874,11 +891,8 @@ async function tickAsset(
       }
     }
 
-    if (
-      workingState.openTradeId &&
-      suggested?.maxPain != null &&
-      Number.isFinite(suggested.maxPain)
-    ) {
+    const day0MaxPain = resolveDay0MaxPain(suggested);
+    if (workingState.openTradeId && day0MaxPain != null) {
       const mpResult = await maybeTakeMaxPainPartial({
         db,
         asset,
@@ -886,8 +900,8 @@ async function tickAsset(
         state: workingSimState,
         simConfig,
         spot,
-        maxPain: suggested.maxPain,
-        halfWidth: suggested.halfWidthUsd ?? null,
+        day0MaxPain,
+        halfWidth: suggested?.halfWidthUsd ?? null,
       });
       workingSimState = mpResult.updatedState;
     }

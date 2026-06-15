@@ -161,7 +161,7 @@ function fromSuggester(s: SuggestedZonesSnapshot): CockpitCardStatus | null {
     if (/Pin chop/i.test(s.notActionableReason)) {
       return blocked("Pin chop", shortDetail(s.notActionableReason));
     }
-    if (/Balanced put\/call/i.test(s.notActionableReason)) {
+    if (/Balanced net OI|Balanced put\/call/i.test(s.notActionableReason)) {
       return blocked("Balanced clusters", shortDetail(s.notActionableReason));
     }
     if (/TP room/i.test(s.notActionableReason)) {

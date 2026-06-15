@@ -53,7 +53,10 @@
  *           — capped  at 2% × spot (so SL distance ≤ 3%, the engine's limit)
  *
  *   4. Aggregate OI per strike — all-expiry for ranking, day-0+1 for
- *      the premium-magnet sanity filter.
+ *      the premium-magnet sanity filter. Cluster potency uses **net wall
+ *      OI at each strike** (puts − calls for support, calls − puts for
+ *      resistance) so a strike with equal put/call OI does not rank as
+ *      a major wall.
  *
  *   5. Pick the **most potent** cluster on each side, **anchored near
  *      day-0 max pain** (not far-away structural walls):
@@ -63,7 +66,8 @@
  *        bear (calls): above maxPain, within an anchor span over the pin,
  *                      and with bearZoneHigh ≥ spot (band not entirely below
  *                      spot — resistance must be reachable from here)
- *      Potency = OI ≥ per-asset floor AND ≥ 25% of pool max in window.
+ *      Potency = net wall OI (puts − calls at strike) ≥ per-asset floor
+ *      AND ≥ 40% of pool max net in window.
  *      Priority: highest OI, then closest to max pain.
  *      Bands must sandwich the pin; min gap = max(2×halfWidth, configured).
  *      Sticky: while spot stays inside a published band, keep that band.
@@ -124,9 +128,9 @@ const DERIBIT_API = "https://www.deribit.com/api/v2/public";
  *  over secondary clusters that produce small-reward / full-risk entries. */
 const MIN_CLUSTER_PCT_OF_MAX = 0.40;
 
-/** When both put and call clusters are picked, their OI must differ by at
- *  least this fraction of the larger side — otherwise spot sits between
- *  nearly equal magnets and neither side has edge. */
+/** When both picked clusters' net wall OI at their strikes differ by less
+ *  than this fraction of the larger net, spot sits between nearly equal
+ *  magnets and neither side has edge. Net = puts − calls at each strike. */
 export const MIN_CLUSTER_OI_IMBALANCE = 0.35;
 
 /** Volatility term of the anchor window — IV-derived 1-σ daily move ×
@@ -191,33 +195,77 @@ export function maxPainGapUsd(halfWidthUsd: number): number {
   return MAX_PAIN_GAP_HALFWIDTHS * halfWidthUsd;
 }
 
-/** 0..1 — how much the picked put vs call cluster OI differ (1 = one-sided). */
+/** 0..1 — how much two net wall OI values differ (1 = one-sided). */
 export function clusterOiImbalanceRatio(
-  bullOI: number | null | undefined,
-  bearOI: number | null | undefined,
+  bullNetOI: number | null | undefined,
+  bearNetOI: number | null | undefined,
 ): number | null {
   if (
-    bullOI == null ||
-    bearOI == null ||
-    !Number.isFinite(bullOI) ||
-    !Number.isFinite(bearOI) ||
-    bullOI <= 0 ||
-    bearOI <= 0
+    bullNetOI == null ||
+    bearNetOI == null ||
+    !Number.isFinite(bullNetOI) ||
+    !Number.isFinite(bearNetOI) ||
+    bullNetOI <= 0 ||
+    bearNetOI <= 0
   ) {
     return null;
   }
-  const max = Math.max(bullOI, bearOI);
-  return (max - Math.min(bullOI, bearOI)) / max;
+  const max = Math.max(bullNetOI, bearNetOI);
+  return (max - Math.min(bullNetOI, bearNetOI)) / max;
 }
 
-/** Both sides picked but OI too close — chop between equal magnets. */
+/** Both sides picked but net wall OI too close — chop between equal magnets. */
 export function clustersTooBalanced(
-  bullOI: number | null | undefined,
-  bearOI: number | null | undefined,
+  bullNetOI: number | null | undefined,
+  bearNetOI: number | null | undefined,
   minImbalance = MIN_CLUSTER_OI_IMBALANCE,
 ): boolean {
-  const ratio = clusterOiImbalanceRatio(bullOI, bearOI);
+  const ratio = clusterOiImbalanceRatio(bullNetOI, bearNetOI);
   return ratio != null && ratio < minImbalance;
+}
+
+/** Signed net OI at a strike: put OI − call OI (positive = put-heavy). */
+export function signedNetOiAtStrike(putOI: number, callOI: number): number {
+  const put = Math.max(0, putOI);
+  const call = Math.max(0, callOI);
+  return put - call;
+}
+
+/** Directional wall strength at a strike after netting the opposite side.
+ *  Never negative — call-heavy strikes score 0 for bull (put) walls and vice versa. */
+export function netWallOiAtStrike(
+  side: "put" | "call",
+  putOI: number,
+  callOI: number,
+): number {
+  const net = signedNetOiAtStrike(putOI, callOI);
+  if (side === "put") return net > 0 ? net : 0;
+  return net < 0 ? -net : 0;
+}
+
+function netWallOiFromMaps(
+  side: "put" | "call",
+  strike: number,
+  putOIByStrike: Map<number, number>,
+  callOIByStrike: Map<number, number>,
+): number {
+  const put = putOIByStrike.get(strike) ?? 0;
+  const call = callOIByStrike.get(strike) ?? 0;
+  return netWallOiAtStrike(side, put, call);
+}
+
+/** Sum of net wall OI across all strikes (for cluster share denominator). */
+function totalNetWallOi(
+  side: "put" | "call",
+  putOIByStrike: Map<number, number>,
+  callOIByStrike: Map<number, number>,
+): number {
+  const strikes = new Set([...putOIByStrike.keys(), ...callOIByStrike.keys()]);
+  let total = 0;
+  for (const strike of strikes) {
+    total += netWallOiFromMaps(side, strike, putOIByStrike, callOIByStrike);
+  }
+  return total;
 }
 
 /** Panic regime: ATM IV at or above this triggers "no fresh entries" mode.
@@ -580,11 +628,13 @@ interface ClusterPick {
 }
 
 interface ClusterPickInput {
-  oiByStrike:            Map<number, number>;
+  putOIByStrike:         Map<number, number>;
+  callOIByStrike:        Map<number, number>;
   /** Day-0+1 OI per strike. Used only for the premium-magnet sanity
    *  filter — a strike whose near-term OI is below `nearTermOiFloor`
    *  is rejected regardless of its all-expiry total. */
-  nearTermOiByStrike:    Map<number, number>;
+  nearTermPutOI:         Map<number, number>;
+  nearTermCallOI:        Map<number, number>;
   nearTermOiFloor:       number;
   spot:                  number;
   side:                  "put" | "call";
@@ -638,8 +688,10 @@ function filterPotentNearMaxPain(
   anchorSpanUsd: number,
 ): Array<[number, number]> {
   const {
-    oiByStrike,
-    nearTermOiByStrike,
+    putOIByStrike,
+    callOIByStrike,
+    nearTermPutOI,
+    nearTermCallOI,
     nearTermOiFloor,
     spot,
     side,
@@ -648,41 +700,39 @@ function filterPotentNearMaxPain(
     minClusterOi,
   } = input;
   const half = zoneHalfWidthUsd;
-  // The strike↔max-pain gap is hardcoded at 2 × halfWidth — see
-  // MAX_PAIN_GAP_HALFWIDTHS for the rationale.
   const mpGap = maxPainGapUsd(half);
 
   if (day0MaxPain == null) return [];
 
-  const pool = [...oiByStrike.entries()].filter(([strike, oi]) => {
-    if (oi <= 0) return false;
+  const allStrikes = new Set([...putOIByStrike.keys(), ...callOIByStrike.keys()]);
+  const pool: Array<[number, number]> = [];
+  for (const strike of allStrikes) {
+    const netWall = netWallOiFromMaps(side, strike, putOIByStrike, callOIByStrike);
+    if (netWall <= 0) continue;
 
     if (side === "put") {
       const upper = day0MaxPain - mpGap;
       const lower = day0MaxPain - anchorSpanUsd;
-      if (strike >= upper) return false;
-      if (strike < lower) return false;
-      if (strike + half >= day0MaxPain) return false;
-      if (!bullStrikeEligibleForSpot(strike, half, spot)) return false;
+      if (strike >= upper) continue;
+      if (strike < lower) continue;
+      if (strike + half >= day0MaxPain) continue;
+      if (!bullStrikeEligibleForSpot(strike, half, spot)) continue;
     } else {
       const lower = day0MaxPain + mpGap;
       const upper = day0MaxPain + anchorSpanUsd;
-      if (strike <= lower) return false;
-      if (strike > upper) return false;
-      if (strike - half <= day0MaxPain) return false;
-      if (!bearStrikeEligibleForSpot(strike, half, spot)) return false;
+      if (strike <= lower) continue;
+      if (strike > upper) continue;
+      if (strike - half <= day0MaxPain) continue;
+      if (!bearStrikeEligibleForSpot(strike, half, spot)) continue;
     }
 
-    // Premium-magnet sanity filter — see file header. A strike with
-    // tens of thousands of all-expiry OI but ~zero day-0+1 OI is a
-    // premium-seller magnet, not a wall that pins price. Real walls
-    // (even ones concentrated in next-weekly) always have *some*
-    // daily-expiry OI.
-    const nearTerm = nearTermOiByStrike.get(strike) ?? 0;
-    if (nearTerm < nearTermOiFloor) return false;
+    const nearTermPut = nearTermPutOI.get(strike) ?? 0;
+    const nearTermCall = nearTermCallOI.get(strike) ?? 0;
+    const nearTermNet = netWallOiAtStrike(side, nearTermPut, nearTermCall);
+    if (nearTermNet < nearTermOiFloor) continue;
 
-    return true;
-  });
+    pool.push([strike, netWall]);
+  }
 
   if (!pool.length) return [];
 
@@ -694,14 +744,14 @@ function filterPotentNearMaxPain(
 function pickPotentClusterNearMaxPain(
   input: ClusterPickInput,
 ): ClusterPick | null {
-  const { oiByStrike, day0MaxPain, maxPainAnchorSpanUsd } = input;
+  const { putOIByStrike, callOIByStrike, day0MaxPain, maxPainAnchorSpanUsd, side } = input;
   if (day0MaxPain == null) return null;
 
   const tryPick = (span: number): ClusterPick | null => {
     const potent = filterPotentNearMaxPain(input, span);
     if (!potent.length) return null;
 
-    const sideTotal = [...oiByStrike.entries()].reduce((s, [, oi]) => s + oi, 0);
+    const sideTotal = totalNetWallOi(side, putOIByStrike, callOIByStrike);
     const [chosenStrike, chosenOi] = potent.reduce((best, cur) => {
       const [, bestOi] = best;
       const [, curOi] = cur;
@@ -878,13 +928,11 @@ export async function computeOptionsZones(
     NEAR_TERM_OI_FLOOR_FRAC_OF_MIN_CLUSTER * spec.minClusterOi,
   );
 
-  const pickInput = (
-    side: "put" | "call",
-    allMap: Map<number, number>,
-    nearTermMap: Map<number, number>,
-  ): ClusterPickInput => ({
-    oiByStrike: allMap,
-    nearTermOiByStrike: nearTermMap,
+  const pickInput = (side: "put" | "call"): ClusterPickInput => ({
+    putOIByStrike,
+    callOIByStrike,
+    nearTermPutOI: nearTermPutOI,
+    nearTermCallOI: nearTermCallOI,
     nearTermOiFloor,
     spot,
     side,
@@ -895,12 +943,8 @@ export async function computeOptionsZones(
     maxPainAnchorSpanUsd,
   });
 
-  const bullPick = pickPotentClusterNearMaxPain(
-    pickInput("put", putOIByStrike, nearTermPutOI),
-  );
-  const bearPick = pickPotentClusterNearMaxPain(
-    pickInput("call", callOIByStrike, nearTermCallOI),
-  );
+  const bullPick = pickPotentClusterNearMaxPain(pickInput("put"));
+  const bearPick = pickPotentClusterNearMaxPain(pickInput("call"));
 
   // ── Bands (fresh scan) ────────────────────────────────────────────────
   const half = sizes.halfWidthUsd;
@@ -935,9 +979,7 @@ export async function computeOptionsZones(
     },
     input.previousBands ?? null,
     (side, strike) =>
-      side === "put"
-        ? (putOIByStrike.get(strike) ?? 0)
-        : (callOIByStrike.get(strike) ?? 0),
+      netWallOiFromMaps(side, strike, putOIByStrike, callOIByStrike),
     spec.minClusterOi,
   );
 
@@ -986,6 +1028,10 @@ export async function computeOptionsZones(
   const clusterOiBalanced =
     bullStrike !== null &&
     bearStrike !== null &&
+    bullOI != null &&
+    bearOI != null &&
+    bullOI > 0 &&
+    bearOI > 0 &&
     clustersTooBalanced(bullOI, bearOI);
 
   // ── Actionable flags + reason ────────────────────────────────────────
@@ -1016,7 +1062,7 @@ export async function computeOptionsZones(
           ? `${(clusterOiImbalance * 100).toFixed(0)}%`
           : "n/a";
       notActionableReason =
-        `Balanced put/call clusters (OI gap ${pct}, need ≥${(MIN_CLUSTER_OI_IMBALANCE * 100).toFixed(0)}%) — no directional edge`;
+        `Balanced net OI clusters (net gap ${pct}, need ≥${(MIN_CLUSTER_OI_IMBALANCE * 100).toFixed(0)}%) — puts and calls net to similar walls at both strikes`;
     } else if (inPanicRegime) {
       notActionableReason = ivBackwardation >= BACKWARDATION_RATIO_THRESHOLD
         ? `Panic regime — IV term-structure inverted (front/week = ${ivBackwardation.toFixed(2)}x)`

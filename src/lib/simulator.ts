@@ -178,9 +178,9 @@ export interface SimTrade {
    *  (e.g. trailing-SL mismatch). Undefined on the parent zone trade
    *  and on all non-mirror sim trades. */
   parentSimTradeId?: string;
-  /** Day-0 max pain stamped at zone-bot entry — 50% partial exit target. */
+  /** Day-0 (today's expiry) max pain at entry — 50% partial books here. */
   maxPainTarget?: number | null;
-  /** True after the zone-bot max-pain partial (50%) has been taken. */
+  /** True after 50% closed at day-0 max pain; runner SL moves to cost. */
   maxPainHit?: boolean;
   /** Solana memo publish — set when trade closes. */
   txHash?: string | null;

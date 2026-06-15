@@ -154,6 +154,25 @@ export function priceReachedMaxPain(
   return spot <= maxPain + tol;
 }
 
+/** Day-0 (today's expiry) max pain — the only magnet used for the 50% partial. */
+export function resolveDay0MaxPain(input: {
+  maxPain?:             number | null;
+  maxPainByExpiry?:     Array<{ maxPain: number; dayIndex?: number }> | null;
+} | null | undefined): number | null {
+  if (!input) return null;
+  if (input.maxPain != null && Number.isFinite(input.maxPain) && input.maxPain > 0) {
+    return input.maxPain;
+  }
+  const entries = input.maxPainByExpiry ?? [];
+  const d0 =
+    entries.find((e) => e.dayIndex === 0) ??
+    entries[0];
+  if (d0?.maxPain != null && Number.isFinite(d0.maxPain) && d0.maxPain > 0) {
+    return d0.maxPain;
+  }
+  return null;
+}
+
 function pocRRSkipReason(
   side:      "BULL" | "BEAR",
   tradeSide: "BUY" | "SELL",

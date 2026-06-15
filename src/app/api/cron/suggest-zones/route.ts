@@ -73,6 +73,8 @@ function serializeSuggested(
     notActionableReason: result.notActionableReason,
     bullClusterShare:    result.bullClusterShare,
     bearClusterShare:    result.bearClusterShare,
+    clusterOiImbalance:  result.clusterOiImbalance,
+    clusterOiBalanced:   result.clusterOiBalanced,
     expiryUsed:        result.expiryUsed,
     expiriesUsed:      result.expiriesUsed,
     expiryOI:          result.expiryOI,

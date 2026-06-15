@@ -39,6 +39,7 @@ export {
   BOT_SOURCE_SOL_ZONE,
   BOT_SOURCE_XRP_ZONE,
   classifyBotSource,
+  isZoneBotSource,
 };
 export type { BotSourceFilter };
 

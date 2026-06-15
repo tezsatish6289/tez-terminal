@@ -119,8 +119,15 @@ const DERIBIT_API = "https://www.deribit.com/api/v2/public";
 // Every value here has a stated derivation or empirical anchor. None of
 // them are tuning knobs picked by gut.
 
-/** Secondary potency: OI ≥ this fraction of the tallest bar in the anchor window. */
-const MIN_CLUSTER_PCT_OF_MAX = 0.25;
+/** Secondary potency: OI ≥ this fraction of the tallest bar in the anchor window.
+ *  Raised 2026-06-15 from 0.25 → 0.40 so zone bots prefer dominant walls
+ *  over secondary clusters that produce small-reward / full-risk entries. */
+const MIN_CLUSTER_PCT_OF_MAX = 0.40;
+
+/** When both put and call clusters are picked, their OI must differ by at
+ *  least this fraction of the larger side — otherwise spot sits between
+ *  nearly equal magnets and neither side has edge. */
+export const MIN_CLUSTER_OI_IMBALANCE = 0.35;
 
 /** Volatility term of the anchor window — IV-derived 1-σ daily move ×
  *  this multiple. "In a volatile market we expect price to travel
@@ -182,6 +189,35 @@ const MAX_PAIN_GAP_HALFWIDTHS = 2.0;
 /** Convenience accessor used at the manual-gate call site. */
 export function maxPainGapUsd(halfWidthUsd: number): number {
   return MAX_PAIN_GAP_HALFWIDTHS * halfWidthUsd;
+}
+
+/** 0..1 — how much the picked put vs call cluster OI differ (1 = one-sided). */
+export function clusterOiImbalanceRatio(
+  bullOI: number | null | undefined,
+  bearOI: number | null | undefined,
+): number | null {
+  if (
+    bullOI == null ||
+    bearOI == null ||
+    !Number.isFinite(bullOI) ||
+    !Number.isFinite(bearOI) ||
+    bullOI <= 0 ||
+    bearOI <= 0
+  ) {
+    return null;
+  }
+  const max = Math.max(bullOI, bearOI);
+  return (max - Math.min(bullOI, bearOI)) / max;
+}
+
+/** Both sides picked but OI too close — chop between equal magnets. */
+export function clustersTooBalanced(
+  bullOI: number | null | undefined,
+  bearOI: number | null | undefined,
+  minImbalance = MIN_CLUSTER_OI_IMBALANCE,
+): boolean {
+  const ratio = clusterOiImbalanceRatio(bullOI, bearOI);
+  return ratio != null && ratio < minImbalance;
 }
 
 /** Panic regime: ATM IV at or above this triggers "no fresh entries" mode.
@@ -337,6 +373,10 @@ export interface OptionsZones {
   minPinGapUsd:        number;
   bullClusterShare:    number | null;  // share of side OI held by chosen bull strike
   bearClusterShare:    number | null;
+  /** Put vs call cluster OI dominance (0..1). null when only one side picked. */
+  clusterOiImbalance:  number | null;
+  /** Both clusters picked but OI nearly equal — neither side has edge. */
+  clusterOiBalanced:   boolean;
 
   // ── Metadata ─────────────────────────────────────────────────────────────
   expiryUsed:        string | null;       // day-0 expiry label
@@ -718,6 +758,7 @@ export async function computeOptionsZones(
     halfWidthUsd: sizes.halfWidthUsd, maxReachUsd: sizes.maxReachUsd,
     minPinGapUsd: sizes.minPinGapUsd,
     bullClusterShare: null, bearClusterShare: null,
+    clusterOiImbalance: null, clusterOiBalanced: false,
     expiryUsed: null, expiriesUsed: [], expiryOI: null,
     bullOI: null, bearOI: null,
     maxPainAnchorSpanUsd: deriveMaxPainAnchorSpan(sizes.maxReachUsd, 0),
@@ -941,27 +982,42 @@ export async function computeOptionsZones(
   const magnetPullsUp   = day0MaxPain !== null && day0MaxPain > spot + sizes.minPinGapUsd;
   const magnetPullsDown = day0MaxPain !== null && day0MaxPain < spot - sizes.minPinGapUsd;
 
+  const clusterOiImbalance = clusterOiImbalanceRatio(bullOI, bearOI);
+  const clusterOiBalanced =
+    bullStrike !== null &&
+    bearStrike !== null &&
+    clustersTooBalanced(bullOI, bearOI);
+
   // ── Actionable flags + reason ────────────────────────────────────────
   let notActionableReason: string | null = null;
   const fmtUsd = (n: number) => `$${Math.round(n).toLocaleString()}`;
   const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 
-  const bullActionable =
+  let bullActionable =
     !inPanicRegime &&
     !signalConflict &&
+    !clusterOiBalanced &&
     bullStrike !== null &&
     magnetPullsUp &&
     bullTpTarget !== null;
 
-  const bearActionable =
+  let bearActionable =
     !inPanicRegime &&
     !signalConflict &&
+    !clusterOiBalanced &&
     bearStrike !== null &&
     magnetPullsDown &&
     bearTpTarget !== null;
 
   if (!bullActionable && !bearActionable) {
-    if (inPanicRegime) {
+    if (clusterOiBalanced) {
+      const pct =
+        clusterOiImbalance != null
+          ? `${(clusterOiImbalance * 100).toFixed(0)}%`
+          : "n/a";
+      notActionableReason =
+        `Balanced put/call clusters (OI gap ${pct}, need ≥${(MIN_CLUSTER_OI_IMBALANCE * 100).toFixed(0)}%) — no directional edge`;
+    } else if (inPanicRegime) {
       notActionableReason = ivBackwardation >= BACKWARDATION_RATIO_THRESHOLD
         ? `Panic regime — IV term-structure inverted (front/week = ${ivBackwardation.toFixed(2)}x)`
         : `Panic regime — ATM IV ${fmtPct(atmIV)} ≥ ${fmtPct(PANIC_IV_THRESHOLD)}`;
@@ -1021,6 +1077,8 @@ export async function computeOptionsZones(
     minPinGapUsd:    sizes.minPinGapUsd,
     bullClusterShare,
     bearClusterShare,
+    clusterOiImbalance,
+    clusterOiBalanced,
 
     expiryUsed:   day0?.expiry ?? null,
     expiriesUsed,

@@ -28,6 +28,8 @@ export const SIM_CONFIG = {
   TP1_CLOSE_PCT: 0.20,
   TP2_CLOSE_PCT: 0.0,
   TP3_CLOSE_PCT: 0.0,
+  /** Zone bots: partial take at day-0 max pain; remainder exits on zone flip. */
+  ZONE_MAX_PAIN_CLOSE_PCT: 0.50,
   // Incubated signal selection
   INCUBATED_MIN_SCORE: 65,          // minimum confidence score to enter simulator
   INCUBATED_MAX_SL_DISTANCE_PCT: 0.03, // max SL distance as % of entry price (3%)
@@ -176,6 +178,10 @@ export interface SimTrade {
    *  (e.g. trailing-SL mismatch). Undefined on the parent zone trade
    *  and on all non-mirror sim trades. */
   parentSimTradeId?: string;
+  /** Day-0 max pain stamped at zone-bot entry — 50% partial exit target. */
+  maxPainTarget?: number | null;
+  /** True after the zone-bot max-pain partial (50%) has been taken. */
+  maxPainHit?: boolean;
   /** Solana memo publish — set when trade closes. */
   txHash?: string | null;
   blockchainStatus?: "pending" | "processing" | "confirmed" | "failed" | null;
@@ -188,7 +194,7 @@ export interface SimTrade {
 }
 
 export interface SimTradeEvent {
-  type: "OPEN" | "TP1" | "TP2" | "TP3" | "SL" | "SL_TO_BE";
+  type: "OPEN" | "TP1" | "TP2" | "TP3" | "SL" | "SL_TO_BE" | "MAX_PAIN";
   price: number;
   pnl: number;
   fee: number;
@@ -870,7 +876,7 @@ export function openTrade(params: {
 export function processTradeExit(params: {
   trade: SimTrade;
   state: SimulatorState;
-  exitType: "TP1" | "TP2" | "TP3" | "SL";
+  exitType: "TP1" | "TP2" | "TP3" | "SL" | "MAX_PAIN";
   exitPrice: number;
   simConfig?: SimConfigType;
   /** Live score for the originating signal at the moment of exit, if
@@ -899,6 +905,7 @@ export function processTradeExit(params: {
   let newTp2Hit = trade.tp2Hit;
   let newTp3Hit = trade.tp3Hit;
   let newSlHit = trade.slHit;
+  let newMaxPainHit = trade.maxPainHit ?? false;
 
   switch (exitType) {
     case "TP1":
@@ -915,6 +922,11 @@ export function processTradeExit(params: {
       if (trade.tp3Hit) return null;
       closePct = SIM_CONFIG.TP3_CLOSE_PCT;
       newTp3Hit = true;
+      break;
+    case "MAX_PAIN":
+      if (newMaxPainHit) return null;
+      closePct = cfg.ZONE_MAX_PAIN_CLOSE_PCT;
+      newMaxPainHit = true;
       break;
     case "SL":
       closePct = trade.remainingPct; // close everything remaining
@@ -981,6 +993,7 @@ export function processTradeExit(params: {
     tp2Hit: newTp2Hit,
     tp3Hit: newTp3Hit,
     slHit: newSlHit,
+    maxPainHit: newMaxPainHit,
     remainingPct: Math.max(0, newRemainingPct),
     realizedPnl: totalRealizedPnl,
     currentPrice: exitPrice,
@@ -1076,7 +1089,7 @@ export function processTradeExit(params: {
       : "";
   const log: SimLog = {
     timestamp: new Date().toISOString(),
-    action: exitType === "SL" ? "SL_HIT" : "TP_HIT",
+    action: exitType === "SL" ? "SL_HIT" : exitType === "MAX_PAIN" ? "MAX_PAIN_HIT" : "TP_HIT",
     details: `${exitType} on ${trade.symbol} | closed ${(closePct * 100).toFixed(0)}% @ ${cs}${exitPrice.toFixed(4)} pnl=${cs}${netPnl.toFixed(4)} fee=${cs}${exitFee.toFixed(4)}${scoreAtCloseNote}${streakInfo}`,
     signalId: trade.signalId,
     symbol: trade.symbol,

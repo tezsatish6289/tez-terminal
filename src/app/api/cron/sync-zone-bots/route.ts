@@ -114,9 +114,11 @@ import {
 import type { BotSourceFilter } from "@/lib/bot-source-filter";
 import {
   evaluateZoneBot,
+  priceReachedMaxPain,
   type ZoneBotAction,
   type ZoneBotSuggestedZones,
 } from "@/lib/zone-bot-engine";
+import { isZoneBotSource } from "@/lib/bot-source-constants";
 
 export const dynamic     = "force-dynamic";
 export const maxDuration = 60;
@@ -319,6 +321,8 @@ async function openZoneBotTrade(args: {
   riskPerTradePct?:  number;
   leverageOverride?: number;
   attachedZoneBots:  AttachedZoneBots;
+  /** Day-0 max pain — 50% partial exit + TP ladder anchor for the runner. */
+  maxPainTarget?:    number | null;
 }): Promise<{ tradeId: string; updatedState: SimulatorState; log: SimLog; sizing: PositionSizeResult }> {
   const {
     db,
@@ -330,12 +334,21 @@ async function openZoneBotTrade(args: {
     riskPerTradePct,
     leverageOverride,
     attachedZoneBots,
+    maxPainTarget,
   } = args;
 
   // OPEN uses `.side`, FLIP uses `.openSide`; the rest of the trade params
   // share names across both variants of the union.
   const side = action.type === "OPEN" ? action.side : action.openSide;
   const { entryPrice, stopLoss, tp1, tp2, tp3 } = action;
+
+  const magnetTp =
+    maxPainTarget != null && Number.isFinite(maxPainTarget) && maxPainTarget > 0
+      ? maxPainTarget
+      : null;
+  const effectiveTp1 = magnetTp ?? tp1;
+  const effectiveTp2 = magnetTp ?? tp2;
+  const effectiveTp3 = magnetTp ?? tp3;
 
   const sizing = computePositionSize(
     state,
@@ -370,9 +383,9 @@ async function openZoneBotTrade(args: {
       algo:            ZONE_BOT_ALGO,
       price:           entryPrice,
       stopLoss:        truncatePrice(stopLoss),
-      tp1:             truncatePrice(tp1),
-      tp2:             truncatePrice(tp2),
-      tp3:             truncatePrice(tp3),
+      tp1:             truncatePrice(effectiveTp1),
+      tp2:             truncatePrice(effectiveTp2),
+      tp3:             truncatePrice(effectiveTp3),
       confidenceScore: 75,
       scorePattern:    "none",
       scoreBreakdown:  undefined,
@@ -397,6 +410,8 @@ async function openZoneBotTrade(args: {
     ...result.trade,
     botSource: ZONE_BOT_SOURCE[asset],
     leverage: sizing.leverage,
+    maxPainTarget: magnetTp,
+    maxPainHit: false,
   };
 
   const docId = `sim-${signalId}`;
@@ -597,6 +612,66 @@ async function closeZoneBotTrade(args: {
   return { updatedState: exitResult.updatedState, log: decoratedLog };
 }
 
+/** Zone-bot lifecycle: take 50% at day-0 max pain; runner exits on flip/SL. */
+async function maybeTakeMaxPainPartial(args: {
+  db:         FirebaseFirestore.Firestore;
+  asset:      ZoneBotAsset;
+  tradeId:    string;
+  state:      SimulatorState;
+  simConfig:  SimConfigType;
+  spot:       number;
+  maxPain:    number;
+  halfWidth?: number | null;
+}): Promise<{ updatedState: SimulatorState; log: SimLog | null }> {
+  const { db, asset, tradeId, state, simConfig, spot, maxPain, halfWidth } = args;
+
+  const snap = await db.collection("simulator_trades").doc(tradeId).get();
+  if (!snap.exists) return { updatedState: state, log: null };
+
+  const trade = { id: snap.id, ...(snap.data() as SimTrade) };
+  if (trade.status !== "OPEN" || trade.maxPainHit || !isZoneBotSource(trade.botSource)) {
+    return { updatedState: state, log: null };
+  }
+
+  const target = trade.maxPainTarget ?? maxPain;
+  if (target == null || !Number.isFinite(target)) return { updatedState: state, log: null };
+
+  if (!priceReachedMaxPain(trade.side, spot, target, halfWidth ?? undefined)) {
+    return { updatedState: state, log: null };
+  }
+
+  const exitResult = processTradeExit({
+    trade,
+    state,
+    exitType: "MAX_PAIN",
+    exitPrice: spot,
+    simConfig,
+  });
+  if (!exitResult) return { updatedState: state, log: null };
+
+  const runner = {
+    ...exitResult.updatedTrade,
+    trailingSl: trade.entryPrice,
+  };
+
+  const { id: _id, ...fields } = runner;
+  await db.collection("simulator_trades").doc(tradeId).update({
+    ...fields,
+    closeReason: exitResult.updatedTrade.status === "CLOSED"
+      ? "ZONE_BOT_MAX_PAIN"
+      : trade.closeReason,
+  });
+
+  const decoratedLog: SimLog = {
+    ...exitResult.log,
+    action: "ZONE_BOT_MAX_PAIN",
+    details: `[${ZONE_BOT_SOURCE[asset]}] ${trade.symbol} ${trade.side} — 50% at max pain ${Math.round(target)} @ $${spot} — runner to flip`,
+  };
+  await db.collection("simulator_logs").add(decoratedLog);
+
+  return { updatedState: exitResult.updatedState, log: decoratedLog };
+}
+
 // ── Reality-sync helper ─────────────────────────────────────────────────
 
 /** Clears state.openTradeId if the underlying simulator_trades doc is
@@ -713,6 +788,7 @@ async function tickAsset(
           riskPerTradePct: botSettings.riskPerTradePct,
           leverageOverride: botSettings.leverage,
           attachedZoneBots,
+          maxPainTarget: suggested?.maxPain ?? null,
         });
         if (opened.tradeId) {
           workingState.openTradeId = opened.tradeId;
@@ -782,6 +858,7 @@ async function tickAsset(
             riskPerTradePct: botSettings.riskPerTradePct,
             leverageOverride: botSettings.leverage,
             attachedZoneBots,
+            maxPainTarget: suggested?.maxPain ?? null,
           });
           if (opened.tradeId) {
             workingState.openTradeId = opened.tradeId;
@@ -795,6 +872,24 @@ async function tickAsset(
         }
         break;
       }
+    }
+
+    if (
+      workingState.openTradeId &&
+      suggested?.maxPain != null &&
+      Number.isFinite(suggested.maxPain)
+    ) {
+      const mpResult = await maybeTakeMaxPainPartial({
+        db,
+        asset,
+        tradeId: workingState.openTradeId,
+        state: workingSimState,
+        simConfig,
+        spot,
+        maxPain: suggested.maxPain,
+        halfWidth: suggested.halfWidthUsd ?? null,
+      });
+      workingSimState = mpResult.updatedState;
     }
 
     await saveZoneBotState(db, asset, workingState);

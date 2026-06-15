@@ -50,6 +50,7 @@ import {
 import { executeForAllUsers } from "@/lib/live-execution";
 import { isMarketOpen, isIndianMarketEntryAllowed, isIndianSquareOffTime } from "@/lib/market-hours";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
+import { isZoneBotSource } from "@/lib/bot-source-constants";
 import { recordCronHeartbeat } from "@/lib/cron-health";
 
 export const dynamic = 'force-dynamic';
@@ -697,34 +698,40 @@ export async function GET(request: NextRequest) {
           // Universal raw-price check (zone-bot AND pattern-bot fallback).
           // Pushes only events not already added by the signal branch, so
           // we never double-process the same hit.
+          // Zone bots exit 50% at max pain (sync-zone-bots) and the runner
+          // at flip — skip the standard 1R/2R/3R partial ladder.
+          const zoneBotTrade = isZoneBotSource(t.botSource);
           if (livePrice != null) {
             const isBuy = t.side === "BUY";
             const has = (type: "TP1" | "TP2" | "TP3" | "SL") =>
               missedExits.some((e) => e.type === type);
 
-            const tp1Crossed =
-              typeof t.tp1 === "number" &&
-              t.tp1 > 0 &&
-              (isBuy ? livePrice >= t.tp1 : livePrice <= t.tp1);
-            if (tp1Crossed && !t.tp1Hit && !has("TP1")) {
-              missedExits.push({ type: "TP1", price: t.tp1 });
+            if (!zoneBotTrade) {
+              const tp1Crossed =
+                typeof t.tp1 === "number" &&
+                t.tp1 > 0 &&
+                (isBuy ? livePrice >= t.tp1 : livePrice <= t.tp1);
+              if (tp1Crossed && !t.tp1Hit && !has("TP1")) {
+                missedExits.push({ type: "TP1", price: t.tp1 });
+              }
+              const tp2Crossed =
+                typeof t.tp2 === "number" &&
+                t.tp2 > 0 &&
+                (isBuy ? livePrice >= t.tp2 : livePrice <= t.tp2);
+              if (tp2Crossed && !t.tp2Hit && !has("TP2")) {
+                missedExits.push({ type: "TP2", price: t.tp2 });
+              }
+              const tp3Crossed =
+                typeof t.tp3 === "number" &&
+                t.tp3 > 0 &&
+                (isBuy ? livePrice >= t.tp3 : livePrice <= t.tp3);
+              if (tp3Crossed && !t.tp3Hit && !has("TP3")) {
+                missedExits.push({ type: "TP3", price: t.tp3 });
+              }
             }
-            const tp2Crossed =
-              typeof t.tp2 === "number" &&
-              t.tp2 > 0 &&
-              (isBuy ? livePrice >= t.tp2 : livePrice <= t.tp2);
-            if (tp2Crossed && !t.tp2Hit && !has("TP2")) {
-              missedExits.push({ type: "TP2", price: t.tp2 });
-            }
-            const tp3Crossed =
-              typeof t.tp3 === "number" &&
-              t.tp3 > 0 &&
-              (isBuy ? livePrice >= t.tp3 : livePrice <= t.tp3);
-            if (tp3Crossed && !t.tp3Hit && !has("TP3")) {
-              missedExits.push({ type: "TP3", price: t.tp3 });
-            }
-            // SL uses the trailing SL when set (post-TP1 BE/trail), else
-            // the original stopLoss. Mirrors computeTrailingSl's intent.
+
+            // SL uses the trailing SL when set (post partial / BE trail), else
+            // the original stopLoss. Zone bots still need this path.
             const effectiveSl =
               typeof t.trailingSl === "number" && t.trailingSl > 0
                 ? t.trailingSl

@@ -96,6 +96,7 @@ function fromEngineReason(reason: string): CockpitCardStatus | null {
     if (/between zones/i.test(body)) return waiting("Price between zones", body);
     if (/confirming/i.test(body)) return waiting("Zone confirming", body);
     if (/not actionable/i.test(body)) return waiting("Zone not actionable yet", body);
+    if (/POC RR/i.test(body)) return waiting("POC RR too low", body);
     return waiting(body.charAt(0).toUpperCase() + body.slice(1));
   }
 
@@ -117,6 +118,8 @@ function fromEngineReason(reason: string): CockpitCardStatus | null {
   if (/Panic regime/i.test(r)) return blocked("Panic regime", shortDetail(r));
 
   if (/confirming/i.test(r)) return waiting("Zone confirming", shortDetail(r));
+
+  if (/POC RR/i.test(r)) return waiting("POC RR too low", shortDetail(r));
 
   if (/ACTIVE|opening trade|FLIP/i.test(r)) {
     return ready("In zone", shortDetail(r));
@@ -157,6 +160,9 @@ function fromSuggester(s: SuggestedZonesSnapshot): CockpitCardStatus | null {
   if (s.notActionableReason) {
     if (/Pin chop/i.test(s.notActionableReason)) {
       return blocked("Pin chop", shortDetail(s.notActionableReason));
+    }
+    if (/Balanced put\/call/i.test(s.notActionableReason)) {
+      return blocked("Balanced clusters", shortDetail(s.notActionableReason));
     }
     if (/TP room/i.test(s.notActionableReason)) {
       return waiting("TP room too tight", shortDetail(s.notActionableReason));

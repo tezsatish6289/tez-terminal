@@ -40,3 +40,8 @@ export function classifyBotSource(
   if (raw === BOT_SOURCE_XRP_ZONE) return "XRP_ZONE";
   return "PATTERN";
 }
+
+/** True for zone-bot sim/live trades (`BTC_ZONE`, `ETH_ZONE`, …). */
+export function isZoneBotSource(raw: string | null | undefined): boolean {
+  return classifyBotSource(raw) !== "PATTERN";
+}

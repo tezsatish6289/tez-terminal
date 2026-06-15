@@ -119,6 +119,51 @@ export function isNearResistance(bands: ZoneBands): boolean {
 /** Minimum reward:risk from spot → POC vs band invalidation (Bull/Bear Inv.). */
 export const MIN_POC_RISK_REWARD = 2;
 
+/** Reward:risk from actual entry → day-0 max pain vs computed SL (zone bots). */
+export function entryPocRiskRewardRatio(
+  side: "BUY" | "SELL",
+  entryPrice: number,
+  stopLoss: number,
+  poc: number,
+): number | null {
+  if (
+    !Number.isFinite(entryPrice) ||
+    !Number.isFinite(stopLoss) ||
+    !Number.isFinite(poc) ||
+    entryPrice <= 0
+  ) {
+    return null;
+  }
+
+  if (side === "BUY") {
+    const risk = entryPrice - stopLoss;
+    const reward = poc - entryPrice;
+    if (risk <= 0 || reward <= 0) return null;
+    return reward / risk;
+  }
+
+  const risk = stopLoss - entryPrice;
+  const reward = entryPrice - poc;
+  if (risk <= 0 || reward <= 0) return null;
+  return reward / risk;
+}
+
+export function entryMeetsMinPocRR(
+  side: "BUY" | "SELL",
+  entryPrice: number,
+  stopLoss: number,
+  poc: number | null | undefined,
+  minRatio = MIN_POC_RISK_REWARD,
+): boolean {
+  if (poc == null || !Number.isFinite(poc)) return false;
+  const rr = entryPocRiskRewardRatio(side, entryPrice, stopLoss, poc);
+  return rr != null && rr >= minRatio;
+}
+
+export function formatPocRR(rr: number | null): string {
+  return rr != null && Number.isFinite(rr) ? `${rr.toFixed(1)}:1` : "n/a";
+}
+
 /** Zone strike proxy — same center the bands are built around (not live spot). */
 function zoneBandCenter(bands: ZoneBands, side: "bull" | "bear"): number | null {
   if (side === "bull" && bands.bullLow != null && bands.bullHigh != null) {

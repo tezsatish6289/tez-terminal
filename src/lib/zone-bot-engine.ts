@@ -38,6 +38,12 @@
 
 import type { ZoneBotAsset, ZoneBotSettings } from "./zone-bot-config";
 import type { PricePoint, ZoneBotState } from "./zone-bot-state";
+import {
+  entryMeetsMinPocRR,
+  entryPocRiskRewardRatio,
+  formatPocRR,
+  MIN_POC_RISK_REWARD,
+} from "./zones/zone-status";
 
 // ── Inputs and outputs ───────────────────────────────────────────────────
 
@@ -130,6 +136,46 @@ export interface EvaluateZoneBotInput {
 export interface EvaluateZoneBotResult {
   nextState: ZoneBotState;
   action:    ZoneBotAction;
+}
+
+/** Spot reached day-0 max pain within tolerance (zone-bot partial exit). */
+export function priceReachedMaxPain(
+  side:          "BUY" | "SELL",
+  spot:          number,
+  maxPain:       number,
+  toleranceUsd?: number | null,
+): boolean {
+  if (!Number.isFinite(spot) || !Number.isFinite(maxPain) || spot <= 0) return false;
+  const tol =
+    toleranceUsd != null && Number.isFinite(toleranceUsd) && toleranceUsd > 0
+      ? toleranceUsd
+      : Math.abs(spot) * 0.0005;
+  if (side === "BUY") return spot >= maxPain - tol;
+  return spot <= maxPain + tol;
+}
+
+function pocRRSkipReason(
+  side:      "BULL" | "BEAR",
+  tradeSide: "BUY" | "SELL",
+  entry:     number,
+  stopLoss:  number,
+  maxPain:   number | null,
+): string {
+  const rr = maxPain != null
+    ? entryPocRiskRewardRatio(tradeSide, entry, stopLoss, maxPain)
+    : null;
+  return `${side} confirmed but POC RR ${formatPocRR(rr)} < ${MIN_POC_RISK_REWARD}:1 — need major level`;
+}
+
+function passesEntryPocRR(
+  side:      "BULL" | "BEAR",
+  tradeSide: "BUY" | "SELL",
+  entry:     number,
+  stopLoss:  number,
+  maxPain:   number | null,
+): boolean {
+  if (maxPain == null) return true; // permissive when magnet unknown (legacy docs)
+  return entryMeetsMinPocRR(tradeSide, entry, stopLoss, maxPain);
 }
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -548,6 +594,12 @@ export function evaluateZoneBot(input: EvaluateZoneBotInput): EvaluateZoneBotRes
           },
         );
         if (params && params.slDistancePct <= MAX_SL_DISTANCE_PCT) {
+          if (!passesEntryPocRR(oppositeDir, newSide, spot, params.stopLoss, zones.maxPain)) {
+            next.direction  = "IDLE";
+            next.confirming = null;
+            next.reason     = pocRRSkipReason(oppositeDir, newSide, spot, params.stopLoss, zones.maxPain);
+            return { nextState: next, action: { type: "NONE", reason: next.reason } };
+          }
           next.direction     = oppositeDir;
           next.confirming    = null;
           next.openTradeId   = null; // caller assigns the new trade id after creation
@@ -748,6 +800,17 @@ function tryOpen(
     next.direction  = "IDLE";
     next.confirming = { side, minutesHeld: check.minutesHeld, startedAt: state.confirming?.startedAt ?? new Date(now).toISOString() };
     next.reason = `${side} confirmed but SL distance ${(params.slDistancePct * 100).toFixed(2)}% > ${(MAX_SL_DISTANCE_PCT * 100).toFixed(1)}% — skipping entry`;
+    return { nextState: next, action: { type: "NONE", reason: next.reason } };
+  }
+
+  if (!passesEntryPocRR(side, tradeSide, spot, params.stopLoss, zones.maxPain)) {
+    next.direction  = "IDLE";
+    next.confirming = {
+      side,
+      minutesHeld: check.minutesHeld,
+      startedAt:   state.confirming?.startedAt ?? new Date(now).toISOString(),
+    };
+    next.reason = pocRRSkipReason(side, tradeSide, spot, params.stopLoss, zones.maxPain);
     return { nextState: next, action: { type: "NONE", reason: next.reason } };
   }
 

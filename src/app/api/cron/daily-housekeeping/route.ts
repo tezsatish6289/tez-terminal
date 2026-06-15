@@ -7,6 +7,10 @@
  *
  * Recommended cadence: once daily at 00:05 UTC via cron-job.org.
  *
+ * cron-job.org max HTTP timeout is 30s. Fast work (halts, earnings, VIX) runs
+ * inline; the F&O universe pipeline (Dhan validation ~60s) runs in after().
+ * Use ?sync=1 only for manual debugging with a long client timeout.
+ *
  * Not part of the P0 trading chain — if this misses a day, users with a
  * stale halt simply wait an extra cycle, and they can still flip it via the
  * admin "force resume" path. We deliberately don't wire this into
@@ -27,7 +31,7 @@
  * disables a user's bot, so there's no orphaned `autoTradeEnabled: false`
  * state left to recover from.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { autoResumeStaleDailyLossHalts } from "@/lib/freedombot/auto-resume-mirroring";
 import { createNseSession } from "@/lib/nse/client";
@@ -40,13 +44,14 @@ import {
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-/** Dhan option-chain validation (~3s/symbol) runs after universe + map sync. */
+/** Background F&O pipeline (after()) may run up to platform limit. */
 export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const key = searchParams.get("key");
   const cronSecret = process.env.CRON_SECRET;
+  const sync = searchParams.get("sync") === "1";
 
   if (!cronSecret || key !== cronSecret) {
     return NextResponse.json(
@@ -87,20 +92,50 @@ export async function GET(request: NextRequest) {
       indiaVix = { ok: false, value: null, percentile: null, error };
     }
 
-    let fnoPipeline: { ok: boolean; summary: string; error?: string } = {
-      ok: false,
-      summary: "not_attempted",
-    };
-    try {
-      const pipeline = await runFnoUniversePipeline(db, {
-        validateLimit: 20,
-        session: nseSession,
+    if (sync) {
+      let fnoPipeline: { ok: boolean; summary: string; error?: string } = {
+        ok: false,
+        summary: "not_attempted",
+      };
+      try {
+        const pipeline = await runFnoUniversePipeline(db, {
+          validateLimit: 20,
+          session: nseSession,
+        });
+        fnoPipeline = { ok: true, summary: summarizeFnoUniversePipeline(pipeline) };
+      } catch (e) {
+        const error = e instanceof Error ? e.message : String(e);
+        fnoPipeline = { ok: false, summary: "failed", error };
+      }
+      const durationMs = Date.now() - startedAt;
+      console.log(
+        `[DailyHousekeeping] sync mode stale=${staleHaltsCleared}; F&O: ${fnoPipeline.summary} (${durationMs}ms)`,
+      );
+      return NextResponse.json({
+        success: true,
+        mode: "sync",
+        staleHaltsCleared,
+        earnings,
+        indiaVix,
+        fnoPipeline,
+        durationMs,
       });
-      fnoPipeline = { ok: true, summary: summarizeFnoUniversePipeline(pipeline) };
-    } catch (e) {
-      const error = e instanceof Error ? e.message : String(e);
-      fnoPipeline = { ok: false, summary: "failed", error };
     }
+
+    after(async () => {
+      try {
+        const pipeline = await runFnoUniversePipeline(db, {
+          validateLimit: 20,
+          session: nseSession,
+        });
+        console.log(
+          `[DailyHousekeeping] F&O pipeline background done: ${summarizeFnoUniversePipeline(pipeline)}`,
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[DailyHousekeeping] F&O pipeline background failed:", msg);
+      }
+    });
 
     const durationMs = Date.now() - startedAt;
     console.log(
@@ -108,7 +143,7 @@ export async function GET(request: NextRequest) {
         earnings.ok ? `${earnings.count} symbols` : `failed (${earnings.error})`
       }; India VIX: ${
         indiaVix.ok ? `${indiaVix.value} (pctl ${indiaVix.percentile ?? "n/a"})` : `failed (${indiaVix.error})`
-      }; F&O pipeline: ${fnoPipeline.summary}${fnoPipeline.error ? ` (${fnoPipeline.error})` : ""} (${durationMs}ms)`,
+      }; F&O pipeline: accepted (background) (${durationMs}ms)`,
     );
 
     return NextResponse.json({
@@ -116,7 +151,11 @@ export async function GET(request: NextRequest) {
       staleHaltsCleared,
       earnings,
       indiaVix,
-      fnoPipeline,
+      fnoPipeline: {
+        accepted: true,
+        mode: "background",
+        hint: "Universe + Dhan map + validation run after response (cron-job.org 30s limit).",
+      },
       durationMs,
     });
   } catch (e) {

@@ -22,12 +22,10 @@ import { loadIndiaVixState } from "@/lib/india-vix";
 import { loadIvHistory, recordDailyAtmIv } from "@/lib/iv-history";
 
 const STOCK_AGGREGATE_DOC = "config/zone_status_stocks";
-import {
-  isValidFnoSymbol,
-  normalizeStockSymbol,
-} from "@/lib/nse/fno-symbol";
+import { normalizeStockSymbol } from "@/lib/nse/fno-symbol";
+import { isValidFnoSymbolDb } from "@/lib/nse/fno-universe-runtime";
 
-export { isValidFnoSymbol, normalizeStockSymbol };
+export { normalizeStockSymbol };
 
 /** Shown in API/UI — never mentions upstream data providers. */
 export const STOCK_LEVELS_PUBLIC_ERROR =

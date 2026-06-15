@@ -65,10 +65,16 @@ function ChartContent() {
         if (scope === "stock") {
           const res = await fetch(stockLevelsUrl(symbol, true), { cache: "no-store" });
           const json = (await res.json()) as {
-            label: string;
+            label?: string;
             data: PublicLevels | null;
             error?: string;
           };
+          if (!res.ok) {
+            setLabel(symbol);
+            setLevels(null);
+            setError(json.error ?? "Could not load levels.");
+            return;
+          }
           setLabel(json.label ?? symbol);
           setLevels(json.data);
           if (json.error && !(json.data?.bullLow != null || json.data?.bearLow != null)) {

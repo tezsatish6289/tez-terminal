@@ -321,8 +321,10 @@ export type StockBubbleSource = {
 export function buildLevelsBubbleItems(
   indices: { symbol?: string; label: string; data: PublicLevels | null }[],
   stockBySymbol: Map<string, StockBubbleSource>,
+  stockUniverse?: readonly string[],
 ): LevelsBubbleItem[] {
   const out: LevelsBubbleItem[] = [];
+  const universe = stockUniverse?.length ? stockUniverse : FNO_UNIVERSE_ALPHA;
 
   for (const it of indices) {
     const symbol = (it.symbol ?? it.label).toUpperCase();
@@ -351,7 +353,7 @@ export function buildLevelsBubbleItems(
     });
   }
 
-  for (const sym of FNO_UNIVERSE_ALPHA) {
+  for (const sym of universe) {
     const st = stockBySymbol.get(sym);
     const scanned = Boolean(st);
     const bands: ZoneBands = {

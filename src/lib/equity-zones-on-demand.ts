@@ -54,7 +54,7 @@ export async function computeStockZonesOnDemand(symbol: string): Promise<{
   error?: string;
 }> {
   const safe = normalizeStockSymbol(symbol);
-  if (!isValidFnoSymbol(safe)) {
+  if (!(await isValidFnoSymbolDb(getAdminFirestore(), safe))) {
     return { ok: false, error: STOCK_LEVELS_PUBLIC_ERROR };
   }
 

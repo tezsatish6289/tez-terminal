@@ -6,9 +6,9 @@
  *   • TIER_B — most-liquid single stocks (front of the queue every cycle).
  *   • TIER_C — the long tail (rotated through over multiple runs).
  *
- * This list changes a few times a year as NSE adds/removes names. It is a static
- * seed; a later enhancement can refresh it from NSE's contract master. Keeping it
- * static (vs scraped at runtime) avoids an extra NSE call per cron run.
+ * The live list is synced daily to Firestore (`config/fno_universe`) from NSE FO
+ * pre-open + Dhan scrip master. The arrays below are the bootstrap seed when no
+ * sync has run yet, and TIER_B defines refresh priority for any symbol list.
  */
 
 /** Highly-liquid F&O single stocks — refreshed first, used as the default "hot" tier. */
@@ -50,21 +50,37 @@ export const TIER_C: readonly string[] = [
   "UPL", "VBL", "VEDL", "VOLTAS", "YESBANK", "ZOMATO", "ZYDUSLIFE",
 ];
 
-/** Full universe for cron queue (Tier B first). De-duped defensively. */
+/** Bootstrap seed (Tier B first). Replaced at runtime by Firestore sync when available. */
 export const FNO_UNIVERSE: readonly string[] = Array.from(
   new Set<string>([...TIER_B, ...TIER_C]),
 );
 
-/** Same symbols, A–Z — use for UI lists only; cron keeps tier priority via `FNO_UNIVERSE`. */
+/** Same symbols, A–Z — use for UI lists only; cron keeps tier priority via ordered universe. */
 export const FNO_UNIVERSE_ALPHA: readonly string[] = [...FNO_UNIVERSE].sort((a, b) =>
   a.localeCompare(b, "en", { sensitivity: "base" }),
 );
+
+const TIER_B_SET = new Set<string>(TIER_B);
 
 export type FnoTier = "B" | "C";
 
 /** Tier lookup for a symbol (defaults to C). */
 export function tierOf(symbol: string): FnoTier {
-  return TIER_B.includes(symbol) ? "B" : "C";
+  return TIER_B_SET.has(symbol) ? "B" : "C";
+}
+
+/** Tier B first, then alphabetical — stable queue priority for any symbol list. */
+export function orderFnoSymbols(symbols: Iterable<string>): string[] {
+  const uniq = new Set<string>();
+  for (const raw of symbols) {
+    const sym = raw.trim().toUpperCase();
+    if (sym) uniq.add(sym);
+  }
+  const tierB = TIER_B.filter((s) => uniq.has(s));
+  const rest = [...uniq]
+    .filter((s) => !TIER_B_SET.has(s))
+    .sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+  return [...tierB, ...rest];
 }
 
 /**
@@ -73,15 +89,16 @@ export function tierOf(symbol: string): FnoTier {
  * at the front, a full wrap always refreshes the hot names first.
  */
 export function nextBatch(
+  universe: readonly string[],
   cursor: number,
   size: number,
 ): { symbols: string[]; nextCursor: number } {
-  const n = FNO_UNIVERSE.length;
+  const n = universe.length;
   if (n === 0 || size <= 0) return { symbols: [], nextCursor: 0 };
   const start = ((cursor % n) + n) % n;
   const symbols: string[] = [];
   for (let i = 0; i < Math.min(size, n); i++) {
-    symbols.push(FNO_UNIVERSE[(start + i) % n]);
+    symbols.push(universe[(start + i) % n]!);
   }
   return { symbols, nextCursor: (start + symbols.length) % n };
 }
@@ -94,28 +111,30 @@ function computedAtMs(meta: StockAggregateMeta | undefined): number {
   return Number.isFinite(t) ? t : 0;
 }
 
-/** Oldest `computedAt` first; ties keep Tier B order from `FNO_UNIVERSE`. */
+/** Oldest `computedAt` first; ties keep tier order from `universe`. */
 export function buildRefreshQueue(
+  universe: readonly string[],
   aggregateBySymbol: ReadonlyMap<string, StockAggregateMeta>,
 ): string[] {
-  return [...FNO_UNIVERSE].sort((a, b) => {
+  return [...universe].sort((a, b) => {
     const diff = computedAtMs(aggregateBySymbol.get(a)) - computedAtMs(aggregateBySymbol.get(b));
     if (diff !== 0) return diff;
-    return FNO_UNIVERSE.indexOf(a) - FNO_UNIVERSE.indexOf(b);
+    return universe.indexOf(a) - universe.indexOf(b);
   });
 }
 
 /**
  * Planned dequeue for stock-zone cron — NOT random.
  *
- * 1. Static ordered list: `FNO_UNIVERSE` in code (Tier B liquid names first).
- * 2. Firestore cursor: `config/stock_zones_cursor.index` — position in the active queue.
+ * 1. Ordered universe (Tier B liquid names first).
+ * 2. Firestore cursor: `config/stock_zones_cursor.index`.
  * 3. Firestore aggregate: `config/zone_status_stocks.entries` keys = already "scanned" on UI.
  *
- * Backlog: symbols missing from the aggregate (Tier B order preserved).
+ * Backlog: symbols missing from the aggregate (tier order preserved).
  * Refresh (all scanned): symbols sorted by oldest `computedAt` first (stalest refresh).
  */
 export function nextStockZonesBatch(
+  universe: readonly string[],
   cursor: number,
   size: number,
   scannedSymbols: ReadonlySet<string>,
@@ -125,13 +144,13 @@ export function nextStockZonesBatch(
     return { symbols: [], nextCursor: cursor, mode: "refresh", queueLength: 0 };
   }
 
-  const backlog = FNO_UNIVERSE.filter((s) => !scannedSymbols.has(s));
+  const backlog = universe.filter((s) => !scannedSymbols.has(s));
   if (backlog.length > 0) {
     const n = backlog.length;
     const start = ((cursor % n) + n) % n;
     const symbols: string[] = [];
     for (let i = 0; i < Math.min(size, n); i++) {
-      symbols.push(backlog[(start + i) % n]);
+      symbols.push(backlog[(start + i) % n]!);
     }
     return {
       symbols,
@@ -141,14 +160,14 @@ export function nextStockZonesBatch(
     };
   }
 
-  const refreshQueue = buildRefreshQueue(aggregateBySymbol);
+  const refreshQueue = buildRefreshQueue(universe, aggregateBySymbol);
   const n = refreshQueue.length;
   if (n === 0) return { symbols: [], nextCursor: cursor, mode: "refresh", queueLength: 0 };
 
   const start = ((cursor % n) + n) % n;
   const symbols: string[] = [];
   for (let i = 0; i < Math.min(size, n); i++) {
-    symbols.push(refreshQueue[(start + i) % n]);
+    symbols.push(refreshQueue[(start + i) % n]!);
   }
   return {
     symbols,

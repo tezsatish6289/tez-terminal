@@ -12,7 +12,9 @@ import {
   type CandleErrorCode,
   type CandleResult,
 } from "@/lib/dhan-candles";
-import { isValidFnoSymbol, normalizeStockSymbol } from "@/lib/nse/fno-symbol";
+import { isValidFnoSymbolDb } from "@/lib/nse/fno-universe-runtime";
+import { getAdminFirestore } from "@/firebase/admin";
+import { normalizeStockSymbol } from "@/lib/nse/fno-symbol";
 import { normalizeIndexKey } from "@/lib/nse/dhan-index-ids";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +78,7 @@ export async function GET(req: NextRequest) {
   if (!symbol) {
     return NextResponse.json({ ok: false, error: "Missing symbol" }, { status: 400 });
   }
-  if (!isValidFnoSymbol(symbol)) {
+  if (!(await isValidFnoSymbolDb(getAdminFirestore(), symbol))) {
     return NextResponse.json(
       { ok: false, error: "Symbol is not in the NSE F&O universe" },
       { status: 404 },

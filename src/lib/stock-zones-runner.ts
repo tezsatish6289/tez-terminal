@@ -2,7 +2,7 @@
  * F&O stock zone batch for `/api/cron/suggest-stock-zones` only.
  *
  * Scheduling (`nextStockZonesBatch` in fno-universe.ts):
- *   • Universe: static `FNO_UNIVERSE` (193, Tier B first).
+ *   • Universe: Firestore `config/fno_universe` (Tier B first), seed fallback.
  *   • Cursor: `config/stock_zones_cursor.index`.
  *   • Backlog: symbols not in `zone_status_stocks.entries`.
  *   • Refresh: all scanned → oldest `computedAt` first.
@@ -19,9 +19,9 @@ import { computeStockZonesWithFallback, nseFallbackEligible } from "@/lib/equity
 import {
   nextStockZonesBatch,
   buildRefreshQueue,
-  FNO_UNIVERSE,
   type StockAggregateMeta,
 } from "@/lib/nse/fno-universe";
+import { loadFnoUniverse } from "@/lib/nse/fno-universe-runtime";
 import { resolveDhanEquitySecurityId } from "@/lib/dhan-candles";
 import {
   isDhanOptionChainBlocked,
@@ -101,12 +101,13 @@ async function isDhanBlockedSymbol(
  */
 async function pickDhanOnlyBatch(
   db: Firestore,
+  universe: readonly string[],
   startCursor: number,
   batchSize: number,
   bySymbol: ReadonlyMap<string, StockAggregateMeta>,
   prevEntries: Record<string, StockZoneAggregateEntry>,
 ): Promise<{ symbols: string[]; queueMode: "refresh"; queueLength: number }> {
-  const refreshQueue = buildRefreshQueue(bySymbol);
+  const refreshQueue = buildRefreshQueue(universe, bySymbol);
   const n = refreshQueue.length;
   if (n === 0) return { symbols: [], queueMode: "refresh", queueLength: 0 };
 
@@ -221,6 +222,7 @@ export async function runStockZonesBatch(
 
   const fromQueue = !(opts.symbolsOverride && opts.symbolsOverride.length);
   const startCursor = fromQueue ? await readCursor(db) : 0;
+  const fnoUniverse = await loadFnoUniverse(db);
   const { scanned, bySymbol, entries: prevEntries } = fromQueue
     ? await readAggregateState(db)
     : {
@@ -231,18 +233,18 @@ export async function runStockZonesBatch(
 
   let symbols: string[] = [];
   let queueMode: "backlog" | "refresh" = "refresh";
-  let queueLength = FNO_UNIVERSE.length;
+  let queueLength = fnoUniverse.length;
 
   if (!fromQueue) {
-    symbols = opts.symbolsOverride!.filter((s) => FNO_UNIVERSE.includes(s));
+    symbols = opts.symbolsOverride!.filter((s) => fnoUniverse.includes(s));
   } else {
-    const picked = nextStockZonesBatch(startCursor, batchSize, scanned, bySymbol);
+    const picked = nextStockZonesBatch(fnoUniverse, startCursor, batchSize, scanned, bySymbol);
     symbols = picked.symbols;
     queueMode = picked.mode;
     queueLength = picked.queueLength;
   }
 
-  const backlogRemaining = FNO_UNIVERSE.filter((s) => !scanned.has(s)).length;
+  const backlogRemaining = fnoUniverse.filter((s) => !scanned.has(s)).length;
 
   const emptySummary = (): StockZonesBatchSummary => ({
     processed: 0,
@@ -253,7 +255,7 @@ export async function runStockZonesBatch(
     timedOut: false,
     aborted: null,
     symbols: [],
-    universeSize: FNO_UNIVERSE.length,
+    universeSize: fnoUniverse.length,
     cursorBefore: startCursor,
     queueMode,
     scannedInAggregate: scanned.size,
@@ -283,7 +285,7 @@ export async function runStockZonesBatch(
 
   // NSE circuit open → Dhan-only. Never dequeue backlog (stale/missing security IDs).
   if (dhanOnly && fromQueue) {
-    const picked = await pickDhanOnlyBatch(db, startCursor, batchSize, bySymbol, prevEntries);
+    const picked = await pickDhanOnlyBatch(db, fnoUniverse, startCursor, batchSize, bySymbol, prevEntries);
     symbols = picked.symbols;
     queueMode = picked.queueMode;
     queueLength = picked.queueLength;
@@ -339,7 +341,7 @@ export async function runStockZonesBatch(
   const refreshOverflow =
     dhanOnly && fromQueue && queueLength > 0
       ? (
-          await pickDhanOnlyBatch(db, startCursor + batchSize, batchSize * 4, bySymbol, prevEntries)
+          await pickDhanOnlyBatch(db, fnoUniverse, startCursor + batchSize, batchSize * 4, bySymbol, prevEntries)
         ).symbols.filter((s) => !symbols.includes(s))
       : [];
 
@@ -405,7 +407,7 @@ export async function runStockZonesBatch(
     timedOut,
     aborted,
     symbols,
-    universeSize: FNO_UNIVERSE.length,
+    universeSize: fnoUniverse.length,
     cursorBefore: startCursor,
     queueMode,
     scannedInAggregate: scanned.size,

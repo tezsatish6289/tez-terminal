@@ -7,13 +7,17 @@ import {
   syncDhanFnoInstruments,
   validateDhanFnoOptionChains,
 } from "@/lib/dhan-instruments-sync";
+import {
+  runFnoUniversePipeline,
+  summarizeFnoUniversePipeline,
+} from "@/lib/fno-universe-pipeline";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
  * GET  — F&O mapping report (all 193 symbols + status)
- * POST — { action: "sync" } | { action: "validate", symbols?, limit? }
+ * POST — { action: "sync" } | { action: "validate", symbols?, limit? } | { action: "pipeline" }
  * PATCH — { symbol, securityId, dhanSymbol? } manual correction
  */
 export async function GET(request: NextRequest) {
@@ -46,6 +50,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    if (body.action === "pipeline") {
+      const result = await runFnoUniversePipeline(db, { validateLimit: body.limit ?? 20 });
+      return NextResponse.json({
+        success: true,
+        summary: summarizeFnoUniversePipeline(result),
+        ...result,
+      });
+    }
     if (body.action === "validate") {
       const result = await validateDhanFnoOptionChains(db, {
         symbols: body.symbols,

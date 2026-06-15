@@ -27,7 +27,6 @@ import {
 } from "@/lib/zones/levels-actionable-list";
 import {
   computeStockZonesOnDemand,
-  isValidFnoSymbol,
   normalizeStockSymbol,
   stockLevelsCacheFresh,
   stockLevelsCacheFreshSlideshow,
@@ -37,6 +36,7 @@ import {
 } from "@/lib/equity-zones-on-demand";
 import { stockDocId } from "@/lib/equity-zones-store";
 import { storedSourceToPublic } from "@/lib/levels/levels-source";
+import { loadFnoUniverse, isValidFnoSymbolDb } from "@/lib/nse/fno-universe-runtime";
 import { resolveZonesExpiryFromStored } from "@/lib/levels/zones-expiry-label";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
@@ -132,8 +132,9 @@ interface StockAggregateEntry {
  * without bands, runs an on-demand NSE compute (the planned click-to-fetch path).
  */
 async function getSingleStock(symbol: string, forceRefresh: boolean, slideshowPriority: boolean) {
+  const db = getAdminFirestore();
   const safe = normalizeStockSymbol(symbol);
-  if (!isValidFnoSymbol(safe)) {
+  if (!(await isValidFnoSymbolDb(db, safe))) {
     return NextResponse.json({ error: "Unknown F&O symbol" }, { status: 400 });
   }
 
@@ -202,9 +203,10 @@ export async function GET(request: NextRequest) {
     return getSingleStock(symbol, forceRefresh, slideshowPriority);
   }
 
-  const [indexDocs, stockAgg] = await Promise.all([
+  const [indexDocs, stockAgg, fnoUniverse] = await Promise.all([
     Promise.all(INDEX_KEYS.map((k) => readDoc(`config/suggested_index_zones_${k}`))),
     readDoc(STOCK_AGGREGATE_DOC),
+    loadFnoUniverse(getAdminFirestore()),
   ]);
 
   const indices = INDEX_KEYS.map((k, i) => {
@@ -253,7 +255,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json(
-    { indices, stocks, inZone, updatedAt: new Date().toISOString() },
+    { indices, stocks, inZone, fnoUniverse: [...fnoUniverse], updatedAt: new Date().toISOString() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

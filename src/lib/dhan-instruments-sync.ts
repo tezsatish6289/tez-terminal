@@ -12,11 +12,12 @@ import type { Firestore } from "firebase-admin/firestore";
 import { fetchDhanEquityExpiries } from "@/lib/dhan-option-chain";
 import { invalidateDhanSecurityIdCache } from "@/lib/dhan-candles";
 import { dhanSymbolCandidates } from "@/lib/dhan-symbol-aliases";
-import { FNO_UNIVERSE } from "@/lib/nse/fno-universe";
+import { loadFnoUniverse } from "@/lib/nse/fno-universe-runtime";
 
 export const DHAN_CSV_URL = "https://images.dhan.co/api-data/api-scrip-master.csv";
 export const DHAN_INSTRUMENTS_DOC = "config/dhan_instruments";
 export const DHAN_FNO_INSTRUMENTS_DOC = "config/dhan_fno_instruments";
+export const DHAN_FNO_VALIDATE_CURSOR_DOC = "config/dhan_fno_validate_cursor";
 
 const EQUITY_SERIES = new Set(["EQ", "BE", "BZ", "SM", "ST"]);
 
@@ -129,8 +130,12 @@ export interface SyncDhanFnoResult {
   sample: Array<{ symbol: string; securityId: number; dhanSymbol: string }>;
 }
 
-/** Pull Dhan CSV and map every FNO_UNIVERSE symbol into Firestore. */
-export async function syncDhanFnoInstruments(db: Firestore): Promise<SyncDhanFnoResult> {
+/** Pull Dhan CSV and map every F&O symbol into Firestore. */
+export async function syncDhanFnoInstruments(
+  db: Firestore,
+  opts: { symbols?: string[] } = {},
+): Promise<SyncDhanFnoResult> {
+  const universe = opts.symbols?.length ? opts.symbols : [...(await loadFnoUniverse(db))];
   const csv = await fetchDhanInstrumentCsv();
   const master = parseDhanEquityMaster(csv);
   const now = new Date().toISOString();
@@ -138,12 +143,12 @@ export async function syncDhanFnoInstruments(db: Firestore): Promise<SyncDhanFno
   const prevSnap = await db.doc(DHAN_FNO_INSTRUMENTS_DOC).get();
   const prevEntries = (prevSnap.data()?.entries ?? {}) as Record<string, DhanFnoInstrumentEntry>;
 
-  const entries: Record<string, DhanFnoInstrumentEntry> = {};
+  const entries: Record<string, DhanFnoInstrumentEntry> = { ...prevEntries };
   const instrumentUpdates: Record<string, number> = {};
   const missing: string[] = [];
   const sample: SyncDhanFnoResult["sample"] = [];
 
-  for (const sym of FNO_UNIVERSE) {
+  for (const sym of universe) {
     const prev = prevEntries[sym];
     if (prev?.status === "manual" && prev.securityId != null) {
       entries[sym] = { ...prev, updatedAt: now };
@@ -192,9 +197,9 @@ export async function syncDhanFnoInstruments(db: Firestore): Promise<SyncDhanFno
 
   return {
     syncedAt: now,
-    mapped: FNO_UNIVERSE.length - missing.length,
+    mapped: universe.length - missing.length,
     missing,
-    total: FNO_UNIVERSE.length,
+    total: universe.length,
     sample,
   };
 }
@@ -206,19 +211,78 @@ export interface ValidateDhanFnoResult {
   invalid: Array<{ symbol: string; error: string }>;
 }
 
-/** Probe Dhan option-chain expiry API for mapped symbols (slow — ~3s per symbol). */
-export async function validateDhanFnoOptionChains(
+function validationPriority(
+  sym: string,
+  entry: DhanFnoInstrumentEntry | undefined,
+): number {
+  if (!entry?.securityId) return 99;
+  if (entry.status === "manual") return 98;
+  if (entry.status === "invalid_chain" || entry.optionChainOk === false) return 0;
+  if (entry.status === "mapped") return 1;
+  if (entry.status === "validated") return 2;
+  return 3;
+}
+
+/** Pick the next batch of symbols to validate, rotating through the universe daily. */
+export async function validateDhanFnoOptionChainsRotating(
   db: Firestore,
   opts: { symbols?: string[]; limit?: number } = {},
 ): Promise<ValidateDhanFnoResult> {
+  const universe = opts.symbols?.length ? opts.symbols : [...(await loadFnoUniverse(db))];
   const snap = await db.doc(DHAN_FNO_INSTRUMENTS_DOC).get();
   const doc = snap.data() as DhanFnoInstrumentsDoc | undefined;
   const entries = { ...(doc?.entries ?? {}) };
+
+  const cursorSnap = await db.doc(DHAN_FNO_VALIDATE_CURSOR_DOC).get();
+  const cursor =
+    typeof cursorSnap.data()?.index === "number" && Number.isFinite(cursorSnap.data()!.index)
+      ? (cursorSnap.data()!.index as number)
+      : 0;
+
+  const limit = opts.limit ?? 20;
+  const ordered = [...universe].sort((a, b) => {
+    const pa = validationPriority(a, entries[a]);
+    const pb = validationPriority(b, entries[b]);
+    if (pa !== pb) return pa - pb;
+    return universe.indexOf(a) - universe.indexOf(b);
+  });
+
+  const n = ordered.length;
+  const targets: string[] = [];
+  if (n > 0) {
+    const start = ((cursor % n) + n) % n;
+    for (let i = 0; i < n && targets.length < limit; i++) {
+      const sym = ordered[(start + i) % n]!;
+      const e = entries[sym];
+      if (e?.securityId != null && e.status !== "manual") targets.push(sym);
+    }
+    await db.doc(DHAN_FNO_VALIDATE_CURSOR_DOC).set({
+      index: (start + Math.max(targets.length, 1)) % n,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  return validateDhanFnoOptionChains(db, { symbols: targets, limit: targets.length, entries, doc });
+}
+
+/** Probe Dhan option-chain expiry API for mapped symbols (slow — ~3s per symbol). */
+export async function validateDhanFnoOptionChains(
+  db: Firestore,
+  opts: {
+    symbols?: string[];
+    limit?: number;
+    entries?: Record<string, DhanFnoInstrumentEntry>;
+    doc?: DhanFnoInstrumentsDoc;
+  } = {},
+): Promise<ValidateDhanFnoResult> {
+  const snap = opts.doc ? null : await db.doc(DHAN_FNO_INSTRUMENTS_DOC).get();
+  const doc = opts.doc ?? (snap?.data() as DhanFnoInstrumentsDoc | undefined);
+  const entries = { ...(opts.entries ?? doc?.entries ?? {}) };
   const now = new Date().toISOString();
 
   let targets = opts.symbols?.length
     ? opts.symbols.map((s) => s.toUpperCase())
-    : FNO_UNIVERSE.filter((s) => {
+    : (await loadFnoUniverse(db)).filter((s) => {
         const e = entries[s];
         return e?.securityId != null && e.status !== "manual";
       });
@@ -281,7 +345,8 @@ export async function patchDhanFnoInstrument(
   patch: ManualDhanFnoPatch,
 ): Promise<DhanFnoInstrumentEntry> {
   const sym = patch.symbol.trim().toUpperCase();
-  if (!FNO_UNIVERSE.includes(sym)) {
+  const universe = await loadFnoUniverse(db);
+  if (!universe.includes(sym)) {
     throw new Error(`not_in_fno_universe:${sym}`);
   }
   if (!Number.isFinite(patch.securityId) || patch.securityId <= 0) {
@@ -353,27 +418,37 @@ export function isDhanOptionChainBlocked(
 }
 
 export async function loadDhanFnoReport(db: Firestore) {
-  const snap = await db.doc(DHAN_FNO_INSTRUMENTS_DOC).get();
+  const [snap, universeSnap, universe] = await Promise.all([
+    db.doc(DHAN_FNO_INSTRUMENTS_DOC).get(),
+    db.doc("config/fno_universe").get(),
+    loadFnoUniverse(db),
+  ]);
   const data = snap.data() as DhanFnoInstrumentsDoc | undefined;
   const entries = data?.entries ?? {};
+  const universeDoc = universeSnap.data();
 
-  const missing = FNO_UNIVERSE.filter((s) => !entries[s]?.securityId);
-  const invalidChain = FNO_UNIVERSE.filter(
+  const missing = universe.filter((s) => !entries[s]?.securityId);
+  const invalidChain = universe.filter(
     (s) => entries[s]?.status === "invalid_chain" || entries[s]?.optionChainOk === false,
   );
-  const validated = FNO_UNIVERSE.filter((s) => entries[s]?.status === "validated");
-  const manual = FNO_UNIVERSE.filter((s) => entries[s]?.status === "manual");
+  const validated = universe.filter((s) => entries[s]?.status === "validated");
+  const manual = universe.filter((s) => entries[s]?.status === "manual");
 
   return {
     lastSyncedAt: data?.lastSyncedAt ?? null,
     lastValidatedAt: data?.lastValidatedAt ?? null,
-    total: FNO_UNIVERSE.length,
-    mapped: FNO_UNIVERSE.length - missing.length,
+    universeSyncedAt:
+      typeof universeDoc?.lastSyncedAt === "string" ? universeDoc.lastSyncedAt : null,
+    universeSource: typeof universeDoc?.source === "string" ? universeDoc.source : null,
+    universeAdded: Array.isArray(universeDoc?.added) ? (universeDoc.added as string[]) : [],
+    universeRemoved: Array.isArray(universeDoc?.removed) ? (universeDoc.removed as string[]) : [],
+    total: universe.length,
+    mapped: universe.length - missing.length,
     missing,
     invalidChain,
     validated: validated.length,
     manual: manual.length,
-    entries: FNO_UNIVERSE.map((sym) => ({
+    entries: universe.map((sym) => ({
       symbol: sym,
       ...(entries[sym] ?? emptyEntry("")),
     })),

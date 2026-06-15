@@ -27,6 +27,7 @@ interface StockListItem {
 interface LevelsPayload {
   indices: RawItem[];
   stocks: StockListItem[];
+  fnoUniverse?: string[];
   updatedAt: string;
 }
 
@@ -57,7 +58,7 @@ export default function LevelsBubblesEmbedPage() {
   }, [payload?.stocks]);
 
   const bubbleItems = useMemo(
-    () => (payload ? buildLevelsBubbleItems(payload.indices, stockBySymbol) : []),
+    () => (payload ? buildLevelsBubbleItems(payload.indices, stockBySymbol, payload.fnoUniverse) : []),
     [payload, stockBySymbol],
   );
 

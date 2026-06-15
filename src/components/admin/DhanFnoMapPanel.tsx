@@ -8,6 +8,10 @@ import { useCallback, useEffect, useState } from "react";
 interface DhanFnoReport {
   lastSyncedAt: string | null;
   lastValidatedAt: string | null;
+  universeSyncedAt: string | null;
+  universeSource: string | null;
+  universeAdded: string[];
+  universeRemoved: string[];
   total: number;
   mapped: number;
   missing: string[];
@@ -20,7 +24,7 @@ export function DhanFnoMapPanel() {
   const { user } = useUser();
   const [report, setReport] = useState<DhanFnoReport | null>(null);
   const [loading, setLoading] = useState(false);
-  const [acting, setActing] = useState<"sync" | "validate" | null>(null);
+  const [acting, setActing] = useState<"sync" | "validate" | "pipeline" | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -49,7 +53,7 @@ export function DhanFnoMapPanel() {
     void fetchReport();
   }, [fetchReport]);
 
-  const runAction = async (action: "sync" | "validate") => {
+  const runAction = async (action: "sync" | "validate" | "pipeline") => {
     if (!user) return;
     setActing(action);
     setMessage("");
@@ -63,7 +67,11 @@ export function DhanFnoMapPanel() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(
-          action === "sync" ? { action: "sync" } : { action: "validate", limit: 15 },
+          action === "sync"
+            ? { action: "sync" }
+            : action === "pipeline"
+              ? { action: "pipeline", limit: 20 }
+              : { action: "validate", limit: 15 },
         ),
       });
       const json = await res.json();
@@ -74,6 +82,8 @@ export function DhanFnoMapPanel() {
           `Synced ${json.mapped}/${json.total} F&O symbols from Dhan CSV` +
             (json.missing?.length ? ` · ${json.missing.length} missing` : ""),
         );
+      } else if (action === "pipeline") {
+        setMessage(`Pipeline: ${json.summary ?? "completed"}`);
       } else {
         setMessage(
           `Validated ${json.checked} symbols · ${json.ok} OK` +
@@ -101,8 +111,8 @@ export function DhanFnoMapPanel() {
               Dhan F&O instrument map
             </h3>
             <p className="text-[10px] text-slate-500 mt-0.5 max-w-md">
-              Pulls Dhan scrip master into Firestore. Required for Dhan-only stock scans when NSE
-              circuit is open.
+              Auto-synced daily via housekeeping. Manual run: full pipeline (NSE + Dhan universe,
+              securityId map, validate batch).
             </p>
           </div>
         </div>
@@ -119,6 +129,19 @@ export function DhanFnoMapPanel() {
               <Database className="h-3 w-3" />
             )}
             Sync from Dhan
+          </button>
+          <button
+            type="button"
+            onClick={() => void runAction("pipeline")}
+            disabled={acting != null || loading}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-950/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-sky-300 hover:bg-sky-950/50 disabled:opacity-50"
+          >
+            {acting === "pipeline" ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <ShieldCheck className="h-3 w-3" />
+            )}
+            Run pipeline
           </button>
           <button
             type="button"
@@ -167,6 +190,28 @@ export function DhanFnoMapPanel() {
             <dd className="text-slate-200 font-mono mt-0.5">{report.validated}</dd>
           </div>
           <div className="col-span-2 sm:col-span-4 flex flex-wrap gap-x-6 gap-y-1 text-[10px] text-slate-500">
+            <span>
+              Universe:{" "}
+              <span className="text-slate-300">
+                {report.total} ({report.universeSource ?? "seed"})
+              </span>
+            </span>
+            {report.universeSyncedAt ? (
+              <span>
+                Universe sync:{" "}
+                <span className="text-slate-300">{formatIstDateTime(report.universeSyncedAt)}</span>
+              </span>
+            ) : null}
+            {report.universeAdded.length > 0 ? (
+              <span>
+                Added: <span className="text-emerald-300">{report.universeAdded.length}</span>
+              </span>
+            ) : null}
+            {report.universeRemoved.length > 0 ? (
+              <span>
+                Removed: <span className="text-amber-300">{report.universeRemoved.length}</span>
+              </span>
+            ) : null}
             <span>
               Last sync:{" "}
               <span className="text-slate-300">{formatIstDateTime(report.lastSyncedAt)}</span>

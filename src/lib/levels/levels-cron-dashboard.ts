@@ -10,11 +10,11 @@ import {
   type CronHeartbeatDoc,
 } from "@/lib/cron-health-shared";
 import {
-  FNO_UNIVERSE,
   buildRefreshQueue,
   nextStockZonesBatch,
   type StockAggregateMeta,
 } from "@/lib/nse/fno-universe";
+import { loadFnoUniverse } from "@/lib/nse/fno-universe-runtime";
 import type { StockZoneAggregateEntry } from "@/lib/equity-zones-store";
 import {
   buildGeographicInZoneList,
@@ -241,7 +241,9 @@ export async function loadLevelsCronDashboard(
     });
   }
 
-  const neverScannedSymbols = FNO_UNIVERSE.filter((s) => !scanned.has(s));
+  const fnoUniverse = await loadFnoUniverse(db);
+
+  const neverScannedSymbols = fnoUniverse.filter((s) => !scanned.has(s));
 
   const cursorIndex =
     cursorSnap.exists && typeof cursorSnap.data()?.index === "number"
@@ -249,7 +251,7 @@ export async function loadLevelsCronDashboard(
       : 0;
 
   const batchSize = envNum("STOCK_ZONES_BATCH_SIZE", 3);
-  const picked = nextStockZonesBatch(cursorIndex, batchSize, scanned, bySymbol);
+  const picked = nextStockZonesBatch(fnoUniverse, cursorIndex, batchSize, scanned, bySymbol);
 
   const nseRaw = nseSnap.data() as Record<string, unknown> | undefined;
   const blockedUntil = toIsoString(nseRaw?.blockedUntil);
@@ -261,7 +263,7 @@ export async function loadLevelsCronDashboard(
   let nextBatchPreview = picked.symbols;
   let effectiveQueueMode: "refresh" | null = null;
   if (nseOpen && scanned.size > 0) {
-    const refreshQueue = buildRefreshQueue(bySymbol);
+    const refreshQueue = buildRefreshQueue(fnoUniverse, bySymbol);
     const dhanFirst = refreshQueue.filter((s) => entries[s]?.levelsSource === "dhan");
     const other = refreshQueue.filter((s) => entries[s]?.levelsSource !== "dhan");
     const ordered = [...dhanFirst, ...other];
@@ -410,7 +412,7 @@ export async function loadLevelsCronDashboard(
     },
     indexCron,
     universe: {
-      fnoTotal: FNO_UNIVERSE.length,
+      fnoTotal: fnoUniverse.length,
       inAggregate: scanned.size,
       neverScanned: neverScannedSymbols.length,
       neverScannedSymbols: neverScannedSymbols.slice(0, 20),

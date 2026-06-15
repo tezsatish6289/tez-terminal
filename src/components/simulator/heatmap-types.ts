@@ -20,6 +20,10 @@ export interface SuggestedZonesSnapshot {
   bearOI: number | null;
   bullClusterShare?: number | null;
   bearClusterShare?: number | null;
+  /** Net wall OI dominance: bull vs bear picked strikes (0..1). */
+  clusterOiImbalance?: number | null;
+  /** Both sides picked but net gap below bot threshold. */
+  clusterOiBalanced?: boolean | null;
   maxPain: number | null;
   maxPainByExpiry: MaxPainEntry[] | null;
   signalConflict: boolean | null;
@@ -69,6 +73,9 @@ export function normalizeSuggestedZones(
     bearOI: readNum(raw.bearOI),
     bullClusterShare: readNum(raw.bullClusterShare),
     bearClusterShare: readNum(raw.bearClusterShare),
+    clusterOiImbalance: readNum(raw.clusterOiImbalance),
+    clusterOiBalanced:
+      raw.clusterOiBalanced === true ? true : raw.clusterOiBalanced === false ? false : null,
     maxPain: readNum(raw.maxPain),
     maxPainByExpiry: Array.isArray(raw.maxPainByExpiry)
       ? raw.maxPainByExpiry.map((entry, i) => {

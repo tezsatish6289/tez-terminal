@@ -26,6 +26,7 @@ import {
 } from "@/components/simulator/AutoScrollZonesPanel";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { SimZoneCandlesChart } from "@/components/simulator/SimZoneCandlesChart";
+import { formatSimBandDetail } from "@/components/simulator/sim-native-chart-overlays";
 
 const POWER_DOT: Record<CockpitCardStatus["power"], string> = {
   on: "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]",
@@ -728,21 +729,11 @@ function ZonePriceLadder({
   }, [fillHeight]);
   const bullLow = suggested.bullZoneLow;
   const bullHigh = suggested.bullZoneHigh;
-  const bullStrike = suggested.bullStrike;
-  const bullOI = suggested.bullOI;
-  const bullShare = suggested.bullClusterShare;
-  const bullTp = suggested.bullTpTarget;
   const bullActionable = suggested.bullActionable;
-  const bullLocked = suggested.bullLocked;
 
   const bearLow = suggested.bearZoneLow;
   const bearHigh = suggested.bearZoneHigh;
-  const bearStrike = suggested.bearStrike;
-  const bearOI = suggested.bearOI;
-  const bearShare = suggested.bearClusterShare;
-  const bearTp = suggested.bearTpTarget;
   const bearActionable = suggested.bearActionable;
-  const bearLocked = suggested.bearLocked;
 
   const halfWidth = suggested.halfWidthUsd;
 
@@ -843,13 +834,6 @@ function ZonePriceLadder({
           maximumFractionDigits: p < 10 ? 3 : 2,
         });
 
-  const fmtHalfWidth = (hw: number): string => {
-    if (hw >= 1000) return Math.round(hw).toLocaleString();
-    if (hw >= 10) return hw.toFixed(0);
-    if (hw >= 1) return hw.toFixed(2);
-    return hw.toFixed(3);
-  };
-
   const bullBandStyle: React.CSSProperties | null =
     bullLow != null && bullHigh != null
       ? {
@@ -865,31 +849,9 @@ function ZonePriceLadder({
         }
       : null;
 
-  // Detail strings — match the user's chart annotation style.
-  const bullDetail = (() => {
-    const bits: string[] = [];
-    if (bullStrike != null) bits.push(`@ ${fmt(bullStrike)}`);
-    if (halfWidth != null) bits.push(`HW ${fmtHalfWidth(halfWidth)}`);
-    if (bullOI != null && bullOI > 0)
-      bits.push(`OI ${Math.round(bullOI).toLocaleString()}`);
-    if (bullShare != null && bullShare > 0)
-      bits.push(`${Math.round(bullShare * 100)}%`);
-    if (bullTp != null) bits.push(`TP ${fmt(bullTp)}`);
-    if (bullLocked) bits.push("LOCKED");
-    return bits.join(" · ");
-  })();
-  const bearDetail = (() => {
-    const bits: string[] = [];
-    if (bearStrike != null) bits.push(`@ ${fmt(bearStrike)}`);
-    if (halfWidth != null) bits.push(`HW ${fmtHalfWidth(halfWidth)}`);
-    if (bearOI != null && bearOI > 0)
-      bits.push(`OI ${Math.round(bearOI).toLocaleString()}`);
-    if (bearShare != null && bearShare > 0)
-      bits.push(`${Math.round(bearShare * 100)}%`);
-    if (bearTp != null) bits.push(`TP ${fmt(bearTp)}`);
-    if (bearLocked) bits.push("LOCKED");
-    return bits.join(" · ");
-  })();
+  // Detail strings — shared with native chart band labels.
+  const bullDetail = formatSimBandDetail("bull", suggested);
+  const bearDetail = formatSimBandDetail("bear", suggested);
 
   const bullIdle = bullBandStyle != null && bullActionable === false;
   const bearIdle = bearBandStyle != null && bearActionable === false;

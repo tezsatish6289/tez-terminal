@@ -5,6 +5,10 @@ import {
   type ISeriesApi,
 } from "lightweight-charts";
 import type { SuggestedZonesSnapshot } from "@/components/simulator/heatmap-types";
+import {
+  clusterOiImbalanceRatio,
+  MIN_CLUSTER_OI_IMBALANCE,
+} from "@/lib/options-zones";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 import { bandLineData } from "@/components/levels/native-chart-level-overlays";
@@ -253,6 +257,24 @@ export function applySimPriceLines(
   }
 }
 
+/** Net bull vs bear wall OI gap — same on both band labels (pair metric). */
+export function formatNetOiGapBit(suggested: SuggestedZonesSnapshot): string | null {
+  if (suggested.bullStrike == null || suggested.bearStrike == null) return null;
+
+  const gap =
+    suggested.clusterOiImbalance != null && Number.isFinite(suggested.clusterOiImbalance)
+      ? suggested.clusterOiImbalance
+      : clusterOiImbalanceRatio(suggested.bullOI, suggested.bearOI);
+  if (gap == null) return null;
+
+  const pct = Math.round(gap * 100);
+  const balanced =
+    suggested.clusterOiBalanced === true ||
+    gap < MIN_CLUSTER_OI_IMBALANCE;
+  if (balanced) return `Net gap ${pct}% · BALANCED`;
+  return `Net gap ${pct}%`;
+}
+
 export function formatSimBandDetail(
   side: "bull" | "bear",
   suggested: SuggestedZonesSnapshot,
@@ -275,15 +297,15 @@ export function formatSimBandDetail(
   const bits: string[] = [];
   const strike = side === "bull" ? suggested.bullStrike : suggested.bearStrike;
   const oi = side === "bull" ? suggested.bullOI : suggested.bearOI;
-  const share = side === "bull" ? suggested.bullClusterShare : suggested.bearClusterShare;
   const tp = side === "bull" ? suggested.bullTpTarget : suggested.bearTpTarget;
   const locked = side === "bull" ? suggested.bullLocked : suggested.bearLocked;
   const halfWidth = suggested.halfWidthUsd;
+  const netGap = formatNetOiGapBit(suggested);
 
   if (strike != null) bits.push(`@ ${fmt(strike)}`);
   if (halfWidth != null) bits.push(`HW ${fmtHalfWidth(halfWidth)}`);
-  if (oi != null && oi > 0) bits.push(`OI ${Math.round(oi).toLocaleString()}`);
-  if (share != null && share > 0) bits.push(`${Math.round(share * 100)}%`);
+  if (oi != null && oi > 0) bits.push(`Net OI ${Math.round(oi).toLocaleString()}`);
+  if (netGap != null) bits.push(netGap);
   if (tp != null) bits.push(`TP ${fmt(tp)}`);
   if (locked) bits.push("LOCKED");
   return bits.join(" · ");

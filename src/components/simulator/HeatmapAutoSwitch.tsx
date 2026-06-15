@@ -8,6 +8,7 @@ import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { cryptoBotStatus, type CockpitBotStatus } from "@/lib/cockpit-bot-status";
 import { BotCardToolbarTrigger } from "@/components/simulator/BotCardToolbarTrigger";
+import { formatNetOiGapBit } from "@/components/simulator/sim-native-chart-overlays";
 import {
   Sheet,
   SheetContent,
@@ -156,6 +157,9 @@ interface SuggestedZones {
   /** Share of side OI captured by the chosen cluster strike (0..1). */
   bullClusterShare?:    number | null;
   bearClusterShare?:    number | null;
+  /** Net wall OI dominance: bull vs bear picked strikes (0..1). */
+  clusterOiImbalance?:  number | null;
+  clusterOiBalanced?:   boolean | null;
 }
 
 const EMPTY_ZONES: HeatmapZones = {
@@ -625,8 +629,30 @@ export function HeatmapAutoSwitch({
                     </div>
                   )}
 
-                  {/* Bull / Bear zone cards. v2: cluster-share badge, dim
-                      when not actionable, fixed legacy "(wtd)" label. */}
+                  {/* Bull / Bear zone cards — net gap is a pair metric (shown once above). */}
+                  {(() => {
+                    const netGap = formatNetOiGapBit(suggested);
+                    if (!netGap) return null;
+                    const balanced = suggested.clusterOiBalanced === true || netGap.includes("BALANCED");
+                    return (
+                      <div className={cn(
+                        "rounded-lg border px-3 py-2",
+                        balanced
+                          ? "border-amber-400/25 bg-amber-400/[0.05]"
+                          : "border-white/10 bg-white/[0.03]",
+                      )}>
+                        <p className={cn(
+                          "text-[10px] font-mono font-bold",
+                          balanced ? "text-amber-300/90" : "text-foreground/80",
+                        )}>
+                          {netGap}
+                        </p>
+                        <p className="text-[8px] text-muted-foreground/45 mt-0.5">
+                          Bot needs ≥35% net wall gap between picked bull and bear strikes.
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <div className="grid grid-cols-2 gap-2">
                     <div className={cn(
                       "rounded-lg border border-positive/20 bg-positive/[0.04] px-3 py-2.5 space-y-1 transition-opacity",
@@ -655,13 +681,8 @@ export function HeatmapAutoSwitch({
                           {(suggested.bullOI ?? suggested.bullVolume) != null && (
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[9px] text-muted-foreground/40">
-                                {Math.round(suggested.bullOI ?? suggested.bullVolume ?? 0)}c put OI (all expiries)
+                                Net OI {Math.round(suggested.bullOI ?? suggested.bullVolume ?? 0).toLocaleString()} (all expiries)
                               </span>
-                              {suggested.bullClusterShare != null && (
-                                <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-positive/15 text-positive/75">
-                                  {Math.round(suggested.bullClusterShare * 100)}% of side
-                                </span>
-                              )}
                             </div>
                           )}
                           {suggested.bullTpTarget != null && (
@@ -724,13 +745,8 @@ export function HeatmapAutoSwitch({
                           {(suggested.bearOI ?? suggested.bearVolume) != null && (
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[9px] text-muted-foreground/40">
-                                {Math.round(suggested.bearOI ?? suggested.bearVolume ?? 0)}c call OI (all expiries)
+                                Net OI {Math.round(suggested.bearOI ?? suggested.bearVolume ?? 0).toLocaleString()} (all expiries)
                               </span>
-                              {suggested.bearClusterShare != null && (
-                                <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-negative/15 text-negative/75">
-                                  {Math.round(suggested.bearClusterShare * 100)}% of side
-                                </span>
-                              )}
                             </div>
                           )}
                           {suggested.bearTpTarget != null && (

@@ -160,10 +160,11 @@ export function LevelsSymbolList({
         >
         {entries.map((entry, i) => {
           const active = i === activeIndex;
+          const runnerStrip = runnerMode && layout === "horizontal";
           const stripCard =
             layout === "horizontal" || layout === "responsive"
-              ? runnerMode && layout === "horizontal"
-                ? "min-w-[9.5rem] max-w-[11rem] snap-center"
+              ? runnerStrip
+                ? "min-w-[4.75rem] max-w-[7.25rem] snap-center md:min-w-[9.5rem] md:max-w-[11rem]"
                 : "min-w-[9.5rem] max-w-[11rem] snap-start lg:min-w-0 lg:max-w-none lg:snap-align-none"
               : "";
           const pulse = runnerMode && active && runnerPulse;
@@ -172,9 +173,13 @@ export function LevelsSymbolList({
               key={entry.id}
               data-strip-index={i}
               onClick={() => onSelect(i)}
-              className={`flex flex-col gap-1 px-3 py-2 rounded-lg text-left shrink-0 h-12 md:h-full ${stripCard} ${
+              className={`flex text-left shrink-0 h-12 md:h-full ${stripCard} ${
+                runnerStrip
+                  ? "max-md:flex-col max-md:justify-center max-md:gap-0.5 max-md:py-1 max-md:px-2 flex-col gap-1 px-3 py-2"
+                  : "flex-col gap-1 px-3 py-2"
+              } ${
                 runnerMode ? "transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out" : "transition-all"
-              }`}
+              } rounded-lg`}
               style={{
                 backgroundColor: active ? accent.bg : "rgba(255,255,255,0.02)",
                 border: `1px solid ${active ? (pulse ? accent.borderPulse : accent.border) : "rgba(255,255,255,0.05)"}`,
@@ -182,28 +187,87 @@ export function LevelsSymbolList({
                 boxShadow: pulse ? accent.glow : active && runnerMode ? accent.glowSoft : undefined,
               }}
             >
-              {(entry.sublabel || entry.trailing) && (
-                <div className="flex items-center justify-between gap-2 w-full">
-                  {entry.sublabel ? (
+              {runnerStrip ? (
+                <>
+                  {/* Mobile slideshow strip: ticker + spot/status only (fits h-12 toolbar row). */}
+                  <div className="md:hidden flex flex-col justify-center min-w-0 w-full gap-0.5">
                     <span
-                      className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
-                      style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
+                      className="text-[11px] font-bold leading-none truncate"
+                      style={{ color: "#e2e8f0" }}
                     >
-                      {entry.sublabel}
+                      {entry.label}
                     </span>
-                  ) : (
-                    <span />
+                    {(entry.spot != null && entry.currency) || entry.trailing ? (
+                      <div className="flex items-center justify-between gap-1 min-w-0">
+                        {entry.spot != null && entry.currency ? (
+                          <span
+                            className="text-[9px] font-mono tabular-nums leading-none truncate min-w-0"
+                            style={{ color: "#94a3b8" }}
+                          >
+                            {formatHeroPrice(entry.spot, entry.currency)}
+                          </span>
+                        ) : (
+                          <span className="min-w-0 flex-1" />
+                        )}
+                        {entry.trailing ? (
+                          <span className="shrink-0 scale-[0.88] origin-right">{entry.trailing}</span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  {/* Tablet/desktop slideshow strip: full tile. */}
+                  <div className="hidden md:flex flex-col gap-1 w-full min-w-0">
+                    {(entry.sublabel || entry.trailing) && (
+                      <div className="flex items-center justify-between gap-2 w-full">
+                        {entry.sublabel ? (
+                          <span
+                            className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
+                            style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
+                          >
+                            {entry.sublabel}
+                          </span>
+                        ) : (
+                          <span />
+                        )}
+                        {entry.trailing}
+                      </div>
+                    )}
+                    <span className="text-[13px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>
+                      {entry.label}
+                    </span>
+                    {entry.spot != null && entry.currency && (
+                      <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
+                        {formatHeroPrice(entry.spot, entry.currency)}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {(entry.sublabel || entry.trailing) && (
+                    <div className="flex items-center justify-between gap-2 w-full">
+                      {entry.sublabel ? (
+                        <span
+                          className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
+                          style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
+                        >
+                          {entry.sublabel}
+                        </span>
+                      ) : (
+                        <span />
+                      )}
+                      {entry.trailing}
+                    </div>
                   )}
-                  {entry.trailing}
-                </div>
-              )}
-              <span className="text-[13px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>
-                {entry.label}
-              </span>
-              {entry.spot != null && entry.currency && (
-                <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
-                  {formatHeroPrice(entry.spot, entry.currency)}
-                </span>
+                  <span className="text-[13px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>
+                    {entry.label}
+                  </span>
+                  {entry.spot != null && entry.currency && (
+                    <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
+                      {formatHeroPrice(entry.spot, entry.currency)}
+                    </span>
+                  )}
+                </>
               )}
             </button>
           );

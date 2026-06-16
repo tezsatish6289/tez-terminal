@@ -194,6 +194,55 @@ export function LevelsSlideModePill({
   );
 }
 
+/** Square box: switch to the other slideshow mode (Live ↔ Fav). */
+export function LevelsAlternateSlideModeBox({
+  mode,
+  onClick,
+  title,
+}: {
+  mode: "liveslide" | "favslide";
+  onClick: () => void;
+  title?: string;
+}) {
+  const isFav = mode === "favslide";
+  const accent = SLIDE_MODE_ACCENT[mode];
+  const defaultTitle = isFav
+    ? "Switch to favslide. Press F or click."
+    : "Switch to liveslide. Press L or click.";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+      style={{
+        ...stripIconBoxStyle(false),
+        background: isFav ? "rgba(251,191,36,0.08)" : "rgba(37,99,235,0.08)",
+        border: `1px solid ${accent.border}`,
+      }}
+      aria-label={title ?? defaultTitle}
+      title={title ?? defaultTitle}
+      data-liveslide-tour={isFav ? undefined : "live-switch"}
+      data-favslide-tour={isFav ? "fav-switch" : undefined}
+    >
+      {isFav ? (
+        <Star className="h-3.5 w-3.5 shrink-0" style={{ color: accent.color }} strokeWidth={2} />
+      ) : (
+        <span
+          className="h-2 w-2 rounded-full shrink-0"
+          style={{ backgroundColor: accent.color, boxShadow: `0 0 6px ${accent.color}` }}
+        />
+      )}
+      <span
+        className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase font-black tracking-[0.12em]`}
+        style={{ color: accent.color }}
+      >
+        {isFav ? "Fav" : "Live"}
+      </span>
+    </button>
+  );
+}
+
 /** Square box: return to bubbles map from slideshow. */
 export function LevelsViewModeIconBox({
   viewMode,
@@ -421,6 +470,7 @@ export function LevelsSlideshowStripControls({
   slideshowControl,
   viewToggle,
   slideModePill,
+  alternateSlideMode,
   showFilter = true,
   stripTrailing,
   className = "",
@@ -452,6 +502,12 @@ export function LevelsSlideshowStripControls({
   slideModePill?: {
     mode: LevelsStripViewMode;
     count?: number;
+  };
+  /** Switch to the other slideshow mode (Live ↔ Fav). */
+  alternateSlideMode?: {
+    mode: "liveslide" | "favslide";
+    onClick: () => void;
+    title?: string;
   };
   /** Bubbles toolbar: view icon only. */
   showFilter?: boolean;
@@ -591,6 +647,14 @@ export function LevelsSlideshowStripControls({
       {slideModePill &&
       (slideModePill.mode === "liveslide" || slideModePill.mode === "favslide") ? (
         <LevelsSlideModePill mode={slideModePill.mode} count={slideModePill.count} />
+      ) : null}
+
+      {alternateSlideMode ? (
+        <LevelsAlternateSlideModeBox
+          mode={alternateSlideMode.mode}
+          onClick={alternateSlideMode.onClick}
+          title={alternateSlideMode.title}
+        />
       ) : null}
 
       {slideshowControl?.enabled ? (

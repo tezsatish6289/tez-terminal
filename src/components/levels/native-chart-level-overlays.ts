@@ -86,27 +86,6 @@ function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function lineFocused(title: string, focus: LevelVisualFocus | null | undefined): boolean {
-  if (!focus || focus === "expiry") return true;
-  if (focus === "call") {
-    return (
-      title === "Resistance H" ||
-      title === "Resistance L" ||
-      title === "Call OI peak" ||
-      title === "Resistance Break"
-    );
-  }
-  if (focus === "put") {
-    return (
-      title === "Support H" ||
-      title === "Support L" ||
-      title === "Put OI peak" ||
-      title === "Support Break"
-    );
-  }
-  return title === "Max Pain";
-}
-
 export function bandFillForFocus(
   side: "bull" | "bear",
   focus: LevelVisualFocus | null | undefined,
@@ -144,10 +123,101 @@ const COMPACT_PRICE_LINE_TITLES: Record<string, string> = {
   "Support L": "Sup L",
   "Put OI peak": "Put OI",
   "Support Break": "Sup Brk",
+  "Max Pain": "MP",
 };
 
 function priceLineTitle(title: string, compactTitles: boolean): string {
   return compactTitles ? (COMPACT_PRICE_LINE_TITLES[title] ?? title) : title;
+}
+
+/** Round price for coincident level detection (2 dp). */
+export function priceLevelKey(price: number): number {
+  return Math.round(price * 100) / 100;
+}
+
+export interface PriceLineSpec {
+  price: number;
+  color: string;
+  title: string;
+  style: LineStyle;
+  width: 1 | 2 | 3 | 4;
+  /** Lower = listed first when titles merge at the same price. */
+  mergeOrder: number;
+}
+
+/** One axis label per price — e.g. "Max Pain · Put OI" when both pin to 900. */
+export function mergeCoincidentPriceLines(
+  specs: PriceLineSpec[],
+  compactTitles: boolean,
+): PriceLineSpec[] {
+  const groups = new Map<number, PriceLineSpec[]>();
+  for (const spec of specs) {
+    const key = priceLevelKey(spec.price);
+    const bucket = groups.get(key) ?? [];
+    bucket.push(spec);
+    groups.set(key, bucket);
+  }
+
+  const merged: PriceLineSpec[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      merged.push(group[0]!);
+      continue;
+    }
+    group.sort((a, b) => a.mergeOrder - b.mergeOrder || a.title.localeCompare(b.title));
+    const titles = group.map((g) => priceLineTitle(g.title, compactTitles));
+    const separator = compactTitles ? "·" : " · ";
+    const primary =
+      group.find((g) => g.title === "Max Pain") ??
+      group.find((g) => g.title.includes("OI peak")) ??
+      group[0]!;
+    merged.push({
+      price: group[0]!.price,
+      color: primary.color,
+      title: titles.join(separator),
+      style: primary.style,
+      width: Math.max(...group.map((g) => g.width)) as 1 | 2 | 3 | 4,
+      mergeOrder: primary.mergeOrder,
+    });
+  }
+  return merged.sort((a, b) => b.price - a.price);
+}
+
+function lineFocusedPart(part: string, focus: LevelVisualFocus): boolean {
+  if (focus === "call") {
+    return (
+      part === "Resistance H" ||
+      part === "Resistance L" ||
+      part === "Res H" ||
+      part === "Res L" ||
+      part === "Call OI peak" ||
+      part === "Call OI" ||
+      part === "Resistance Break" ||
+      part === "Res Brk"
+    );
+  }
+  if (focus === "put") {
+    return (
+      part === "Support H" ||
+      part === "Support L" ||
+      part === "Sup H" ||
+      part === "Sup L" ||
+      part === "Put OI peak" ||
+      part === "Put OI" ||
+      part === "Support Break" ||
+      part === "Sup Brk"
+    );
+  }
+  return part === "Max Pain" || part === "MP";
+}
+
+function lineFocused(title: string, focus: LevelVisualFocus | null | undefined): boolean {
+  if (!focus || focus === "expiry") return true;
+  const parts = title.split(" · ").map((p) => p.trim());
+  if (parts.length > 1) {
+    return parts.some((part) => lineFocusedPart(part, focus));
+  }
+  return lineFocusedPart(title, focus);
 }
 
 export function applyLevelPriceLines(
@@ -163,48 +233,59 @@ export function applyLevelPriceLines(
 
   const anchors = zoneSlAnchors(levels);
 
-  const add = (
+  const rawSpecs: PriceLineSpec[] = [];
+  const push = (
     price: number | null | undefined,
     color: string,
     title: string,
-    style: LineStyle = LineStyle.Dashed,
-    width: 1 | 2 | 3 | 4 = 1,
+    style: LineStyle,
+    width: 1 | 2 | 3 | 4,
+    mergeOrder: number,
   ) => {
     if (price == null || !Number.isFinite(price)) return;
-    const focused = lineFocused(title, visualFocus);
-    const lineColor = visualFocus && !focused ? withAlpha(color, 0.38) : color;
-    const lineWidth = visualFocus && focused ? Math.min(width + 1, 4) as 1 | 2 | 3 | 4 : width;
-    priceLinesRef.current.push(
-      series.createPriceLine({
-        price,
-        color: lineColor,
-        lineWidth,
-        lineStyle: style,
-        axisLabelVisible: true,
-        title: priceLineTitle(title, compactTitles),
-      }),
-    );
+    rawSpecs.push({ price, color, title, style, width, mergeOrder });
   };
 
-  add(levels.bearHigh, LEVELS_ZONE_CHART.bear.line, "Resistance H");
-  add(levels.bearLow, LEVELS_ZONE_CHART.bear.line, "Resistance L");
-  add(
+  push(levels.bearHigh, LEVELS_ZONE_CHART.bear.line, "Resistance H", LineStyle.Dashed, 1, 20);
+  push(levels.bearLow, LEVELS_ZONE_CHART.bear.line, "Resistance L", LineStyle.Dashed, 1, 21);
+  push(
     levels.callClusterStrike,
     LEVELS_ZONE_CHART.bear.line,
     "Call OI peak",
     LineStyle.Dotted,
     1,
+    11,
   );
-  add(anchors.bearSl, LEVELS_ZONE_CHART.bear.lineInv, "Resistance Break", LineStyle.Dotted, 2);
-  add(levels.poc, LEVELS_ZONE_CHART.maxPain.line, "Max Pain", LineStyle.Dashed, 2);
-  add(levels.bullHigh, LEVELS_ZONE_CHART.bull.line, "Support H");
-  add(levels.bullLow, LEVELS_ZONE_CHART.bull.line, "Support L");
-  add(
+  push(anchors.bearSl, LEVELS_ZONE_CHART.bear.lineInv, "Resistance Break", LineStyle.Dotted, 2, 30);
+  push(levels.poc, LEVELS_ZONE_CHART.maxPain.line, "Max Pain", LineStyle.Dashed, 2, 0);
+  push(levels.bullHigh, LEVELS_ZONE_CHART.bull.line, "Support H", LineStyle.Dashed, 1, 22);
+  push(levels.bullLow, LEVELS_ZONE_CHART.bull.line, "Support L", LineStyle.Dashed, 1, 23);
+  push(
     levels.putClusterStrike,
     LEVELS_ZONE_CHART.bull.line,
     "Put OI peak",
     LineStyle.Dotted,
     1,
+    10,
   );
-  add(anchors.bullSl, LEVELS_ZONE_CHART.bull.lineInv, "Support Break", LineStyle.Dotted, 2);
+  push(anchors.bullSl, LEVELS_ZONE_CHART.bull.lineInv, "Support Break", LineStyle.Dotted, 2, 31);
+
+  for (const spec of mergeCoincidentPriceLines(rawSpecs, compactTitles)) {
+    const focused = lineFocused(spec.title, visualFocus);
+    const lineColor = visualFocus && !focused ? withAlpha(spec.color, 0.38) : spec.color;
+    const lineWidth =
+      visualFocus && focused
+        ? (Math.min(spec.width + 1, 4) as 1 | 2 | 3 | 4)
+        : spec.width;
+    priceLinesRef.current.push(
+      series.createPriceLine({
+        price: spec.price,
+        color: lineColor,
+        lineWidth,
+        lineStyle: spec.style,
+        axisLabelVisible: true,
+        title: spec.title,
+      }),
+    );
+  }
 }

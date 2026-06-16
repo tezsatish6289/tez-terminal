@@ -40,6 +40,7 @@ export function LevelsSlideshowToolbar({
   viewModeToggle,
   favslideToggle,
   slideModePill,
+  alternateSlideMode,
   bubblesMode = false,
   bubbleMapFilter,
   onBubbleMapFilterChange,
@@ -106,6 +107,12 @@ export function LevelsSlideshowToolbar({
   slideModePill?: {
     mode: LevelsStripViewMode;
     count?: number;
+  };
+  /** Switch to the other slideshow mode (Live ↔ Fav). */
+  alternateSlideMode?: {
+    mode: "liveslide" | "favslide";
+    onClick: () => void;
+    title?: string;
   };
   /** Icon box(es) after Bubbles on slideshow strip (e.g. favslide add). */
   stripTrailing?: ReactNode;
@@ -211,6 +218,7 @@ export function LevelsSlideshowToolbar({
             slideshowControl={slideshowControl}
             viewToggle={viewModeToggle}
             slideModePill={slideModePill}
+            alternateSlideMode={alternateSlideMode}
             stripTrailing={stripTrailing}
             className="max-md:shrink-0 max-md:relative max-md:z-10"
           />

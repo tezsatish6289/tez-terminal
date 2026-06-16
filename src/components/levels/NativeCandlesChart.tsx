@@ -54,12 +54,12 @@ const RIGHT_OFFSET_SLIDESHOW_MAX = 110;
 /** Extra width for longer right-axis level titles (Support H/L/Break, Resistance…). */
 const RIGHT_PRICE_SCALE_MIN_WIDTH = 108;
 const RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH = 152;
-/** Mobile: left cluster labels are hidden; use a slimmer axis + smaller bar gap. */
+/** Mobile: cluster pills on-chart; axis uses compact titles (Put OI, MP). */
 const RIGHT_OFFSET_MOBILE = 6;
 const RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN = 8;
 const RIGHT_OFFSET_SLIDESHOW_MOBILE_MAX = 18;
-const RIGHT_PRICE_SCALE_MOBILE_MIN_WIDTH = 72;
-const RIGHT_PRICE_SCALE_MOBILE_SLIDESHOW_WIDTH = 84;
+const RIGHT_PRICE_SCALE_MOBILE_MIN_WIDTH = 88;
+const RIGHT_PRICE_SCALE_MOBILE_SLIDESHOW_WIDTH = 96;
 const NARROW_CHART_MQ = "(max-width: 767px)";
 /** Default zoom: ~5 NSE sessions visible (15m ≈ 25 bars/day). */
 const DEFAULT_VISIBLE_BARS = 125;

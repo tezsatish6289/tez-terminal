@@ -42,7 +42,7 @@ import {
   FNO_LEVELS_MAIN,
   FNO_MOBILE_SLIDE_BODY_MIN_CLASS,
 } from "@/lib/fnoninja/responsive";
-import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
+import { FNO_APP_SURFACE_STYLE, FNO_MUTED } from "@/lib/fnoninja/theme";
 import {
   bubbleMatchesMapFilter,
   countBubbleMapFilters,
@@ -64,7 +64,6 @@ import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslid
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughBridge";
 import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
-import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { isFnoNinjaAppContext } from "@/lib/fnoninja/auth";
 import { useUser } from "@/firebase";
@@ -446,6 +445,9 @@ export default function LevelsPage() {
   }, []);
 
   const slideshowEnabled = isSlideView && inZoneCount > 1;
+  /** Favslide: keep transport + pill row even when empty; liveslide needs 2+ symbols to advance. */
+  const showSlideshowStripTransport =
+    isSlideView && (viewMode === "favslide" || inZoneCount > 1);
 
   const toggleSlideshowPause = useCallback(() => {
     setSlideshowPaused((p) => {
@@ -831,26 +833,40 @@ export default function LevelsPage() {
   const renderSlideshow = () => {
     if (inZoneCount === 0) {
       if (viewMode === "favslide") {
-        const emptyCopy = favslideLoading
-            ? { title: "Loading favslide…", body: "", cta: false as const }
-            : {
-                title: "No stocks in favslide yet",
-                body: "Tap Add after Bubbles to search and add indices or F&O symbols.",
-                cta: false as const,
-              };
-        return wrapSlideshowBody(
-          <div className="flex flex-col min-h-0 h-full items-center justify-center gap-4 py-12 px-4 text-center">
-            <p className="text-sm" style={{ color: "#94a3b8" }}>
-              {emptyCopy.title}
-            </p>
-            {emptyCopy.body ? (
-              <p className="text-xs max-w-sm leading-relaxed" style={{ color: "#64748b" }}>
-                {emptyCopy.body}
-              </p>
-            ) : null}
-            {emptyCopy.cta ? <FnoNinjaGoogleSignInButton size="hero" /> : null}
-          </div>,
-          <div className="flex flex-1 items-center justify-center" />,
+        return (
+          <div
+            className={`flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:pb-4 ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
+          >
+            <div className="flex flex-1 min-h-0 w-full items-center justify-center px-6 text-center">
+              {favslideLoading ? (
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
+                  <p className="text-sm" style={{ color: FNO_MUTED }}>
+                    Loading favslide…
+                  </p>
+                </div>
+              ) : (
+                <div className="max-w-md space-y-3">
+                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                    Your personal favslide
+                  </h2>
+                  <p className="text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
+                    A private slideshow of the names you follow — charts, levels, and news, one pick at
+                    a time.
+                  </p>
+                  <p className="text-xs leading-relaxed max-w-sm mx-auto" style={{ color: "#64748b" }}>
+                    Tap{" "}
+                    <span className="font-semibold" style={{ color: "#fbbf24" }}>
+                      Add
+                    </span>{" "}
+                    above to search and save F&amp;O symbols or indices. You can also star any chart from
+                    the map.
+                  </p>
+                </div>
+              )}
+            </div>
+            <LevelsDisclaimer scheduleNote={scheduleNote} />
+          </div>
         );
       }
 
@@ -962,11 +978,12 @@ export default function LevelsPage() {
         ) : undefined
       }
       slideshowControl={
-        isSlideView && slideshowEnabled
+        showSlideshowStripTransport
           ? {
               enabled: true,
-              paused: slideshowPaused,
-              onToggle: toggleSlideshowPause,
+              paused: inZoneCount <= 1 || slideshowPaused,
+              onToggle:
+                inZoneCount > 1 ? toggleSlideshowPause : () => {},
               secondsRemaining: slideshowCountdown,
             }
           : undefined
@@ -977,6 +994,21 @@ export default function LevelsPage() {
               mode: viewMode,
               count: slideListFiltered.length,
             }
+          : undefined
+      }
+      alternateSlideMode={
+        isSlideView && isFnoNinjaHost
+          ? viewMode === "favslide"
+            ? {
+                mode: "liveslide" as const,
+                onClick: enterLiveslide,
+                title: liveslideCtaTitle,
+              }
+            : {
+                mode: "favslide" as const,
+                onClick: enterFavslide,
+                title: favslideCtaTitle,
+              }
           : undefined
       }
       viewModeToggle={

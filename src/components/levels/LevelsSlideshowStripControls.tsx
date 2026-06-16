@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeftRight, Filter, Search, Star } from "lucide-react";
+import { ArrowUpRight, Filter, Search, Star } from "lucide-react";
 import {
   FNO_FAVSLIDE_ACCENT,
   FNO_LIVESLIDE_ACCENT,
@@ -196,10 +196,31 @@ export function LevelsSlideModePill({
 
 type StripDestination = "bubbles" | "liveslide" | "favslide";
 
-const BUBBLES_SWITCH_ACCENT = {
-  color: "#93c5fd",
-  border: "rgba(148,163,184,0.28)",
-  bg: "rgba(255,255,255,0.03)",
+const DESTINATION_ACCENT: Record<
+  StripDestination,
+  { color: string; label: string; border: string; bg: string; hoverBorder: string }
+> = {
+  bubbles: {
+    color: "#94a3b8",
+    label: "Bubbles",
+    border: "rgba(148, 163, 184, 0.22)",
+    bg: "rgba(22, 28, 42, 0.92)",
+    hoverBorder: "rgba(148, 163, 184, 0.38)",
+  },
+  liveslide: {
+    color: FNO_LIVESLIDE_ACCENT,
+    label: "Live",
+    border: "rgba(96, 165, 250, 0.32)",
+    bg: "rgba(37, 99, 235, 0.1)",
+    hoverBorder: "rgba(96, 165, 250, 0.5)",
+  },
+  favslide: {
+    color: FNO_FAVSLIDE_ACCENT,
+    label: "Fav",
+    border: "rgba(251, 191, 36, 0.32)",
+    bg: "rgba(251, 191, 36, 0.08)",
+    hoverBorder: "rgba(251, 191, 36, 0.5)",
+  },
 };
 
 function StripDestinationIcon({
@@ -210,83 +231,86 @@ function StripDestinationIcon({
   color: string;
 }) {
   if (destination === "bubbles") {
-    return <BubblesMapIcon className="h-5 w-5 md:h-6 md:w-6" style={{ color }} />;
+    return <BubblesMapIcon className="h-[1.35rem] w-[1.35rem] md:h-6 md:w-6" style={{ color }} />;
   }
   if (destination === "favslide") {
-    return <Star className="h-3.5 w-3.5 md:h-4 md:w-4" style={{ color }} strokeWidth={2} />;
+    return <Star className="h-4 w-4 md:h-[1.125rem] md:w-[1.125rem]" style={{ color }} strokeWidth={2} />;
   }
   return (
     <span
-      className="h-2 w-2 md:h-2.5 md:w-2.5 rounded-full shrink-0"
-      style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
-    />
-  );
-}
-
-function StripSwitchBadge({ color }: { color: string }) {
-  return (
-    <ArrowLeftRight
-      className="absolute -bottom-0.5 -right-1 h-2.5 w-2.5 md:h-3 md:w-3 opacity-90"
-      style={{ color }}
-      strokeWidth={2.5}
+      className="relative flex h-4 w-4 md:h-[1.125rem] md:w-[1.125rem] items-center justify-center"
       aria-hidden
-    />
+    >
+      <span
+        className="absolute inset-0 rounded-full"
+        style={{
+          border: `1.5px solid ${color}`,
+          opacity: 0.55,
+        }}
+      />
+      <span
+        className="h-1.5 w-1.5 md:h-2 md:w-2 rounded-full"
+        style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}` }}
+      />
+    </span>
   );
 }
 
-function StripDestinationLabel(destination: StripDestination): string {
-  if (destination === "bubbles") return "Bubbles";
-  if (destination === "favslide") return "Fav";
-  return "Live";
+/** Tiny corner hint that the tile switches view (not overlaid on the main icon). */
+function StripSwitchHint({ color }: { color: string }) {
+  return (
+    <span
+      className="absolute top-1 right-1 flex h-3.5 w-3.5 md:h-4 md:w-4 items-center justify-center rounded-[4px] pointer-events-none"
+      style={{
+        background: "rgba(8, 12, 20, 0.82)",
+        border: "1px solid rgba(255,255,255,0.08)",
+      }}
+      aria-hidden
+    >
+      <ArrowUpRight className="h-2 w-2 md:h-2.5 md:w-2.5" style={{ color }} strokeWidth={2.5} />
+    </span>
+  );
 }
 
-/** One square in a paired view switcher (Bubbles + Live/Fav). */
+/** One tile in the paired view switcher. */
 function StripDestinationSwitchBox({
   destination,
   onClick,
   title,
-  accent,
-  edge,
   tourAttrs,
 }: {
   destination: StripDestination;
   onClick: () => void;
   title: string;
-  accent: { color: string; border: string; bg: string };
-  edge: "left" | "right" | "solo";
   tourAttrs?: Record<string, string | undefined>;
 }) {
-  const rounded =
-    edge === "left"
-      ? "rounded-l-lg rounded-r-none"
-      : edge === "right"
-        ? "rounded-r-lg rounded-l-none"
-        : "rounded-lg";
+  const accent = DESTINATION_ACCENT[destination];
+  const [hovered, setHovered] = useState(false);
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} ${rounded} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={`relative ${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} rounded-lg transition-all active:scale-[0.98]`}
       style={{
-        ...stripIconBoxStyle(false),
+        ...BLACKBOARD_WRAPPER,
         background: accent.bg,
-        border: `1px solid ${accent.border}`,
-        ...(edge === "right" ? { marginLeft: -1 } : {}),
+        border: `1px solid ${hovered ? accent.hoverBorder : accent.border}`,
+        boxShadow: hovered ? `0 0 0 1px ${accent.border}` : "none",
       }}
       aria-label={title}
       title={title}
       {...tourAttrs}
     >
-      <div className="relative flex items-center justify-center">
-        <StripDestinationIcon destination={destination} color={accent.color} />
-        <StripSwitchBadge color={accent.color} />
-      </div>
+      <StripSwitchHint color={accent.color} />
+      <StripDestinationIcon destination={destination} color={accent.color} />
       <span
-        className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
+        className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase tracking-[0.06em]`}
         style={{ color: accent.color }}
       >
-        {StripDestinationLabel(destination)}
+        {accent.label}
       </span>
     </button>
   );
@@ -294,7 +318,6 @@ function StripDestinationSwitchBox({
 
 /** Adjacent switch targets: Bubbles + the other slideshow mode. */
 export function LevelsSlideViewSwitchGroup({
-  currentMode,
   onBubbles,
   bubblesTitle = "Back to Market Bubbles map. Press B or click.",
   alternateMode,
@@ -308,8 +331,6 @@ export function LevelsSlideViewSwitchGroup({
   onAlternate?: () => void;
   alternateTitle?: string;
 }) {
-  const slideAccent = SLIDE_MODE_ACCENT[currentMode];
-  const altAccent = alternateMode ? SLIDE_MODE_ACCENT[alternateMode] : null;
   const paired = alternateMode != null && onAlternate != null;
 
   if (!paired) {
@@ -318,11 +339,6 @@ export function LevelsSlideViewSwitchGroup({
         destination="bubbles"
         onClick={onBubbles}
         title={bubblesTitle}
-        accent={{
-          ...BUBBLES_SWITCH_ACCENT,
-          border: slideAccent.border,
-        }}
-        edge="solo"
         tourAttrs={{
           "data-liveslide-tour": "bubbles",
           "data-favslide-tour": "bubbles",
@@ -338,7 +354,7 @@ export function LevelsSlideViewSwitchGroup({
 
   return (
     <div
-      className={`flex items-stretch shrink-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
+      className="flex items-stretch gap-1.5 shrink-0"
       role="group"
       aria-label="Switch view"
     >
@@ -346,11 +362,6 @@ export function LevelsSlideViewSwitchGroup({
         destination="bubbles"
         onClick={onBubbles}
         title={bubblesTitle}
-        accent={{
-          ...BUBBLES_SWITCH_ACCENT,
-          border: slideAccent.border,
-        }}
-        edge="left"
         tourAttrs={{
           "data-liveslide-tour": "bubbles",
           "data-favslide-tour": "bubbles",
@@ -360,12 +371,6 @@ export function LevelsSlideViewSwitchGroup({
         destination={alternateMode}
         onClick={onAlternate}
         title={alternateTitle ?? altDefaultTitle}
-        accent={{
-          color: altAccent!.color,
-          border: altAccent!.border,
-          bg: alternateMode === "favslide" ? "rgba(251,191,36,0.08)" : "rgba(37,99,235,0.08)",
-        }}
-        edge="right"
         tourAttrs={{
           "data-liveslide-tour": alternateMode === "liveslide" ? "live-switch" : undefined,
           "data-favslide-tour": alternateMode === "favslide" ? "fav-switch" : undefined,

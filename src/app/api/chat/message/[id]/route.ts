@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/chat/require-user";
 import { resolveChatAccess } from "@/lib/chat/access";
-import { moderateMessage, parseSymbolMentions } from "@/lib/chat/moderation";
+import { moderateMessage, parseMentions } from "@/lib/chat/moderation";
 import { editMessage, getMessage, softDeleteMessage } from "@/lib/chat/store";
 import {
   CHAT_EDIT_WINDOW_MS,
@@ -69,7 +69,7 @@ export async function PATCH(
 
   await editMessage(roomId, id, {
     text,
-    mentions: parseSymbolMentions(text),
+    mentions: parseMentions(text),
     flagged: moderation.flagged,
   });
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/chat/require-user";
 import { resolveChatAccess } from "@/lib/chat/access";
 import { checkAndRecordPost } from "@/lib/chat/rate-limit";
-import { moderateMessage, parseSymbolMentions } from "@/lib/chat/moderation";
+import { moderateMessage, parseMentions } from "@/lib/chat/moderation";
 import { createMessage } from "@/lib/chat/store";
 import { CHAT_MAX_MESSAGE_LENGTH, isKnownRoom } from "@/lib/chat/constants";
 
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     authorName: auth.decoded.name ?? "Trader",
     authorPhoto: auth.decoded.picture ?? null,
     text,
-    mentions: parseSymbolMentions(text),
+    mentions: parseMentions(text),
     flagged: moderation.flagged,
   });
 

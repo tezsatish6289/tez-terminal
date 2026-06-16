@@ -1,11 +1,21 @@
 /** Community chat shared types (client + server). */
 
-/** A parsed mention inside a message. v1 supports symbol cashtags only. */
-export interface ChatMention {
+/** A parsed `$SYMBOL` cashtag mention. */
+export interface ChatSymbolMention {
   type: "symbol";
   /** Uppercase symbol, e.g. "NIFTY" (without the leading $). */
   symbol: string;
 }
+
+/** A parsed `@handle` user mention (handle is the inserted token, no spaces). */
+export interface ChatUserMention {
+  type: "user";
+  /** Mention handle as written, without the leading @ (e.g. "Satish"). */
+  handle: string;
+}
+
+/** A parsed mention inside a message — a symbol cashtag or a user handle. */
+export type ChatMention = ChatSymbolMention | ChatUserMention;
 
 /**
  * A chat message. The same shape is stored in both RTDB (live stream) and

@@ -19,9 +19,10 @@ const INDEX_SYMBOLS = new Set([
   "BANKEX",
 ]);
 
-// Split on either a $SYMBOL cashtag or a URL (http/https or www.), keeping the
-// delimiters so we can linkify them while leaving the rest as plain text.
-const TOKEN_SPLIT = /(\$[A-Z][A-Z0-9&-]{1,19}\b|(?:https?:\/\/|www\.)[^\s]+)/g;
+// Split on a $SYMBOL cashtag, an @handle mention, or a URL (http/https or www.),
+// keeping the delimiters so we can style/linkify them and leave the rest as text.
+const TOKEN_SPLIT =
+  /(\$[A-Z][A-Z0-9&-]{1,19}\b|@[A-Za-z][A-Za-z0-9_]{0,29}|(?:https?:\/\/|www\.)[^\s]+)/g;
 
 function symbolHref(symbol: string): string {
   const hostname = typeof window !== "undefined" ? window.location.hostname : "";
@@ -47,6 +48,18 @@ function renderText(text: string) {
         >
           {part}
         </a>
+      );
+    }
+
+    if (/^@[A-Za-z]/.test(part)) {
+      return (
+        <span
+          key={i}
+          className="rounded px-0.5 font-semibold"
+          style={{ color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.14)" }}
+        >
+          {part}
+        </span>
       );
     }
 

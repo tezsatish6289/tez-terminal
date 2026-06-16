@@ -11,6 +11,20 @@ import type { ChatMention } from "@/lib/chat/types";
 
 const SYMBOL_REGEX = /\$([A-Z][A-Z0-9&-]{1,19})\b/g;
 
+/** `@handle` user mention — letters/digits/underscore, no spaces. */
+export const USER_MENTION_REGEX = /@([A-Za-z][A-Za-z0-9_]{0,29})/g;
+
+/**
+ * Turn a display name into a space-free mention handle (its first name token).
+ * "Satish Sharma" → "Satish", "ravi.kumar" → "ravi". Used by the composer when
+ * inserting an @mention so it parses/renders cleanly everywhere.
+ */
+export function toMentionHandle(name: string): string {
+  const first = (name || "").trim().split(/\s+/)[0] ?? "";
+  const cleaned = first.replace(/[^A-Za-z0-9_]/g, "");
+  return cleaned.slice(0, 30);
+}
+
 /**
  * Matches http(s) URLs and scheme-less `www.` links so we can vet every link a
  * user posts. Shared by the renderer so what we permit is exactly what we
@@ -85,6 +99,26 @@ export function parseSymbolMentions(text: string): ChatMention[] {
     }
   }
   return mentions;
+}
+
+/** Extract unique `@handle` user mentions from message text. */
+export function parseUserMentions(text: string): ChatMention[] {
+  const seen = new Set<string>();
+  const mentions: ChatMention[] = [];
+  for (const match of text.matchAll(USER_MENTION_REGEX)) {
+    const handle = match[1];
+    const key = handle.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      mentions.push({ type: "user", handle });
+    }
+  }
+  return mentions;
+}
+
+/** Extract all mentions (symbols + users) from message text. */
+export function parseMentions(text: string): ChatMention[] {
+  return [...parseSymbolMentions(text), ...parseUserMentions(text)];
 }
 
 export function moderateMessage(text: string): ModerationResult {

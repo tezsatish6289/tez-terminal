@@ -21,7 +21,7 @@ import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { ChatDisclaimer } from "@/components/fnoninja/chat/ChatDisclaimer";
 import { ChatLockedState } from "@/components/fnoninja/chat/ChatLockedState";
 import { ChatTermsGate } from "@/components/fnoninja/chat/ChatTermsGate";
-import { MessageComposer } from "@/components/fnoninja/chat/MessageComposer";
+import { MessageComposer, type ChatParticipant } from "@/components/fnoninja/chat/MessageComposer";
 import { MessageList } from "@/components/fnoninja/chat/MessageList";
 
 export function ChatPanel() {
@@ -54,6 +54,20 @@ export function ChatPanel() {
     if (optimistic.length === 0) return messages;
     return [...messages, ...optimistic].sort((a, b) => a.createdAt - b.createdAt);
   }, [messages, optimistic]);
+
+  // Mention candidates: people who've posted in the room (excluding yourself).
+  const participants = useMemo<ChatParticipant[]>(() => {
+    const map = new Map<string, ChatParticipant>();
+    for (const m of allMessages) {
+      if (!m.authorId || m.authorId === user?.uid || map.has(m.authorId)) continue;
+      map.set(m.authorId, {
+        id: m.authorId,
+        name: m.authorName || "Trader",
+        photo: m.authorPhoto ?? null,
+      });
+    }
+    return Array.from(map.values());
+  }, [allMessages, user?.uid]);
 
   if (!open || !user) return null;
 
@@ -189,7 +203,7 @@ export function ChatPanel() {
               onReport={handleReport}
             />
             <ChatDisclaimer />
-            <MessageComposer onSend={handleSend} />
+            <MessageComposer onSend={handleSend} participants={participants} />
           </>
         )}
       </aside>

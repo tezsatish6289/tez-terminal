@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import Image from "next/image";
-import { Hash, Loader2, SendHorizontal, User } from "lucide-react";
+import { Hash, Loader2, SendHorizontal, Smile, User } from "lucide-react";
 import { CHAT_MAX_MESSAGE_LENGTH } from "@/lib/chat/constants";
 import { toMentionHandle } from "@/lib/chat/moderation";
 import {
@@ -29,6 +29,13 @@ interface MessageComposerProps {
 }
 
 type Trigger = "$" | "@";
+
+const EMOJIS = [
+  "📈", "📉", "💹", "🚀", "🔥", "👀", "🎯", "💰",
+  "🤝", "👍", "👎", "🙏", "💪", "🧠", "⚡", "✅",
+  "❌", "⚠️", "🟢", "🔴", "😂", "😅", "😎", "🤔",
+  "😱", "🥳", "😴", "🫡", "💯", "🙌", "👏", "❤️",
+];
 
 interface Suggestion {
   /** Token inserted into the text, including the trigger (e.g. "$NIFTY", "@Satish"). */
@@ -57,12 +64,35 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
   const [sending, setSending] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [trigger, setTrigger] = useState<{ trigger: Trigger; query: string; start: number } | null>(
     null,
   );
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const caretRef = useRef(0);
+
+  const insertAtCaret = useCallback(
+    (snippet: string) => {
+      const el = taRef.current;
+      const caret = el?.selectionStart ?? text.length;
+      const next = `${text.slice(0, caret)}${snippet}${text.slice(caret)}`.slice(
+        0,
+        CHAT_MAX_MESSAGE_LENGTH,
+      );
+      const nextCaret = Math.min(caret + snippet.length, next.length);
+      setText(next);
+      requestAnimationFrame(() => {
+        const e2 = taRef.current;
+        if (e2) {
+          e2.focus();
+          e2.setSelectionRange(nextCaret, nextCaret);
+          caretRef.current = nextCaret;
+        }
+      });
+    },
+    [text],
+  );
 
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!trigger) return [];
@@ -105,6 +135,7 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
     setTrigger(next);
     setSuggestOpen(next !== null);
     setActiveIndex(0);
+    if (next) setEmojiOpen(false);
   }, []);
 
   const closeSuggestions = useCallback(() => {
@@ -172,6 +203,12 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
       }
     }
 
+    if (e.key === "Escape" && emojiOpen) {
+      e.preventDefault();
+      setEmojiOpen(false);
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void submit();
@@ -197,9 +234,13 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
                   type="button"
                   className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors"
                   style={{ backgroundColor: active ? "rgba(37,99,235,0.18)" : "transparent" }}
-                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseDown={(e) => {
+                    // Act on mousedown (before the textarea blur) so the pick
+                    // always registers, then keep focus in the input.
+                    e.preventDefault();
+                    applySuggestion(s);
+                  }}
                   onMouseEnter={() => setActiveIndex(i)}
-                  onClick={() => applySuggestion(s)}
                 >
                   {s.trigger === "@" ? (
                     <span
@@ -244,7 +285,51 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
         </ul>
       ) : null}
 
+      {emojiOpen ? (
+        <div
+          className="absolute bottom-full left-3 right-3 mb-1 grid grid-cols-8 gap-1 rounded-xl p-2 shadow-2xl"
+          style={{
+            backgroundColor: "rgba(12,18,30,0.99)",
+            border: "1px solid rgba(90,140,220,0.22)",
+          }}
+        >
+          {EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-lg transition-colors hover:bg-white/10"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                insertAtCaret(emoji);
+              }}
+              aria-label={`Insert ${emoji}`}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div className="flex items-end gap-2 px-3 py-2.5">
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            closeSuggestions();
+            setEmojiOpen((v) => !v);
+          }}
+          disabled={disabled || sending}
+          className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-lg transition-colors hover:text-white disabled:opacity-40"
+          style={{
+            color: emojiOpen ? "#93c5fd" : "#64748b",
+            border: "1px solid rgba(90,140,220,0.18)",
+            backgroundColor: emojiOpen ? "rgba(37,99,235,0.12)" : "#0a1628",
+          }}
+          aria-label="Insert emoji"
+          aria-pressed={emojiOpen}
+        >
+          <Smile className="h-4 w-4" />
+        </button>
         <textarea
           ref={taRef}
           value={text}

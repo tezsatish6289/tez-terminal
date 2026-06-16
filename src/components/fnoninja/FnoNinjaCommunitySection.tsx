@@ -121,10 +121,10 @@ function ChatPreview() {
         </div>
         <span
           className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider"
-          style={{ color: "#10b981" }}
+          style={{ color: "#64748b" }}
         >
-          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "#10b981" }} />
-          Live
+          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "#64748b" }} />
+          Sample chat
         </span>
       </div>
 

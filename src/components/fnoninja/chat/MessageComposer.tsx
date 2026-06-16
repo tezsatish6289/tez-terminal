@@ -216,10 +216,10 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
   };
 
   return (
-    <div className="relative" style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}>
+    <div className="relative">
       {suggestOpen && suggestions.length > 0 ? (
         <ul
-          className="absolute bottom-full left-3 right-3 mb-1 max-h-52 overflow-y-auto rounded-xl py-1 shadow-2xl"
+          className="absolute bottom-full left-3 right-3 mb-2 max-h-52 overflow-y-auto rounded-xl py-1 shadow-2xl"
           style={{
             backgroundColor: "rgba(12,18,30,0.99)",
             border: "1px solid rgba(90,140,220,0.22)",
@@ -287,7 +287,7 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
 
       {emojiOpen ? (
         <div
-          className="absolute bottom-full left-3 right-3 mb-1 grid grid-cols-8 gap-1 rounded-xl p-2 shadow-2xl"
+          className="absolute bottom-full left-3 right-3 mb-2 grid grid-cols-8 gap-1 rounded-xl p-2 shadow-2xl"
           style={{
             backgroundColor: "rgba(12,18,30,0.99)",
             border: "1px solid rgba(90,140,220,0.22)",
@@ -310,53 +310,56 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
         </div>
       ) : null}
 
-      <div className="flex items-end gap-2 px-3 py-2.5">
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            closeSuggestions();
-            setEmojiOpen((v) => !v);
-          }}
-          disabled={disabled || sending}
-          className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-lg transition-colors hover:text-white disabled:opacity-40"
-          style={{
-            color: emojiOpen ? "#93c5fd" : "#64748b",
-            border: "1px solid rgba(90,140,220,0.18)",
-            backgroundColor: emojiOpen ? "rgba(37,99,235,0.12)" : "#0a1628",
-          }}
-          aria-label="Insert emoji"
-          aria-pressed={emojiOpen}
-        >
-          <Smile className="h-4 w-4" />
-        </button>
-        <textarea
-          ref={taRef}
-          value={text}
-          onChange={(e) => {
-            const value = e.target.value.slice(0, CHAT_MAX_MESSAGE_LENGTH);
-            setText(value);
-            refresh(value, e.target.selectionStart ?? value.length);
-          }}
-          onKeyDown={onKeyDown}
-          onClick={(e) => refresh(text, e.currentTarget.selectionStart ?? text.length)}
-          onBlur={() => window.setTimeout(closeSuggestions, 120)}
-          rows={1}
-          placeholder="Share an observation… ($NIFTY to tag a symbol, @ to mention)"
-          disabled={disabled || sending}
-          className="max-h-28 min-h-[38px] flex-1 resize-none rounded-lg px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 disabled:opacity-60"
+      <div
+        className="px-3 pt-1.5"
+        style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom))" }}
+      >
+        <div
+          className="flex items-end gap-1 rounded-[20px] py-1 pl-1.5 pr-1.5 transition-colors focus-within:border-[rgba(90,140,220,0.4)]"
           style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.18)" }}
-        />
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!text.trim() || sending || disabled}
-          className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-lg text-white transition-transform hover:scale-105 disabled:opacity-40 disabled:hover:scale-100"
-          style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
-          aria-label="Send message"
         >
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-4 w-4" />}
-        </button>
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              closeSuggestions();
+              setEmojiOpen((v) => !v);
+            }}
+            disabled={disabled || sending}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/5 hover:text-white disabled:opacity-40"
+            style={{ color: emojiOpen ? "#93c5fd" : "#64748b" }}
+            aria-label="Insert emoji"
+            aria-pressed={emojiOpen}
+          >
+            <Smile className="h-[18px] w-[18px]" />
+          </button>
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={(e) => {
+              const value = e.target.value.slice(0, CHAT_MAX_MESSAGE_LENGTH);
+              setText(value);
+              refresh(value, e.target.selectionStart ?? value.length);
+            }}
+            onKeyDown={onKeyDown}
+            onClick={(e) => refresh(text, e.currentTarget.selectionStart ?? text.length)}
+            onBlur={() => window.setTimeout(closeSuggestions, 120)}
+            rows={1}
+            placeholder="Share an observation…"
+            disabled={disabled || sending}
+            className="max-h-32 min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[13px] leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-60"
+          />
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!text.trim() || sending || disabled}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition-all hover:scale-105 disabled:scale-100 disabled:opacity-30"
+            style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+            aria-label="Send message"
+          >
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-[18px] w-[18px]" />}
+          </button>
+        </div>
       </div>
     </div>
   );

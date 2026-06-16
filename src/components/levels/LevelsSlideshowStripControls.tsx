@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Filter, Search, Star } from "lucide-react";
+import { ArrowLeftRight, Filter, Search, Star } from "lucide-react";
 import {
   FNO_FAVSLIDE_ACCENT,
   FNO_LIVESLIDE_ACCENT,
@@ -194,99 +194,188 @@ export function LevelsSlideModePill({
   );
 }
 
-/** Square box: switch to the other slideshow mode (Live ↔ Fav). */
-export function LevelsAlternateSlideModeBox({
-  mode,
+type StripDestination = "bubbles" | "liveslide" | "favslide";
+
+const BUBBLES_SWITCH_ACCENT = {
+  color: "#93c5fd",
+  border: "rgba(148,163,184,0.28)",
+  bg: "rgba(255,255,255,0.03)",
+};
+
+function StripDestinationIcon({
+  destination,
+  color,
+}: {
+  destination: StripDestination;
+  color: string;
+}) {
+  if (destination === "bubbles") {
+    return <BubblesMapIcon className="h-5 w-5 md:h-6 md:w-6" style={{ color }} />;
+  }
+  if (destination === "favslide") {
+    return <Star className="h-3.5 w-3.5 md:h-4 md:w-4" style={{ color }} strokeWidth={2} />;
+  }
+  return (
+    <span
+      className="h-2 w-2 md:h-2.5 md:w-2.5 rounded-full shrink-0"
+      style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
+    />
+  );
+}
+
+function StripSwitchBadge({ color }: { color: string }) {
+  return (
+    <ArrowLeftRight
+      className="absolute -bottom-0.5 -right-1 h-2.5 w-2.5 md:h-3 md:w-3 opacity-90"
+      style={{ color }}
+      strokeWidth={2.5}
+      aria-hidden
+    />
+  );
+}
+
+function StripDestinationLabel(destination: StripDestination): string {
+  if (destination === "bubbles") return "Bubbles";
+  if (destination === "favslide") return "Fav";
+  return "Live";
+}
+
+/** One square in a paired view switcher (Bubbles + Live/Fav). */
+function StripDestinationSwitchBox({
+  destination,
   onClick,
   title,
+  accent,
+  edge,
+  tourAttrs,
 }: {
-  mode: "liveslide" | "favslide";
+  destination: StripDestination;
   onClick: () => void;
-  title?: string;
+  title: string;
+  accent: { color: string; border: string; bg: string };
+  edge: "left" | "right" | "solo";
+  tourAttrs?: Record<string, string | undefined>;
 }) {
-  const isFav = mode === "favslide";
-  const accent = SLIDE_MODE_ACCENT[mode];
-  const defaultTitle = isFav
-    ? "Switch to favslide. Press F or click."
-    : "Switch to liveslide. Press L or click.";
+  const rounded =
+    edge === "left"
+      ? "rounded-l-lg rounded-r-none"
+      : edge === "right"
+        ? "rounded-r-lg rounded-l-none"
+        : "rounded-lg";
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+      className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} ${rounded} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
       style={{
         ...stripIconBoxStyle(false),
-        background: isFav ? "rgba(251,191,36,0.08)" : "rgba(37,99,235,0.08)",
+        background: accent.bg,
         border: `1px solid ${accent.border}`,
+        ...(edge === "right" ? { marginLeft: -1 } : {}),
       }}
-      aria-label={title ?? defaultTitle}
-      title={title ?? defaultTitle}
-      data-liveslide-tour={isFav ? undefined : "live-switch"}
-      data-favslide-tour={isFav ? "fav-switch" : undefined}
+      aria-label={title}
+      title={title}
+      {...tourAttrs}
     >
-      {isFav ? (
-        <Star className="h-3.5 w-3.5 shrink-0" style={{ color: accent.color }} strokeWidth={2} />
-      ) : (
-        <span
-          className="h-2 w-2 rounded-full shrink-0"
-          style={{ backgroundColor: accent.color, boxShadow: `0 0 6px ${accent.color}` }}
-        />
-      )}
+      <div className="relative flex items-center justify-center">
+        <StripDestinationIcon destination={destination} color={accent.color} />
+        <StripSwitchBadge color={accent.color} />
+      </div>
       <span
-        className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase font-black tracking-[0.12em]`}
+        className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
         style={{ color: accent.color }}
       >
-        {isFav ? "Fav" : "Live"}
+        {StripDestinationLabel(destination)}
       </span>
     </button>
+  );
+}
+
+/** Adjacent switch targets: Bubbles + the other slideshow mode. */
+export function LevelsSlideViewSwitchGroup({
+  currentMode,
+  onBubbles,
+  bubblesTitle = "Back to Market Bubbles map. Press B or click.",
+  alternateMode,
+  onAlternate,
+  alternateTitle,
+}: {
+  currentMode: "liveslide" | "favslide";
+  onBubbles: () => void;
+  bubblesTitle?: string;
+  alternateMode?: "liveslide" | "favslide";
+  onAlternate?: () => void;
+  alternateTitle?: string;
+}) {
+  const slideAccent = SLIDE_MODE_ACCENT[currentMode];
+  const altAccent = alternateMode ? SLIDE_MODE_ACCENT[alternateMode] : null;
+  const paired = alternateMode != null && onAlternate != null;
+
+  if (!paired) {
+    return (
+      <StripDestinationSwitchBox
+        destination="bubbles"
+        onClick={onBubbles}
+        title={bubblesTitle}
+        accent={{
+          ...BUBBLES_SWITCH_ACCENT,
+          border: slideAccent.border,
+        }}
+        edge="solo"
+        tourAttrs={{
+          "data-liveslide-tour": "bubbles",
+          "data-favslide-tour": "bubbles",
+        }}
+      />
+    );
+  }
+
+  const altDefaultTitle =
+    alternateMode === "favslide"
+      ? "Switch to favslide. Press F or click."
+      : "Switch to liveslide. Press L or click.";
+
+  return (
+    <div
+      className={`flex items-stretch shrink-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
+      role="group"
+      aria-label="Switch view"
+    >
+      <StripDestinationSwitchBox
+        destination="bubbles"
+        onClick={onBubbles}
+        title={bubblesTitle}
+        accent={{
+          ...BUBBLES_SWITCH_ACCENT,
+          border: slideAccent.border,
+        }}
+        edge="left"
+        tourAttrs={{
+          "data-liveslide-tour": "bubbles",
+          "data-favslide-tour": "bubbles",
+        }}
+      />
+      <StripDestinationSwitchBox
+        destination={alternateMode}
+        onClick={onAlternate}
+        title={alternateTitle ?? altDefaultTitle}
+        accent={{
+          color: altAccent!.color,
+          border: altAccent!.border,
+          bg: alternateMode === "favslide" ? "rgba(251,191,36,0.08)" : "rgba(37,99,235,0.08)",
+        }}
+        edge="right"
+        tourAttrs={{
+          "data-liveslide-tour": alternateMode === "liveslide" ? "live-switch" : undefined,
+          "data-favslide-tour": alternateMode === "favslide" ? "fav-switch" : undefined,
+        }}
+      />
+    </div>
   );
 }
 
 /** Square box: return to bubbles map from slideshow. */
-export function LevelsViewModeIconBox({
-  viewMode,
-  onToggle,
-  title = "Back to Market Bubbles map. Press B or click.",
-}: {
-  viewMode: LevelsStripViewMode;
-  onToggle: () => void;
-  title?: string;
-}) {
-  const slideAccent =
-    viewMode === "favslide"
-      ? SLIDE_MODE_ACCENT.favslide
-      : viewMode === "liveslide"
-        ? SLIDE_MODE_ACCENT.liveslide
-        : null;
-
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
-      style={{
-        ...stripIconBoxStyle(false),
-        ...(slideAccent ? { border: `1px solid ${slideAccent.border}` } : {}),
-      }}
-      aria-label="Back to Market Bubbles map. Press B or click."
-      title={title}
-      data-liveslide-tour="bubbles"
-      data-favslide-tour="bubbles"
-    >
-      <BubblesMapIcon
-        className="h-6 w-6"
-        style={{ color: slideAccent?.color ?? "#93c5fd" }}
-      />
-      <span
-        className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
-        style={{ color: slideAccent?.color ?? BLACKBOARD_CHALK_DIM }}
-      >
-        Bubbles
-      </span>
-    </button>
-  );
-}
 
 function StripSearchIconBox({
   value,
@@ -469,8 +558,8 @@ export function LevelsSlideshowStripControls({
   mapFilter,
   slideshowControl,
   viewToggle,
+  viewSwitchGroup,
   slideModePill,
-  alternateSlideMode,
   showFilter = true,
   stripTrailing,
   className = "",
@@ -499,15 +588,18 @@ export function LevelsSlideshowStripControls({
     onToggle: () => void;
     title?: string;
   };
+  /** Paired Bubbles + Live/Fav switch boxes (slideshow strip). */
+  viewSwitchGroup?: {
+    currentMode: "liveslide" | "favslide";
+    onBubbles: () => void;
+    bubblesTitle?: string;
+    alternateMode?: "liveslide" | "favslide";
+    onAlternate?: () => void;
+    alternateTitle?: string;
+  };
   slideModePill?: {
     mode: LevelsStripViewMode;
     count?: number;
-  };
-  /** Switch to the other slideshow mode (Live ↔ Fav). */
-  alternateSlideMode?: {
-    mode: "liveslide" | "favslide";
-    onClick: () => void;
-    title?: string;
   };
   /** Bubbles toolbar: view icon only. */
   showFilter?: boolean;
@@ -536,7 +628,10 @@ export function LevelsSlideshowStripControls({
         return;
       }
       if (e.key === "b" || e.key === "B") {
-        if (viewToggle) {
+        if (viewSwitchGroup) {
+          e.preventDefault();
+          viewSwitchGroup.onBubbles();
+        } else if (viewToggle) {
           e.preventDefault();
           viewToggle.onToggle();
         }
@@ -544,7 +639,7 @@ export function LevelsSlideshowStripControls({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [slideshowControl, viewToggle]);
+  }, [slideshowControl, viewToggle, viewSwitchGroup]);
 
   return (
     <div className={`flex items-stretch gap-1.5 shrink-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS} ${className}`.trim()}>
@@ -649,14 +744,6 @@ export function LevelsSlideshowStripControls({
         <LevelsSlideModePill mode={slideModePill.mode} count={slideModePill.count} />
       ) : null}
 
-      {alternateSlideMode ? (
-        <LevelsAlternateSlideModeBox
-          mode={alternateSlideMode.mode}
-          onClick={alternateSlideMode.onClick}
-          title={alternateSlideMode.title}
-        />
-      ) : null}
-
       {slideshowControl?.enabled ? (
         <button
           type="button"
@@ -707,11 +794,26 @@ export function LevelsSlideshowStripControls({
         </button>
       ) : null}
 
-      {viewToggle ? (
-        <LevelsViewModeIconBox
-          viewMode={viewToggle.viewMode}
-          onToggle={viewToggle.onToggle}
-          title={viewToggle.title}
+      {viewSwitchGroup ? (
+        <LevelsSlideViewSwitchGroup
+          currentMode={viewSwitchGroup.currentMode}
+          onBubbles={viewSwitchGroup.onBubbles}
+          bubblesTitle={viewSwitchGroup.bubblesTitle}
+          alternateMode={viewSwitchGroup.alternateMode}
+          onAlternate={viewSwitchGroup.onAlternate}
+          alternateTitle={viewSwitchGroup.alternateTitle}
+        />
+      ) : viewToggle ? (
+        <LevelsSlideViewSwitchGroup
+          currentMode={
+            viewToggle.viewMode === "favslide"
+              ? "favslide"
+              : viewToggle.viewMode === "liveslide"
+                ? "liveslide"
+                : "liveslide"
+          }
+          onBubbles={viewToggle.onToggle}
+          bubblesTitle={viewToggle.title}
         />
       ) : null}
 

@@ -996,27 +996,25 @@ export default function LevelsPage() {
             }
           : undefined
       }
-      alternateSlideMode={
-        isSlideView && isFnoNinjaHost
-          ? viewMode === "favslide"
-            ? {
-                mode: "liveslide" as const,
-                onClick: enterLiveslide,
-                title: liveslideCtaTitle,
-              }
-            : {
-                mode: "favslide" as const,
-                onClick: enterFavslide,
-                title: favslideCtaTitle,
-              }
-          : undefined
-      }
-      viewModeToggle={
+      viewSwitchGroup={
         isSlideView
           ? {
-              viewMode: viewMode === "favslide" ? "favslide" : "liveslide",
-              onToggle: enterBubbles,
-              title: bubblesBackTitle,
+              currentMode: viewMode === "favslide" ? "favslide" : "liveslide",
+              onBubbles: enterBubbles,
+              bubblesTitle: bubblesBackTitle,
+              ...(isFnoNinjaHost
+                ? viewMode === "favslide"
+                  ? {
+                      alternateMode: "liveslide" as const,
+                      onAlternate: enterLiveslide,
+                      alternateTitle: liveslideCtaTitle,
+                    }
+                  : {
+                      alternateMode: "favslide" as const,
+                      onAlternate: enterFavslide,
+                      alternateTitle: favslideCtaTitle,
+                    }
+                : {}),
             }
           : undefined
       }

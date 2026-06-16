@@ -37,10 +37,9 @@ export function LevelsSlideshowToolbar({
   filtersOnly = false,
   symbolStrip,
   slideshowControl,
-  viewModeToggle,
+  viewSwitchGroup,
   favslideToggle,
   slideModePill,
-  alternateSlideMode,
   bubblesMode = false,
   bubbleMapFilter,
   onBubbleMapFilterChange,
@@ -108,19 +107,17 @@ export function LevelsSlideshowToolbar({
     mode: LevelsStripViewMode;
     count?: number;
   };
-  /** Switch to the other slideshow mode (Live ↔ Fav). */
-  alternateSlideMode?: {
-    mode: "liveslide" | "favslide";
-    onClick: () => void;
-    title?: string;
+  /** Paired Bubbles + Live/Fav switch boxes on slideshow strip. */
+  viewSwitchGroup?: {
+    currentMode: "liveslide" | "favslide";
+    onBubbles: () => void;
+    bubblesTitle?: string;
+    alternateMode?: "liveslide" | "favslide";
+    onAlternate?: () => void;
+    alternateTitle?: string;
   };
-  /** Icon box(es) after Bubbles on slideshow strip (e.g. favslide add). */
+  /** Icon box(es) after view switcher on slideshow strip (e.g. favslide add). */
   stripTrailing?: ReactNode;
-  viewModeToggle?: {
-    viewMode: LevelsStripViewMode;
-    onToggle: () => void;
-    title?: string;
-  };
 }) {
   const filterActions = useMemo(
     () =>
@@ -216,9 +213,8 @@ export function LevelsSlideshowToolbar({
                 : undefined
             }
             slideshowControl={slideshowControl}
-            viewToggle={viewModeToggle}
+            viewSwitchGroup={viewSwitchGroup}
             slideModePill={slideModePill}
-            alternateSlideMode={alternateSlideMode}
             stripTrailing={stripTrailing}
             className="max-md:shrink-0 max-md:relative max-md:z-10"
           />

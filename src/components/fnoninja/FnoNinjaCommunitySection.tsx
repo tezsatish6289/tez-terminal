@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
-import { ArrowRight, Hash, MessageCircle, ShieldCheck, Users } from "lucide-react";
+import { ArrowRight, MessageCircle } from "lucide-react";
 import { useUser } from "@/firebase";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
@@ -51,28 +51,12 @@ const STATIC_MESSAGES: StaticMessage[] = [
   { id: "10", name: "Neha", text: "Agreed. Helps me find opportunities first, then I do my own analysis." },
 ];
 
-const BULLETS: { icon: typeof MessageCircle; title: string; body: string }[] = [
-  {
-    icon: MessageCircle,
-    title: "Real Trader Discussions",
-    body: "Focused, subscriber-only room for market observations and setup ideas — never signals.",
-  },
-  {
-    icon: Hash,
-    title: "Smart Cashtags",
-    body: "Tag symbols with $NIFTY, $BANKNIFTY, etc. — others jump straight to the chart.",
-  },
-  {
-    icon: Users,
-    title: "Live Presence",
-    body: "See who's online right now and join the conversation.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Well Moderated",
-    body: "Strictly observations and analysis. No tips or recommendations.",
-  },
-];
+const CHECKLIST = [
+  "Real traders",
+  "No signals",
+  "Instant chart sharing",
+  "Subscriber only",
+] as const;
 
 function highlightCashtags(text: string) {
   const parts = text.split(/(\$[A-Z][A-Z0-9&-]{1,19}\b)/g);
@@ -240,41 +224,28 @@ export function FnoNinjaCommunitySection() {
             Community
           </p>
           <h2 className="text-3xl font-black leading-[1.1] tracking-tight text-white sm:text-4xl lg:text-[2.75rem]">
-            Think out loud with serious F&amp;O traders.
+            Don&apos;t trade alone.
           </h2>
           <p className="mt-4 text-sm leading-relaxed sm:text-base" style={{ color: FNO_MUTED }}>
-            Every subscription includes the FNONINJA Community — a private chat where traders discuss
-            market structure, share observations, and exchange trade ideas with peers reading the same
-            data.
+            Join a private room where traders discuss market structure, option clusters, and setups
+            using the same FNO Ninja data.
           </p>
 
-          <p className="mt-6 text-xs font-bold uppercase tracking-wider" style={{ color: "#94a3b8" }}>
-            Why it works
-          </p>
-          <ul className="mt-4 space-y-4">
-            {BULLETS.map(({ icon: Icon, title, body }) => (
-              <li key={title} className="flex gap-3.5">
-                <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: FNO_LOGO_MARK }}
-                >
-                  <Icon className="h-4 w-4 text-white" strokeWidth={2.25} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">{title}</h3>
-                  <p className="mt-0.5 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
-                    {body}
-                  </p>
-                </div>
+          <ul className="mt-6 space-y-2">
+            {CHECKLIST.map((item) => (
+              <li
+                key={item}
+                className="flex items-center gap-2 text-sm font-medium text-white"
+              >
+                <span aria-hidden style={{ color: "#34d399" }}>
+                  ✓
+                </span>
+                {item}
               </li>
             ))}
           </ul>
 
-          <p className="mt-8 text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
-            A place to test ideas and grow with like-minded traders.
-          </p>
-
-          <div className="mt-5">
+          <div className="mt-8">
             <CommunityCta />
           </div>
         </div>

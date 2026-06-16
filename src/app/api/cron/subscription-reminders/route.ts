@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { sendMessage, type InlineKeyboardButton } from "@/lib/telegram";
+import { syncChatAccess } from "@/lib/chat/access";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -88,6 +89,10 @@ export async function GET(request: NextRequest) {
         reminders.push({ userId: doc.id, type: "1day", endDate: endDateStr });
       } else if (endDate >= yesterday && endDate < today && status === "expired") {
         reminders.push({ userId: doc.id, type: "expired", endDate: endDateStr });
+        // Revoke community-chat access when the subscription lapses.
+        void syncChatAccess(doc.id, false).catch((e) =>
+          console.error("[Sub Reminders] chat access revoke failed", doc.id, e)
+        );
       }
     }
 

@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, LogOut, Menu, X } from "lucide-react";
+import { Loader2, LogOut, Menu, MessageCircle, X } from "lucide-react";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
+import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { useAuth, useUser } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
@@ -102,6 +103,8 @@ export function FnoNinjaNav() {
   const showNavSearch = !isFnoNinjaLandingPath(pathname);
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const { toggle: toggleChat, open: chatOpen } = useChatPanel();
+  const showChatButton = !!user && !isFnoNinjaLandingPath(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -157,6 +160,18 @@ export function FnoNinjaNav() {
             {isLevelsApp ? <FnoNinjaNavLiveslideHelp /> : null}
             <FnoNinjaNavLearn />
             {showNavSearch ? <FnoNinjaNavSearch /> : null}
+            {showChatButton ? (
+              <button
+                type="button"
+                onClick={toggleChat}
+                className={ICON_BTN_CLASS}
+                style={ICON_BTN_STYLE}
+                aria-label="Community chat"
+                aria-pressed={chatOpen}
+              >
+                <MessageCircle className="h-5 w-5" />
+              </button>
+            ) : null}
             {!isLevelsApp && isFnoNinjaLandingPath(pathname) ? (
               <>
                 <div className="hidden md:block">

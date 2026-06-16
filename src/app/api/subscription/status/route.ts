@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { FNONINJA_FREE_TRIAL_DAYS, FREE_TRIAL_DAYS, type SubscriptionDoc } from "@/lib/subscription";
+import { syncChatAccess } from "@/lib/chat/access";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,14 @@ export async function GET(request: NextRequest) {
         Math.ceil((new Date(endDate).getTime() - now) / (1000 * 60 * 60 * 24))
       );
     }
+
+    // Keep the community-chat access mirror in sync with subscription state.
+    // trial/active => can chat; expired => cannot. Best-effort; never blocks
+    // the status response.
+    const canChat = effectiveStatus === "trial" || effectiveStatus === "active";
+    void syncChatAccess(uid, canChat, { displayName: name, email, photoURL: photo }).catch(
+      (e) => console.error("[Subscription Status] chat access sync failed", e)
+    );
 
     return NextResponse.json({
       status: effectiveStatus,

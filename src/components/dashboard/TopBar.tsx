@@ -76,6 +76,7 @@ export function TopBar() {
     { name: "Waitlist", icon: ClipboardList, href: "/admin/waitlist" },
     { name: "Ideal Watchlist", icon: ListChecks, href: "/admin/watchlist" },
     { name: "Contact", icon: MessageSquare, href: "/admin/contact" },
+    { name: "Chat Mod", icon: MessageSquare, href: "/admin/chat" },
     { name: "Social", icon: Twitter, href: "/admin/social" },
     { name: "Blockchain", icon: Link2, href: "/admin/blockchain" },
     { name: "Bot records", icon: ShieldCheck, href: "/records" },

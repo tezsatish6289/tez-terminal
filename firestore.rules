@@ -9,6 +9,15 @@ service cloud.firestore {
              request.auth.token.email == "hello@tezterminal.com";
     }
 
+    // Community chat read gate: signed-in subscriber whose mirrored
+    // chat_members doc says canChat. Writes are always server-only (Admin SDK),
+    // so this is purely a read gate.
+    function canChat() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/chat_members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/chat_members/$(request.auth.uid)).data.canChat == true;
+    }
+
     // Signals (Idea Stream)
     match /signals/{document=**} {
       allow read: if true; 
@@ -142,6 +151,33 @@ service cloud.firestore {
     }
     match /twitter_processed/{docId} {
       allow read, write: if false;
+    }
+
+    // Community chat — durable archive. Live stream is in RTDB; Firestore holds
+    // the searchable/paginated history and is written server-side via Admin SDK.
+    match /chat_rooms/{roomId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+
+      match /messages/{messageId} {
+        allow read: if canChat();
+        allow write: if false;
+      }
+    }
+
+    // Chat membership/gate mirror: each user can read their own (canChat, ban,
+    // terms). Server (Admin SDK) is the only writer.
+    match /chat_members/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // Chat reports: any signed-in user can file a report; reads/edits are
+    // server-only (admin moderation queue).
+    match /chat_reports/{reportId} {
+      allow create: if request.auth != null
+        && request.resource.data.reporterId == request.auth.uid;
+      allow read, update, delete: if false;
     }
 
     // RBAC — role definitions and per-user role assignments.

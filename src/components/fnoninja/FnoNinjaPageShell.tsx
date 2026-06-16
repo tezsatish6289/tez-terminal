@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import { FnoNinjaFooter } from "@/components/fnoninja/FnoNinjaFooter";
 import { FnoNinjaNav } from "@/components/fnoninja/FnoNinjaNav";
+import { ChatPanel } from "@/components/fnoninja/chat/ChatPanel";
+import { ChatPanelProvider } from "@/components/fnoninja/chat/ChatPanelContext";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
 import {
   FNO_APP_TOP_GAP_CLASS,
@@ -17,21 +19,24 @@ export function FnoNinjaPageShell({ children }: { children: React.ReactNode }) {
   const isLevelsApp = isFnoNinjaLevelsPath(pathname);
 
   return (
-    <div
-      className={isLevelsApp ? FNO_LEVELS_PAGE_ROOT : FNO_PAGE_ROOT}
-      style={{ backgroundColor: FNO_BG, color: FNO_TEXT }}
-    >
-      <FnoNinjaNav />
+    <ChatPanelProvider>
       <div
-        className={`${FB_VIEWPORT_MAIN} flex flex-col min-w-0 ${
-          isLevelsApp
-            ? `${FNO_APP_TOP_GAP_CLASS} max-md:flex-none max-md:overflow-visible md:flex-1 md:min-h-0`
-            : "flex-1 min-h-0"
-        }`}
+        className={isLevelsApp ? FNO_LEVELS_PAGE_ROOT : FNO_PAGE_ROOT}
+        style={{ backgroundColor: FNO_BG, color: FNO_TEXT }}
       >
-        {children}
+        <FnoNinjaNav />
+        <div
+          className={`${FB_VIEWPORT_MAIN} flex flex-col min-w-0 ${
+            isLevelsApp
+              ? `${FNO_APP_TOP_GAP_CLASS} max-md:flex-none max-md:overflow-visible md:flex-1 md:min-h-0`
+              : "flex-1 min-h-0"
+          }`}
+        >
+          {children}
+        </div>
+        {!isLevelsApp ? <FnoNinjaFooter /> : null}
+        <ChatPanel />
       </div>
-      {!isLevelsApp ? <FnoNinjaFooter /> : null}
-    </div>
+    </ChatPanelProvider>
   );
 }

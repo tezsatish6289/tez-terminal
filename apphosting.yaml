@@ -12,6 +12,14 @@ env:
     value: asia-southeast1
   - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
     value: G-9SSXWJTR1L
+  # Realtime Database — community chat live stream + presence (Singapore).
+  # NEXT_PUBLIC_ must be available at build time so it inlines into the client bundle.
+  - variable: NEXT_PUBLIC_FIREBASE_DATABASE_URL
+    value: https://studio-6235588950-a15f2-default-rtdb.asia-southeast1.firebasedatabase.app
+  - variable: FIREBASE_DATABASE_URL
+    value: https://studio-6235588950-a15f2-default-rtdb.asia-southeast1.firebasedatabase.app
+    availability:
+      - RUNTIME
   - variable: TELEGRAM_BOT_TOKEN
     secret: TELEGRAM_BOT_TOKEN
     availability:

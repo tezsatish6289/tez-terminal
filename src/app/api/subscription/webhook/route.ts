@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { getIpnSecret } from "@/lib/nowpayments";
 import { computeNewEndDate, type SubscriptionDoc } from "@/lib/subscription";
+import { syncChatAccess } from "@/lib/chat/access";
 import { fetchReferralConfig, type ReferralCommissionDoc } from "@/lib/referral";
 import { sendMessage } from "@/lib/telegram";
 import crypto from "crypto";
@@ -111,6 +112,11 @@ export async function POST(request: NextRequest) {
           status: "active",
           subscriptionEndDate: newEndDate,
         });
+
+        // Grant community-chat access immediately on payment.
+        void syncChatAccess(userId, true).catch((e) =>
+          console.error("[IPN Webhook] chat access sync failed", e)
+        );
 
         if (chatId && paymentStatus === "finished") {
           const endFormatted = new Date(newEndDate).toLocaleDateString("en-US", {

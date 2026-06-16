@@ -1,0 +1,31 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        "messages": {
+          ".read": "auth != null && root.child('members').child(auth.uid).child('canChat').val() === true",
+          ".write": false,
+          ".indexOn": ["createdAt"]
+        },
+        "meta": {
+          ".read": "auth != null && root.child('members').child(auth.uid).child('canChat').val() === true",
+          ".write": false
+        }
+      }
+    },
+    "presence": {
+      "$roomId": {
+        ".read": "auth != null && root.child('members').child(auth.uid).child('canChat').val() === true",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && root.child('members').child(auth.uid).child('canChat').val() === true"
+        }
+      }
+    },
+    "members": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    }
+  }
+}

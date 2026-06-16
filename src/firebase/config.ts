@@ -4,5 +4,10 @@ export const firebaseConfig = {
   "apiKey": "AIzaSyD-6s2cwb9rz2Hgrvkd_AhAfrGbxaaacbc",
   "authDomain": "studio-6235588950-a15f2.firebaseapp.com",
   "measurementId": process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "",
-  "messagingSenderId": "632795229776"
+  "messagingSenderId": "632795229776",
+  // Realtime Database powers the live community chat stream + presence.
+  // Provide the project's RTDB URL via env; the default-rtdb form is a fallback.
+  "databaseURL":
+    process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL ||
+    "https://studio-6235588950-a15f2-default-rtdb.asia-southeast1.firebasedatabase.app",
 };

@@ -1,0 +1,128 @@
+{
+  "generatedAt": "2026-06-16T05:26:21.736Z",
+  "brand": "FNONINJA",
+  "tagline": "Option-chain analytics for NSE F&O",
+  "platforms": [
+    {
+      "folder": "twitter",
+      "label": "Twitter / X",
+      "assets": [
+        {
+          "file": "profile-400x400.png",
+          "width": 400,
+          "height": 400,
+          "kind": "profile",
+          "path": "public/fnoninja/social/twitter/profile-400x400.png"
+        },
+        {
+          "file": "banner-1500x500.png",
+          "width": 1500,
+          "height": 500,
+          "kind": "banner",
+          "note": "Header image (3:1). Keep key text away from bottom-left (avatar overlap on mobile).",
+          "path": "public/fnoninja/social/twitter/banner-1500x500.png"
+        }
+      ]
+    },
+    {
+      "folder": "facebook",
+      "label": "Facebook",
+      "assets": [
+        {
+          "file": "profile-320x320.png",
+          "width": 320,
+          "height": 320,
+          "kind": "profile",
+          "note": "Page profile photo. Displays circular; upload square.",
+          "path": "public/fnoninja/social/facebook/profile-320x320.png"
+        },
+        {
+          "file": "cover-820x312.png",
+          "width": 820,
+          "height": 312,
+          "kind": "banner",
+          "note": "Page cover photo. Safe zone: center; logo overlaps bottom-left on mobile.",
+          "path": "public/fnoninja/social/facebook/cover-820x312.png"
+        }
+      ]
+    },
+    {
+      "folder": "linkedin",
+      "label": "LinkedIn",
+      "assets": [
+        {
+          "file": "profile-400x400.png",
+          "width": 400,
+          "height": 400,
+          "kind": "profile",
+          "path": "public/fnoninja/social/linkedin/profile-400x400.png"
+        },
+        {
+          "file": "banner-1584x396.png",
+          "width": 1584,
+          "height": 396,
+          "kind": "banner",
+          "note": "Cover 1584×396. Branding centered right of profile-photo overlap (~220px left).",
+          "path": "public/fnoninja/social/linkedin/banner-1584x396.png"
+        }
+      ]
+    },
+    {
+      "folder": "youtube",
+      "label": "YouTube",
+      "assets": [
+        {
+          "file": "profile-800x800.png",
+          "width": 800,
+          "height": 800,
+          "kind": "profile",
+          "note": "Channel icon. Displays circular.",
+          "path": "public/fnoninja/social/youtube/profile-800x800.png"
+        },
+        {
+          "file": "banner-2560x1440.png",
+          "width": 2560,
+          "height": 1440,
+          "kind": "banner",
+          "note": "Channel art 2560×1440. Logo + wordmark + tagline centered in 1546×423 safe area.",
+          "path": "public/fnoninja/social/youtube/banner-2560x1440.png"
+        }
+      ]
+    },
+    {
+      "folder": "instagram",
+      "label": "Instagram",
+      "assets": [
+        {
+          "file": "profile-320x320.png",
+          "width": 320,
+          "height": 320,
+          "kind": "profile",
+          "note": "Profile photo only — Instagram has no profile banner. Displays as a circle.",
+          "path": "public/fnoninja/social/instagram/profile-320x320.png"
+        }
+      ]
+    },
+    {
+      "folder": "reddit",
+      "label": "Reddit",
+      "assets": [
+        {
+          "file": "profile-256x256.png",
+          "width": 256,
+          "height": 256,
+          "kind": "profile",
+          "path": "public/fnoninja/social/reddit/profile-256x256.png"
+        },
+        {
+          "file": "banner-1920x384.png",
+          "width": 1920,
+          "height": 384,
+          "kind": "banner",
+          "note": "Profile banner (5:1). Avatar overlaps bottom-left.",
+          "path": "public/fnoninja/social/reddit/banner-1920x384.png"
+        }
+      ]
+    }
+  ]
+}

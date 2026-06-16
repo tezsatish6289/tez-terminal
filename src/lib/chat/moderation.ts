@@ -11,6 +11,38 @@ import type { ChatMention } from "@/lib/chat/types";
 
 const SYMBOL_REGEX = /\$([A-Z][A-Z0-9&-]{1,19})\b/g;
 
+/**
+ * Matches http(s) URLs and scheme-less `www.` links so we can vet every link a
+ * user posts. Shared by the renderer so what we permit is exactly what we
+ * linkify.
+ */
+export const URL_REGEX = /(?:https?:\/\/|www\.)[^\s]+/gi;
+
+/**
+ * First-party hosts whose links are allowed in chat. Only FNONINJA links may be
+ * shared (e.g. https://fnoninja.com/levels/chart?...); everything else is
+ * blocked to prevent spam/phishing and off-platform promotion. `localhost` is
+ * permitted so deep-links work during local testing.
+ */
+const ALLOWED_LINK_HOSTS = new Set(["fnoninja.com", "www.fnoninja.com", "localhost"]);
+
+function hostFromUrl(raw: string): string | null {
+  try {
+    const cleaned = raw.replace(/[.,)\]}>'"]+$/, "");
+    const withScheme = /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
+    return new URL(withScheme).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/** True if a posted link points at an allowed FNONINJA host (or a subdomain). */
+export function isAllowedChatUrl(raw: string): boolean {
+  const host = hostFromUrl(raw);
+  if (!host) return false;
+  return ALLOWED_LINK_HOSTS.has(host) || host.endsWith(".fnoninja.com");
+}
+
 /** Directional trade language that, combined with a ticker, suggests a call. */
 const TRADE_KEYWORDS = [
   "buy",
@@ -62,13 +94,13 @@ export function moderateMessage(text: string): ModerationResult {
     return { blocked: true, flagged: false, reason: "Message is empty." };
   }
 
-  // Block messages that are only links (common spam/phishing vector).
-  const withoutUrls = trimmed.replace(/https?:\/\/\S+/gi, "").trim();
-  if (trimmed.length > 0 && withoutUrls.length === 0) {
+  // Only FNONINJA links may be shared. Block any link pointing elsewhere.
+  const urls = trimmed.match(URL_REGEX) ?? [];
+  if (urls.some((u) => !isAllowedChatUrl(u))) {
     return {
       blocked: true,
       flagged: false,
-      reason: "Messages cannot be only links.",
+      reason: "Only fnoninja.com links can be shared in chat.",
     };
   }
 

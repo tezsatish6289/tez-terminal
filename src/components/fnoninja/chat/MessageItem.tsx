@@ -6,6 +6,7 @@ import { Check, Flag, Loader2, Pencil, Trash2, User, X } from "lucide-react";
 import { format } from "date-fns";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import { CHAT_EDIT_WINDOW_MS } from "@/lib/chat/constants";
+import { isAllowedChatUrl } from "@/lib/chat/moderation";
 import type { ChatMessage } from "@/lib/chat/types";
 
 const INDEX_SYMBOLS = new Set([
@@ -18,7 +19,9 @@ const INDEX_SYMBOLS = new Set([
   "BANKEX",
 ]);
 
-const SYMBOL_SPLIT = /(\$[A-Z][A-Z0-9&-]{1,19})\b/g;
+// Split on either a $SYMBOL cashtag or a URL (http/https or www.), keeping the
+// delimiters so we can linkify them while leaving the rest as plain text.
+const TOKEN_SPLIT = /(\$[A-Z][A-Z0-9&-]{1,19}\b|(?:https?:\/\/|www\.)[^\s]+)/g;
 
 function symbolHref(symbol: string): string {
   const hostname = typeof window !== "undefined" ? window.location.hostname : "";
@@ -27,8 +30,10 @@ function symbolHref(symbol: string): string {
 }
 
 function renderText(text: string) {
-  const parts = text.split(SYMBOL_SPLIT);
+  const parts = text.split(TOKEN_SPLIT);
   return parts.map((part, i) => {
+    if (!part) return <Fragment key={i} />;
+
     if (/^\$[A-Z]/.test(part)) {
       const symbol = part.slice(1).toUpperCase();
       return (
@@ -44,6 +49,25 @@ function renderText(text: string) {
         </a>
       );
     }
+
+    // Only FNONINJA links are clickable; anything else renders as plain text
+    // (and is blocked at send time anyway).
+    if (/^(?:https?:\/\/|www\.)/i.test(part) && isAllowedChatUrl(part)) {
+      const href = /^https?:\/\//i.test(part) ? part : `https://${part}`;
+      return (
+        <a
+          key={i}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="break-all hover:underline"
+          style={{ color: "#60a5fa" }}
+        >
+          {part}
+        </a>
+      );
+    }
+
     return <Fragment key={i}>{part}</Fragment>;
   });
 }

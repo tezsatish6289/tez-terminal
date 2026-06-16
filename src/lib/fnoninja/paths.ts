@@ -25,6 +25,11 @@ export function fnoMarketingHash(pathname: string, hash: string): string {
   return `${home}${hash}`;
 }
 
+/** Bubble chart with community chat panel opened (terms/subscription gates apply). */
+export function fnoCommunityChatHref(pathname: string): string {
+  return `${fnoAnalyticsHref(pathname)}?chat=1`;
+}
+
 /** Levels app — fnoninja.com uses /levels; local dev uses /fnoninja/levels or /freedombot/levels. */
 export function fnoAnalyticsHref(pathname: string): string {
   if (typeof window !== "undefined") {

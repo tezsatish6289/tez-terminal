@@ -1,8 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { FnoNinjaFooter } from "@/components/fnoninja/FnoNinjaFooter";
 import { FnoNinjaNav } from "@/components/fnoninja/FnoNinjaNav";
+import { FnoNinjaChatDeepLink } from "@/components/fnoninja/FnoNinjaChatDeepLink";
 import { ChatPanel } from "@/components/fnoninja/chat/ChatPanel";
 import { ChatPanelProvider } from "@/components/fnoninja/chat/ChatPanelContext";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
@@ -35,6 +37,9 @@ export function FnoNinjaPageShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
         {!isLevelsApp ? <FnoNinjaFooter /> : null}
+        <Suspense fallback={null}>
+          <FnoNinjaChatDeepLink />
+        </Suspense>
         <ChatPanel />
       </div>
     </ChatPanelProvider>

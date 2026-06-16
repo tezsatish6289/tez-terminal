@@ -1,14 +1,13 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ArrowRight, Hash, MessageCircle, ShieldCheck, Users } from "lucide-react";
 import { useUser } from "@/firebase";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
-import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { GENERAL_ROOM_ID } from "@/lib/chat/constants";
-import { fnoAnalyticsHref } from "@/lib/fnoninja/paths";
-import { usePathname } from "next/navigation";
+import { fnoCommunityChatHref } from "@/lib/fnoninja/paths";
 import {
   FNO_ACCENT,
   FNO_CTA_GRADIENT,
@@ -17,41 +16,61 @@ import {
   FNO_MUTED,
 } from "@/lib/fnoninja/theme";
 
-interface PreviewMessage {
+interface StaticMessage {
   id: string;
   name: string;
   text: string;
-  createdAt: number;
 }
 
-// Observation-only examples shown before the live feed loads (or if it's empty),
-// so the preview never looks broken. Deliberately not trade calls.
-const SAMPLE_MESSAGES: PreviewMessage[] = [
-  { id: "s1", name: "Aarav", text: "$BANKNIFTY still holding above the max-pain zone — structure looks stable.", createdAt: 0 },
-  { id: "s2", name: "Priya", text: "Heavy OI build near $NIFTY 23500. Watching how it resolves.", createdAt: 0 },
-  { id: "s3", name: "Rohan", text: "Anyone tracking the shift in $RELIANCE zones this week?", createdAt: 0 },
+const STATIC_MESSAGES: StaticMessage[] = [
+  { id: "1", name: "Neha", text: "Anyone tracking L&T today?" },
+  { id: "2", name: "Rahul", text: "Yep. Sitting right below a massive Call Cluster. Not looking very strong." },
+  { id: "3", name: "Ankit", text: "Saw the same on FNO Ninja. The bubble map highlighted it immediately." },
+  {
+    id: "4",
+    name: "Priya",
+    text: "I love how easy it is to spot these levels. Much faster than scanning option chains manually.",
+  },
+  { id: "5", name: "Rahul", text: "Exactly. One glance and you know where traders are heavily positioned." },
+  {
+    id: "6",
+    name: "Neha",
+    text: "I'm watching ₹4,150 closely. If it gets rejected again, bears might stay in control.",
+  },
+  {
+    id: "7",
+    name: "Ankit",
+    text: "The slideshow feature is underrated. Found 3-4 interesting setups in less than 5 minutes.",
+  },
+  { id: "8", name: "Vikram", text: "Same. Discovered a couple of stocks I wasn't even tracking before." },
+  {
+    id: "9",
+    name: "Priya",
+    text: "That's the biggest advantage for me. It's more of a market discovery tool than a charting tool.",
+  },
+  { id: "10", name: "Neha", text: "Agreed. Helps me find opportunities first, then I do my own analysis." },
 ];
 
 const BULLETS: { icon: typeof MessageCircle; title: string; body: string }[] = [
   {
     icon: MessageCircle,
-    title: "Discuss with real F&O traders",
-    body: "A focused, subscriber-only room — share what you're seeing in market structure, not noise.",
+    title: "Real Trader Discussions",
+    body: "Focused, subscriber-only room for market observations and setup ideas — never signals.",
   },
   {
     icon: Hash,
-    title: "Tag any symbol with $NIFTY",
-    body: "Cashtags link straight to that symbol's chart, so others can open the exact view you mean.",
+    title: "Smart Cashtags",
+    body: "Tag symbols with $NIFTY, $BANKNIFTY, etc. — others jump straight to the chart.",
   },
   {
     icon: Users,
-    title: "See who's around",
-    body: "Live presence shows how many members are active right now.",
+    title: "Live Presence",
+    body: "See who's online right now and join the conversation.",
   },
   {
     icon: ShieldCheck,
-    title: "Moderated & compliant",
-    body: "Observations only — never buy/sell tips. Reported messages are reviewed by moderators.",
+    title: "Well Moderated",
+    body: "Strictly observations and analysis. No tips or recommendations.",
   },
 ];
 
@@ -68,22 +87,39 @@ function highlightCashtags(text: string) {
   );
 }
 
+/** Static chat thread with slow auto-scroll so visitors feel the live-room rhythm. */
 function ChatPreview() {
-  const [messages, setMessages] = useState<PreviewMessage[]>(SAMPLE_MESSAGES);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let active = true;
-    fetch("/api/chat/preview")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { messages?: PreviewMessage[] } | null) => {
-        if (active && data?.messages && data.messages.length > 0) {
-          setMessages(data.messages);
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let raf = 0;
+    let pauseUntil = 0;
+
+    const tick = () => {
+      const now = Date.now();
+      if (now < pauseUntil) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
+      const maxScroll = el.scrollHeight - el.clientHeight;
+      if (maxScroll > 0) {
+        if (el.scrollTop >= maxScroll - 2) {
+          pauseUntil = now + 2500;
+          el.scrollTop = 0;
+        } else {
+          el.scrollTop += 0.45;
         }
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
+      }
+
+      raf = requestAnimationFrame(tick);
     };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   return (
@@ -91,7 +127,6 @@ function ChatPreview() {
       className="relative overflow-hidden rounded-2xl"
       style={{ backgroundColor: "#0b1322", border: "1px solid rgba(90,140,220,0.16)" }}
     >
-      {/* Header */}
       <div
         className="flex items-center justify-between px-4 py-3"
         style={{ borderBottom: "1px solid rgba(90,140,220,0.12)" }}
@@ -100,33 +135,55 @@ function ChatPreview() {
           <MessageCircle className="h-4 w-4" style={{ color: FNO_ACCENT }} />
           <span className="text-sm font-bold text-white">#General</span>
         </div>
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "#10b981" }}>
+        <span
+          className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider"
+          style={{ color: "#10b981" }}
+        >
           <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "#10b981" }} />
-          Subscribers
+          Live
         </span>
       </div>
 
-      {/* Messages */}
-      <div className="space-y-3 px-4 py-4">
-        {messages.map((m) => (
-          <div key={m.id} className="flex gap-2.5">
-            <div
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
-              style={{ backgroundColor: FNO_LOGO_MARK }}
-            >
-              {m.name.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <span className="text-xs font-semibold text-white">{m.name}</span>
-              <p className="mt-0.5 text-[13px] leading-relaxed break-words" style={{ color: "#cbd5e1" }}>
-                {highlightCashtags(m.text)}
-              </p>
-            </div>
+      <div className="relative" style={{ height: "min(22rem, 52vw)" }}>
+        <div
+          ref={scrollRef}
+          className="h-full overflow-hidden px-4 py-4"
+          aria-hidden
+        >
+          <div className="space-y-3">
+            {STATIC_MESSAGES.map((m) => (
+              <div key={m.id} className="flex gap-2.5">
+                <div
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                  style={{ backgroundColor: FNO_LOGO_MARK }}
+                >
+                  {m.name.charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-semibold text-white">{m.name}</span>
+                  <p
+                    className="mt-0.5 text-[13px] leading-relaxed break-words"
+                    style={{ color: "#cbd5e1" }}
+                  >
+                    {highlightCashtags(m.text)}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+
+        {/* Soft fades so the scroll feels like a live window */}
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-8"
+          style={{ background: "linear-gradient(to bottom, #0b1322, transparent)" }}
+        />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-10"
+          style={{ background: "linear-gradient(to top, #0b1322, transparent)" }}
+        />
       </div>
 
-      {/* Fade + disclaimer */}
       <div
         className="px-4 py-2 text-[11px] leading-snug"
         style={{
@@ -144,12 +201,8 @@ function ChatPreview() {
 function CommunityCta() {
   const { user } = useUser();
   const pathname = usePathname();
-  const { setOpen, setRoomId } = useChatPanel();
-
-  const openChat = () => {
-    setRoomId(GENERAL_ROOM_ID);
-    setOpen(true);
-  };
+  const router = useRouter();
+  const href = fnoCommunityChatHref(pathname);
 
   if (!user) {
     return (
@@ -157,8 +210,7 @@ function CommunityCta() {
         size="hero"
         label="Join the community"
         showGoogleIcon={false}
-        postSignInHref={fnoAnalyticsHref(pathname)}
-        onSignedIn={openChat}
+        postSignInHref={href}
       />
     );
   }
@@ -166,7 +218,7 @@ function CommunityCta() {
   return (
     <button
       type="button"
-      onClick={openChat}
+      onClick={() => router.push(href)}
       className="inline-flex items-center justify-center gap-2.5 rounded-xl px-8 py-3.5 text-sm font-bold text-white transition-all hover:scale-[1.02]"
       style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
     >
@@ -188,14 +240,18 @@ export function FnoNinjaCommunitySection() {
             Community
           </p>
           <h2 className="text-3xl font-black leading-[1.1] tracking-tight text-white sm:text-4xl lg:text-[2.75rem]">
-            Think out loud with other traders.
+            Think out loud with serious F&amp;O traders.
           </h2>
           <p className="mt-4 text-sm leading-relaxed sm:text-base" style={{ color: FNO_MUTED }}>
-            Every subscription includes the FNONINJA community chat — a live, moderated room to
-            compare notes on F&amp;O market structure with traders reading the same data you are.
+            Every subscription includes the FNONINJA Community — a private chat where traders discuss
+            market structure, share observations, and exchange trade ideas with peers reading the same
+            data.
           </p>
 
-          <ul className="mt-8 space-y-5">
+          <p className="mt-6 text-xs font-bold uppercase tracking-wider" style={{ color: "#94a3b8" }}>
+            Why it works
+          </p>
+          <ul className="mt-4 space-y-4">
             {BULLETS.map(({ icon: Icon, title, body }) => (
               <li key={title} className="flex gap-3.5">
                 <div
@@ -206,7 +262,7 @@ export function FnoNinjaCommunitySection() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white">{title}</h3>
-                  <p className="mt-1 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
+                  <p className="mt-0.5 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
                     {body}
                   </p>
                 </div>
@@ -214,11 +270,12 @@ export function FnoNinjaCommunitySection() {
             ))}
           </ul>
 
-          <div className="mt-9">
+          <p className="mt-8 text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
+            A place to test ideas and grow with like-minded traders.
+          </p>
+
+          <div className="mt-5">
             <CommunityCta />
-            <p className="mt-3 text-[11px]" style={{ color: "#475569" }}>
-              Included with your trial or subscription — no separate purchase.
-            </p>
           </div>
         </div>
 

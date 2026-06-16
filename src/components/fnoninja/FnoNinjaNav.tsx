@@ -103,7 +103,7 @@ export function FnoNinjaNav() {
   const showNavSearch = !isFnoNinjaLandingPath(pathname);
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
-  const { toggle: toggleChat, open: chatOpen } = useChatPanel();
+  const { toggle: toggleChat, open: chatOpen, unreadCount: chatUnread } = useChatPanel();
   const showChatButton = !!user && !isFnoNinjaLandingPath(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -164,12 +164,25 @@ export function FnoNinjaNav() {
               <button
                 type="button"
                 onClick={toggleChat}
-                className={ICON_BTN_CLASS}
-                style={ICON_BTN_STYLE}
-                aria-label="Community chat"
+                className="relative flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-lg transition-colors shrink-0 hover:text-white"
+                style={{
+                  color: chatOpen ? "#93c5fd" : "#94a3b8",
+                  border: `1px solid ${chatOpen ? "rgba(96,165,250,0.35)" : "rgba(90,140,220,0.15)"}`,
+                  backgroundColor: chatOpen ? "rgba(37,99,235,0.12)" : "rgba(37,99,235,0.06)",
+                }}
+                aria-label={chatUnread > 0 ? `Community chat, ${chatUnread} unread` : "Community chat"}
                 aria-pressed={chatOpen}
+                title="Community chat"
               >
-                <MessageCircle className="h-5 w-5" />
+                <MessageCircle className="h-4 w-4 sm:h-[1.125rem] sm:w-[1.125rem]" />
+                {!chatOpen && chatUnread > 0 ? (
+                  <span
+                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white"
+                    style={{ backgroundColor: "#ef4444", boxShadow: "0 0 0 2px rgba(8,15,30,0.95)" }}
+                  >
+                    {chatUnread > 9 ? "9+" : chatUnread}
+                  </span>
+                ) : null}
               </button>
             ) : null}
             {!isLevelsApp && isFnoNinjaLandingPath(pathname) ? (

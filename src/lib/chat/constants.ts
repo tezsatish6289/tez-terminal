@@ -29,6 +29,12 @@ export function isKnownRoom(roomId: string): boolean {
 /** How many of the most recent messages the live RTDB listener subscribes to. */
 export const CHAT_LIVE_WINDOW = 50;
 
+/**
+ * Small live window the panel-closed unread tracker subscribes to. We only need
+ * enough to render a capped "9+" badge, so this stays well under CHAT_LIVE_WINDOW.
+ */
+export const CHAT_UNREAD_WINDOW = 20;
+
 /** Older history is paginated from Firestore in pages of this size. */
 export const CHAT_HISTORY_PAGE = 50;
 

@@ -4,6 +4,7 @@ import {
   Eye,
   Grid3X3,
   LineChart,
+  MessageCircle,
   Presentation,
   type LucideIcon,
 } from "lucide-react";
@@ -44,6 +45,11 @@ const FEATURES: {
     icon: Eye,
     title: "Smart Filters",
     body: "These filters allow you to sort and view symbols based on zone structure, open interest profiles, and volatility regimes — helping you explore the broader F&O market more efficiently.",
+  },
+  {
+    icon: MessageCircle,
+    title: "Community Chat",
+    body: "A subscriber-only, moderated room to discuss market structure with other traders. Tag symbols with $NIFTY to share the exact chart — observations only, not advice.",
   },
 ];
 

@@ -32,6 +32,7 @@ export const FNO_NAV_HEIGHT_CLASS = "h-14 sm:h-16";
 const ANCHOR_LINKS = [
   { label: "How it works", href: "#how-it-works" },
   { label: "Features", href: "#features" },
+  { label: "Community", href: "#community" },
   { label: "Pricing", href: "#pricing" },
   { label: "Disclaimer", href: "#disclaimer" },
 ] as const;

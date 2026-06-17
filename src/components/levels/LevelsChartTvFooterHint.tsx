@@ -13,9 +13,12 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export function LevelsChartTvFooterHint({
   webChartUrl,
   zonesExpiry,
+  rightInsetPx = 0,
 }: {
   webChartUrl: string;
   zonesExpiry?: string | null;
+  /** Width of the right price axis, so the copy centres over the candles. */
+  rightInsetPx?: number;
 }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -37,7 +40,8 @@ export function LevelsChartTvFooterHint({
     <button
       type="button"
       onClick={() => window.open(webChartUrl, "_blank", "noopener,noreferrer")}
-      className="absolute bottom-[28px] left-0 right-0 z-20 hidden md:flex justify-center px-3 pointer-events-auto"
+      className="absolute bottom-[28px] left-0 z-20 hidden md:flex justify-center px-3 pointer-events-auto"
+      style={{ right: rightInsetPx }}
       aria-label="Open full chart on TradingView in a new tab. Press T or click."
     >
       <span

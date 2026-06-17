@@ -702,7 +702,11 @@ export const NativeCandlesChart = forwardRef<
           onToggleSlideshowPause={onToggleSlideshowPause}
         />
       ) : (
-        <LevelsChartTvFooterHint webChartUrl={webChartUrl} zonesExpiry={levels?.zonesExpiry} />
+        <LevelsChartTvFooterHint
+          webChartUrl={webChartUrl}
+          zonesExpiry={levels?.zonesExpiry}
+          rightInsetPx={priceScaleMinWidth()}
+        />
       )}
       <LevelsChartClusterBandLabels
         chartRef={chartRef}

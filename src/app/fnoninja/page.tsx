@@ -28,8 +28,6 @@ export default function FnoNinjaLandingPage() {
 
       <FnoNinjaPricingSection />
 
-      <FnoNinjaSocialSection />
-
       {/* Closing CTA */}
       <section className="py-16 sm:py-24" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>
         <div className={`${FB_NARROW_SHELL} text-center`}>
@@ -48,6 +46,8 @@ export default function FnoNinjaLandingPage() {
       </section>
 
       <FnoNinjaDisclaimerSection />
+
+      <FnoNinjaSocialSection />
     </div>
   );
 }

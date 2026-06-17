@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift, Users, Twitter, Activity, Link2, ClipboardList, MessageSquare, Bot, ListChecks, BarChart3, ShieldCheck, Target, Gauge, Map } from "lucide-react";
+import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift, Users, Twitter, Activity, Link2, ClipboardList, MessageSquare, Bot, ListChecks, BarChart3, ShieldCheck, Target, Gauge, Map, Clapperboard } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
@@ -78,6 +78,7 @@ export function TopBar() {
     { name: "Contact", icon: MessageSquare, href: "/admin/contact" },
     { name: "Chat Mod", icon: MessageSquare, href: "/admin/chat" },
     { name: "Social", icon: Twitter, href: "/admin/social" },
+    { name: "Videos", icon: Clapperboard, href: "/admin/videos" },
     { name: "Blockchain", icon: Link2, href: "/admin/blockchain" },
     { name: "Bot records", icon: ShieldCheck, href: "/records" },
     { name: "History", icon: History, href: "/history" },

@@ -1,0 +1,5 @@
+node_modules
+out
+.remotion
+package-lock.json
+public/audio/bgm.wav

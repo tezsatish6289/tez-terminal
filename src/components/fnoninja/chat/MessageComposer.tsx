@@ -8,13 +8,14 @@ import {
   useState,
   type ChangeEvent,
   type ClipboardEvent,
+  type DragEvent as ReactDragEvent,
   type KeyboardEvent,
 } from "react";
 import Image from "next/image";
 import {
   Hash,
-  ImagePlus,
   Loader2,
+  Plus,
   SendHorizontal,
   Smile,
   User,
@@ -102,10 +103,12 @@ export function MessageComposer({
     null,
   );
   const [pending, setPending] = useState<PendingAttachment[]>([]);
+  const [dragOver, setDragOver] = useState(false);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const caretRef = useRef(0);
+  const dragDepth = useRef(0);
 
   // Revoke any outstanding object URLs on unmount.
   useEffect(() => {
@@ -176,6 +179,38 @@ export function MessageComposer({
       e.preventDefault();
       addFiles(files);
     }
+  };
+
+  const hasDraggedFiles = (e: ReactDragEvent) =>
+    Array.from(e.dataTransfer?.types ?? []).includes("Files");
+
+  const onDragEnter = (e: ReactDragEvent) => {
+    if (disabled || sending || !hasDraggedFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragOver(true);
+  };
+
+  const onDragOver = (e: ReactDragEvent) => {
+    if (disabled || sending || !hasDraggedFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const onDragLeave = (e: ReactDragEvent) => {
+    if (!hasDraggedFiles(e)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragOver(false);
+  };
+
+  const onDrop = (e: ReactDragEvent) => {
+    if (disabled || sending) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length) addFiles(files);
+    taRef.current?.focus();
   };
 
   const insertAtCaret = useCallback(
@@ -333,7 +368,29 @@ export function MessageComposer({
   };
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {dragOver ? (
+        <div
+          className="pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center gap-1 rounded-2xl text-center"
+          style={{
+            backgroundColor: "rgba(10,22,40,0.92)",
+            border: "1.5px dashed rgba(96,165,250,0.7)",
+          }}
+        >
+          <Plus className="h-5 w-5" style={{ color: "#93c5fd" }} />
+          <span className="text-xs font-semibold text-slate-200">Drop image to attach</span>
+          <span className="text-[10px]" style={{ color: "#64748b" }}>
+            Add a caption, then send
+          </span>
+        </div>
+      ) : null}
+
       {suggestOpen && suggestions.length > 0 ? (
         <ul
           className="absolute bottom-full left-3 right-3 mb-2 max-h-52 overflow-y-auto rounded-xl py-1 shadow-2xl"
@@ -477,9 +534,20 @@ export function MessageComposer({
         />
 
         <div
-          className="flex items-end gap-1 rounded-[20px] py-1 pl-1.5 pr-1.5 transition-colors focus-within:border-[rgba(90,140,220,0.4)]"
+          className="flex items-end gap-0.5 rounded-[20px] py-1 pl-1 pr-1.5 transition-colors focus-within:border-[rgba(90,140,220,0.4)]"
           style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.18)" }}
         >
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled || sending || pending.length >= CHAT_MAX_ATTACHMENTS}
+            className="flex h-9 w-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/5 hover:text-white disabled:opacity-40"
+            style={{ color: "#64748b" }}
+            aria-label="Attach image"
+            title={`Attach screenshot (up to ${CHAT_MAX_ATTACHMENTS})`}
+          >
+            <Plus className="h-[20px] w-[20px]" />
+          </button>
           <button
             type="button"
             onMouseDown={(e) => {
@@ -488,23 +556,12 @@ export function MessageComposer({
               setEmojiOpen((v) => !v);
             }}
             disabled={disabled || sending}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/5 hover:text-white disabled:opacity-40"
+            className="flex h-9 w-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/5 hover:text-white disabled:opacity-40"
             style={{ color: emojiOpen ? "#93c5fd" : "#64748b" }}
             aria-label="Insert emoji"
             aria-pressed={emojiOpen}
           >
             <Smile className="h-[18px] w-[18px]" />
-          </button>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || sending || pending.length >= CHAT_MAX_ATTACHMENTS}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/5 hover:text-white disabled:opacity-40"
-            style={{ color: "#64748b" }}
-            aria-label="Attach image"
-            title={`Attach screenshot (up to ${CHAT_MAX_ATTACHMENTS})`}
-          >
-            <ImagePlus className="h-[18px] w-[18px]" />
           </button>
           <textarea
             ref={taRef}
@@ -534,6 +591,11 @@ export function MessageComposer({
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-[18px] w-[18px]" />}
           </button>
         </div>
+        {pending.some((p) => p.status === "error") ? (
+          <p className="mt-1 px-2 text-[11px] text-rose-400">
+            {pending.find((p) => p.status === "error")?.error ?? "Image upload failed."}
+          </p>
+        ) : null}
       </div>
     </div>
   );

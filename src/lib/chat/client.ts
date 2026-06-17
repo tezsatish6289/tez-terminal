@@ -58,10 +58,11 @@ export async function sendChatMessage(
   roomId: string,
   text: string,
   attachmentPaths: string[] = [],
+  replyToId?: string,
 ): Promise<ChatMessage> {
   const res = await authedFetch(user, "/api/chat/send", {
     method: "POST",
-    body: JSON.stringify({ roomId, text, attachmentPaths }),
+    body: JSON.stringify({ roomId, text, attachmentPaths, replyToId }),
   });
   if (!res.ok) throw new Error(await parseError(res));
   const data = await res.json();

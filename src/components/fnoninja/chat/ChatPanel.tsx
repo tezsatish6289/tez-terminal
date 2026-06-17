@@ -15,8 +15,8 @@ import {
   sendChatMessage,
   uploadChatImage,
 } from "@/lib/chat/client";
-import { CHAT_ROOMS } from "@/lib/chat/constants";
-import type { ChatAttachment, ChatMessage } from "@/lib/chat/types";
+import { CHAT_REPLY_SNIPPET_LENGTH, CHAT_ROOMS } from "@/lib/chat/constants";
+import type { ChatAttachment, ChatMessage, ChatReplyRef } from "@/lib/chat/types";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { ChatDisclaimer } from "@/components/fnoninja/chat/ChatDisclaimer";
@@ -51,8 +51,10 @@ export function ChatPanel() {
   // shown optimistically with a sending/failed state until the real message
   // arrives via RTDB. Their attachment URLs are local blob previews.
   const [outgoing, setOutgoing] = useState<ChatMessage[]>([]);
-  // Original File objects per outgoing message, kept for retry.
-  const outgoingFilesRef = useRef<Map<string, File[]>>(new Map());
+  // Per outgoing message: original files + reply target, kept for retry.
+  const outgoingMetaRef = useRef<Map<string, { files: File[]; replyToId?: string }>>(new Map());
+  // The message the user is currently replying to (null when not replying).
+  const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
   // Lets the panel-wide drop zone push files into the composer.
   const addFilesRef = useRef<(files: File[]) => void>(() => {});
   const registerAddFiles = useCallback((fn: (files: File[]) => void) => {
@@ -93,18 +95,19 @@ export function ChatPanel() {
   // Upload any images, then post the message. On failure the optimistic copy is
   // flagged "failed" so the user can retry; on success it's dropped (the real
   // message streams in via RTDB).
-  const runSend = async (tempId: string, text: string, files: File[]) => {
+  const runSend = async (tempId: string, text: string) => {
+    const meta = outgoingMetaRef.current.get(tempId) ?? { files: [] };
     try {
       const attachments: ChatAttachment[] = [];
-      for (const file of files) {
+      for (const file of meta.files) {
         attachments.push(await uploadChatImage(user, roomId, file));
       }
-      await sendChatMessage(user, roomId, text, attachments.map((a) => a.path));
+      await sendChatMessage(user, roomId, text, attachments.map((a) => a.path), meta.replyToId);
       setOutgoing((prev) => {
         revokePreviews(prev.find((m) => m.id === tempId));
         return prev.filter((m) => m.id !== tempId);
       });
-      outgoingFilesRef.current.delete(tempId);
+      outgoingMetaRef.current.delete(tempId);
     } catch {
       setOutgoing((prev) =>
         prev.map((m) => (m.id === tempId ? { ...m, clientStatus: "failed" } : m)),
@@ -122,6 +125,15 @@ export function ChatPanel() {
       height: 0,
       sizeBytes: f.size,
     }));
+    const reply = replyTarget;
+    const replyTo: ChatReplyRef | undefined = reply
+      ? {
+          id: reply.id,
+          authorName: reply.authorName,
+          text: reply.text.slice(0, CHAT_REPLY_SNIPPET_LENGTH),
+          hasImage: !!reply.attachments?.length,
+        }
+      : undefined;
     const temp: ChatMessage = {
       id: tempId,
       roomId,
@@ -136,19 +148,20 @@ export function ChatPanel() {
       mentions: [],
       flagged: false,
       attachments: previews.length ? previews : undefined,
+      replyTo,
       clientStatus: "sending",
     };
-    outgoingFilesRef.current.set(tempId, files);
+    outgoingMetaRef.current.set(tempId, { files, replyToId: reply?.id });
     setOutgoing((prev) => [...prev, temp]);
-    void runSend(tempId, text, files);
+    setReplyTarget(null);
+    void runSend(tempId, text);
   };
 
   const handleRetry = (id: string) => {
     const msg = outgoing.find((m) => m.id === id);
     if (!msg) return;
-    const files = outgoingFilesRef.current.get(id) ?? [];
     setOutgoing((prev) => prev.map((m) => (m.id === id ? { ...m, clientStatus: "sending" } : m)));
-    void runSend(id, msg.text, files);
+    void runSend(id, msg.text);
   };
 
   const handleDiscard = (id: string) => {
@@ -156,7 +169,11 @@ export function ChatPanel() {
       revokePreviews(prev.find((m) => m.id === id));
       return prev.filter((m) => m.id !== id);
     });
-    outgoingFilesRef.current.delete(id);
+    outgoingMetaRef.current.delete(id);
+  };
+
+  const handleReply = (message: ChatMessage) => {
+    setReplyTarget(message);
   };
 
   const hasDraggedFiles = (e: ReactDragEvent) =>
@@ -308,12 +325,23 @@ export function ChatPanel() {
               onReport={handleReport}
               onRetry={handleRetry}
               onDiscard={handleDiscard}
+              onReply={handleReply}
             />
             <ChatDisclaimer />
             <MessageComposer
               onSend={handleSend}
               onRegisterAddFiles={registerAddFiles}
               participants={participants}
+              replyingTo={
+                replyTarget
+                  ? {
+                      authorName: replyTarget.authorName,
+                      text: replyTarget.text,
+                      hasImage: !!replyTarget.attachments?.length,
+                    }
+                  : null
+              }
+              onCancelReply={() => setReplyTarget(null)}
             />
           </>
         )}

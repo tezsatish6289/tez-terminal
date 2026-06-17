@@ -12,7 +12,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDatabase, getAdminFirestore } from "@/firebase/admin";
 import { deleteAttachmentObjects } from "@/lib/chat/image-upload";
-import type { ChatAttachment, ChatMessage } from "@/lib/chat/types";
+import type { ChatAttachment, ChatMessage, ChatReplyRef } from "@/lib/chat/types";
 
 function rtdbMsgRoot(roomId: string) {
   return getAdminDatabase().ref(`rooms/${roomId}/messages`);
@@ -34,6 +34,7 @@ export interface CreateMessageInput {
   mentions: ChatMessage["mentions"];
   flagged: boolean;
   attachments?: ChatAttachment[];
+  replyTo?: ChatReplyRef;
 }
 
 export async function createMessage(input: CreateMessageInput): Promise<ChatMessage> {
@@ -54,8 +55,9 @@ export async function createMessage(input: CreateMessageInput): Promise<ChatMess
     deletedBy: null,
     mentions: input.mentions,
     flagged: input.flagged,
-    // RTDB rejects `undefined`; only include attachments when present.
+    // RTDB rejects `undefined`; only include optional fields when present.
     ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+    ...(input.replyTo ? { replyTo: input.replyTo } : {}),
   };
 
   await ref.set(message);

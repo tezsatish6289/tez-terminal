@@ -13,8 +13,10 @@ import {
 import Image from "next/image";
 import {
   Hash,
+  ImageIcon,
   Loader2,
   Plus,
+  Reply,
   SendHorizontal,
   Smile,
   User,
@@ -43,6 +45,12 @@ interface SelectedImage {
   previewUrl: string;
 }
 
+interface ReplyingTo {
+  authorName: string;
+  text: string;
+  hasImage: boolean;
+}
+
 interface MessageComposerProps {
   /** Hands the draft off to the panel, which uploads + sends in the background. */
   onSend: (text: string, files: File[]) => void;
@@ -53,6 +61,9 @@ interface MessageComposerProps {
    * composer registers its file-add handler here on mount.
    */
   onRegisterAddFiles?: (add: (files: File[]) => void) => void;
+  /** The message being replied to, or null. Shown as a bar above the input. */
+  replyingTo?: ReplyingTo | null;
+  onCancelReply?: () => void;
 }
 
 let selectedIdSeq = 0;
@@ -93,6 +104,8 @@ export function MessageComposer({
   participants = [],
   disabled,
   onRegisterAddFiles,
+  replyingTo,
+  onCancelReply,
 }: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -136,6 +149,11 @@ export function MessageComposer({
   useEffect(() => {
     onRegisterAddFiles?.(addFiles);
   }, [onRegisterAddFiles, addFiles]);
+
+  // Focus the input when the user starts a reply.
+  useEffect(() => {
+    if (replyingTo) taRef.current?.focus();
+  }, [replyingTo]);
 
   const removeSelected = useCallback((id: string) => {
     setSelected((prev) => {
@@ -408,6 +426,38 @@ export function MessageComposer({
         className="px-3 pt-1.5"
         style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom))" }}
       >
+        {replyingTo ? (
+          <div
+            className="mb-1.5 flex items-center gap-2 rounded-lg px-2.5 py-1.5"
+            style={{ backgroundColor: "rgba(37,99,235,0.08)", borderLeft: "2px solid #3b82f6" }}
+          >
+            <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: "#60a5fa" }} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11px] font-semibold" style={{ color: "#93c5fd" }}>
+                Replying to {replyingTo.authorName}
+              </p>
+              <p className="flex items-center gap-1 truncate text-[11px]" style={{ color: "#94a3b8" }}>
+                {replyingTo.hasImage ? (
+                  <>
+                    <ImageIcon className="h-3 w-3 shrink-0" />
+                    {replyingTo.text || "Photo"}
+                  </>
+                ) : (
+                  replyingTo.text
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onCancelReply}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-white/5 hover:text-white"
+              aria-label="Cancel reply"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
+
         {selected.length > 0 ? (
           <div className="mb-1.5 flex flex-wrap gap-2">
             {selected.map((p) => (

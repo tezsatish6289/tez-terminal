@@ -3,14 +3,15 @@ import { requireUser } from "@/lib/chat/require-user";
 import { resolveChatAccess } from "@/lib/chat/access";
 import { checkAndRecordPost } from "@/lib/chat/rate-limit";
 import { moderateMessage, parseMentions } from "@/lib/chat/moderation";
-import { createMessage } from "@/lib/chat/store";
+import { createMessage, getMessage } from "@/lib/chat/store";
 import { resolveUploadedAttachment } from "@/lib/chat/image-upload";
 import {
   CHAT_MAX_ATTACHMENTS,
   CHAT_MAX_MESSAGE_LENGTH,
+  CHAT_REPLY_SNIPPET_LENGTH,
   isKnownRoom,
 } from "@/lib/chat/constants";
-import type { ChatAttachment } from "@/lib/chat/types";
+import type { ChatAttachment, ChatReplyRef } from "@/lib/chat/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  let body: { roomId?: unknown; text?: unknown; attachmentPaths?: unknown };
+  let body: { roomId?: unknown; text?: unknown; attachmentPaths?: unknown; replyToId?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
   const attachmentPaths = Array.isArray(body.attachmentPaths)
     ? body.attachmentPaths.filter((p): p is string => typeof p === "string")
     : [];
+  const replyToId = typeof body.replyToId === "string" ? body.replyToId : "";
 
   if (!isKnownRoom(roomId)) {
     return NextResponse.json({ error: "Unknown room" }, { status: 400 });
@@ -97,6 +99,21 @@ export async function POST(request: NextRequest) {
     attachments = resolved as ChatAttachment[];
   }
 
+  // Build the reply snapshot server-side from the real message so the client
+  // can't spoof the quoted author/text. Silently drop if the original is gone.
+  let replyTo: ChatReplyRef | undefined;
+  if (replyToId) {
+    const original = await getMessage(roomId, replyToId);
+    if (original && !original.deleted) {
+      replyTo = {
+        id: original.id,
+        authorName: original.authorName,
+        text: original.text.slice(0, CHAT_REPLY_SNIPPET_LENGTH),
+        hasImage: !!original.attachments?.length,
+      };
+    }
+  }
+
   const rate = await checkAndRecordPost(uid);
   if (!rate.ok) {
     return NextResponse.json(
@@ -114,6 +131,7 @@ export async function POST(request: NextRequest) {
     mentions: text ? parseMentions(text) : [],
     flagged: moderation.flagged,
     attachments,
+    replyTo,
   });
 
   return NextResponse.json({ ok: true, message });

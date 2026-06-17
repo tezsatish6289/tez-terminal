@@ -61,6 +61,9 @@ export const CHAT_IMAGE_MAX_DIMENSION = 1600;
 /** Max images per message. */
 export const CHAT_MAX_ATTACHMENTS = 4;
 
+/** Max characters of the original message text kept in a reply quote snapshot. */
+export const CHAT_REPLY_SNIPPET_LENGTH = 200;
+
 /**
  * Stricter sliding-window rate limit for image uploads (per user). Images are
  * heavier and harder to moderate than text, so they get their own budget.

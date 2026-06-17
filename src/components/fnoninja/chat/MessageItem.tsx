@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import Image from "next/image";
-import { Check, Flag, Loader2, Pencil, RotateCw, Trash2, User, X } from "lucide-react";
+import { Check, Flag, ImageIcon, Loader2, Pencil, Reply, RotateCw, Trash2, User, X } from "lucide-react";
 import type { ChatAttachment } from "@/lib/chat/types";
 import { format } from "date-fns";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
@@ -94,6 +94,7 @@ interface MessageItemProps {
   onReport: (message: ChatMessage) => void;
   onRetry: (id: string) => void;
   onDiscard: (id: string) => void;
+  onReply: (message: ChatMessage) => void;
 }
 
 function AttachmentGrid({
@@ -180,6 +181,7 @@ export function MessageItem({
   onReport,
   onRetry,
   onDiscard,
+  onReply,
 }: MessageItemProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.text);
@@ -265,6 +267,26 @@ export function MessageItem({
           </div>
         ) : (
           <>
+            {message.replyTo ? (
+              <div
+                className="mb-1 mt-0.5 rounded-md px-2 py-1"
+                style={{ backgroundColor: "rgba(37,99,235,0.08)", borderLeft: "2px solid #3b82f6" }}
+              >
+                <p className="truncate text-[10px] font-semibold" style={{ color: "#93c5fd" }}>
+                  {message.replyTo.authorName}
+                </p>
+                <p className="flex items-center gap-1 truncate text-[11px]" style={{ color: "#7d8da3" }}>
+                  {message.replyTo.hasImage ? (
+                    <>
+                      <ImageIcon className="h-2.5 w-2.5 shrink-0" />
+                      {message.replyTo.text || "Photo"}
+                    </>
+                  ) : (
+                    message.replyTo.text
+                  )}
+                </p>
+              </div>
+            ) : null}
             {message.text ? (
               <p className="whitespace-pre-wrap break-words text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>
                 {renderText(message.text)}
@@ -305,6 +327,9 @@ export function MessageItem({
 
       {!editing && !pending ? (
         <div className="flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <button type="button" onClick={() => onReply(message)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300" aria-label="Reply">
+            <Reply className="h-3 w-3" />
+          </button>
           {canEdit ? (
             <button type="button" onClick={() => setEditing(true)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300" aria-label="Edit message">
               <Pencil className="h-3 w-3" />

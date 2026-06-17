@@ -35,6 +35,21 @@ export interface ChatAttachment {
 }
 
 /**
+ * A snapshot of the message being replied to, captured server-side at send time
+ * so the quote renders without a lookup and survives the original being edited
+ * or deleted.
+ */
+export interface ChatReplyRef {
+  /** Id of the original message (for scroll-to / context). */
+  id: string;
+  authorName: string;
+  /** Truncated text snippet of the original (empty if it was image-only). */
+  text: string;
+  /** True if the original had image attachments. */
+  hasImage: boolean;
+}
+
+/**
  * A chat message. The same shape is stored in both RTDB (live stream) and
  * Firestore (durable archive); `id` is shared across both stores.
  */
@@ -56,6 +71,8 @@ export interface ChatMessage {
   flagged: boolean;
   /** Image attachments (shared screenshots). Omitted when there are none. */
   attachments?: ChatAttachment[];
+  /** Set when this message is a reply to another message. */
+  replyTo?: ChatReplyRef;
   /**
    * Client-only optimistic send state for outgoing messages (uploading in the
    * background). Never written to RTDB/Firestore. When set, attachment URLs are

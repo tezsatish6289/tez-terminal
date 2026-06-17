@@ -19,6 +19,7 @@ interface MessageListProps {
   onReport: (message: ChatMessage) => void;
   onRetry: (id: string) => void;
   onDiscard: (id: string) => void;
+  onReply: (message: ChatMessage) => void;
 }
 
 export function MessageList({
@@ -33,6 +34,7 @@ export function MessageList({
   onReport,
   onRetry,
   onDiscard,
+  onReply,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -110,6 +112,7 @@ export function MessageList({
             onReport={onReport}
             onRetry={onRetry}
             onDiscard={onDiscard}
+            onReply={onReply}
           />
         ))}
         <div ref={bottomRef} />

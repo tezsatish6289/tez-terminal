@@ -29,16 +29,35 @@ const ITEM_MS = 6500;
 export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; symbol: string }) {
   const [news, setNews] = useState<LevelsNews | null>(() => cachedNews(scope, symbol));
   const [idx, setIdx] = useState(0);
+  const [gaveUp, setGaveUp] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    let timer = 0;
+    let attempts = 0;
     setNews(cachedNews(scope, symbol));
     setIdx(0);
-    void fetchNews(scope, symbol).then((n) => {
-      if (!cancelled && n) setNews(n);
-    });
+    setGaveUp(false);
+
+    // fetchNews retries internally; keep re-asking while this symbol is on
+    // screen so a slow cold generation that finishes later still shows up.
+    const tryLoad = () => {
+      void fetchNews(scope, symbol).then((n) => {
+        if (cancelled) return;
+        if (n) {
+          setNews(n);
+          return;
+        }
+        attempts += 1;
+        if (attempts < 3) timer = window.setTimeout(tryLoad, 8000);
+        else setGaveUp(true);
+      });
+    };
+    tryLoad();
+
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [scope, symbol]);
 
@@ -70,17 +89,15 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
     <div className="flex flex-col min-h-0 flex-1" style={{ marginTop: "1.8vh" }}>
       <style dangerouslySetInnerHTML={{ __html: NEWS_CSS }} />
 
-      {/* Header row */}
-      <div className="flex items-center justify-between shrink-0" style={{ marginBottom: "1.2vh" }}>
-        <div className="flex items-center" style={{ gap: "0.9vh" }}>
-          <span style={{ width: "0.5vh", height: "2vh", borderRadius: "999px", background: "#60a5fa" }} />
-          <span
-            className="font-black"
-            style={{ fontSize: "1.55vh", color: "#e2e8f0", letterSpacing: "0.12em" }}
-          >
-            RECENT NEWS
-          </span>
-        </div>
+      {/* Header row — label + sentiment tag sit together for instant read. */}
+      <div className="flex items-center shrink-0" style={{ gap: "1.1vh", marginBottom: "1.2vh" }}>
+        <span style={{ width: "0.5vh", height: "2vh", borderRadius: "999px", background: "#60a5fa" }} />
+        <span
+          className="font-black"
+          style={{ fontSize: "1.55vh", color: "#e2e8f0", letterSpacing: "0.12em" }}
+        >
+          RECENT NEWS
+        </span>
         {sentiment && (
           <span
             className="font-black rounded-md"
@@ -93,7 +110,7 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
               padding: "0.4vh 1vh",
             }}
           >
-            {news?.sentiment?.score} · {sentiment.label}
+            {sentiment.label}
           </span>
         )}
       </div>
@@ -117,6 +134,11 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
             }}
           >
             {current}
+          </p>
+        ) : gaveUp ? (
+          <p style={{ fontSize: "2.1vh", lineHeight: 1.34, color: "#94a3b8", fontWeight: 600 }}>
+            No fresh headlines for {symbol} right now — full news &amp; analytics on{" "}
+            <span style={{ color: "#60a5fa", fontWeight: 800 }}>fnoninja.com</span>.
           </p>
         ) : (
           <p style={{ fontSize: "2vh", color: "#64748b" }}>Gathering latest news…</p>

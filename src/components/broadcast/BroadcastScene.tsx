@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   buildLevelsBubbleItems,
@@ -39,9 +39,11 @@ interface LevelsPayload {
 
 /** How often to re-pull levels. */
 const POLL_MS = 60_000;
-/** Dwell per page: the map intro vs each single-stock focus page. The stock
- *  dwell is long enough to roll through that symbol's news headlines. */
-const MAP_MS = 30_000;
+/** Dwell per page. The bubble map plays as the interstitial between every stock
+ *  — long enough to prefetch the next symbol in the background and keep the
+ *  video varied, but short enough to stay lively. The stock focus page dwells
+ *  longer so it can roll through that symbol's news headlines. */
+const MAP_MS = 14_000;
 const STOCK_MS = 30_000;
 
 type Scene = "map" | "live";
@@ -70,11 +72,18 @@ const ON_AIR_CSS = `
 }
 .broadcast-onair-dot { animation: broadcast-onair-pulse 1.4s ease-in-out infinite; }
 @keyframes broadcast-page-fade {
-  0% { opacity: 0; transform: scale(0.992); }
+  0% { opacity: 0; transform: scale(0.994); }
   100% { opacity: 1; transform: scale(1); }
 }
-.broadcast-page-fade { animation: broadcast-page-fade 0.85s ease both; }
+.broadcast-page-fade { animation: broadcast-page-fade 0.9s ease both; }
+@keyframes broadcast-page-out {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.006); }
+}
+.broadcast-page-out { animation: broadcast-page-out 0.9s ease both; }
 `;
+/** Cross-fade duration — must match the animations above. */
+const FADE_MS = 900;
 
 export function BroadcastScene() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
@@ -127,13 +136,16 @@ export function BroadcastScene() {
     return s === "live" || s === "map" ? s : null;
   }, []);
 
-  // The full broadcast loop: a map intro page, then one focus page per stock,
-  // then back to the map. Each entry is its own page with a fade transition.
+  // The full broadcast loop alternates the bubble map with one stock at a time:
+  //   map → stock₁ → map → stock₂ → map → stock₃ → … (then loops).
+  // The map interstitial gives the next symbol's chart + news time to warm in
+  // the background and keeps the video from being a wall of stock pages.
   const pages = useMemo<Page[]>(() => {
-    const stocks: Page[] = liveItems.map((item) => ({ type: "stock", item }));
-    if (forcedScene === "live") return stocks.length ? stocks : [{ type: "map" }];
+    const stocks = liveItems.map<Page>((item) => ({ type: "stock", item }));
     if (forcedScene === "map") return [{ type: "map" }];
-    return [{ type: "map" }, ...stocks];
+    if (forcedScene === "live") return stocks.length ? stocks : [{ type: "map" }];
+    if (stocks.length === 0) return [{ type: "map" }];
+    return stocks.flatMap<Page>((stock) => [{ type: "map" }, stock]);
   }, [liveItems, forcedScene]);
 
   // Advance to the next page after the current page's dwell time.
@@ -152,7 +164,8 @@ export function BroadcastScene() {
   const pageKey = page.type === "map" ? "map" : `stock-${page.item.symbol}`;
 
   // Warm the NEXT page's data (levels + news + candles) in the background so it
-  // paints instantly when we fade to it.
+  // paints instantly when we fade to it. Because the map is interleaved before
+  // every stock, this warms each symbol during its leading map interstitial.
   useEffect(() => {
     if (pages.length <= 1) return;
     const next = pages[(pageIdx + 1) % pages.length];
@@ -160,6 +173,82 @@ export function BroadcastScene() {
       prefetchSymbol(next.item.scope, next.item.symbol);
     }
   }, [pageIdx, pages]);
+
+  // Cross-fade: keep the outgoing page mounted (fading out) while the incoming
+  // one fades in, so the swap never dips through the empty background and the
+  // chart mount is hidden behind the fade.
+  const [cur, setCur] = useState<{ key: string; page: Page }>({
+    key: "map",
+    page: { type: "map" },
+  });
+  const [leaving, setLeaving] = useState<{ key: string; page: Page } | null>(null);
+  const shownRef = useRef<{ key: string; page: Page } | null>(null);
+
+  useEffect(() => {
+    const prev = shownRef.current;
+    if (!prev || prev.key === pageKey) return;
+    setLeaving(prev);
+    const t = window.setTimeout(() => {
+      setLeaving((l) => (l && l.key === prev.key ? null : l));
+    }, FADE_MS);
+    return () => window.clearTimeout(t);
+  }, [pageKey]);
+
+  useEffect(() => {
+    const next = { key: pageKey, page };
+    setCur(next);
+    shownRef.current = next;
+  }, [pageKey, page]);
+
+  const renderPage = (p: Page) =>
+    p.type === "stock" ? (
+      <BroadcastLiveslide item={p.item} />
+    ) : (
+      <>
+        {/* Bubble map — non-interactive in broadcast (no hover tooltips / cursors).
+            Title overlaid inside so the panel matches the explainer box height. */}
+        <section className="relative flex flex-col min-h-0" style={{ flex: "1.7 1 0%" }}>
+          <div className="flex-1 min-h-0 pointer-events-none select-none">
+            <LevelsBubblesView
+              items={bubbleItems}
+              onBubbleOpen={() => {}}
+              hasMarketData={Boolean(payload)}
+              toneFilter="all"
+            />
+          </div>
+          <div
+            className="absolute z-10 flex items-center rounded-lg"
+            style={{
+              top: "1.4vh",
+              left: "1.4vh",
+              gap: "0.9vh",
+              padding: "0.7vh 1.3vh",
+              background: "rgba(8,15,30,0.72)",
+              border: "1px solid rgba(90,140,220,0.22)",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <span style={{ width: "0.5vh", height: "2vh", borderRadius: "999px", background: "#3b82f6" }} />
+            <span className="font-black" style={{ fontSize: "1.8vh", color: "#f0f4ff" }}>
+              Option-Wall Map · live F&amp;O universe
+            </span>
+          </div>
+        </section>
+
+        {/* Explainer panel — what FNONINJA is / how it works (policy-safe, no setups). */}
+        <aside
+          className="flex flex-col min-h-0 rounded-xl"
+          style={{
+            flex: "1 1 0%",
+            padding: "2.4vh",
+            background: "linear-gradient(180deg, rgba(13,27,46,0.85), rgba(8,15,30,0.85))",
+            border: "1px solid rgba(90,140,220,0.2)",
+          }}
+        >
+          <BroadcastExplainer />
+        </aside>
+      </>
+    );
 
   return (
     <div
@@ -226,58 +315,25 @@ export function BroadcastScene() {
         </div>
       </header>
 
-      {/* Body — one page at a time (map intro, then a focus page per stock),
-          cross-fading on every change. The header + ticker stay put. */}
-      <main className="relative flex flex-1 min-h-0" style={{ padding: "2vh" }}>
-        <div key={pageKey} className="broadcast-page-fade flex flex-1 min-h-0 w-full items-stretch" style={{ gap: "2vh" }}>
-          {page.type === "stock" ? (
-            <BroadcastLiveslide item={page.item} />
-          ) : (
-            <>
-              {/* Bubble map — non-interactive in broadcast (no hover tooltips / cursors).
-                  Title overlaid inside so the panel matches the explainer box height. */}
-              <section className="relative flex flex-col min-h-0" style={{ flex: "1.7 1 0%" }}>
-                <div className="flex-1 min-h-0 pointer-events-none select-none">
-                  <LevelsBubblesView
-                    items={bubbleItems}
-                    onBubbleOpen={() => {}}
-                    hasMarketData={Boolean(payload)}
-                    toneFilter="all"
-                  />
-                </div>
-                <div
-                  className="absolute z-10 flex items-center rounded-lg"
-                  style={{
-                    top: "1.4vh",
-                    left: "1.4vh",
-                    gap: "0.9vh",
-                    padding: "0.7vh 1.3vh",
-                    background: "rgba(8,15,30,0.72)",
-                    border: "1px solid rgba(90,140,220,0.22)",
-                    backdropFilter: "blur(4px)",
-                  }}
-                >
-                  <span style={{ width: "0.5vh", height: "2vh", borderRadius: "999px", background: "#3b82f6" }} />
-                  <span className="font-black" style={{ fontSize: "1.8vh", color: "#f0f4ff" }}>
-                    Option-Wall Map · live F&amp;O universe
-                  </span>
-                </div>
-              </section>
-
-              {/* Explainer panel — what FNONINJA is / how it works (policy-safe, no setups). */}
-              <aside
-                className="flex flex-col min-h-0 rounded-xl"
-                style={{
-                  flex: "1 1 0%",
-                  padding: "2.4vh",
-                  background: "linear-gradient(180deg, rgba(13,27,46,0.85), rgba(8,15,30,0.85))",
-                  border: "1px solid rgba(90,140,220,0.2)",
-                }}
-              >
-                <BroadcastExplainer />
-              </aside>
-            </>
-          )}
+      {/* Body — the bubble map and stock focus pages alternate, cross-fading on
+          every change (outgoing fades out as incoming fades in). The header +
+          ticker stay put. */}
+      <main className="relative flex flex-1 min-h-0">
+        {leaving && (
+          <div
+            key={leaving.key}
+            className="broadcast-page-out absolute inset-0 flex min-h-0 w-full items-stretch"
+            style={{ padding: "2vh", gap: "2vh" }}
+          >
+            {renderPage(leaving.page)}
+          </div>
+        )}
+        <div
+          key={cur.key}
+          className="broadcast-page-fade absolute inset-0 flex min-h-0 w-full items-stretch"
+          style={{ padding: "2vh", gap: "2vh" }}
+        >
+          {renderPage(cur.page)}
         </div>
       </main>
 

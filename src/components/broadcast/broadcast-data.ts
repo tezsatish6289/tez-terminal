@@ -58,7 +58,13 @@ export function cachedLevels(scope: Scope, symbol: string): PublicLevels | null 
   return levelsCache.get(`lv:${key(scope, symbol)}`) ?? null;
 }
 
-/** AI-grounded recent news. Slowest call (10–20s cold), so cache aggressively. */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * AI-grounded recent news. Slowest call (15–25s cold) and it can fail outright
+ * (rate-limit / timeout / transient 5xx). Retry with backoff so a transient
+ * failure recovers and then caches, instead of leaving a symbol stuck.
+ */
 export async function fetchNews(
   scope: Scope,
   symbol: string,
@@ -71,23 +77,27 @@ export async function fetchNews(
   if (existing) return existing;
 
   const p = (async () => {
-    try {
-      const res = await fetch(
-        `/api/freedombot/levels/news?scope=${encodeURIComponent(scope)}&symbol=${encodeURIComponent(symbol)}&window=${LEVELS_NEWS_WINDOW_DAYS}`,
-        { cache: "no-store" },
-      );
-      const json = (await res.json()) as { ok: boolean; news?: LevelsNews };
-      if (json.ok && json.news) {
-        newsCache.set(k, json.news);
-        return json.news;
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        const res = await fetch(
+          `/api/freedombot/levels/news?scope=${encodeURIComponent(scope)}&symbol=${encodeURIComponent(symbol)}&window=${LEVELS_NEWS_WINDOW_DAYS}`,
+          { cache: "no-store" },
+        );
+        const json = (await res.json()) as { ok: boolean; news?: LevelsNews };
+        if (json.ok && json.news) {
+          newsCache.set(k, json.news);
+          return json.news;
+        }
+      } catch {
+        /* retry below */
       }
-      return null;
-    } catch {
-      return null;
-    } finally {
-      inflight.delete(k);
+      if (attempt < MAX_ATTEMPTS - 1) await sleep(5000 + attempt * 4000);
     }
-  })();
+    return null;
+  })().finally(() => {
+    inflight.delete(k);
+  });
   inflight.set(k, p);
   return p;
 }

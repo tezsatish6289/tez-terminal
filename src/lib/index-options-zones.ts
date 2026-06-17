@@ -14,6 +14,7 @@ import {
   termStructureRatio,
   type VolRegime,
 } from "@/lib/zones/vol-regime";
+import { filterActiveNseExpiries } from "@/lib/nse/expiry-dates";
 
 /** Per-strike OI + IV for the index zone math (IV optional). */
 interface IndexStrikeData {
@@ -185,7 +186,11 @@ async function fetchExpiries(symbol: IndexKey, cookies: string): Promise<string[
   }
   const list = json.expiryDates ?? json.records?.expiryDates ?? [];
   if (!list.length) throw new Error(`NSE contract-info returned no expiries for ${symbol}`);
-  return list;
+  const active = filterActiveNseExpiries(list);
+  if (!active.length) {
+    throw new Error(`NSE contract-info returned no active (non-expired) expiries for ${symbol}`);
+  }
+  return active;
 }
 
 async function fetchOptionChain(

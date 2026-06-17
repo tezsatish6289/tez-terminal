@@ -38,7 +38,7 @@ import { stockDocId } from "@/lib/equity-zones-store";
 import { storedSourceToPublic } from "@/lib/levels/levels-source";
 import { loadFnoUniverse, isValidFnoSymbolDb } from "@/lib/nse/fno-universe-runtime";
 import { resolveZonesExpiryFromStored } from "@/lib/levels/zones-expiry-label";
-import { indexExpiryLevelsFromStored } from "@/lib/levels/index-expiry-levels";
+import { indexExpiryLevelsFromStored, applyExpiryToPublicLevels } from "@/lib/levels/index-expiry-levels";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 
@@ -76,7 +76,7 @@ function sanitize(raw: Record<string, unknown> | null, opts?: { includeIndexExpi
   const { expiryOptions, zonesByExpiry } = opts?.includeIndexExpiries
     ? indexExpiryLevelsFromStored(raw)
     : { expiryOptions: [], zonesByExpiry: [] };
-  return {
+  const base: PublicLevels = {
     spot: num(raw.deribitIndexPrice) ?? num(raw.btcPrice),
     poc: num(raw.maxPain),
     bullLow: num(raw.bullZoneLow),
@@ -102,6 +102,10 @@ function sanitize(raw: Record<string, unknown> | null, opts?: { includeIndexExpi
     callClusterStrike: num(raw.bearStrike),
     ...(expiryOptions.length > 0 ? { expiryOptions, zonesByExpiry } : {}),
   };
+  if (zonesByExpiry.length > 0) {
+    return applyExpiryToPublicLevels(base, expiryOptions[0]?.key) ?? base;
+  }
+  return base;
 }
 
 async function readDoc(path: string): Promise<Record<string, unknown> | null> {

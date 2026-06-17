@@ -1,3 +1,5 @@
+import { istCalendarDateKey } from "@/lib/ist-display";
+
 const MONTH_NUM: Record<string, number> = {
   JAN: 1,
   FEB: 2,
@@ -93,6 +95,22 @@ export function formatZonesExpiryLabel(raw: unknown): string | null {
   return null;
 }
 
+/** NSE expiry label → `YYYY-MM-DD` calendar date in IST. */
+export function nseExpiryIstDateKey(label: string): string | null {
+  const formatted = formatZonesExpiryLabel(label);
+  if (!formatted) return null;
+  const [day, month, year] = formatted.split("/");
+  if (!day || !month || !year) return null;
+  return `${year}-${month}-${day}`;
+}
+
+/** True when the expiry's IST calendar date is before today. */
+export function isNseExpiryExpired(label: string, nowMs = Date.now()): boolean {
+  const expKey = nseExpiryIstDateKey(label);
+  if (!expKey) return false;
+  return expKey < istCalendarDateKey(nowMs);
+}
+
 /** Resolve expiry from a stored zones doc (top-level or maxPainByExpiry fallback). */
 export function resolveZonesExpiryFromStored(raw: Record<string, unknown> | null): string | null {
   if (!raw) return null;
@@ -108,6 +126,7 @@ export function resolveZonesExpiryFromStored(raw: Record<string, unknown> | null
   }
 
   for (const candidate of candidates) {
+    if (typeof candidate === "string" && isNseExpiryExpired(candidate)) continue;
     const formatted = formatZonesExpiryLabel(candidate);
     if (formatted) return formatted;
   }

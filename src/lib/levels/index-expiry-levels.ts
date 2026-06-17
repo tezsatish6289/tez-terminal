@@ -1,5 +1,6 @@
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { formatZonesExpiryLabel } from "@/lib/levels/zones-expiry-label";
+import { isNseExpiryExpired } from "@/lib/levels/zones-expiry-label";
 
 export interface PublicLevelsExpiryOption {
   /** Raw NSE expiry label (e.g. `23-Jun-2026`) — stable selection key. */
@@ -58,6 +59,10 @@ function sliceFromStoredEntry(entry: Record<string, unknown>): PublicLevelsExpir
   };
 }
 
+function dropExpiredSlices(slices: PublicLevelsExpirySlice[]): PublicLevelsExpirySlice[] {
+  return slices.filter((s) => !isNseExpiryExpired(s.expiryKey));
+}
+
 /** Build expiry picker options + per-expiry band slices from a stored index doc. */
 export function indexExpiryLevelsFromStored(
   raw: Record<string, unknown> | null,
@@ -89,7 +94,7 @@ export function indexExpiryLevelsFromStored(
           ? raw.expiry
           : null;
     const zonesExpiry = formatZonesExpiryLabel(fallbackKey);
-    if (fallbackKey && zonesExpiry) {
+    if (fallbackKey && zonesExpiry && !isNseExpiryExpired(fallbackKey)) {
       slices.push({
         expiryKey: fallbackKey,
         zonesExpiry,
@@ -107,12 +112,13 @@ export function indexExpiryLevelsFromStored(
     }
   }
 
-  const expiryOptions = slices.map((s) => ({
+  const active = dropExpiredSlices(slices);
+  const expiryOptions = active.map((s) => ({
     key: s.expiryKey,
     label: s.zonesExpiry ?? s.expiryKey,
   }));
 
-  return { expiryOptions, zonesByExpiry: slices };
+  return { expiryOptions, zonesByExpiry: active };
 }
 
 /** Apply a selected expiry slice onto a PublicLevels payload (indices only). */

@@ -42,13 +42,19 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
     };
   }, [scope, symbol]);
 
-  // Rolling items: lead with the summary, then each highlight.
+  // Rolling items: concise highlights are ideal for big-font rotation. If a
+  // symbol only has the long summary paragraph, split it into sentences so each
+  // rolling item stays short instead of overflowing the box.
   const items = useMemo(() => {
     if (!news) return [];
-    const out: string[] = [];
-    if (news.summary) out.push(news.summary);
-    for (const h of news.highlights) out.push(h);
-    return out;
+    if (news.highlights.length > 0) return news.highlights;
+    if (news.summary) {
+      return news.summary
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    }
+    return [];
   }, [news]);
 
   useEffect(() => {
@@ -92,13 +98,23 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
         )}
       </div>
 
-      {/* Rolling headline in big font */}
-      <div className="flex flex-col flex-1 min-h-0 justify-center">
+      {/* Rolling headline in big font — clamped so it never bleeds into the
+          header/footer no matter how long an item is. */}
+      <div className="flex flex-col flex-1 min-h-0 justify-center overflow-hidden">
         {current ? (
           <p
             key={idx}
             className="broadcast-news-in"
-            style={{ fontSize: "2.7vh", lineHeight: 1.32, color: "#f0f4ff", fontWeight: 700 }}
+            style={{
+              fontSize: "2.3vh",
+              lineHeight: 1.34,
+              color: "#f0f4ff",
+              fontWeight: 700,
+              display: "-webkit-box",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 8,
+              overflow: "hidden",
+            }}
           >
             {current}
           </p>

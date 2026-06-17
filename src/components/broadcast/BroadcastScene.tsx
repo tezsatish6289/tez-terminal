@@ -217,7 +217,7 @@ export function BroadcastScene() {
       {/* Body — one page at a time (map intro, then a focus page per stock),
           cross-fading on every change. The header + ticker stay put. */}
       <main className="relative flex flex-1 min-h-0" style={{ padding: "2vh" }}>
-        <div key={pageKey} className="broadcast-page-fade flex flex-1 min-h-0" style={{ gap: "2vh" }}>
+        <div key={pageKey} className="broadcast-page-fade flex flex-1 min-h-0 w-full items-stretch" style={{ gap: "2vh" }}>
           {page.type === "stock" ? (
             <BroadcastLiveslide item={page.item} />
           ) : (

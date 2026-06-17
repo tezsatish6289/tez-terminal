@@ -3,11 +3,17 @@
 import type { LevelsActionableItem } from "@/lib/zones/levels-actionable-list";
 import { bandsFromLevels } from "@/lib/zones/levels-actionable-list";
 import { zoneStatusDisplayKey, type ZoneDisplayKey } from "@/lib/zones/zone-status";
+import {
+  formatClusterContracts,
+  formatClusterStrike,
+} from "@/lib/levels/format-cluster-size";
+import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 
 const SUPPORT = "#34d399";
 const RESIST = "#f87171";
 const MUTED = "#64748b";
 const INK = "#f0f4ff";
+const MAX_PAIN = LEVELS_ZONE_CHART.maxPain.labelText;
 
 const SLIDE_CSS = `
 @keyframes broadcast-slide-in {
@@ -39,14 +45,25 @@ function band(low: number | null | undefined, high: number | null | undefined): 
 
 /** Compact Indian-notation OI (e.g. 1.2 Cr, 3.4 L, 12K). */
 function oi(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n) || n <= 0) return "—";
-  if (n >= 1e7) return `${(n / 1e7).toFixed(1)} Cr`;
-  if (n >= 1e5) return `${(n / 1e5).toFixed(1)} L`;
-  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
-  return String(Math.round(n));
+  return formatClusterContracts(n) ?? "—";
 }
 
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+function wallStrike(strike: number | null | undefined): string {
+  const s = formatClusterStrike(strike);
+  return s ? `₹${s}` : "—";
+}
+
+function Stat({
+  label,
+  value,
+  sub,
+  color,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+}) {
   return (
     <div
       className="flex flex-col justify-center rounded-lg"
@@ -65,6 +82,14 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
       >
         {value}
       </span>
+      {sub && (
+        <span
+          className="font-mono tabular-nums"
+          style={{ fontSize: "1.65vh", color: color ?? INK, fontWeight: 600, marginTop: "0.35vh", opacity: 0.9 }}
+        >
+          {sub}
+        </span>
+      )}
     </div>
   );
 }
@@ -100,7 +125,9 @@ export function BroadcastSlide({
   const d = item.data;
   const bands = bandsFromLevels(d, item.spot);
   const status = STATUS_META[zoneStatusDisplayKey(bands)];
-  const isSupport = status.color === SUPPORT;
+
+  const putOi = oi(d?.putClusterSize);
+  const callOi = oi(d?.callClusterSize);
 
   const chips: string[] = [];
   if (d?.atmIV != null) chips.push(`IV ${d.atmIV.toFixed(1)}%`);
@@ -174,15 +201,18 @@ export function BroadcastSlide({
       >
         <Stat label="SUPPORT ZONE" value={band(d?.bullLow, d?.bullHigh)} color={SUPPORT} />
         <Stat label="RESISTANCE ZONE" value={band(d?.bearLow, d?.bearHigh)} color={RESIST} />
-        <Stat label="MAX PAIN" value={`₹${inr(d?.poc)}`} />
+        <Stat label="MAX PAIN" value={`₹${inr(d?.poc)}`} color={MAX_PAIN} />
         <Stat
-          label={isSupport ? "PUT WALL (SUPPORT)" : "CALL WALL (RESIST)"}
-          value={
-            isSupport
-              ? `₹${inr(d?.putClusterStrike)} · ${oi(d?.putClusterSize)}`
-              : `₹${inr(d?.callClusterStrike)} · ${oi(d?.callClusterSize)}`
-          }
-          color={isSupport ? SUPPORT : RESIST}
+          label="PUT WALL (SUPPORT)"
+          value={wallStrike(d?.putClusterStrike)}
+          sub={putOi !== "—" ? `${putOi} contracts` : undefined}
+          color={SUPPORT}
+        />
+        <Stat
+          label="CALL WALL (RESIST)"
+          value={wallStrike(d?.callClusterStrike)}
+          sub={callOi !== "—" ? `${callOi} contracts` : undefined}
+          color={RESIST}
         />
       </div>
 

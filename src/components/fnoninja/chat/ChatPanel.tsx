@@ -234,7 +234,10 @@ export function ChatPanel() {
     }
   };
 
-  const subLoading = subscription.isLoading && memberLoading;
+  // Wait for BOTH the subscription status and the member doc before deciding
+  // which gate to show — otherwise we briefly flash "Load plans" then "Accept
+  // terms" on refresh as each source resolves independently.
+  const subLoading = subscription.isLoading || memberLoading;
 
   return (
     <>

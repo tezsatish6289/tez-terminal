@@ -1,11 +1,11 @@
 /**
  * Compute + persist NSE index option zones for the public levels page.
  *
- * Shared by the `suggest-zones` cron (rides its existing 15-min schedule so no
- * separate cron registration is needed) and any manual refresh path. Writes one
- * doc per index to `config/suggested_index_zones_{SYMBOL}` in the same field
- * shape as the crypto `suggested_zones_*` docs, so freedombot.ai/levels can
- * render both tabs with the shared ZonePriceLadder.
+ * Refreshed by `/api/cron/suggest-stock-zones` during market hours when the
+ * oldest index doc is stale (default >14 min). Writes one doc per index to
+ * `config/suggested_index_zones_{SYMBOL}` in the same field shape as the crypto
+ * `suggested_zones_*` docs, so freedombot.ai/levels can render both tabs with
+ * the shared ZonePriceLadder.
  */
 
 import type { Firestore } from "firebase-admin/firestore";
@@ -135,4 +135,47 @@ export function summarizeIndexZones(r: IndexZonesRefreshResult): string {
   const ok = Object.values(r.results).filter((v) => v === "ok").length;
   const err = Object.keys(r.errors).length;
   return `indices ok=${ok}/${INDEX_KEYS.length}${err ? ` errors=${err}` : ""}`;
+}
+
+function envNum(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/** Max age of the oldest index doc before suggest-stock-zones triggers a refresh. */
+export const INDEX_ZONES_STALE_MS = envNum("INDEX_ZONES_STALE_MS", 14 * 60_000);
+
+/** Oldest `computedAt` age across all index docs; null if any doc is missing. */
+export async function oldestIndexAgeMs(db: Firestore, nowMs = Date.now()): Promise<number | null> {
+  const snaps = await Promise.all(INDEX_KEYS.map((k) => db.doc(docId(k)).get()));
+  let oldest: number | null = null;
+  for (const snap of snaps) {
+    const raw = snap.data()?.computedAt;
+    if (typeof raw !== "string") return null;
+    const t = Date.parse(raw);
+    if (!Number.isFinite(t)) return null;
+    const age = nowMs - t;
+    if (oldest == null || age > oldest) oldest = age;
+  }
+  return oldest;
+}
+
+/**
+ * Refresh all index zones when stale (or when `force`). Used by suggest-stock-zones
+ * so index levels do not depend on the crypto suggest-zones cron.
+ */
+export async function maybeRefreshIndexZonesIfStale(
+  db: Firestore,
+  opts?: { maxAgeMs?: number; force?: boolean },
+): Promise<IndexZonesRefreshResult | { skipped: string }> {
+  const maxAgeMs = opts?.maxAgeMs ?? INDEX_ZONES_STALE_MS;
+  if (!opts?.force) {
+    const oldest = await oldestIndexAgeMs(db);
+    if (oldest != null && oldest < maxAgeMs) {
+      return { skipped: `fresh_${Math.round(oldest / 60_000)}m` };
+    }
+  }
+  return refreshIndexZones(db);
 }

@@ -10,6 +10,8 @@
  *
  * Scheduled: every 15 min via cron-job.org (GET).
  * Also callable manually from the UI Refresh button (POST).
+ *
+ * NSE index zones (Nifty, Bank Nifty, …) are refreshed by suggest-stock-zones.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -19,12 +21,10 @@ import { zoneBandSnapshotFromSuggested } from "@/lib/options-zone-sticky";
 import { deserializePrices } from "@/lib/exchanges";
 import { type ZoneBotAsset } from "@/lib/zone-bot-config";
 import { recordCronHeartbeat } from "@/lib/cron-health";
-import { refreshIndexZones, type IndexZonesRefreshResult } from "@/lib/index-zones-store";
-import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
 
 export const dynamic     = "force-dynamic";
-/** Crypto (Deribit) ~10s + optional NSE index pass during market hours. */
-export const maxDuration = 90;
+/** Crypto (Deribit) ~10s. */
+export const maxDuration = 60;
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -203,16 +203,14 @@ export async function GET(request: NextRequest) {
       summary: summarizeSuggestZones(payload),
       durationMs: Date.now() - startedAt,
     });
-    // Best-effort NSE index zones — gated to Indian market hours, isolated so
-    // it can never throw or affect the crypto result above.
-    const inNseWindow = isNiftyOptionChainCronWindow();
-    const indexZones = inNseWindow
-      ? await safeRefreshIndexZones(db)
-      : { skipped: "outside_market_hours" };
+    // NSE index zones are refreshed by suggest-stock-zones (levels cron) — not here.
     return NextResponse.json({
       success: true,
       ...payload,
-      indexZones,
+      indexZones: {
+        skipped: "use_suggest_stock_zones",
+        hint: "NSE indices refresh on /api/cron/suggest-stock-zones during market hours",
+      },
       stockZones: {
         skipped: "use_dedicated_cron",
         hint: "F&O stocks run only on /api/cron/suggest-stock-zones",
@@ -233,13 +231,13 @@ export async function GET(request: NextRequest) {
 export async function POST(_request: NextRequest) {
   try {
     const payload = await run();
-    // Manual refresh always attempts NSE (no market-hours gate), still isolated.
-    const db = getAdminFirestore();
-    const indexZones = await safeRefreshIndexZones(db);
     return NextResponse.json({
       success: true,
       ...payload,
-      indexZones,
+      indexZones: {
+        skipped: "use_suggest_stock_zones",
+        hint: "POST /api/cron/suggest-stock-zones to refresh NSE index zones",
+      },
       stockZones: { skipped: "use_dedicated_cron" },
     });
   } catch (err) {
@@ -248,19 +246,6 @@ export async function POST(_request: NextRequest) {
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 },
     );
-  }
-}
-
-/** Wrap the NSE index refresh so it can never throw into the crypto path. */
-async function safeRefreshIndexZones(
-  db: ReturnType<typeof getAdminFirestore>,
-): Promise<IndexZonesRefreshResult | { error: string }> {
-  try {
-    return await refreshIndexZones(db);
-  } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
-    console.error("[SuggestZones] NSE index pass failed (isolated):", error);
-    return { error };
   }
 }
 

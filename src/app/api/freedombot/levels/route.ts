@@ -3,7 +3,7 @@
  *
  * Public read for the freedombot.ai/levels page. Returns the latest
  * algorithmically-derived bull/bear zones for:
- *   • NSE indices  → config/suggested_index_zones_{SYMBOL}  (suggest-zones cron, NSE pass)
+ *   • NSE indices  → config/suggested_index_zones_{SYMBOL}  (suggest-stock-zones cron)
  *   • NSE stocks   → config/suggested_stock_zones_{SYMBOL}  (suggest-stock-zones cron)
  *
  * Modes:

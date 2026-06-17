@@ -23,6 +23,7 @@ import {
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import { istCalendarDateKey } from "@/lib/ist-display";
 import { stockDocId } from "@/lib/equity-zones-store";
+import { INDEX_ZONES_STALE_MS } from "@/lib/index-zones-store";
 
 const AGGREGATE_DOC = "config/zone_status_stocks";
 const CURSOR_DOC = "config/stock_zones_cursor";
@@ -137,6 +138,12 @@ export interface LevelsCronDashboardPayload {
     expectedScansPerHour: number;
   };
   indices: LevelsCronIndexRow[];
+  indexZonesMeta: {
+    refreshCron: "suggest-stock-zones";
+    staleThresholdMinutes: number;
+    oldestAgeHours: number | null;
+    anyStale: boolean;
+  };
   recentBatchErrors: LevelsCronBatchError[];
 }
 
@@ -315,6 +322,22 @@ export async function loadLevelsCronDashboard(
     };
   });
 
+  const oldestIndexAgeMs = indices.reduce<number | null>((max, ix) => {
+    if (!ix.computedAt) return max;
+    const age = now - Date.parse(ix.computedAt);
+    if (!Number.isFinite(age)) return max;
+    return max == null || age > max ? age : max;
+  }, null);
+  const indexZonesMeta = {
+    refreshCron: "suggest-stock-zones" as const,
+    staleThresholdMinutes: Math.round(INDEX_ZONES_STALE_MS / 60_000),
+    oldestAgeHours:
+      oldestIndexAgeMs != null && Number.isFinite(oldestIndexAgeMs)
+        ? Math.round(oldestIndexAgeMs / 3_600_000)
+        : null,
+    anyStale: oldestIndexAgeMs == null || oldestIndexAgeMs >= INDEX_ZONES_STALE_MS,
+  };
+
   const indexPayload = INDEX_KEYS.map((k, i) => {
     const data = indexDocs[i]?.data() as Record<string, unknown> | undefined;
     if (!data) return { symbol: k, label: INDEX_SPECS[k].label, data: null };
@@ -453,6 +476,7 @@ export async function loadLevelsCronDashboard(
       expectedScansPerHour: Math.floor((60 / 5) * batchSizeEnv),
     },
     indices,
+    indexZonesMeta,
     recentBatchErrors,
   };
 }

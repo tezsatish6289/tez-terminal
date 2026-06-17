@@ -488,7 +488,17 @@ export default function LevelsCronDashboardPage() {
                   NSE index zones (Nifty, Bank Nifty, …)
                 </h3>
                 <p className="text-[10px] text-slate-500 mb-3">
-                  Refreshed by suggest-zones during market hours — not part of the F&O stock cron.
+                  Refreshed by the F&O stock cron when the oldest index is older than{" "}
+                  {data.indexZonesMeta.staleThresholdMinutes} min (Mon–Fri 9:00–16:00 IST).
+                  {data.indexZonesMeta.anyStale ? (
+                    <span className="text-amber-300/90">
+                      {" "}
+                      Oldest: {data.indexZonesMeta.oldestAgeHours ?? "—"}h — next stock tick
+                      should refresh.
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400/90"> All indices within threshold.</span>
+                  )}
                 </p>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2">
                   {data.indices.map((ix) => (

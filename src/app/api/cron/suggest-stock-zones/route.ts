@@ -1,7 +1,9 @@
 /**
  * /api/cron/suggest-stock-zones
  *
- * Sole cron for NSE F&O single-stock option zones (no piggyback on suggest-zones).
+ * Sole cron for NSE F&O single-stock option zones and NSE index zones (Nifty,
+ * Bank Nifty, …). Index refresh runs at the start of each tick when the oldest
+ * index doc is stale (>14 min by default); stocks run in the same batch.
  *
  * Schedule: every 5 min on cron-job.org (GET + key). cron-job.org max HTTP timeout is 30s,
  * so keyed GET returns immediately and runs the batch in the background via after().
@@ -21,6 +23,11 @@ import {
   tryAcquireStockZonesRunLock,
 } from "@/lib/stock-zones-runner";
 import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
+import {
+  maybeRefreshIndexZonesIfStale,
+  summarizeIndexZones,
+  type IndexZonesRefreshResult,
+} from "@/lib/index-zones-store";
 
 export const dynamic = "force-dynamic";
 /** Background batch after() may run up to platform limit (apphosting timeoutSeconds). */
@@ -35,6 +42,31 @@ async function recordStockZonesHeartbeat(
     await recordCronHeartbeat(getAdminFirestore(), "suggest-stock-zones", result);
   } catch {
     /* heartbeat must not break cron */
+  }
+}
+
+function indexZonesSummarySuffix(
+  ix: IndexZonesRefreshResult | { skipped: string } | undefined,
+): string {
+  if (!ix) return "";
+  if ("skipped" in ix) return ` indices=${ix.skipped}`;
+  return ` ${summarizeIndexZones(ix)}`;
+}
+
+/** NSE index zones — runs before stock batch when stale during market hours. */
+async function refreshIndexZonesIfNeeded(
+  db: ReturnType<typeof getAdminFirestore>,
+  force = false,
+): Promise<IndexZonesRefreshResult | { skipped: string } | undefined> {
+  if (!isNiftyOptionChainCronWindow()) {
+    return { skipped: "outside_market_hours" };
+  }
+  try {
+    return await maybeRefreshIndexZonesIfStale(db, { force });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[SuggestStockZones] index zones pass failed (isolated):", msg);
+    return { skipped: `error:${msg.slice(0, 80)}` };
   }
 }
 
@@ -60,12 +92,16 @@ export async function GET(request: NextRequest) {
 
   if (sync) {
     const startedAt = Date.now();
+    const db = getAdminFirestore();
     try {
-      const summary = await runStockZonesBatch(getAdminFirestore());
-      await recordStockZonesHeartbeat(
-        stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt),
-      );
-      return NextResponse.json({ success: true, mode: "sync", ...summary });
+      const indexZones = await refreshIndexZonesIfNeeded(db);
+      const summary = await runStockZonesBatch(db);
+      const base = stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt);
+      await recordStockZonesHeartbeat({
+        ...base,
+        summary: (base.summary ?? "") + indexZonesSummarySuffix(indexZones),
+      });
+      return NextResponse.json({ success: true, mode: "sync", indexZones, ...summary });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[SuggestStockZones] sync failed:", err);
@@ -101,11 +137,14 @@ export async function GET(request: NextRequest) {
   after(async () => {
     const startedAt = Date.now();
     try {
+      const indexZones = await refreshIndexZonesIfNeeded(db);
       const summary = await runStockZonesBatch(db);
       console.log("[SuggestStockZones] background batch done", JSON.stringify(summary));
-      await recordStockZonesHeartbeat(
-        stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt),
-      );
+      const base = stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt);
+      await recordStockZonesHeartbeat({
+        ...base,
+        summary: (base.summary ?? "") + indexZonesSummarySuffix(indexZones),
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[SuggestStockZones] background batch failed:", err);
@@ -132,6 +171,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const startedAt = Date.now();
+  const db = getAdminFirestore();
   try {
     let symbolsOverride: string[] | undefined;
     try {
@@ -142,11 +182,14 @@ export async function POST(request: NextRequest) {
     } catch {
       /* no body — full queue batch */
     }
-    const summary = await runStockZonesBatch(getAdminFirestore(), { symbolsOverride });
-    await recordStockZonesHeartbeat(
-      stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt),
-    );
-    return NextResponse.json({ success: true, ...summary });
+    const indexZones = await refreshIndexZonesIfNeeded(db, true);
+    const summary = await runStockZonesBatch(db, { symbolsOverride });
+    const base = stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt);
+    await recordStockZonesHeartbeat({
+      ...base,
+      summary: (base.summary ?? "") + indexZonesSummarySuffix(indexZones),
+    });
+    return NextResponse.json({ success: true, indexZones, ...summary });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[SuggestStockZones] Manual failed:", err);

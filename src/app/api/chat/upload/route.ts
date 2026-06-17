@@ -18,6 +18,18 @@ export const runtime = "nodejs";
  * the attachment metadata to be attached to a subsequent /api/chat/send call.
  */
 export async function POST(request: NextRequest) {
+  try {
+    return await handleUpload(request);
+  } catch (e) {
+    // Surface the real reason instead of an opaque 500 (e.g. a sharp native
+    // module load failure, which throws before the inner handlers run).
+    console.error("[chat] upload route error", e);
+    const detail = e instanceof Error ? e.message : "Unknown error";
+    return NextResponse.json({ error: `Upload failed: ${detail}` }, { status: 500 });
+  }
+}
+
+async function handleUpload(request: NextRequest) {
   const auth = await requireUser(request);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });

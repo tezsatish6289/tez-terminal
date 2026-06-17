@@ -9,7 +9,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-import sharp from "sharp";
 import { getAdminStorageBucket } from "@/firebase/admin";
 import {
   CHAT_IMAGE_MAX_BYTES,
@@ -75,6 +74,9 @@ export async function processAndUploadChatImage(args: {
   let width: number;
   let height: number;
   try {
+    // Lazy-load sharp so a native-binary load failure is catchable here (and
+    // doesn't break the whole route module at import time).
+    const sharp = (await import("sharp")).default;
     // `sharp` drops all metadata by default (no withMetadata()), stripping EXIF
     // and any embedded payloads. Rotate first so display orientation is baked in.
     const pipeline = sharp(buffer, { failOn: "error" })
@@ -91,8 +93,10 @@ export async function processAndUploadChatImage(args: {
     output = data;
     width = info.width;
     height = info.height;
-  } catch {
-    return { error: "Could not process image." };
+  } catch (e) {
+    console.error("[chat] image processing failed", e);
+    const detail = e instanceof Error ? e.message : "unknown";
+    return { error: `Could not process image (${detail}).` };
   }
 
   const id = randomUUID();
@@ -118,7 +122,8 @@ export async function processAndUploadChatImage(args: {
     });
   } catch (e) {
     console.error("[chat] image upload failed", e);
-    return { error: "Upload failed. Please try again." };
+    const detail = e instanceof Error ? e.message : "unknown";
+    return { error: `Storage write failed (${detail}).` };
   }
 
   return {

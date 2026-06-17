@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Loader2, Users, X } from "lucide-react";
+import { useCallback, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
+import { ImagePlus, Loader2, Users, X } from "lucide-react";
 import { useUser } from "@/firebase";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useChatMember } from "@/hooks/use-chat-member";
@@ -47,14 +47,26 @@ export function ChatPanel() {
   );
   const onlineCount = useChatPresence(roomId, open && ready);
 
-  const [optimistic, setOptimistic] = useState<ChatMessage[]>([]);
+  // Outgoing messages uploading/sending in the background (WhatsApp-style):
+  // shown optimistically with a sending/failed state until the real message
+  // arrives via RTDB. Their attachment URLs are local blob previews.
+  const [outgoing, setOutgoing] = useState<ChatMessage[]>([]);
+  // Original File objects per outgoing message, kept for retry.
+  const outgoingFilesRef = useRef<Map<string, File[]>>(new Map());
+  // Lets the panel-wide drop zone push files into the composer.
+  const addFilesRef = useRef<(files: File[]) => void>(() => {});
+  const registerAddFiles = useCallback((fn: (files: File[]) => void) => {
+    addFilesRef.current = fn;
+  }, []);
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepth = useRef(0);
 
   const room = CHAT_ROOMS.find((r) => r.id === roomId) ?? CHAT_ROOMS[0];
 
   const allMessages = useMemo(() => {
-    if (optimistic.length === 0) return messages;
-    return [...messages, ...optimistic].sort((a, b) => a.createdAt - b.createdAt);
-  }, [messages, optimistic]);
+    if (outgoing.length === 0) return messages;
+    return [...messages, ...outgoing].sort((a, b) => a.createdAt - b.createdAt);
+  }, [messages, outgoing]);
 
   // Mention candidates: people who've posted in the room (excluding yourself).
   const participants = useMemo<ChatParticipant[]>(() => {
@@ -72,14 +84,44 @@ export function ChatPanel() {
 
   if (!open || !user) return null;
 
-  const handleUpload = async (file: File): Promise<ChatAttachment> => {
-    if (!user) throw new Error("Not signed in.");
-    return uploadChatImage(user, roomId, file);
+  const revokePreviews = (m: ChatMessage | undefined) => {
+    m?.attachments?.forEach((a) => {
+      if (a.url.startsWith("blob:")) URL.revokeObjectURL(a.url);
+    });
   };
 
-  const handleSend = async (text: string, attachments: ChatAttachment[]) => {
-    if (!user) return;
-    const tempId = `temp-${Date.now()}`;
+  // Upload any images, then post the message. On failure the optimistic copy is
+  // flagged "failed" so the user can retry; on success it's dropped (the real
+  // message streams in via RTDB).
+  const runSend = async (tempId: string, text: string, files: File[]) => {
+    try {
+      const attachments: ChatAttachment[] = [];
+      for (const file of files) {
+        attachments.push(await uploadChatImage(user, roomId, file));
+      }
+      await sendChatMessage(user, roomId, text, attachments.map((a) => a.path));
+      setOutgoing((prev) => {
+        revokePreviews(prev.find((m) => m.id === tempId));
+        return prev.filter((m) => m.id !== tempId);
+      });
+      outgoingFilesRef.current.delete(tempId);
+    } catch {
+      setOutgoing((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, clientStatus: "failed" } : m)),
+      );
+    }
+  };
+
+  const handleSend = (text: string, files: File[]) => {
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const previews: ChatAttachment[] = files.map((f) => ({
+      path: "",
+      url: URL.createObjectURL(f),
+      mimeType: f.type,
+      width: 0,
+      height: 0,
+      sizeBytes: f.size,
+    }));
     const temp: ChatMessage = {
       id: tempId,
       roomId,
@@ -93,20 +135,56 @@ export function ChatPanel() {
       deletedBy: null,
       mentions: [],
       flagged: false,
-      attachments: attachments.length ? attachments : undefined,
+      attachments: previews.length ? previews : undefined,
+      clientStatus: "sending",
     };
-    setOptimistic((prev) => [...prev, temp]);
-    try {
-      await sendChatMessage(user, roomId, text, attachments.map((a) => a.path));
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Message not sent",
-        description: e instanceof Error ? e.message : "Please try again.",
-      });
-    } finally {
-      setOptimistic((prev) => prev.filter((m) => m.id !== tempId));
-    }
+    outgoingFilesRef.current.set(tempId, files);
+    setOutgoing((prev) => [...prev, temp]);
+    void runSend(tempId, text, files);
+  };
+
+  const handleRetry = (id: string) => {
+    const msg = outgoing.find((m) => m.id === id);
+    if (!msg) return;
+    const files = outgoingFilesRef.current.get(id) ?? [];
+    setOutgoing((prev) => prev.map((m) => (m.id === id ? { ...m, clientStatus: "sending" } : m)));
+    void runSend(id, msg.text, files);
+  };
+
+  const handleDiscard = (id: string) => {
+    setOutgoing((prev) => {
+      revokePreviews(prev.find((m) => m.id === id));
+      return prev.filter((m) => m.id !== id);
+    });
+    outgoingFilesRef.current.delete(id);
+  };
+
+  const hasDraggedFiles = (e: ReactDragEvent) =>
+    Array.from(e.dataTransfer?.types ?? []).includes("Files");
+
+  const onPanelDragEnter = (e: ReactDragEvent) => {
+    if (!ready || !hasDraggedFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragOver(true);
+  };
+  const onPanelDragOver = (e: ReactDragEvent) => {
+    if (!ready || !hasDraggedFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+  const onPanelDragLeave = (e: ReactDragEvent) => {
+    if (!hasDraggedFiles(e)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragOver(false);
+  };
+  const onPanelDrop = (e: ReactDragEvent) => {
+    if (!ready) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length) addFilesRef.current(files);
   };
 
   const handleEdit = async (id: string, text: string) => {
@@ -158,7 +236,27 @@ export function ChatPanel() {
           backgroundColor: FNO_BG,
           borderLeft: `1px solid ${FNO_NAV_BORDER}`,
         }}
+        onDragEnter={onPanelDragEnter}
+        onDragOver={onPanelDragOver}
+        onDragLeave={onPanelDragLeave}
+        onDrop={onPanelDrop}
       >
+        {dragOver && ready ? (
+          <div
+            className="pointer-events-none absolute inset-3 z-30 flex flex-col items-center justify-center gap-2 rounded-2xl text-center"
+            style={{
+              backgroundColor: "rgba(10,22,40,0.94)",
+              border: "2px dashed rgba(96,165,250,0.7)",
+            }}
+          >
+            <ImagePlus className="h-7 w-7" style={{ color: "#93c5fd" }} />
+            <span className="text-sm font-semibold text-slate-100">Drop image to share</span>
+            <span className="text-[11px]" style={{ color: "#64748b" }}>
+              Add a caption, then send
+            </span>
+          </div>
+        ) : null}
+
         {/* Header */}
         <div className="flex items-center justify-between px-4 h-12 shrink-0" style={{ borderBottom: `1px solid ${FNO_NAV_BORDER}` }}>
           <div className="min-w-0">
@@ -208,11 +306,13 @@ export function ChatPanel() {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onReport={handleReport}
+              onRetry={handleRetry}
+              onDiscard={handleDiscard}
             />
             <ChatDisclaimer />
             <MessageComposer
               onSend={handleSend}
-              onUpload={handleUpload}
+              onRegisterAddFiles={registerAddFiles}
               participants={participants}
             />
           </>

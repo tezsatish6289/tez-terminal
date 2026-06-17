@@ -17,6 +17,8 @@ interface MessageListProps {
   onEdit: (id: string, text: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onReport: (message: ChatMessage) => void;
+  onRetry: (id: string) => void;
+  onDiscard: (id: string) => void;
 }
 
 export function MessageList({
@@ -29,6 +31,8 @@ export function MessageList({
   onEdit,
   onDelete,
   onReport,
+  onRetry,
+  onDiscard,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -104,6 +108,8 @@ export function MessageList({
             onEdit={onEdit}
             onDelete={onDelete}
             onReport={onReport}
+            onRetry={onRetry}
+            onDiscard={onDiscard}
           />
         ))}
         <div ref={bottomRef} />

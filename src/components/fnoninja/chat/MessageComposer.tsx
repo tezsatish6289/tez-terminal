@@ -8,7 +8,6 @@ import {
   useState,
   type ChangeEvent,
   type ClipboardEvent,
-  type DragEvent as ReactDragEvent,
   type KeyboardEvent,
 } from "react";
 import Image from "next/image";
@@ -27,7 +26,6 @@ import {
   CHAT_MAX_MESSAGE_LENGTH,
 } from "@/lib/chat/constants";
 import { toMentionHandle } from "@/lib/chat/moderation";
-import type { ChatAttachment } from "@/lib/chat/types";
 import {
   LEVELS_SYMBOL_CATALOG,
   filterLevelsSymbolCatalog,
@@ -39,23 +37,25 @@ export interface ChatParticipant {
   photo: string | null;
 }
 
-interface PendingAttachment {
+interface SelectedImage {
   id: string;
+  file: File;
   previewUrl: string;
-  status: "uploading" | "done" | "error";
-  attachment?: ChatAttachment;
-  error?: string;
 }
 
 interface MessageComposerProps {
-  onSend: (text: string, attachments: ChatAttachment[]) => Promise<void>;
-  /** Uploads one image and resolves to its stored attachment metadata. */
-  onUpload: (file: File) => Promise<ChatAttachment>;
+  /** Hands the draft off to the panel, which uploads + sends in the background. */
+  onSend: (text: string, files: File[]) => void;
   participants?: ChatParticipant[];
   disabled?: boolean;
+  /**
+   * Lets the parent (panel) push files in from a panel-wide drop zone. The
+   * composer registers its file-add handler here on mount.
+   */
+  onRegisterAddFiles?: (add: (files: File[]) => void) => void;
 }
 
-let pendingIdSeq = 0;
+let selectedIdSeq = 0;
 
 type Trigger = "$" | "@";
 
@@ -90,9 +90,9 @@ function detectTrigger(
 
 export function MessageComposer({
   onSend,
-  onUpload,
   participants = [],
   disabled,
+  onRegisterAddFiles,
 }: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -102,62 +102,43 @@ export function MessageComposer({
   const [trigger, setTrigger] = useState<{ trigger: Trigger; query: string; start: number } | null>(
     null,
   );
-  const [pending, setPending] = useState<PendingAttachment[]>([]);
-  const [dragOver, setDragOver] = useState(false);
+  const [selected, setSelected] = useState<SelectedImage[]>([]);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const caretRef = useRef(0);
-  const dragDepth = useRef(0);
 
   // Revoke any outstanding object URLs on unmount.
   useEffect(() => {
     return () => {
-      setPending((prev) => {
+      setSelected((prev) => {
         prev.forEach((p) => URL.revokeObjectURL(p.previewUrl));
         return prev;
       });
     };
   }, []);
 
-  const uploading = pending.some((p) => p.status === "uploading");
-  const readyAttachments = pending.filter((p) => p.status === "done" && p.attachment);
+  const addFiles = useCallback((files: File[]) => {
+    const images = files.filter((f) => CHAT_IMAGE_ACCEPT.includes(f.type as never));
+    if (images.length === 0) return;
+    setSelected((prev) => {
+      const room = CHAT_MAX_ATTACHMENTS - prev.length;
+      const toAdd = images.slice(0, Math.max(0, room)).map<SelectedImage>((file) => ({
+        id: `img-${selectedIdSeq++}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      }));
+      return [...prev, ...toAdd];
+    });
+  }, []);
 
-  const addFiles = useCallback(
-    (files: File[]) => {
-      const images = files.filter((f) => CHAT_IMAGE_ACCEPT.includes(f.type as never));
-      if (images.length === 0) return;
-      setPending((prev) => {
-        const room = CHAT_MAX_ATTACHMENTS - prev.length;
-        const toAdd = images.slice(0, Math.max(0, room));
-        const next = toAdd.map<PendingAttachment>((file) => {
-          const id = `att-${pendingIdSeq++}`;
-          const previewUrl = URL.createObjectURL(file);
-          void onUpload(file)
-            .then((attachment) => {
-              setPending((cur) =>
-                cur.map((p) => (p.id === id ? { ...p, status: "done", attachment } : p)),
-              );
-            })
-            .catch((e: unknown) => {
-              setPending((cur) =>
-                cur.map((p) =>
-                  p.id === id
-                    ? { ...p, status: "error", error: e instanceof Error ? e.message : "Upload failed" }
-                    : p,
-                ),
-              );
-            });
-          return { id, previewUrl, status: "uploading" as const };
-        });
-        return [...prev, ...next];
-      });
-    },
-    [onUpload],
-  );
+  // Register the file-add handler so the panel's drop zone can feed files in.
+  useEffect(() => {
+    onRegisterAddFiles?.(addFiles);
+  }, [onRegisterAddFiles, addFiles]);
 
-  const removePending = useCallback((id: string) => {
-    setPending((prev) => {
+  const removeSelected = useCallback((id: string) => {
+    setSelected((prev) => {
       const hit = prev.find((p) => p.id === id);
       if (hit) URL.revokeObjectURL(hit.previewUrl);
       return prev.filter((p) => p.id !== id);
@@ -179,38 +160,6 @@ export function MessageComposer({
       e.preventDefault();
       addFiles(files);
     }
-  };
-
-  const hasDraggedFiles = (e: ReactDragEvent) =>
-    Array.from(e.dataTransfer?.types ?? []).includes("Files");
-
-  const onDragEnter = (e: ReactDragEvent) => {
-    if (disabled || sending || !hasDraggedFiles(e)) return;
-    e.preventDefault();
-    dragDepth.current += 1;
-    setDragOver(true);
-  };
-
-  const onDragOver = (e: ReactDragEvent) => {
-    if (disabled || sending || !hasDraggedFiles(e)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-  };
-
-  const onDragLeave = (e: ReactDragEvent) => {
-    if (!hasDraggedFiles(e)) return;
-    dragDepth.current = Math.max(0, dragDepth.current - 1);
-    if (dragDepth.current === 0) setDragOver(false);
-  };
-
-  const onDrop = (e: ReactDragEvent) => {
-    if (disabled || sending) return;
-    e.preventDefault();
-    dragDepth.current = 0;
-    setDragOver(false);
-    const files = Array.from(e.dataTransfer?.files ?? []);
-    if (files.length) addFiles(files);
-    taRef.current?.focus();
   };
 
   const insertAtCaret = useCallback(
@@ -307,28 +256,21 @@ export function MessageComposer({
     [text, trigger, closeSuggestions],
   );
 
-  const canSubmit =
-    (text.trim().length > 0 || readyAttachments.length > 0) &&
-    !uploading &&
-    !sending &&
-    !disabled;
+  const canSubmit = (text.trim().length > 0 || selected.length > 0) && !sending && !disabled;
 
-  const submit = async () => {
+  const submit = () => {
     if (!canSubmit) return;
     const trimmed = text.trim();
-    const attachments = readyAttachments.map((p) => p.attachment as ChatAttachment);
-    setSending(true);
-    try {
-      await onSend(trimmed, attachments);
-      setText("");
-      setPending((prev) => {
-        prev.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-        return [];
-      });
-      closeSuggestions();
-    } finally {
-      setSending(false);
-    }
+    const files = selected.map((s) => s.file);
+    // Hand off to the panel; it queues an optimistic message and uploads in the
+    // background. Reset the composer immediately (WhatsApp-style).
+    onSend(trimmed, files);
+    setText("");
+    setSelected((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      return [];
+    });
+    closeSuggestions();
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -363,34 +305,12 @@ export function MessageComposer({
 
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      void submit();
+      submit();
     }
   };
 
   return (
-    <div
-      className="relative"
-      onDragEnter={onDragEnter}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-    >
-      {dragOver ? (
-        <div
-          className="pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center gap-1 rounded-2xl text-center"
-          style={{
-            backgroundColor: "rgba(10,22,40,0.92)",
-            border: "1.5px dashed rgba(96,165,250,0.7)",
-          }}
-        >
-          <Plus className="h-5 w-5" style={{ color: "#93c5fd" }} />
-          <span className="text-xs font-semibold text-slate-200">Drop image to attach</span>
-          <span className="text-[10px]" style={{ color: "#64748b" }}>
-            Add a caption, then send
-          </span>
-        </div>
-      ) : null}
-
+    <div className="relative">
       {suggestOpen && suggestions.length > 0 ? (
         <ul
           className="absolute bottom-full left-3 right-3 mb-2 max-h-52 overflow-y-auto rounded-xl py-1 shadow-2xl"
@@ -488,9 +408,9 @@ export function MessageComposer({
         className="px-3 pt-1.5"
         style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom))" }}
       >
-        {pending.length > 0 ? (
+        {selected.length > 0 ? (
           <div className="mb-1.5 flex flex-wrap gap-2">
-            {pending.map((p) => (
+            {selected.map((p) => (
               <div
                 key={p.id}
                 className="relative h-16 w-16 overflow-hidden rounded-lg"
@@ -498,22 +418,9 @@ export function MessageComposer({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={p.previewUrl} alt="" className="h-full w-full object-cover" />
-                {p.status === "uploading" ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                    <Loader2 className="h-4 w-4 animate-spin text-white" />
-                  </div>
-                ) : null}
-                {p.status === "error" ? (
-                  <div
-                    className="absolute inset-0 flex items-center justify-center bg-black/60 px-1 text-center text-[8px] text-rose-300"
-                    title={p.error}
-                  >
-                    Failed
-                  </div>
-                ) : null}
                 <button
                   type="button"
-                  onClick={() => removePending(p.id)}
+                  onClick={() => removeSelected(p.id)}
                   className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black"
                   aria-label="Remove image"
                 >
@@ -540,7 +447,7 @@ export function MessageComposer({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || sending || pending.length >= CHAT_MAX_ATTACHMENTS}
+            disabled={disabled || sending || selected.length >= CHAT_MAX_ATTACHMENTS}
             className="flex h-9 w-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/5 hover:text-white disabled:opacity-40"
             style={{ color: "#64748b" }}
             aria-label="Attach image"
@@ -591,11 +498,6 @@ export function MessageComposer({
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-[18px] w-[18px]" />}
           </button>
         </div>
-        {pending.some((p) => p.status === "error") ? (
-          <p className="mt-1 px-2 text-[11px] text-rose-400">
-            {pending.find((p) => p.status === "error")?.error ?? "Image upload failed."}
-          </p>
-        ) : null}
       </div>
     </div>
   );

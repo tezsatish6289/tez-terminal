@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import Image from "next/image";
-import { Check, Flag, Loader2, Pencil, Trash2, User, X } from "lucide-react";
+import { Check, Flag, Loader2, Pencil, RotateCw, Trash2, User, X } from "lucide-react";
 import type { ChatAttachment } from "@/lib/chat/types";
 import { format } from "date-fns";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
@@ -92,23 +92,27 @@ interface MessageItemProps {
   onEdit: (id: string, text: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onReport: (message: ChatMessage) => void;
+  onRetry: (id: string) => void;
+  onDiscard: (id: string) => void;
 }
 
 function AttachmentGrid({
   attachments,
   onZoom,
+  status,
 }: {
   attachments: ChatAttachment[];
   onZoom: (a: ChatAttachment) => void;
+  status?: "sending" | "failed";
 }) {
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5">
-      {attachments.map((a) => (
+      {attachments.map((a, i) => (
         <button
-          key={a.path}
+          key={a.path || a.url || i}
           type="button"
-          onClick={() => onZoom(a)}
-          className="block overflow-hidden rounded-lg transition-opacity hover:opacity-90"
+          onClick={() => (status ? undefined : onZoom(a))}
+          className="relative block overflow-hidden rounded-lg transition-opacity hover:opacity-90"
           style={{ border: "1px solid rgba(90,140,220,0.2)" }}
           aria-label="View image"
         >
@@ -120,7 +124,13 @@ function AttachmentGrid({
             height={a.height || undefined}
             loading="lazy"
             className="h-auto max-h-[260px] w-auto max-w-[220px] object-cover"
+            style={{ opacity: status ? 0.6 : 1 }}
           />
+          {status === "sending" ? (
+            <span className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-white" />
+            </span>
+          ) : null}
         </button>
       ))}
     </div>
@@ -162,13 +172,22 @@ function Lightbox({ attachment, onClose }: { attachment: ChatAttachment; onClose
   );
 }
 
-export function MessageItem({ message, isOwn, onEdit, onDelete, onReport }: MessageItemProps) {
+export function MessageItem({
+  message,
+  isOwn,
+  onEdit,
+  onDelete,
+  onReport,
+  onRetry,
+  onDiscard,
+}: MessageItemProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.text);
   const [busy, setBusy] = useState(false);
   const [zoom, setZoom] = useState<ChatAttachment | null>(null);
 
-  const canEdit = isOwn && Date.now() - message.createdAt <= CHAT_EDIT_WINDOW_MS;
+  const pending = message.clientStatus; // "sending" | "failed" | undefined
+  const canEdit = isOwn && !pending && Date.now() - message.createdAt <= CHAT_EDIT_WINDOW_MS;
 
   if (message.deleted) {
     return (
@@ -252,7 +271,31 @@ export function MessageItem({ message, isOwn, onEdit, onDelete, onReport }: Mess
               </p>
             ) : null}
             {message.attachments?.length ? (
-              <AttachmentGrid attachments={message.attachments} onZoom={setZoom} />
+              <AttachmentGrid attachments={message.attachments} onZoom={setZoom} status={pending} />
+            ) : null}
+            {pending === "sending" ? (
+              <p className="mt-1 flex items-center gap-1 text-[10px]" style={{ color: "#64748b" }}>
+                <Loader2 className="h-2.5 w-2.5 animate-spin" /> Sending…
+              </p>
+            ) : null}
+            {pending === "failed" ? (
+              <div className="mt-1 flex items-center gap-2 text-[10px]">
+                <span className="text-rose-400">Failed to send.</span>
+                <button
+                  type="button"
+                  onClick={() => onRetry(message.id)}
+                  className="flex items-center gap-1 font-semibold text-blue-400 hover:text-blue-300"
+                >
+                  <RotateCw className="h-2.5 w-2.5" /> Retry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDiscard(message.id)}
+                  className="font-semibold text-slate-500 hover:text-slate-300"
+                >
+                  Discard
+                </button>
+              </div>
             ) : null}
           </>
         )}
@@ -260,7 +303,7 @@ export function MessageItem({ message, isOwn, onEdit, onDelete, onReport }: Mess
 
       {zoom ? <Lightbox attachment={zoom} onClose={() => setZoom(null)} /> : null}
 
-      {!editing ? (
+      {!editing && !pending ? (
         <div className="flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           {canEdit ? (
             <button type="button" onClick={() => setEditing(true)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300" aria-label="Edit message">

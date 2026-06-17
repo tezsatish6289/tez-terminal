@@ -56,6 +56,12 @@ export interface ChatMessage {
   flagged: boolean;
   /** Image attachments (shared screenshots). Omitted when there are none. */
   attachments?: ChatAttachment[];
+  /**
+   * Client-only optimistic send state for outgoing messages (uploading in the
+   * background). Never written to RTDB/Firestore. When set, attachment URLs are
+   * local blob previews and the message is rendered with sending/retry UI.
+   */
+  clientStatus?: "sending" | "failed";
 }
 
 /**

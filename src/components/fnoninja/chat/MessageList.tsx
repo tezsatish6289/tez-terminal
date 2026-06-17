@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { MessageItem } from "@/components/fnoninja/chat/MessageItem";
 import type { ChatMessage } from "@/lib/chat/types";
@@ -40,6 +40,21 @@ export function MessageList({
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastCountRef = useRef(0);
   const [showJump, setShowJump] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const highlightTimer = useRef<number | undefined>(undefined);
+
+  // Scroll to (and briefly highlight) a message by id — used when tapping a
+  // reply quote to see the original in context.
+  const jumpToMessage = useCallback((id: string) => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-mid="${CSS.escape(id)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightId(id);
+    window.clearTimeout(highlightTimer.current);
+    highlightTimer.current = window.setTimeout(() => setHighlightId(null), 1800);
+  }, []);
+
+  useEffect(() => () => window.clearTimeout(highlightTimer.current), []);
 
   const jumpToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -113,6 +128,8 @@ export function MessageList({
             onRetry={onRetry}
             onDiscard={onDiscard}
             onReply={onReply}
+            onJumpTo={jumpToMessage}
+            highlight={m.id === highlightId}
           />
         ))}
         <div ref={bottomRef} />

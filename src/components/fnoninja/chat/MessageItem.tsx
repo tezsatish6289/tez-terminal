@@ -95,6 +95,8 @@ interface MessageItemProps {
   onRetry: (id: string) => void;
   onDiscard: (id: string) => void;
   onReply: (message: ChatMessage) => void;
+  onJumpTo: (id: string) => void;
+  highlight?: boolean;
 }
 
 function AttachmentGrid({
@@ -182,6 +184,8 @@ export function MessageItem({
   onRetry,
   onDiscard,
   onReply,
+  onJumpTo,
+  highlight,
 }: MessageItemProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.text);
@@ -193,7 +197,7 @@ export function MessageItem({
 
   if (message.deleted) {
     return (
-      <div className="px-3 py-1.5 text-xs italic" style={{ color: "#475569" }}>
+      <div data-mid={message.id} className="px-3 py-1.5 text-xs italic" style={{ color: "#475569" }}>
         Message removed{message.deletedBy === "mod" ? " by a moderator" : ""}.
       </div>
     );
@@ -224,7 +228,11 @@ export function MessageItem({
   };
 
   return (
-    <div className="group flex gap-2.5 px-3 py-2 hover:bg-white/[0.02]">
+    <div
+      data-mid={message.id}
+      className="group flex gap-2.5 px-3 py-2 transition-colors duration-700 hover:bg-white/[0.02]"
+      style={highlight ? { backgroundColor: "rgba(37,99,235,0.16)" } : undefined}
+    >
       <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full" style={{ backgroundColor: "rgba(37,99,235,0.12)" }}>
         {message.authorPhoto ? (
           <Image src={message.authorPhoto} alt="" width={28} height={28} className="h-full w-full object-cover" unoptimized />
@@ -268,14 +276,17 @@ export function MessageItem({
         ) : (
           <>
             {message.replyTo ? (
-              <div
-                className="mb-1 mt-0.5 rounded-md px-2 py-1"
+              <button
+                type="button"
+                onClick={() => onJumpTo(message.replyTo!.id)}
+                className="mb-1 mt-0.5 block w-full rounded-md px-2 py-1 text-left transition-colors hover:bg-white/5"
                 style={{ backgroundColor: "rgba(37,99,235,0.08)", borderLeft: "2px solid #3b82f6" }}
+                title="View replied message"
               >
-                <p className="truncate text-[10px] font-semibold" style={{ color: "#93c5fd" }}>
+                <span className="block truncate text-[10px] font-semibold" style={{ color: "#93c5fd" }}>
                   {message.replyTo.authorName}
-                </p>
-                <p className="flex items-center gap-1 truncate text-[11px]" style={{ color: "#7d8da3" }}>
+                </span>
+                <span className="flex items-center gap-1 truncate text-[11px]" style={{ color: "#7d8da3" }}>
                   {message.replyTo.hasImage ? (
                     <>
                       <ImageIcon className="h-2.5 w-2.5 shrink-0" />
@@ -284,8 +295,8 @@ export function MessageItem({
                   ) : (
                     message.replyTo.text
                   )}
-                </p>
-              </div>
+                </span>
+              </button>
             ) : null}
             {message.text ? (
               <p className="whitespace-pre-wrap break-words text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>

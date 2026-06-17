@@ -21,6 +21,7 @@ import { BroadcastClock } from "./BroadcastClock";
 import { BroadcastExplainer } from "./BroadcastExplainer";
 import { BroadcastLiveslide } from "./BroadcastLiveslide";
 import { BroadcastTicker } from "./BroadcastTicker";
+import { prefetchSymbol } from "./broadcast-data";
 
 interface IndexItem {
   symbol?: string;
@@ -38,9 +39,10 @@ interface LevelsPayload {
 
 /** How often to re-pull levels. */
 const POLL_MS = 60_000;
-/** Dwell per page: the map intro vs each single-stock focus page. */
+/** Dwell per page: the map intro vs each single-stock focus page. The stock
+ *  dwell is long enough to roll through that symbol's news headlines. */
 const MAP_MS = 30_000;
-const STOCK_MS = 14_000;
+const STOCK_MS = 30_000;
 
 type Scene = "map" | "live";
 type Page = { type: "map" } | { type: "stock"; item: LevelsActionableItem };
@@ -148,6 +150,16 @@ export function BroadcastScene() {
 
   const page = pages[pageIdx % pages.length] ?? { type: "map" };
   const pageKey = page.type === "map" ? "map" : `stock-${page.item.symbol}`;
+
+  // Warm the NEXT page's data (levels + news + candles) in the background so it
+  // paints instantly when we fade to it.
+  useEffect(() => {
+    if (pages.length <= 1) return;
+    const next = pages[(pageIdx + 1) % pages.length];
+    if (next.type === "stock") {
+      prefetchSymbol(next.item.scope, next.item.symbol);
+    }
+  }, [pageIdx, pages]);
 
   return (
     <div

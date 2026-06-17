@@ -8,6 +8,7 @@ import {
   formatClusterStrike,
 } from "@/lib/levels/format-cluster-size";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
+import { BroadcastNews } from "./BroadcastNews";
 
 const SUPPORT = "#34d399";
 const RESIST = "#f87171";
@@ -36,11 +37,6 @@ function inr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   if (Math.abs(n) >= 1000) return n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
   return n.toFixed(2);
-}
-
-function band(low: number | null | undefined, high: number | null | undefined): string {
-  if (low == null || high == null) return "—";
-  return `${inr(low)} – ${inr(high)}`;
 }
 
 /** Compact Indian-notation OI (e.g. 1.2 Cr, 3.4 L, 12K). */
@@ -113,15 +109,7 @@ function Chip({ text }: { text: string }) {
 }
 
 /** Descriptive levels card for one stock (used in the single-stock focus page). */
-export function BroadcastSlide({
-  item,
-  index,
-  total,
-}: {
-  item: LevelsActionableItem;
-  index?: number;
-  total?: number;
-}) {
+export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
   const d = item.data;
   const bands = bandsFromLevels(d, item.spot);
   const status = STATUS_META[zoneStatusDisplayKey(bands)];
@@ -194,22 +182,20 @@ export function BroadcastSlide({
         </span>
       </div>
 
-      {/* Stats grid */}
+      {/* Stats — three boxes: max pain (amber) + the two option walls with OI. */}
       <div
         className="grid"
-        style={{ gridTemplateColumns: "1fr 1fr", gap: "1.1vh", marginTop: "1.6vh" }}
+        style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "1.1vh", marginTop: "1.6vh" }}
       >
-        <Stat label="SUPPORT ZONE" value={band(d?.bullLow, d?.bullHigh)} color={SUPPORT} />
-        <Stat label="RESISTANCE ZONE" value={band(d?.bearLow, d?.bearHigh)} color={RESIST} />
         <Stat label="MAX PAIN" value={`₹${inr(d?.poc)}`} color={MAX_PAIN} />
         <Stat
-          label="PUT WALL (SUPPORT)"
+          label="PUT WALL"
           value={wallStrike(d?.putClusterStrike)}
           sub={putOi !== "—" ? `${putOi} contracts` : undefined}
           color={SUPPORT}
         />
         <Stat
-          label="CALL WALL (RESIST)"
+          label="CALL WALL"
           value={wallStrike(d?.callClusterStrike)}
           sub={callOi !== "—" ? `${callOi} contracts` : undefined}
           color={RESIST}
@@ -218,38 +204,15 @@ export function BroadcastSlide({
 
       {/* Context chips */}
       {chips.length > 0 && (
-        <div className="flex flex-wrap items-center" style={{ gap: "0.9vh", marginTop: "1.6vh" }}>
+        <div className="flex flex-wrap items-center" style={{ gap: "0.9vh", marginTop: "1.4vh" }}>
           {chips.map((c) => (
             <Chip key={c} text={c} />
           ))}
         </div>
       )}
 
-      <div className="flex-1" />
-
-      {/* Rotation progress (only when shown as part of a multi-slide rotation) */}
-      {index != null && total != null && total > 1 && (
-        <div className="flex items-center justify-between" style={{ marginTop: "1.4vh" }}>
-          <div className="flex items-center" style={{ gap: "0.6vh" }}>
-            {Array.from({ length: Math.min(total, 12) }).map((_, i) => (
-              <span
-                key={i}
-                style={{
-                  width: i === index % Math.min(total, 12) ? "2.4vh" : "0.9vh",
-                  height: "0.9vh",
-                  borderRadius: "999px",
-                  background:
-                    i === index % Math.min(total, 12) ? "#60a5fa" : "rgba(96,165,250,0.25)",
-                  transition: "width 0.3s ease",
-                }}
-              />
-            ))}
-          </div>
-          <span style={{ fontSize: "1.35vh", color: MUTED, fontWeight: 700 }}>
-            {index + 1} / {total}
-          </span>
-        </div>
-      )}
+      {/* Rolling recent news fills the freed space below. */}
+      <BroadcastNews scope={item.scope} symbol={item.symbol} />
     </div>
   );
 }

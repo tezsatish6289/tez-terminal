@@ -5,6 +5,7 @@ import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { NativeCandlesChart } from "@/components/levels/NativeCandlesChart";
 import type { LevelsActionableItem } from "@/lib/zones/levels-actionable-list";
 import { BroadcastSlide } from "./BroadcastSlide";
+import { cachedLevels, fetchLevels } from "./broadcast-data";
 
 /**
  * Single-stock focus page — the "actual Liveslide": one symbol at a time, a
@@ -13,26 +14,21 @@ import { BroadcastSlide } from "./BroadcastSlide";
  * descriptive levels rail. Purely informational; no calls.
  */
 export function BroadcastLiveslide({ item }: { item: LevelsActionableItem }) {
-  const [levels, setLevels] = useState<PublicLevels | null>(item.data);
+  const [levels, setLevels] = useState<PublicLevels | null>(
+    () => cachedLevels(item.scope, item.symbol) ?? item.data,
+  );
 
   // Stocks in the in-zone list only carry compact aggregate fields — fetch the
-  // per-symbol ladder (clusters + strikes) the same way the main Liveslide does.
+  // per-symbol ladder (clusters + strikes). Served instantly from cache when
+  // the prefetcher already warmed this symbol.
   useEffect(() => {
-    setLevels(item.data);
+    setLevels(cachedLevels(item.scope, item.symbol) ?? item.data);
     if (item.scope !== "stock") return;
 
     let cancelled = false;
-    fetch(
-      `/api/freedombot/levels?symbol=${encodeURIComponent(item.symbol)}&slideshow=1`,
-      { cache: "no-store" },
-    )
-      .then((res) => res.json())
-      .then((json: { data: PublicLevels | null }) => {
-        if (!cancelled && json.data) setLevels(json.data);
-      })
-      .catch(() => {
-        /* keep bundled */
-      });
+    void fetchLevels(item.scope, item.symbol).then((data) => {
+      if (!cancelled && data) setLevels(data);
+    });
     return () => {
       cancelled = true;
     };
@@ -42,8 +38,8 @@ export function BroadcastLiveslide({ item }: { item: LevelsActionableItem }) {
 
   return (
     <>
-      {/* Live chart — same height as the levels rail (title overlaid inside). */}
-      <section className="relative flex flex-col min-h-0 self-stretch" style={{ flex: "1 1 0%" }}>
+      {/* Live chart — left 60%, levels + news rail right 40%. */}
+      <section className="relative flex flex-col min-h-0 self-stretch" style={{ flex: "3 1 0%" }}>
         <div
           className="flex-1 min-h-0 rounded-xl overflow-hidden pointer-events-none select-none"
           style={{ border: "1px solid rgba(90,140,220,0.18)", background: "#070d1a" }}
@@ -81,11 +77,11 @@ export function BroadcastLiveslide({ item }: { item: LevelsActionableItem }) {
         </div>
       </section>
 
-      {/* Descriptive levels rail — matched height to the chart pane. */}
+      {/* Descriptive levels + news rail — 40% width, matched height. */}
       <aside
         className="flex flex-col min-h-0 self-stretch rounded-xl"
         style={{
-          flex: "1 1 0%",
+          flex: "2 1 0%",
           padding: "2vh",
           background: "linear-gradient(180deg, rgba(13,27,46,0.85), rgba(8,15,30,0.85))",
           border: "1px solid rgba(90,140,220,0.2)",

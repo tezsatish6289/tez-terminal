@@ -5,28 +5,23 @@ import type { LevelsActionableItem } from "@/lib/zones/levels-actionable-list";
 import { BroadcastSlide } from "./BroadcastSlide";
 
 /**
- * Liveslide scene — the actual per-symbol experience: a live candlestick chart
- * with derived support/resistance bands + option-wall lines (reusing the app's
- * NativeCandlesChart), beside a compact descriptive info rail. Purely
- * informational: it describes where price sits vs option-built zones, no calls.
+ * Single-stock focus page — the "actual Liveslide": one symbol at a time, a
+ * large live candlestick chart with derived support/resistance bands +
+ * option-wall lines (reusing the app's NativeCandlesChart), beside a compact
+ * descriptive levels rail. Purely informational; no calls.
  */
-export function BroadcastLiveslide({
-  item,
-  index,
-  total,
-}: {
-  item: LevelsActionableItem;
-  index: number;
-  total: number;
-}) {
+export function BroadcastLiveslide({ item }: { item: LevelsActionableItem }) {
   return (
     <>
-      {/* Live chart with zones */}
-      <section className="flex flex-col min-h-0" style={{ flex: "1.7 1 0%" }}>
+      {/* Live chart with zones — the focus of the page. */}
+      <section className="flex flex-col min-h-0" style={{ flex: "2 1 0%" }}>
         <div className="flex items-center" style={{ gap: "0.9vh", marginBottom: "1.1vh" }}>
           <span style={{ width: "0.5vh", height: "2.2vh", borderRadius: "999px", background: "#60a5fa" }} />
           <span className="font-black" style={{ fontSize: "1.9vh", color: "#f0f4ff" }}>
-            Live levels · support &amp; resistance · option walls
+            {item.symbol}
+          </span>
+          <span style={{ fontSize: "1.5vh", color: "#64748b" }}>
+            · live levels · support &amp; resistance · option walls
           </span>
         </div>
         <div
@@ -47,7 +42,7 @@ export function BroadcastLiveslide({
         </div>
       </section>
 
-      {/* Descriptive info rail */}
+      {/* Descriptive levels rail. */}
       <aside
         className="flex flex-col min-h-0 rounded-xl"
         style={{
@@ -57,7 +52,7 @@ export function BroadcastLiveslide({
           border: "1px solid rgba(90,140,220,0.2)",
         }}
       >
-        <BroadcastSlide item={item} index={index} total={total} />
+        <BroadcastSlide item={item} />
       </aside>
     </>
   );

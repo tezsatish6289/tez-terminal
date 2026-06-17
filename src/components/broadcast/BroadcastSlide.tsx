@@ -87,15 +87,15 @@ function Chip({ text }: { text: string }) {
   );
 }
 
-/** One auto-rotating setup card for the broadcast slideshow panel. */
+/** Descriptive levels card for one stock (used in the single-stock focus page). */
 export function BroadcastSlide({
   item,
   index,
   total,
 }: {
   item: LevelsActionableItem;
-  index: number;
-  total: number;
+  index?: number;
+  total?: number;
 }) {
   const d = item.data;
   const bands = bandsFromLevels(d, item.spot);
@@ -197,27 +197,29 @@ export function BroadcastSlide({
 
       <div className="flex-1" />
 
-      {/* Rotation progress */}
-      <div className="flex items-center justify-between" style={{ marginTop: "1.4vh" }}>
-        <div className="flex items-center" style={{ gap: "0.6vh" }}>
-          {Array.from({ length: Math.min(total, 12) }).map((_, i) => (
-            <span
-              key={i}
-              style={{
-                width: i === index % Math.min(total, 12) ? "2.4vh" : "0.9vh",
-                height: "0.9vh",
-                borderRadius: "999px",
-                background:
-                  i === index % Math.min(total, 12) ? "#60a5fa" : "rgba(96,165,250,0.25)",
-                transition: "width 0.3s ease",
-              }}
-            />
-          ))}
+      {/* Rotation progress (only when shown as part of a multi-slide rotation) */}
+      {index != null && total != null && total > 1 && (
+        <div className="flex items-center justify-between" style={{ marginTop: "1.4vh" }}>
+          <div className="flex items-center" style={{ gap: "0.6vh" }}>
+            {Array.from({ length: Math.min(total, 12) }).map((_, i) => (
+              <span
+                key={i}
+                style={{
+                  width: i === index % Math.min(total, 12) ? "2.4vh" : "0.9vh",
+                  height: "0.9vh",
+                  borderRadius: "999px",
+                  background:
+                    i === index % Math.min(total, 12) ? "#60a5fa" : "rgba(96,165,250,0.25)",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            ))}
+          </div>
+          <span style={{ fontSize: "1.35vh", color: MUTED, fontWeight: 700 }}>
+            {index + 1} / {total}
+          </span>
         </div>
-        <span style={{ fontSize: "1.35vh", color: MUTED, fontWeight: 700 }}>
-          {index + 1} / {total}
-        </span>
-      </div>
+      )}
     </div>
   );
 }

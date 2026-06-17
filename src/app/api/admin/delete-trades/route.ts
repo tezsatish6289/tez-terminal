@@ -16,6 +16,9 @@ export const dynamic = "force-dynamic";
  *   to        — ISO date, only trades opened on or before (e.g. 2026-04-01)
  *   dry       — "true" to preview without deleting
  *   forceLive — "true" to delete linked live_trades even if OPEN (Firestore only)
+ *   action    — "closeOrphanLive" to close OPEN live mirrors whose sim is missing/CLOSED
+ *   symbol    — with closeOrphanLive, e.g. XRP or XRPUSDT.P
+ *   side      — with closeOrphanLive, SELL|BUY
  *
  * Examples:
  *   ?ids=sim-manual-btc-1781173062993&dry=true
@@ -29,12 +32,78 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const action = request.nextUrl.searchParams.get("action");
+  const dryRun = request.nextUrl.searchParams.get("dry") === "true";
+
+  // Close orphaned OPEN live mirrors (sim missing or CLOSED). Does not touch OPEN sims.
+  if (action === "closeOrphanLive") {
+    const symbol = request.nextUrl.searchParams.get("symbol")?.trim() || undefined;
+    const simTradeId = request.nextUrl.searchParams.get("simTradeId")?.trim() || undefined;
+    const sideRaw = request.nextUrl.searchParams.get("side")?.trim().toUpperCase();
+    const side =
+      sideRaw === "SELL" || sideRaw === "SHORT" || sideRaw === "BEAR"
+        ? ("SELL" as const)
+        : sideRaw === "BUY" || sideRaw === "LONG" || sideRaw === "BULL"
+          ? ("BUY" as const)
+          : undefined;
+
+    if (!symbol && !side && !simTradeId) {
+      return NextResponse.json(
+        { error: "Provide simTradeId and/or symbol/side filter for closeOrphanLive" },
+        { status: 400 },
+      );
+    }
+
+    const db = getAdminFirestore();
+    const { findOpenLiveMirrors } = await import("@/lib/admin/force-close-sim-trade");
+    const previews = await findOpenLiveMirrors({ db, symbol, side, simTradeId });
+
+    if (dryRun) {
+      const orphanPreviews = [];
+      for (const row of previews) {
+        const simDoc = row.simTradeId
+          ? await db.collection("simulator_trades").doc(row.simTradeId).get()
+          : null;
+        const simOpen = simDoc?.exists && simDoc.data()?.status === "OPEN";
+        orphanPreviews.push({
+          ...row,
+          simStatus: simDoc?.exists ? simDoc.data()?.status : "MISSING",
+          orphan: !simOpen,
+        });
+      }
+      return NextResponse.json({
+        dryRun: true,
+        action: "closeOrphanLive",
+        filters: { simTradeId: simTradeId ?? null, symbol: symbol ?? null, side: side ?? null },
+        openLiveMirrors: orphanPreviews,
+        orphanCount: orphanPreviews.filter((r) => r.orphan).length,
+      });
+    }
+
+    const { closeOpenLiveMirrorsByFilter } = await import(
+      "@/lib/admin/cascade-close-live-mirrors"
+    );
+    const result = await closeOpenLiveMirrorsByFilter({
+      db,
+      symbol,
+      side,
+      simTradeId,
+      orphansOnly: true,
+    });
+
+    return NextResponse.json({
+      success: result.liveErrors.length === 0,
+      action: "closeOrphanLive",
+      filters: { simTradeId: simTradeId ?? null, symbol: symbol ?? null, side: side ?? null },
+      ...result,
+    });
+  }
+
   const idsParam = request.nextUrl.searchParams.get("ids");
   const symbolsParam = request.nextUrl.searchParams.get("symbols");
   const assetParam = request.nextUrl.searchParams.get("asset");
   const fromParam = request.nextUrl.searchParams.get("from");
   const toParam = request.nextUrl.searchParams.get("to");
-  const dryRun = request.nextUrl.searchParams.get("dry") === "true";
   const forceLiveDelete = request.nextUrl.searchParams.get("forceLive") === "true";
 
   const ids = idsParam

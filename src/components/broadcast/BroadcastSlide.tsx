@@ -186,15 +186,27 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
         </span>
       </div>
 
-      {/* Spot */}
-      <div className="flex items-baseline" style={{ gap: "0.8vh", marginTop: "1.6vh" }}>
-        <span style={{ fontSize: "1.6vh", color: MUTED, fontWeight: 700 }}>SPOT</span>
-        <span
-          className="font-mono tabular-nums font-black"
-          style={{ fontSize: "4vh", color: INK }}
-        >
-          ₹{inr(item.spot)}
-        </span>
+      {/* Spot + context chips — chips sit on the right, same row as price. */}
+      <div
+        className="flex items-center justify-between"
+        style={{ gap: "1.2vh", marginTop: "1.6vh" }}
+      >
+        <div className="flex items-baseline min-w-0" style={{ gap: "0.8vh" }}>
+          <span style={{ fontSize: "1.6vh", color: MUTED, fontWeight: 700 }}>SPOT</span>
+          <span
+            className="font-mono tabular-nums font-black"
+            style={{ fontSize: "4vh", color: INK }}
+          >
+            ₹{inr(item.spot)}
+          </span>
+        </div>
+        {chips.length > 0 && (
+          <div className="flex flex-wrap items-center justify-end shrink-0" style={{ gap: "0.9vh" }}>
+            {chips.map((c) => (
+              <Chip key={c} text={c} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Stats — three boxes: max pain (amber) + the two option walls with OI. */}
@@ -216,15 +228,6 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
           color={RESIST}
         />
       </div>
-
-      {/* Context chips */}
-      {chips.length > 0 && (
-        <div className="flex flex-wrap items-center" style={{ gap: "0.9vh", marginTop: "1.4vh" }}>
-          {chips.map((c) => (
-            <Chip key={c} text={c} />
-          ))}
-        </div>
-      )}
 
       {/* Rolling recent news fills the freed space below. */}
       <BroadcastNews scope={item.scope} symbol={item.symbol} />

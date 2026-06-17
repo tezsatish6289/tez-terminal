@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   buildLevelsBubbleItems,
@@ -76,18 +77,16 @@ const ON_AIR_CSS = `
   100% { opacity: 1; transform: scale(1); }
 }
 .broadcast-page-fade { animation: broadcast-page-fade 0.9s ease both; }
-@keyframes broadcast-page-out {
-  0% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.006); }
+.broadcast-layer {
+  transition: opacity 0.9s ease, visibility 0.9s ease;
 }
-.broadcast-page-out { animation: broadcast-page-out 0.9s ease both; }
 `;
-/** Cross-fade duration — must match the animations above. */
-const FADE_MS = 900;
 
 export function BroadcastScene() {
+  const searchParams = useSearchParams();
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [pageIdx, setPageIdx] = useState(0);
+  const [heldStock, setHeldStock] = useState<LevelsActionableItem | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -131,10 +130,9 @@ export function BroadcastScene() {
 
   // Optional ?scene=map|live override — pins the rotation (preview/debug).
   const forcedScene = useMemo<Scene | null>(() => {
-    if (typeof window === "undefined") return null;
-    const s = new URLSearchParams(window.location.search).get("scene");
+    const s = searchParams.get("scene");
     return s === "live" || s === "map" ? s : null;
-  }, []);
+  }, [searchParams]);
 
   // The full broadcast loop alternates the bubble map with one stock at a time:
   //   map → stock₁ → map → stock₂ → map → stock₃ → … (then loops).
@@ -161,7 +159,11 @@ export function BroadcastScene() {
   }, [pageIdx, pages]);
 
   const page = pages[pageIdx % pages.length] ?? { type: "map" };
-  const pageKey = page.type === "map" ? "map" : `stock-${page.item.symbol}`;
+  const showMap = page.type === "map";
+
+  useEffect(() => {
+    if (page.type === "stock") setHeldStock(page.item);
+  }, [page]);
 
   // Warm the NEXT page's data (levels + news + candles) in the background so it
   // paints instantly when we fade to it. Because the map is interleaved before
@@ -174,81 +176,53 @@ export function BroadcastScene() {
     }
   }, [pageIdx, pages]);
 
-  // Cross-fade: keep the outgoing page mounted (fading out) while the incoming
-  // one fades in, so the swap never dips through the empty background and the
-  // chart mount is hidden behind the fade.
-  const [cur, setCur] = useState<{ key: string; page: Page }>({
-    key: "map",
-    page: { type: "map" },
-  });
-  const [leaving, setLeaving] = useState<{ key: string; page: Page } | null>(null);
-  const shownRef = useRef<{ key: string; page: Page } | null>(null);
-
-  useEffect(() => {
-    const prev = shownRef.current;
-    if (!prev || prev.key === pageKey) return;
-    setLeaving(prev);
-    const t = window.setTimeout(() => {
-      setLeaving((l) => (l && l.key === prev.key ? null : l));
-    }, FADE_MS);
-    return () => window.clearTimeout(t);
-  }, [pageKey]);
-
-  useEffect(() => {
-    const next = { key: pageKey, page };
-    setCur(next);
-    shownRef.current = next;
-  }, [pageKey, page]);
-
-  const renderPage = (p: Page) =>
-    p.type === "stock" ? (
-      <BroadcastLiveslide item={p.item} />
-    ) : (
-      <>
-        {/* Bubble map — non-interactive in broadcast (no hover tooltips / cursors).
-            Title overlaid inside so the panel matches the explainer box height. */}
-        <section className="relative flex flex-col min-h-0" style={{ flex: "1.7 1 0%" }}>
-          <div className="flex-1 min-h-0 pointer-events-none select-none">
-            <LevelsBubblesView
-              items={bubbleItems}
-              onBubbleOpen={() => {}}
-              hasMarketData={Boolean(payload)}
-              toneFilter="all"
-            />
-          </div>
-          <div
-            className="absolute z-10 flex items-center rounded-lg"
-            style={{
-              top: "1.4vh",
-              left: "1.4vh",
-              gap: "0.9vh",
-              padding: "0.7vh 1.3vh",
-              background: "rgba(8,15,30,0.72)",
-              border: "1px solid rgba(90,140,220,0.22)",
-              backdropFilter: "blur(4px)",
-            }}
-          >
-            <span style={{ width: "0.5vh", height: "2vh", borderRadius: "999px", background: "#3b82f6" }} />
-            <span className="font-black" style={{ fontSize: "1.8vh", color: "#f0f4ff" }}>
-              Option-Wall Map · live F&amp;O universe
-            </span>
-          </div>
-        </section>
-
-        {/* Explainer panel — what FNONINJA is / how it works (policy-safe, no setups). */}
-        <aside
-          className="flex flex-col min-h-0 rounded-xl"
+  const mapPane = (
+    <>
+      {/* Bubble map — kept mounted so physics/layout stay warm between stock pages. */}
+      <section
+        className="relative flex flex-col min-h-0 self-stretch h-full"
+        style={{ flex: "1.7 1 0%" }}
+      >
+        <div className="flex flex-1 min-h-0 h-full pointer-events-none select-none">
+          <LevelsBubblesView
+            items={bubbleItems}
+            onBubbleOpen={() => {}}
+            hasMarketData={Boolean(payload)}
+            toneFilter="all"
+          />
+        </div>
+        <div
+          className="absolute z-10 flex items-center rounded-lg"
           style={{
-            flex: "1 1 0%",
-            padding: "2.4vh",
-            background: "linear-gradient(180deg, rgba(13,27,46,0.85), rgba(8,15,30,0.85))",
-            border: "1px solid rgba(90,140,220,0.2)",
+            top: "1.4vh",
+            left: "1.4vh",
+            gap: "0.9vh",
+            padding: "0.7vh 1.3vh",
+            background: "rgba(8,15,30,0.72)",
+            border: "1px solid rgba(90,140,220,0.22)",
+            backdropFilter: "blur(4px)",
           }}
         >
-          <BroadcastExplainer />
-        </aside>
-      </>
-    );
+          <span style={{ width: "0.5vh", height: "2vh", borderRadius: "999px", background: "#3b82f6" }} />
+          <span className="font-black" style={{ fontSize: "1.8vh", color: "#f0f4ff" }}>
+            Option-Wall Map · live F&amp;O universe
+          </span>
+        </div>
+      </section>
+
+      <aside
+        className="flex flex-col min-h-0 self-stretch rounded-xl"
+        style={{
+          flex: "1 1 0%",
+          padding: "2.4vh",
+          background: "linear-gradient(180deg, rgba(13,27,46,0.85), rgba(8,15,30,0.85))",
+          border: "1px solid rgba(90,140,220,0.2)",
+        }}
+      >
+        <BroadcastExplainer />
+      </aside>
+    </>
+  );
 
   return (
     <div
@@ -315,26 +289,39 @@ export function BroadcastScene() {
         </div>
       </header>
 
-      {/* Body — the bubble map and stock focus pages alternate, cross-fading on
-          every change (outgoing fades out as incoming fades in). The header +
-          ticker stay put. */}
+      {/* Body — map and stock are separate persistent layers that cross-fade via
+          opacity. The bubble map never unmounts so its layout/physics stay warm. */}
       <main className="relative flex flex-1 min-h-0">
-        {leaving && (
+        <div
+          className="broadcast-layer absolute inset-0 flex min-h-0 w-full items-stretch"
+          style={{
+            padding: "2vh",
+            gap: "2vh",
+            opacity: showMap ? 1 : 0,
+            pointerEvents: showMap ? "auto" : "none",
+            zIndex: showMap ? 2 : 1,
+          }}
+          aria-hidden={!showMap}
+        >
+          {mapPane}
+        </div>
+        {heldStock && (
           <div
-            key={leaving.key}
-            className="broadcast-page-out absolute inset-0 flex min-h-0 w-full items-stretch"
-            style={{ padding: "2vh", gap: "2vh" }}
+            key={heldStock.symbol}
+            className="broadcast-layer absolute inset-0 flex min-h-0 w-full items-stretch"
+            style={{
+              padding: "2vh",
+              gap: "2vh",
+              opacity: showMap ? 0 : 1,
+              visibility: showMap ? "hidden" : "visible",
+              pointerEvents: showMap ? "none" : "auto",
+              zIndex: showMap ? 1 : 2,
+            }}
+            aria-hidden={showMap}
           >
-            {renderPage(leaving.page)}
+            <BroadcastLiveslide item={heldStock} />
           </div>
         )}
-        <div
-          key={cur.key}
-          className="broadcast-page-fade absolute inset-0 flex min-h-0 w-full items-stretch"
-          style={{ padding: "2vh", gap: "2vh" }}
-        >
-          {renderPage(cur.page)}
-        </div>
       </main>
 
       <BroadcastTicker />

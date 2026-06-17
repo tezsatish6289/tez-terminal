@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { BroadcastScene } from "@/components/broadcast/BroadcastScene";
 
 /**
@@ -8,5 +9,9 @@ import { BroadcastScene } from "@/components/broadcast/BroadcastScene";
  * drives free-trial sign-ups. Designed to look correct at 1280×720 and 1920×1080.
  */
 export default function BroadcastLivePage() {
-  return <BroadcastScene />;
+  return (
+    <Suspense fallback={null}>
+      <BroadcastScene />
+    </Suspense>
+  );
 }

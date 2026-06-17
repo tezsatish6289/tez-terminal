@@ -7,6 +7,7 @@ import { FnoNinjaDisclaimerSection } from "@/components/fnoninja/FnoNinjaDisclai
 import { FnoNinjaPricingSection } from "@/components/fnoninja/FnoNinjaPricingSection";
 import { FnoNinjaWhoItsForSection } from "@/components/fnoninja/FnoNinjaWhoItsForSection";
 import { FnoNinjaCommunitySection } from "@/components/fnoninja/FnoNinjaCommunitySection";
+import { FnoNinjaSocialSection } from "@/components/fnoninja/FnoNinjaSocialSection";
 import { FB_NARROW_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_ACCENT, FNO_MUTED, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
@@ -26,6 +27,8 @@ export default function FnoNinjaLandingPage() {
       <FnoNinjaCommunitySection />
 
       <FnoNinjaPricingSection />
+
+      <FnoNinjaSocialSection />
 
       {/* Closing CTA */}
       <section className="py-16 sm:py-24" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>

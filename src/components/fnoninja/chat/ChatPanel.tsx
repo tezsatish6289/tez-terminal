@@ -13,9 +13,10 @@ import {
   editChatMessage,
   reportChatMessage,
   sendChatMessage,
+  uploadChatImage,
 } from "@/lib/chat/client";
 import { CHAT_ROOMS } from "@/lib/chat/constants";
-import type { ChatMessage } from "@/lib/chat/types";
+import type { ChatAttachment, ChatMessage } from "@/lib/chat/types";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { ChatDisclaimer } from "@/components/fnoninja/chat/ChatDisclaimer";
@@ -71,7 +72,12 @@ export function ChatPanel() {
 
   if (!open || !user) return null;
 
-  const handleSend = async (text: string) => {
+  const handleUpload = async (file: File): Promise<ChatAttachment> => {
+    if (!user) throw new Error("Not signed in.");
+    return uploadChatImage(user, roomId, file);
+  };
+
+  const handleSend = async (text: string, attachments: ChatAttachment[]) => {
     if (!user) return;
     const tempId = `temp-${Date.now()}`;
     const temp: ChatMessage = {
@@ -87,10 +93,11 @@ export function ChatPanel() {
       deletedBy: null,
       mentions: [],
       flagged: false,
+      attachments: attachments.length ? attachments : undefined,
     };
     setOptimistic((prev) => [...prev, temp]);
     try {
-      await sendChatMessage(user, roomId, text);
+      await sendChatMessage(user, roomId, text, attachments.map((a) => a.path));
     } catch (e) {
       toast({
         variant: "destructive",
@@ -203,7 +210,11 @@ export function ChatPanel() {
               onReport={handleReport}
             />
             <ChatDisclaimer />
-            <MessageComposer onSend={handleSend} participants={participants} />
+            <MessageComposer
+              onSend={handleSend}
+              onUpload={handleUpload}
+              participants={participants}
+            />
           </>
         )}
       </aside>

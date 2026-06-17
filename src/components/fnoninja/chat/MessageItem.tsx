@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Image from "next/image";
 import { Check, Flag, Loader2, Pencil, Trash2, User, X } from "lucide-react";
+import type { ChatAttachment } from "@/lib/chat/types";
 import { format } from "date-fns";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import { CHAT_EDIT_WINDOW_MS } from "@/lib/chat/constants";
@@ -93,10 +94,79 @@ interface MessageItemProps {
   onReport: (message: ChatMessage) => void;
 }
 
+function AttachmentGrid({
+  attachments,
+  onZoom,
+}: {
+  attachments: ChatAttachment[];
+  onZoom: (a: ChatAttachment) => void;
+}) {
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {attachments.map((a) => (
+        <button
+          key={a.path}
+          type="button"
+          onClick={() => onZoom(a)}
+          className="block overflow-hidden rounded-lg transition-opacity hover:opacity-90"
+          style={{ border: "1px solid rgba(90,140,220,0.2)" }}
+          aria-label="View image"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={a.url}
+            alt=""
+            width={a.width || undefined}
+            height={a.height || undefined}
+            loading="lazy"
+            className="h-auto max-h-[260px] w-auto max-w-[220px] object-cover"
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Lightbox({ attachment, onClose }: { attachment: ChatAttachment; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[260] flex items-center justify-center bg-black/85 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+        aria-label="Close image"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={attachment.url}
+        alt=""
+        className="max-h-full max-w-full rounded-lg object-contain"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
 export function MessageItem({ message, isOwn, onEdit, onDelete, onReport }: MessageItemProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.text);
   const [busy, setBusy] = useState(false);
+  const [zoom, setZoom] = useState<ChatAttachment | null>(null);
 
   const canEdit = isOwn && Date.now() - message.createdAt <= CHAT_EDIT_WINDOW_MS;
 
@@ -175,11 +245,20 @@ export function MessageItem({ message, isOwn, onEdit, onDelete, onReport }: Mess
             </button>
           </div>
         ) : (
-          <p className="whitespace-pre-wrap break-words text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>
-            {renderText(message.text)}
-          </p>
+          <>
+            {message.text ? (
+              <p className="whitespace-pre-wrap break-words text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>
+                {renderText(message.text)}
+              </p>
+            ) : null}
+            {message.attachments?.length ? (
+              <AttachmentGrid attachments={message.attachments} onZoom={setZoom} />
+            ) : null}
+          </>
         )}
       </div>
+
+      {zoom ? <Lightbox attachment={zoom} onClose={() => setZoom(null)} /> : null}
 
       {!editing ? (
         <div className="flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">

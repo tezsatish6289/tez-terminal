@@ -2,15 +2,28 @@ import { initializeApp, getApps, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getDatabaseWithUrl, type Database } from "firebase-admin/database";
+import { getStorage, type Storage } from "firebase-admin/storage";
+import type { Bucket } from "@google-cloud/storage";
 
 let _db: Firestore | null = null;
 let _auth: Auth | null = null;
 let _rtdb: Database | null = null;
+let _bucket: Bucket | null = null;
 
 const ADMIN_PROJECT_ID =
   process.env.GOOGLE_CLOUD_PROJECT ||
   process.env.GCLOUD_PROJECT ||
   "studio-6235588950-a15f2";
+
+/**
+ * Default Cloud Storage bucket for the project. Recent Firebase projects use the
+ * `<project>.firebasestorage.app` form; older ones use `<project>.appspot.com`.
+ * Override with FIREBASE_STORAGE_BUCKET if the default doesn't match.
+ */
+const ADMIN_STORAGE_BUCKET =
+  process.env.FIREBASE_STORAGE_BUCKET ||
+  process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+  `${ADMIN_PROJECT_ID}.firebasestorage.app`;
 
 /**
  * Shared Admin app. On App Hosting / Cloud Run the project id is inferred from
@@ -76,4 +89,17 @@ export function getAdminDatabase(): Database {
     _rtdb = getDatabaseWithUrl(databaseURL, app);
   }
   return _rtdb;
+}
+
+/**
+ * Returns the default Cloud Storage bucket via the Admin SDK (bypasses rules).
+ * Used by community chat for screenshot uploads. The bucket name is not inferred
+ * from ADC, so we pass it explicitly (see ADMIN_STORAGE_BUCKET).
+ */
+export function getAdminStorageBucket(): Bucket {
+  if (!_bucket) {
+    const storage: Storage = getStorage(getAdminApp());
+    _bucket = storage.bucket(ADMIN_STORAGE_BUCKET);
+  }
+  return _bucket;
 }

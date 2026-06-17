@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// Community chat images are written and deleted only by the server (Admin SDK,
+// which bypasses these rules). Clients never read or write Storage directly;
+// images are served via tokenized Firebase download URLs embedded in messages.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

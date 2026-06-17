@@ -18,6 +18,23 @@ export interface ChatUserMention {
 export type ChatMention = ChatSymbolMention | ChatUserMention;
 
 /**
+ * An image attachment on a chat message (e.g. a shared screenshot). Images are
+ * uploaded server-side, re-encoded to strip metadata, and stored in Cloud
+ * Storage; this is the authoritative metadata persisted alongside the message.
+ */
+export interface ChatAttachment {
+  /** Storage object path, e.g. `chat/{roomId}/{uid}/{id}.webp`. */
+  path: string;
+  /** Tokenized Firebase download URL for rendering. */
+  url: string;
+  /** Always an image mime type (we re-encode to a single canonical format). */
+  mimeType: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+}
+
+/**
  * A chat message. The same shape is stored in both RTDB (live stream) and
  * Firestore (durable archive); `id` is shared across both stores.
  */
@@ -37,6 +54,8 @@ export interface ChatMessage {
   mentions: ChatMention[];
   /** Set when the pre-send filter flagged the message for moderator review. */
   flagged: boolean;
+  /** Image attachments (shared screenshots). Omitted when there are none. */
+  attachments?: ChatAttachment[];
 }
 
 /**

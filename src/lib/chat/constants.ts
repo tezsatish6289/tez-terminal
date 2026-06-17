@@ -46,3 +46,24 @@ export const CHAT_RATE_LIMIT_WINDOW_MS = 60_000;
 
 /** Authors can edit their own message for this long after posting. */
 export const CHAT_EDIT_WINDOW_MS = 5 * 60_000;
+
+/* ── Image attachments (shared screenshots) ──────────────────────────────── */
+
+/** Max accepted upload size for a single image, before re-encoding. */
+export const CHAT_IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+/** Image input types we accept at upload (validated by magic bytes too). */
+export const CHAT_IMAGE_ACCEPT = ["image/png", "image/jpeg", "image/webp"] as const;
+
+/** Longest edge after re-encode; larger images are downscaled. */
+export const CHAT_IMAGE_MAX_DIMENSION = 1600;
+
+/** Max images per message. */
+export const CHAT_MAX_ATTACHMENTS = 4;
+
+/**
+ * Stricter sliding-window rate limit for image uploads (per user). Images are
+ * heavier and harder to moderate than text, so they get their own budget.
+ */
+export const CHAT_IMAGE_RATE_LIMIT_COUNT = 6;
+export const CHAT_IMAGE_RATE_LIMIT_WINDOW_MS = 60_000;

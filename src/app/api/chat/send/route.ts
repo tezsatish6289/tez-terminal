@@ -4,16 +4,24 @@ import { resolveChatAccess } from "@/lib/chat/access";
 import { checkAndRecordPost } from "@/lib/chat/rate-limit";
 import { moderateMessage, parseMentions } from "@/lib/chat/moderation";
 import { createMessage } from "@/lib/chat/store";
-import { CHAT_MAX_MESSAGE_LENGTH, isKnownRoom } from "@/lib/chat/constants";
+import { resolveUploadedAttachment } from "@/lib/chat/image-upload";
+import {
+  CHAT_MAX_ATTACHMENTS,
+  CHAT_MAX_MESSAGE_LENGTH,
+  isKnownRoom,
+} from "@/lib/chat/constants";
+import type { ChatAttachment } from "@/lib/chat/types";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 /**
  * POST /api/chat/send
- * Body: { roomId, text }
+ * Body: { roomId, text, attachmentPaths? }
  * Single enforcement point for community chat writes: verifies the user, the
  * subscription gate (canChat) and ban status, rate limits, runs the pre-send
- * content filter, then dual-writes to RTDB + Firestore.
+ * content filter, re-validates any uploaded attachments, then dual-writes to
+ * RTDB + Firestore. A message may contain text, attachments, or both.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireUser(request);
@@ -21,7 +29,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  let body: { roomId?: unknown; text?: unknown };
+  let body: { roomId?: unknown; text?: unknown; attachmentPaths?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -30,18 +38,27 @@ export async function POST(request: NextRequest) {
 
   const roomId = typeof body.roomId === "string" ? body.roomId : "";
   const rawText = typeof body.text === "string" ? body.text : "";
+  const attachmentPaths = Array.isArray(body.attachmentPaths)
+    ? body.attachmentPaths.filter((p): p is string => typeof p === "string")
+    : [];
 
   if (!isKnownRoom(roomId)) {
     return NextResponse.json({ error: "Unknown room" }, { status: 400 });
   }
 
   const text = rawText.trim();
-  if (!text) {
+  if (!text && attachmentPaths.length === 0) {
     return NextResponse.json({ error: "Message is empty." }, { status: 400 });
   }
   if (text.length > CHAT_MAX_MESSAGE_LENGTH) {
     return NextResponse.json(
       { error: `Message exceeds ${CHAT_MAX_MESSAGE_LENGTH} characters.` },
+      { status: 400 },
+    );
+  }
+  if (attachmentPaths.length > CHAT_MAX_ATTACHMENTS) {
+    return NextResponse.json(
+      { error: `A message can include at most ${CHAT_MAX_ATTACHMENTS} images.` },
       { status: 400 },
     );
   }
@@ -59,9 +76,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const moderation = moderateMessage(text);
+  // Only moderate the text portion; images rely on report + moderator review.
+  const moderation = text
+    ? moderateMessage(text)
+    : { blocked: false, flagged: false, reason: null };
   if (moderation.blocked) {
     return NextResponse.json({ error: moderation.reason ?? "Message blocked." }, { status: 422 });
+  }
+
+  // Re-read each attachment from Storage so the persisted metadata is trusted
+  // (the client only sends opaque paths under its own folder).
+  let attachments: ChatAttachment[] = [];
+  if (attachmentPaths.length) {
+    const resolved = await Promise.all(
+      attachmentPaths.map((path) => resolveUploadedAttachment({ roomId, uid, path })),
+    );
+    if (resolved.some((a) => a === null)) {
+      return NextResponse.json({ error: "An attached image is missing or invalid." }, { status: 400 });
+    }
+    attachments = resolved as ChatAttachment[];
   }
 
   const rate = await checkAndRecordPost(uid);
@@ -78,8 +111,9 @@ export async function POST(request: NextRequest) {
     authorName: auth.decoded.name ?? "Trader",
     authorPhoto: auth.decoded.picture ?? null,
     text,
-    mentions: parseMentions(text),
+    mentions: text ? parseMentions(text) : [],
     flagged: moderation.flagged,
+    attachments,
   });
 
   return NextResponse.json({ ok: true, message });

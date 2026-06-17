@@ -11,7 +11,8 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDatabase, getAdminFirestore } from "@/firebase/admin";
-import type { ChatMessage } from "@/lib/chat/types";
+import { deleteAttachmentObjects } from "@/lib/chat/image-upload";
+import type { ChatAttachment, ChatMessage } from "@/lib/chat/types";
 
 function rtdbMsgRoot(roomId: string) {
   return getAdminDatabase().ref(`rooms/${roomId}/messages`);
@@ -32,6 +33,7 @@ export interface CreateMessageInput {
   text: string;
   mentions: ChatMessage["mentions"];
   flagged: boolean;
+  attachments?: ChatAttachment[];
 }
 
 export async function createMessage(input: CreateMessageInput): Promise<ChatMessage> {
@@ -52,6 +54,8 @@ export async function createMessage(input: CreateMessageInput): Promise<ChatMess
     deletedBy: null,
     mentions: input.mentions,
     flagged: input.flagged,
+    // RTDB rejects `undefined`; only include attachments when present.
+    ...(input.attachments?.length ? { attachments: input.attachments } : {}),
   };
 
   await ref.set(message);
@@ -99,12 +103,17 @@ export async function softDeleteMessage(
   id: string,
   by: "user" | "mod",
 ): Promise<void> {
+  // A removed message must not leave its image reachable, so delete the Storage
+  // objects. Firestore keeps the original attachment metadata for audit.
+  const existing = await getMessage(roomId, id);
+  await deleteAttachmentObjects(existing?.attachments);
+
   // Live stream: blank the visible content. Firestore: keep the original text
   // in an audit field for moderation/dispute history.
   await Promise.all([
     rtdbMsgRoot(roomId)
       .child(id)
-      .update({ deleted: true, deletedBy: by, text: "", mentions: [] }),
+      .update({ deleted: true, deletedBy: by, text: "", mentions: [], attachments: null }),
     fsMsgCol(roomId)
       .doc(id)
       .update({ deleted: true, deletedBy: by, deletedAt: Date.now() }),
@@ -112,6 +121,9 @@ export async function softDeleteMessage(
 }
 
 export async function hardDeleteMessage(roomId: string, id: string): Promise<void> {
+  const existing = await getMessage(roomId, id);
+  await deleteAttachmentObjects(existing?.attachments);
+
   await Promise.all([
     rtdbMsgRoot(roomId).child(id).remove(),
     fsMsgCol(roomId).doc(id).update({ deleted: true, deletedBy: "mod", hardDeletedAt: Date.now() }),

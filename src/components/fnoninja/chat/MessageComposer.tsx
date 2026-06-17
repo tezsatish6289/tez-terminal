@@ -2,15 +2,31 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
+  type ClipboardEvent,
   type KeyboardEvent,
 } from "react";
 import Image from "next/image";
-import { Hash, Loader2, SendHorizontal, Smile, User } from "lucide-react";
-import { CHAT_MAX_MESSAGE_LENGTH } from "@/lib/chat/constants";
+import {
+  Hash,
+  ImagePlus,
+  Loader2,
+  SendHorizontal,
+  Smile,
+  User,
+  X,
+} from "lucide-react";
+import {
+  CHAT_IMAGE_ACCEPT,
+  CHAT_MAX_ATTACHMENTS,
+  CHAT_MAX_MESSAGE_LENGTH,
+} from "@/lib/chat/constants";
 import { toMentionHandle } from "@/lib/chat/moderation";
+import type { ChatAttachment } from "@/lib/chat/types";
 import {
   LEVELS_SYMBOL_CATALOG,
   filterLevelsSymbolCatalog,
@@ -22,11 +38,23 @@ export interface ChatParticipant {
   photo: string | null;
 }
 
+interface PendingAttachment {
+  id: string;
+  previewUrl: string;
+  status: "uploading" | "done" | "error";
+  attachment?: ChatAttachment;
+  error?: string;
+}
+
 interface MessageComposerProps {
-  onSend: (text: string) => Promise<void>;
+  onSend: (text: string, attachments: ChatAttachment[]) => Promise<void>;
+  /** Uploads one image and resolves to its stored attachment metadata. */
+  onUpload: (file: File) => Promise<ChatAttachment>;
   participants?: ChatParticipant[];
   disabled?: boolean;
 }
+
+let pendingIdSeq = 0;
 
 type Trigger = "$" | "@";
 
@@ -59,7 +87,12 @@ function detectTrigger(
   return { trigger, query, start: caret - query.length - 1 };
 }
 
-export function MessageComposer({ onSend, participants = [], disabled }: MessageComposerProps) {
+export function MessageComposer({
+  onSend,
+  onUpload,
+  participants = [],
+  disabled,
+}: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -68,9 +101,82 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
   const [trigger, setTrigger] = useState<{ trigger: Trigger; query: string; start: number } | null>(
     null,
   );
+  const [pending, setPending] = useState<PendingAttachment[]>([]);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const caretRef = useRef(0);
+
+  // Revoke any outstanding object URLs on unmount.
+  useEffect(() => {
+    return () => {
+      setPending((prev) => {
+        prev.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+        return prev;
+      });
+    };
+  }, []);
+
+  const uploading = pending.some((p) => p.status === "uploading");
+  const readyAttachments = pending.filter((p) => p.status === "done" && p.attachment);
+
+  const addFiles = useCallback(
+    (files: File[]) => {
+      const images = files.filter((f) => CHAT_IMAGE_ACCEPT.includes(f.type as never));
+      if (images.length === 0) return;
+      setPending((prev) => {
+        const room = CHAT_MAX_ATTACHMENTS - prev.length;
+        const toAdd = images.slice(0, Math.max(0, room));
+        const next = toAdd.map<PendingAttachment>((file) => {
+          const id = `att-${pendingIdSeq++}`;
+          const previewUrl = URL.createObjectURL(file);
+          void onUpload(file)
+            .then((attachment) => {
+              setPending((cur) =>
+                cur.map((p) => (p.id === id ? { ...p, status: "done", attachment } : p)),
+              );
+            })
+            .catch((e: unknown) => {
+              setPending((cur) =>
+                cur.map((p) =>
+                  p.id === id
+                    ? { ...p, status: "error", error: e instanceof Error ? e.message : "Upload failed" }
+                    : p,
+                ),
+              );
+            });
+          return { id, previewUrl, status: "uploading" as const };
+        });
+        return [...prev, ...next];
+      });
+    },
+    [onUpload],
+  );
+
+  const removePending = useCallback((id: string) => {
+    setPending((prev) => {
+      const hit = prev.find((p) => p.id === id);
+      if (hit) URL.revokeObjectURL(hit.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  }, []);
+
+  const onFilePick = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    addFiles(files);
+    e.target.value = "";
+  };
+
+  const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.clipboardData?.items ?? [])
+      .filter((it) => it.kind === "file" && it.type.startsWith("image/"))
+      .map((it) => it.getAsFile())
+      .filter((f): f is File => f !== null);
+    if (files.length) {
+      e.preventDefault();
+      addFiles(files);
+    }
+  };
 
   const insertAtCaret = useCallback(
     (snippet: string) => {
@@ -166,13 +272,24 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
     [text, trigger, closeSuggestions],
   );
 
+  const canSubmit =
+    (text.trim().length > 0 || readyAttachments.length > 0) &&
+    !uploading &&
+    !sending &&
+    !disabled;
+
   const submit = async () => {
+    if (!canSubmit) return;
     const trimmed = text.trim();
-    if (!trimmed || sending || disabled) return;
+    const attachments = readyAttachments.map((p) => p.attachment as ChatAttachment);
     setSending(true);
     try {
-      await onSend(trimmed);
+      await onSend(trimmed, attachments);
       setText("");
+      setPending((prev) => {
+        prev.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+        return [];
+      });
       closeSuggestions();
     } finally {
       setSending(false);
@@ -314,6 +431,51 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
         className="px-3 pt-1.5"
         style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom))" }}
       >
+        {pending.length > 0 ? (
+          <div className="mb-1.5 flex flex-wrap gap-2">
+            {pending.map((p) => (
+              <div
+                key={p.id}
+                className="relative h-16 w-16 overflow-hidden rounded-lg"
+                style={{ border: "1px solid rgba(90,140,220,0.2)" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.previewUrl} alt="" className="h-full w-full object-cover" />
+                {p.status === "uploading" ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  </div>
+                ) : null}
+                {p.status === "error" ? (
+                  <div
+                    className="absolute inset-0 flex items-center justify-center bg-black/60 px-1 text-center text-[8px] text-rose-300"
+                    title={p.error}
+                  >
+                    Failed
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => removePending(p.id)}
+                  className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black"
+                  aria-label="Remove image"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={CHAT_IMAGE_ACCEPT.join(",")}
+          multiple
+          className="hidden"
+          onChange={onFilePick}
+        />
+
         <div
           className="flex items-end gap-1 rounded-[20px] py-1 pl-1.5 pr-1.5 transition-colors focus-within:border-[rgba(90,140,220,0.4)]"
           style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.18)" }}
@@ -333,6 +495,17 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
           >
             <Smile className="h-[18px] w-[18px]" />
           </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled || sending || pending.length >= CHAT_MAX_ATTACHMENTS}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/5 hover:text-white disabled:opacity-40"
+            style={{ color: "#64748b" }}
+            aria-label="Attach image"
+            title={`Attach screenshot (up to ${CHAT_MAX_ATTACHMENTS})`}
+          >
+            <ImagePlus className="h-[18px] w-[18px]" />
+          </button>
           <textarea
             ref={taRef}
             value={text}
@@ -342,6 +515,7 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
               refresh(value, e.target.selectionStart ?? value.length);
             }}
             onKeyDown={onKeyDown}
+            onPaste={onPaste}
             onClick={(e) => refresh(text, e.currentTarget.selectionStart ?? text.length)}
             onBlur={() => window.setTimeout(closeSuggestions, 120)}
             rows={1}
@@ -352,7 +526,7 @@ export function MessageComposer({ onSend, participants = [], disabled }: Message
           <button
             type="button"
             onClick={submit}
-            disabled={!text.trim() || sending || disabled}
+            disabled={!canSubmit}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition-all hover:scale-105 disabled:scale-100 disabled:opacity-30"
             style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
             aria-label="Send message"

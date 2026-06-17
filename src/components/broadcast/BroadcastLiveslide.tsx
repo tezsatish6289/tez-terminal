@@ -72,7 +72,7 @@ export function BroadcastLiveslide({ item }: { item: LevelsActionableItem }) {
             {enriched.symbol}
           </span>
           <span style={{ fontSize: "1.45vh", color: "#64748b" }}>
-            · live levels · support &amp; resistance · option walls
+            · 15 min candles
           </span>
         </div>
       </section>

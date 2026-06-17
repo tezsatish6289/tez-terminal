@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import type { LevelsActionableItem } from "@/lib/zones/levels-actionable-list";
 import { bandsFromLevels } from "@/lib/zones/levels-actionable-list";
 import { zoneStatusDisplayKey, type ZoneDisplayKey } from "@/lib/zones/zone-status";
@@ -8,6 +9,7 @@ import {
   formatClusterStrike,
 } from "@/lib/levels/format-cluster-size";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
+import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { BroadcastNews } from "./BroadcastNews";
 
 const SUPPORT = "#34d399";
@@ -124,6 +126,17 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
     chips.push(`Earnings ${d.daysToEarnings}d`);
   }
 
+  const subtitleLine = useMemo(() => {
+    if (item.scope === "stock") {
+      const full = fnoCompanyName(item.symbol);
+      if (full && full.toUpperCase() !== item.symbol) return full;
+      if (item.label && item.label.toUpperCase() !== item.symbol) return item.label;
+      return null;
+    }
+    if (item.label && item.label.toUpperCase() !== item.symbol) return item.label;
+    return null;
+  }, [item.scope, item.symbol, item.label]);
+
   return (
     <div key={item.symbol} className="broadcast-slide-in flex flex-col flex-1 min-h-0">
       <style dangerouslySetInnerHTML={{ __html: SLIDE_CSS }} />
@@ -152,9 +165,11 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
               {item.scope === "index" ? "INDEX" : "STOCK"}
             </span>
           </div>
-          <span className="truncate" style={{ fontSize: "1.5vh", color: MUTED, marginTop: "0.3vh" }}>
-            {item.label}
-          </span>
+          {subtitleLine && (
+            <span className="truncate" style={{ fontSize: "1.5vh", color: MUTED, marginTop: "0.3vh" }}>
+              {subtitleLine}
+            </span>
+          )}
         </div>
         <span
           className="font-black shrink-0 rounded-lg"

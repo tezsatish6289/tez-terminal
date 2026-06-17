@@ -489,7 +489,8 @@ export default function LevelsCronDashboardPage() {
                 </h3>
                 <p className="text-[10px] text-slate-500 mb-3">
                   Refreshed by the F&O stock cron when the oldest index is older than{" "}
-                  {data.indexZonesMeta.staleThresholdMinutes} min (Mon–Fri 9:00–16:00 IST).
+                  {data.indexZonesMeta.staleThresholdMinutes} min (
+                  {data.indexZonesMeta.refreshWindowIst} IST).
                   {data.indexZonesMeta.anyStale ? (
                     <span className="text-amber-300/90">
                       {" "}

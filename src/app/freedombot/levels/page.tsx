@@ -17,6 +17,8 @@ import {
 } from "@/components/levels/LevelsBubblesView";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
+import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
+import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
@@ -468,6 +470,17 @@ export default function LevelsPage() {
     return inZoneChartData;
   }, [viewMode, inZoneActive, inZoneChartData]);
 
+  const indexExpiryScope = inZoneActive?.scope === "index" ? "index" : null;
+  const {
+    selectedExpiryKey,
+    setSelectedExpiryKey,
+    displayLevels: indexDisplayLevels,
+    expiryOptions,
+  } = useIndexExpirySelection(activeChartLevels, indexExpiryScope);
+
+  const chartLevelsForView =
+    inZoneActive?.scope === "index" ? indexDisplayLevels : activeChartLevels;
+
   /** Chart + news rail — stable for all native-candle slideshow symbols (not gated on levels load). */
   const slideshowNativeLayout = Boolean(
     isSlideView && activeTv?.nativeCandles && inZoneActive != null,
@@ -709,7 +722,7 @@ export default function LevelsPage() {
           config={activeTv}
           ticker={activeTicker ?? activeTv.symbol}
           companyName={activeCompanyName ?? undefined}
-          levels={activeChartLevels}
+          levels={chartLevelsForView}
           loading={chartLevelsLoading}
           showSlideshowControl={slideshowEnabled}
           slideshowPaused={slideshowPaused}
@@ -753,7 +766,7 @@ export default function LevelsPage() {
   const favslideCtaTitle = "Cycle your favourited stocks. Press F or click.";
 
   const chartHighConfidence =
-    inZoneActive?.scope === "index" || isHighConfidenceLevels(activeChartLevels);
+    inZoneActive?.scope === "index" || isHighConfidenceLevels(chartLevelsForView);
 
   const slideshowChartChrome =
     activeTv != null && activeTicker ? (
@@ -767,11 +780,20 @@ export default function LevelsPage() {
         highConfidence={chartHighConfidence}
         badge={
           <VolRegimeBadge
-            flag={activeChartLevels?.volRegime}
-            reason={activeChartLevels?.volRegimeReason}
-            atmIV={activeChartLevels?.atmIV}
-            daysToEarnings={activeChartLevels?.daysToEarnings}
+            flag={chartLevelsForView?.volRegime}
+            reason={chartLevelsForView?.volRegimeReason}
+            atmIV={chartLevelsForView?.atmIV}
+            daysToEarnings={chartLevelsForView?.daysToEarnings}
           />
+        }
+        expiryPicker={
+          inZoneActive?.scope === "index" && expiryOptions && expiryOptions.length > 1 ? (
+            <LevelsChartExpiryPicker
+              options={expiryOptions}
+              value={selectedExpiryKey}
+              onChange={setSelectedExpiryKey}
+            />
+          ) : undefined
         }
         headerTrailing={
           isFnoNinjaHost && isSlideView && inZoneActive && activeTicker ? (
@@ -890,8 +912,8 @@ export default function LevelsPage() {
       );
     }
 
-    const chartSpot = inZoneChartData?.spot ?? inZoneActive?.spot ?? null;
-    const zonesUpdatedLabel = zonesUpdatedFooterLabel(inZoneChartData?.computedAt);
+    const chartSpot = chartLevelsForView?.spot ?? inZoneActive?.spot ?? null;
+    const zonesUpdatedLabel = zonesUpdatedFooterLabel(chartLevelsForView?.computedAt);
     return wrapSlideshowBody(
       slideshowNativeLayout ? (
         <></>
@@ -910,7 +932,7 @@ export default function LevelsPage() {
           title={`${inZoneActive.label} Market Levels`}
           spot={chartSpot}
           currency={inZoneActive.currency}
-          levels={inZoneChartData}
+          levels={chartLevelsForView}
           loading={inZoneChartLoading}
           slideCount={inZoneCount}
           activeIndex={inZoneCurrent}

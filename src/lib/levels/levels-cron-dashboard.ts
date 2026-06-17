@@ -141,6 +141,7 @@ export interface LevelsCronDashboardPayload {
   indexZonesMeta: {
     refreshCron: "suggest-stock-zones";
     staleThresholdMinutes: number;
+    refreshWindowIst: string;
     oldestAgeHours: number | null;
     anyStale: boolean;
   };
@@ -331,6 +332,7 @@ export async function loadLevelsCronDashboard(
   const indexZonesMeta = {
     refreshCron: "suggest-stock-zones" as const,
     staleThresholdMinutes: Math.round(INDEX_ZONES_STALE_MS / 60_000),
+    refreshWindowIst: "Mon–Fri 8:00–17:00",
     oldestAgeHours:
       oldestIndexAgeMs != null && Number.isFinite(oldestIndexAgeMs)
         ? Math.round(oldestIndexAgeMs / 3_600_000)

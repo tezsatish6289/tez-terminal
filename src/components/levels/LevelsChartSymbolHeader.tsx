@@ -19,6 +19,7 @@ export function LevelsChartSymbolHeader({
   highConfidence = false,
   badge,
   zoneMeta,
+  expiryPicker,
 }: {
   symbol: string;
   /** Company or index label when different from ticker. */
@@ -30,6 +31,7 @@ export function LevelsChartSymbolHeader({
   badge?: ReactNode;
   /** Option-chain expiry + put/call cluster sizes (chart deep-dive). */
   zoneMeta?: LevelsChartZoneMetaProps | null;
+  expiryPicker?: ReactNode;
 }) {
   const showSubtitle =
     subtitle != null &&
@@ -67,6 +69,7 @@ export function LevelsChartSymbolHeader({
         {formatLevelsChartMeta(config)}
       </p>
       {zoneMeta ? <LevelsChartZoneMeta {...zoneMeta} /> : null}
+      {expiryPicker ? <div className="mt-1">{expiryPicker}</div> : null}
     </div>
   );
 }

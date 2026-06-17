@@ -88,6 +88,16 @@ const NSE_CONTRACT_INFO = "https://www.nseindia.com/api/option-chain-contract-in
 /** Minimum total OI (contracts) for the chosen expiry to be considered liquid. */
 const MIN_OI_THRESHOLD = 20_000;
 
+/** How many nearest expiries to derive full S/R bands for (default: nearest + next). */
+const INDEX_EXPIRY_SLICE_COUNT = () => envNum("INDEX_EXPIRY_SLICE_COUNT", 2);
+
+export interface IndexZonesComputeResult {
+  /** Nearest expiry — persisted as top-level doc fields for backward compat. */
+  primary: IndexOptionsZones;
+  /** Nearest-first full zone rows (length ≤ INDEX_EXPIRY_SLICE_COUNT). */
+  byExpiry: IndexOptionsZones[];
+}
+
 export interface IndexOptionsZones {
   symbol:        IndexKey;
   label:         string;
@@ -246,58 +256,43 @@ function computeMaxPain(
 
 // ── Public API ────────────────────────────────────────────────────
 
-/** Compute bull/bear zones for one index. Throws on NSE fetch failure. */
-export async function computeIndexZones(
+function buildZonesFromRows(
   key: IndexKey,
-  cookies: string,
-  regimeInputs: IndexRegimeInputs = {},
-): Promise<IndexOptionsZones> {
+  spot: number,
+  strikes: Map<number, IndexStrikeData>,
+  totalOI: number,
+  expiryUsed: string,
+  regimeInputs: IndexRegimeInputs,
+  nextAtmIv: number | null = null,
+): IndexOptionsZones {
   const spec = INDEX_SPECS[key];
-
-  const expiries = await fetchExpiries(key, cookies);
-  const expiryUsed = expiries[0];
-  const oc = await fetchOptionChain(key, expiryUsed, cookies);
-
-  const spot = oc.records?.underlyingValue ?? 0;
   const empty = (): IndexOptionsZones => ({
     ...createEmptyIndexZones(key, spot),
     expiryUsed,
   });
 
-  const rows = oc.records?.data ?? [];
-  if (spot <= 0 || !rows.length) return empty();
-
-  // v3 returns a single expiry's chain — aggregate every row by strike.
-  const { strikes, totalOI } = rowsToStrikes(rows);
-
   if (!strikes.size) return empty();
 
-  let bullStrike: number | null = null; let bullOI = 0;
-  let bearStrike: number | null = null; let bearOI = 0;
+  let bullStrike: number | null = null;
+  let bullOI = 0;
+  let bearStrike: number | null = null;
+  let bearOI = 0;
   for (const [strike, { putOI, callOI }] of strikes) {
-    if (strike < spot && putOI > bullOI) { bullOI = putOI; bullStrike = strike; }
-    if (strike > spot && callOI > bearOI) { bearOI = callOI; bearStrike = strike; }
+    if (strike < spot && putOI > bullOI) {
+      bullOI = putOI;
+      bullStrike = strike;
+    }
+    if (strike > spot && callOI > bearOI) {
+      bearOI = callOI;
+      bearStrike = strike;
+    }
   }
 
   const maxPain = computeMaxPain(strikes);
   const gap = bullStrike !== null && bearStrike !== null ? bearStrike - bullStrike : 0;
   const insufficientGap = gap > 0 && gap < spec.minStrikeGap;
-
-  // Optional term structure: read the next expiry's ATM IV (env-gated).
-  let nextAtmIv = regimeInputs.nextAtmIv ?? null;
-  if (nextAtmIv == null && INDEX_TERM_STRUCTURE_ENABLED() && expiries[1]) {
-    try {
-      const ocNext = await fetchOptionChain(key, expiries[1], cookies);
-      nextAtmIv = computeAtmIv(rowsToStrikes(ocNext.records?.data ?? []).strikes, spot);
-    } catch {
-      /* term structure stays unknown */
-    }
-  }
-
   const atmIV = computeAtmIv(strikes, spot);
 
-  // IV-scaled band: 1-σ move off ATM IV, falling back to the listed point band
-  // for this index when IV is unknown. Floored at one strike step.
   const halfWidth = INDEX_IV_SIZING_ENABLED()
     ? ivScaledHalfWidth(spot, atmIV, {
         horizonDays: INDEX_IV_HORIZON_DAYS(),
@@ -324,14 +319,14 @@ export async function computeIndexZones(
     symbol: key,
     label: spec.label,
     bullStrike,
-    bullZoneLow:   bullStrike !== null ? bullStrike - halfWidth : null,
-    bullZoneHigh:  bullStrike !== null ? bullStrike + halfWidth : null,
+    bullZoneLow: bullStrike !== null ? bullStrike - halfWidth : null,
+    bullZoneHigh: bullStrike !== null ? bullStrike + halfWidth : null,
     bullExitAbove: bullStrike !== null ? bullStrike + halfWidth : null,
     bullOI: bullOI > 0 ? bullOI : null,
 
     bearStrike,
-    bearZoneLow:   bearStrike !== null ? bearStrike - halfWidth : null,
-    bearZoneHigh:  bearStrike !== null ? bearStrike + halfWidth : null,
+    bearZoneLow: bearStrike !== null ? bearStrike - halfWidth : null,
+    bearZoneHigh: bearStrike !== null ? bearStrike + halfWidth : null,
     bearExitBelow: bearStrike !== null ? bearStrike - halfWidth : null,
     bearOI: bearOI > 0 ? bearOI : null,
 
@@ -345,6 +340,59 @@ export async function computeIndexZones(
     spot,
     computedAt: new Date().toISOString(),
   };
+}
+
+async function computeIndexZonesForExpiry(
+  key: IndexKey,
+  expiry: string,
+  cookies: string,
+  spotHint: number,
+  regimeInputs: IndexRegimeInputs,
+): Promise<IndexOptionsZones> {
+  const oc = await fetchOptionChain(key, expiry, cookies);
+  const spot = oc.records?.underlyingValue ?? spotHint;
+  const rows = oc.records?.data ?? [];
+  if (spot <= 0 || !rows.length) {
+    return { ...createEmptyIndexZones(key, spot), expiryUsed: expiry };
+  }
+  const { strikes, totalOI } = rowsToStrikes(rows);
+  return buildZonesFromRows(key, spot, strikes, totalOI, expiry, regimeInputs);
+}
+
+/** Compute bull/bear zones for nearest + next expiries. Throws on NSE fetch failure. */
+export async function computeIndexZones(
+  key: IndexKey,
+  cookies: string,
+  regimeInputs: IndexRegimeInputs = {},
+): Promise<IndexZonesComputeResult> {
+  const expiries = await fetchExpiries(key, cookies);
+  const count = Math.min(INDEX_EXPIRY_SLICE_COUNT(), expiries.length);
+  const byExpiry: IndexOptionsZones[] = [];
+  let spot = 0;
+
+  for (let i = 0; i < count; i++) {
+    const z = await computeIndexZonesForExpiry(key, expiries[i]!, cookies, spot, regimeInputs);
+    byExpiry.push(z);
+    if (z.spot > 0) spot = z.spot;
+  }
+
+  const primary = byExpiry[0] ?? createEmptyIndexZones(key);
+  if (byExpiry.length > 1 && primary.expiryUsed) {
+    const nextAtmIv =
+      regimeInputs.nextAtmIv ??
+      (INDEX_TERM_STRUCTURE_ENABLED() ? byExpiry[1]?.atmIV ?? null : null);
+    if (nextAtmIv != null && primary.atmIV != null) {
+      primary.volRegime = classifyVolRegime({
+        atmIv: primary.atmIV,
+        illiquid: (primary.expiryOI ?? 0) < MIN_OI_THRESHOLD,
+        ivPercentile: ivPercentile(regimeInputs.ivHistory ?? [], primary.atmIV),
+        termRatio: termStructureRatio(primary.atmIV, nextAtmIv),
+        vixPercentile: regimeInputs.vixPercentile,
+      });
+    }
+  }
+
+  return { primary, byExpiry };
 }
 
 /** Re-export so callers don't need to import nse-session directly. */

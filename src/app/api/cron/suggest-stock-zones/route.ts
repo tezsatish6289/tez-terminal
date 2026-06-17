@@ -3,7 +3,7 @@
  *
  * Sole cron for NSE F&O single-stock option zones and NSE index zones (Nifty,
  * Bank Nifty, …). Index refresh runs at the start of each tick when the oldest
- * index doc is stale (>14 min by default); stocks run in the same batch.
+ * index doc is stale (>14 min by default) during Mon–Fri 8:00–17:00 IST.
  *
  * Schedule: every 5 min on cron-job.org (GET + key). cron-job.org max HTTP timeout is 30s,
  * so keyed GET returns immediately and runs the batch in the background via after().
@@ -24,7 +24,7 @@ import {
 } from "@/lib/stock-zones-runner";
 import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
 import {
-  maybeRefreshIndexZonesIfStale,
+  maybeRefreshIndexZonesForCron,
   summarizeIndexZones,
   type IndexZonesRefreshResult,
 } from "@/lib/index-zones-store";
@@ -53,16 +53,13 @@ function indexZonesSummarySuffix(
   return ` ${summarizeIndexZones(ix)}`;
 }
 
-/** NSE index zones — runs before stock batch when stale during market hours. */
+/** NSE index zones — runs before stock batch when stale (market-hours rules apply). */
 async function refreshIndexZonesIfNeeded(
   db: ReturnType<typeof getAdminFirestore>,
-  force = false,
+  opts?: { force?: boolean },
 ): Promise<IndexZonesRefreshResult | { skipped: string } | undefined> {
-  if (!isNiftyOptionChainCronWindow()) {
-    return { skipped: "outside_market_hours" };
-  }
   try {
-    return await maybeRefreshIndexZonesIfStale(db, { force });
+    return await maybeRefreshIndexZonesForCron(db, opts);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[SuggestStockZones] index zones pass failed (isolated):", msg);
@@ -182,7 +179,7 @@ export async function POST(request: NextRequest) {
     } catch {
       /* no body — full queue batch */
     }
-    const indexZones = await refreshIndexZonesIfNeeded(db, true);
+    const indexZones = await refreshIndexZonesIfNeeded(db, { force: true });
     const summary = await runStockZonesBatch(db, { symbolsOverride });
     const base = stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt);
     await recordStockZonesHeartbeat({

@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import type { PublicLevelsSource } from "@/lib/levels/levels-source";
+import type {
+  PublicLevelsExpiryOption,
+  PublicLevelsExpirySlice,
+} from "@/lib/levels/index-expiry-levels";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
@@ -45,7 +49,13 @@ export interface PublicLevels {
   putClusterStrike?: number | null;
   /** Strike with highest call OI above spot (resistance cluster anchor). */
   callClusterStrike?: number | null;
+  /** NSE indices: nearest-first expiry choices for the chart picker. */
+  expiryOptions?: PublicLevelsExpiryOption[];
+  /** NSE indices: full band payload per expiry (client-side expiry switch). */
+  zonesByExpiry?: PublicLevelsExpirySlice[];
 }
+
+export type { PublicLevelsExpiryOption, PublicLevelsExpirySlice };
 
 function fmtPrice(p: number): string {
   return p >= 1000

@@ -23,6 +23,7 @@ export function LevelsChartChrome({
   highConfidence = false,
   badge,
   zoneMeta,
+  expiryPicker,
   headerTrailing,
   className = "",
 }: {
@@ -43,6 +44,8 @@ export function LevelsChartChrome({
   /** Volatility-regime chip rendered beside the ticker (display only). */
   badge?: ReactNode;
   zoneMeta?: LevelsChartZoneMetaProps | null;
+  /** Index charts: expiry picker rendered under the symbol header. */
+  expiryPicker?: ReactNode;
   /** Slideshow: action chip top-right when toolbar is hidden (e.g. remove from favslide). */
   headerTrailing?: ReactNode;
   className?: string;
@@ -58,6 +61,7 @@ export function LevelsChartChrome({
         highConfidence={highConfidence}
         badge={badge}
         zoneMeta={zoneMeta}
+        expiryPicker={expiryPicker}
       />
       {!hideToolbar ? (
         <LevelsChartPageToolbar

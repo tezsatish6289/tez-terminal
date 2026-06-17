@@ -53,6 +53,19 @@ export function isNiftyOptionChainCronWindow(now: Date = new Date()): boolean {
 }
 
 /**
+ * Mon–Fri, 8:00–17:00 IST (inclusive). Wider window for NSE index zone refresh on
+ * suggest-stock-zones: pre-market catch-up + post-close EOD OI, without overnight spam.
+ */
+export function isIndexZonesCronWindow(now: Date = new Date()): boolean {
+  if (typeof process !== "undefined" && process.env.NIFTY_ZONES_CRON_IGNORE_WINDOW === "true") {
+    return true;
+  }
+  const { day, mins } = istTimeInMins(now);
+  if (day === 0 || day === 6) return false;
+  return mins >= 8 * 60 && mins <= 17 * 60;
+}
+
+/**
  * True only when new intraday entries are allowed.
  * No new trades after 2:00 PM IST — leaves 1h15m for trades to play out
  * before the 3:15 PM mandatory square-off.

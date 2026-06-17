@@ -20,6 +20,8 @@ import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import { LevelsChartNewsSplit } from "@/components/levels/LevelsChartNewsSplit";
+import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
+import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { FNO_LEVELS_MAIN } from "@/lib/fnoninja/responsive";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { isFnoNinjaAppContext, requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
@@ -53,6 +55,17 @@ function ChartContent() {
     () => (scope && symbol ? levelsTradingViewParams(scope, symbol) : null),
     [scope, symbol],
   );
+
+  const urlExpiryKey = searchParams.get("expiry");
+
+  const {
+    selectedExpiryKey,
+    setSelectedExpiryKey,
+    displayLevels,
+    expiryOptions,
+  } = useIndexExpirySelection(levels, scope, urlExpiryKey);
+
+  const chartLevels = scope === "index" ? displayLevels : levels;
 
   const loadLevels = useCallback(
     async (opts?: { quiet?: boolean }) => {
@@ -145,7 +158,7 @@ function ChartContent() {
     return null;
   }, [companyName, label, symbol]);
 
-  const zonesUpdatedLabel = zonesUpdatedFooterLabel(levels?.computedAt);
+  const zonesUpdatedLabel = zonesUpdatedFooterLabel(chartLevels?.computedAt);
   const pathname = usePathname();
   const [fnoninjaHost, setFnoNinjaHost] = useState(false);
 
@@ -207,6 +220,15 @@ function ChartContent() {
               <FnoNinjaFavslideToggle scope={scope} symbol={symbol} enabled />
             ) : undefined
           }
+          expiryPicker={
+            scope === "index" && expiryOptions && expiryOptions.length > 1 ? (
+              <LevelsChartExpiryPicker
+                options={expiryOptions}
+                value={selectedExpiryKey}
+                onChange={setSelectedExpiryKey}
+              />
+            ) : undefined
+          }
         />
 
         {error ? (
@@ -223,7 +245,7 @@ function ChartContent() {
                 className="flex-1 min-h-0 h-full"
                 config={config}
                 ticker={symbol}
-                levels={levels}
+                levels={chartLevels}
                 loading={loading}
                 hideChartShortcuts
                 defaultFullHistory

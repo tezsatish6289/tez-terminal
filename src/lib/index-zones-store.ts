@@ -19,6 +19,7 @@ import {
 } from "@/lib/index-options-zones";
 import { loadIndiaVixState } from "@/lib/india-vix";
 import { loadIvHistory, recordDailyAtmIv } from "@/lib/iv-history";
+import { isIndexZonesCronWindow } from "@/lib/market-hours";
 
 function docId(symbol: IndexKey): string {
   return `config/suggested_index_zones_${symbol}`;
@@ -31,39 +32,55 @@ function docId(symbol: IndexKey): string {
  * invalidation lines are derived on the client (one half-width outside each
  * band, same as crypto).
  */
-function serialize(z: IndexOptionsZones) {
-  const maxPainByExpiry =
-    z.maxPain != null && z.expiryUsed
-      ? [{ expiry: z.expiryUsed, maxPain: z.maxPain, totalOI: z.expiryOI ?? 0, dayIndex: 0 }]
-      : [];
+function serializeSlice(z: IndexOptionsZones, dayIndex: number) {
   return {
-    symbol: z.symbol,
-    label: z.label,
-    bullStrike: z.bullStrike,
-    bearStrike: z.bearStrike,
+    expiry: z.expiryUsed,
+    maxPain: z.maxPain,
+    totalOI: z.expiryOI ?? 0,
+    dayIndex,
     bullZoneLow: z.bullZoneLow,
     bullZoneHigh: z.bullZoneHigh,
-    bullExitAbove: z.bullExitAbove,
     bearZoneLow: z.bearZoneLow,
     bearZoneHigh: z.bearZoneHigh,
-    bearExitBelow: z.bearExitBelow,
+    bullStrike: z.bullStrike,
+    bearStrike: z.bearStrike,
+    halfWidthUsd: z.halfWidthPts,
     bullOI: z.bullOI,
     bearOI: z.bearOI,
-    maxPain: z.maxPain,
+  };
+}
+
+function serialize(primary: IndexOptionsZones, byExpiry: IndexOptionsZones[]) {
+  const slices = (byExpiry.length ? byExpiry : [primary]).filter((z) => z.expiryUsed);
+  const maxPainByExpiry = slices.map((z, i) => serializeSlice(z, i));
+  return {
+    symbol: primary.symbol,
+    label: primary.label,
+    bullStrike: primary.bullStrike,
+    bearStrike: primary.bearStrike,
+    bullZoneLow: primary.bullZoneLow,
+    bullZoneHigh: primary.bullZoneHigh,
+    bullExitAbove: primary.bullExitAbove,
+    bearZoneLow: primary.bearZoneLow,
+    bearZoneHigh: primary.bearZoneHigh,
+    bearExitBelow: primary.bearExitBelow,
+    bullOI: primary.bullOI,
+    bearOI: primary.bearOI,
+    maxPain: primary.maxPain,
     maxPainByExpiry,
-    halfWidthUsd: z.halfWidthPts,
-    expiryUsed: z.expiryUsed,
-    expiryOI: z.expiryOI,
-    insufficientGap: z.insufficientGap,
-    atmIV: z.atmIV,
-    volRegimeFlag: z.volRegime.flag,
-    volRegimeReason: z.volRegime.reason,
-    daysToEarnings: null, // indices have no earnings event
-    btcPrice: z.spot,
+    halfWidthUsd: primary.halfWidthPts,
+    expiryUsed: primary.expiryUsed,
+    expiryOI: primary.expiryOI,
+    insufficientGap: primary.insufficientGap,
+    atmIV: primary.atmIV,
+    volRegimeFlag: primary.volRegime.flag,
+    volRegimeReason: primary.volRegime.reason,
+    daysToEarnings: null,
+    btcPrice: primary.spot,
     deribitIndexPrice: null,
     source: "nse",
     nseFetchError: null,
-    computedAt: z.computedAt,
+    computedAt: primary.computedAt,
   };
 }
 
@@ -97,23 +114,23 @@ export async function refreshIndexZones(db: Firestore): Promise<IndexZonesRefres
     }
     try {
       const ivHist = await loadIvHistory(db, key);
-      const zones = await computeIndexZones(key, cookies, {
+      const { primary, byExpiry } = await computeIndexZones(key, cookies, {
         ivHistory: ivHist.values,
         vixPercentile: vix.percentile,
       });
-      await recordDailyAtmIv(db, key, zones.atmIV, ivHist);
-      const hasBands = zones.bullZoneLow != null || zones.bearZoneLow != null;
+      await recordDailyAtmIv(db, key, primary.atmIV, ivHist);
+      const hasBands = primary.bullZoneLow != null || primary.bearZoneLow != null;
       if (!hasBands) {
         // Don't overwrite last-good bands with an empty result.
         results[key] = "error";
         errors[key] = "No bull/bear bands derived (empty/illiquid chain)";
         await db.doc(docId(key)).set(
-          { nseFetchError: errors[key], computedAt: zones.computedAt },
+          { nseFetchError: errors[key], computedAt: primary.computedAt },
           { merge: true },
         );
         continue;
       }
-      await db.doc(docId(key)).set(serialize(zones));
+      await db.doc(docId(key)).set(serialize(primary, byExpiry));
       results[key] = "ok";
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -178,4 +195,24 @@ export async function maybeRefreshIndexZonesIfStale(
     }
   }
   return refreshIndexZones(db);
+}
+
+/**
+ * Market-hours gate for suggest-stock-zones:
+ *   • Mon–Fri 8:00–17:00 IST: refresh when oldest doc > INDEX_ZONES_STALE_MS (14 min).
+ *   • Outside that window: skip (manual POST uses force).
+ */
+export async function maybeRefreshIndexZonesForCron(
+  db: Firestore,
+  opts?: { force?: boolean },
+): Promise<IndexZonesRefreshResult | { skipped: string }> {
+  if (opts?.force) {
+    return maybeRefreshIndexZonesIfStale(db, { force: true });
+  }
+
+  if (isIndexZonesCronWindow()) {
+    return maybeRefreshIndexZonesIfStale(db);
+  }
+
+  return { skipped: "outside_market_hours" };
 }

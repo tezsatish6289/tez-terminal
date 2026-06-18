@@ -75,40 +75,6 @@ export function BroadcastLiveslide({ item }: { item: LevelsActionableItem }) {
             · 15 min candles
           </span>
         </div>
-
-        {/* Persistent webinar QR — scan to register for the free session. */}
-        <div
-          className="absolute z-10 flex items-center rounded-lg"
-          style={{
-            bottom: "1.4vh",
-            left: "1.4vh",
-            gap: "1vh",
-            padding: "0.8vh",
-            background: "rgba(255,255,255,0.97)",
-            border: "1px solid rgba(90,140,220,0.3)",
-            boxShadow: "0 4px 18px rgba(0,0,0,0.4)",
-          }}
-        >
-          <div
-            aria-hidden
-            style={{
-              width: "7vh",
-              height: "7vh",
-              backgroundImage: "url(/fnoninja/webinar-qr.svg)",
-              backgroundSize: "contain",
-              backgroundRepeat: "no-repeat",
-              backgroundPosition: "center",
-            }}
-          />
-          <div className="flex flex-col" style={{ paddingRight: "0.8vh" }}>
-            <span style={{ fontSize: "1.55vh", fontWeight: 900, color: "#0a1426", lineHeight: 1.15 }}>
-              FREE WEBINAR
-            </span>
-            <span style={{ fontSize: "1.25vh", fontWeight: 700, color: "#1d4ed8", lineHeight: 1.3 }}>
-              Scan · fnoninja.com/webinar
-            </span>
-          </div>
-        </div>
       </section>
 
       {/* Descriptive levels + news rail — 40% width, matched height. */}

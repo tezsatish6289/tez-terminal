@@ -11,6 +11,8 @@ import {
   CalendarClock,
   RefreshCw,
   Video,
+  Youtube,
+  CalendarCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -29,6 +31,14 @@ interface Registration {
   sessionDate: string;
   source: string;
   joinedAt: string | null;
+}
+
+interface WebinarEventInfra {
+  istDate: string;
+  calendarEventId: string | null;
+  calendarHtmlLink: string | null;
+  youtubeBroadcastId: string | null;
+  youtubeWatchUrl: string | null;
 }
 
 function downloadCSV(entries: Registration[]) {
@@ -56,6 +66,7 @@ function downloadCSV(entries: Registration[]) {
 export default function WebinarsAdminPage() {
   const { user, loading: authLoading } = useUser();
   const [entries, setEntries] = useState<Registration[]>([]);
+  const [events, setEvents] = useState<Record<string, WebinarEventInfra>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -74,6 +85,7 @@ export default function WebinarsAdminPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load");
       setEntries(data.entries);
+      setEvents(data.events ?? {});
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unexpected error");
     } finally {
@@ -170,18 +182,51 @@ export default function WebinarsAdminPage() {
             Upcoming sessions · {WEBINAR_SCHEDULE_LABEL}
           </p>
           <div className="flex flex-wrap gap-2">
-            {upcoming.map((s) => (
-              <div
-                key={s.istDate}
-                className="rounded-xl px-3 py-2"
-                style={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
-              >
-                <p className="text-xs font-semibold text-white">{formatWebinarSession(s)}</p>
-                <p className="text-[11px] text-blue-400 font-mono mt-0.5">
-                  {countsByDate[s.istDate] ?? 0} registered
-                </p>
-              </div>
-            ))}
+            {upcoming.map((s) => {
+              const infra = events[s.istDate];
+              return (
+                <div
+                  key={s.istDate}
+                  className="rounded-xl px-3 py-2 min-w-[180px]"
+                  style={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                >
+                  <p className="text-xs font-semibold text-white">{formatWebinarSession(s)}</p>
+                  <p className="text-[11px] text-blue-400 font-mono mt-0.5">
+                    {countsByDate[s.istDate] ?? 0} registered
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    {infra?.youtubeWatchUrl ? (
+                      <a
+                        href={infra.youtubeWatchUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300"
+                      >
+                        <Youtube className="h-3 w-3" /> Live
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/40">
+                        <Youtube className="h-3 w-3" /> —
+                      </span>
+                    )}
+                    {infra?.calendarHtmlLink ? (
+                      <a
+                        href={infra.calendarHtmlLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300"
+                      >
+                        <CalendarCheck className="h-3 w-3" /> Event
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/40">
+                        <CalendarCheck className="h-3 w-3" /> —
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

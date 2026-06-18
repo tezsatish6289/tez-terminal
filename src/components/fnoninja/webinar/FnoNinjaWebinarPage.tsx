@@ -80,6 +80,7 @@ export function FnoNinjaWebinarPage() {
   const [mobile, setMobile] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
   const [error, setError] = useState("");
+  const [joinUrl, setJoinUrl] = useState<string | null>(null);
   const icsUrlRef = useRef<string | null>(null);
 
   const icsHref = useMemo(() => {
@@ -119,6 +120,7 @@ export function FnoNinjaWebinarPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Registration failed");
+      setJoinUrl(typeof data.youtubeWatchUrl === "string" ? data.youtubeWatchUrl : null);
       setStatus("done");
     } catch (err: unknown) {
       setStatus("idle");
@@ -251,9 +253,9 @@ export function FnoNinjaWebinarPage() {
                     Download invite (.ics)
                   </a>
                 )}
-                {WEBINAR_HAS_YOUTUBE && (
+                {(joinUrl || WEBINAR_HAS_YOUTUBE) && (
                   <a
-                    href={WEBINAR_JOIN_URL}
+                    href={joinUrl ?? WEBINAR_JOIN_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition-all hover:scale-[1.02]"
@@ -265,7 +267,7 @@ export function FnoNinjaWebinarPage() {
                 )}
               </div>
               <p className="mt-4 text-[11px] leading-relaxed" style={{ color: "#475569" }}>
-                We&apos;ll go live on YouTube. Add the calendar invite{WEBINAR_HAS_YOUTUBE ? " and tap “Set reminder” on YouTube" : ""} so you don&apos;t miss it.
+                We&apos;ll go live on YouTube. We&apos;ve emailed you a calendar invite{joinUrl || WEBINAR_HAS_YOUTUBE ? " — tap “Set reminder” on YouTube too" : ""} so you don&apos;t miss it.
               </p>
             </div>
           ) : (

@@ -122,6 +122,20 @@ export function getNextWebinarSession(now: Date = new Date()): WebinarSession {
   return sessionFromStartMs(bestMs);
 }
 
+/** Rebuild a session from its IST date key (YYYY-MM-DD) using that weekday's slot. */
+export function getWebinarSessionByIstDate(istDate: string): WebinarSession | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(istDate.trim());
+  if (!match) return null;
+  const y = Number(match[1]);
+  const m = Number(match[2]) - 1;
+  const d = Number(match[3]);
+  const wd = istWeekdayForDate(y, m, d);
+  const slot = WEBINAR_SLOTS.find((s) => s.weekday === wd);
+  if (!slot) return null;
+  const startMs = startMsForIstSlot(y, m, d, slot.hour, slot.minute);
+  return sessionFromStartMs(startMs);
+}
+
 /** The next `count` sessions on the recurring schedule. */
 export function getUpcomingWebinarSessions(
   count: number,

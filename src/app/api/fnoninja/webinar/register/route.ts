@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import { encrypt, decrypt } from "@/lib/crypto";
-import { getNextWebinarSession } from "@/lib/fnoninja/webinar";
+import {
+  getNextWebinarSession,
+  getUpcomingWebinarSessions,
+  getWebinarSessionByIstDate,
+} from "@/lib/fnoninja/webinar";
+import { syncRegistrationToGoogle, getWebinarEventInfraMap } from "@/lib/fnoninja/webinar-events";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +37,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Mobile number is required" }, { status: 400 });
     }
 
-    const session = getNextWebinarSession();
-    const istDate = sessionDate?.trim() || session.istDate;
+    const requestedDate = sessionDate?.trim();
+    const session =
+      (requestedDate ? getWebinarSessionByIstDate(requestedDate) : null) ?? getNextWebinarSession();
+    const istDate = session.istDate;
 
     const db = getAdminFirestore();
     const emailKey = Buffer.from(email.toLowerCase().trim())
@@ -58,7 +65,16 @@ export async function POST(request: NextRequest) {
         { merge: true },
       );
 
-    return NextResponse.json({ success: true, sessionDate: istDate });
+    // Best-effort: provision YouTube broadcast + Calendar event and add this
+    // person as a guest. Never blocks or fails the registration itself.
+    const infra = await syncRegistrationToGoogle(session, email.toLowerCase().trim(), name.trim());
+
+    return NextResponse.json({
+      success: true,
+      sessionDate: istDate,
+      youtubeWatchUrl: infra?.youtubeWatchUrl ?? null,
+      calendarInvite: Boolean(infra?.calendarEventId),
+    });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -94,7 +110,10 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ entries });
+    const upcomingDates = getUpcomingWebinarSessions(10).map((s) => s.istDate);
+    const events = await getWebinarEventInfraMap(upcomingDates).catch(() => ({}));
+
+    return NextResponse.json({ entries, events });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     return NextResponse.json({ error: msg }, { status: 500 });

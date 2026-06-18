@@ -96,7 +96,7 @@ export function BroadcastLiveslide({
             : "linear-gradient(180deg, rgba(13,27,46,0.85), rgba(8,15,30,0.85))",
           border: infoPane
             ? "1px solid rgba(96,165,250,0.28)"
-            : "1px solid rgba(90,140,220,0.2)",
+            : "1px solid rgba(96,165,250,0.22)",
         }}
       >
         {infoPane ?? <BroadcastSlide item={enriched} />}

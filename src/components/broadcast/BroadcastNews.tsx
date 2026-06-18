@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { LevelsNews, NewsSentimentLabel } from "@/lib/levels/news-types";
+import { FNO_ACCENT } from "@/lib/fnoninja/theme";
 import { useBroadcastNews } from "./useBroadcastNews";
 
 const SENTIMENT: Record<NewsSentimentLabel, { label: string; color: string; bg: string }> = {
-  bullish: { label: "BULLISH", color: "#86efac", bg: "rgba(34,197,94,0.14)" },
+  bullish: { label: "BULLISH", color: "#34d399", bg: "rgba(52,211,153,0.12)" },
   neutral: { label: "NEUTRAL", color: "#94a3b8", bg: "rgba(100,116,139,0.14)" },
-  bearish: { label: "BEARISH", color: "#fca5a5", bg: "rgba(239,68,68,0.14)" },
+  bearish: { label: "BEARISH", color: "#f87171", bg: "rgba(248,113,113,0.12)" },
 };
 
 const NEWS_CSS = `
@@ -18,8 +19,11 @@ const NEWS_CSS = `
 .broadcast-news-in { animation: broadcast-news-in 0.5s ease both; }
 `;
 
-/** How long each rolling headline stays on screen. */
 const ITEM_MS = 5500;
+
+function glow(color: string): string {
+  return `0 0 10px ${color}77, 0 0 20px ${color}33`;
+}
 
 function splitSentences(text: string): string[] {
   return text
@@ -28,7 +32,6 @@ function splitSentences(text: string): string[] {
     .filter((s) => s.length > 0);
 }
 
-/** Summary sentences first (chart-page lead copy), then bullet highlights. */
 function buildRollingItems(news: LevelsNews): string[] {
   const summaryParts = news.summary ? splitSentences(news.summary) : [];
   const seen = new Set(summaryParts.map((s) => s.toLowerCase()));
@@ -45,11 +48,41 @@ function buildRollingItems(news: LevelsNews): string[] {
   return out;
 }
 
-/**
- * Rolling recent-news block for the single-stock page. Big-font headlines that
- * auto-advance, plus an AI sentiment badge. Reads from the shared cache (warmed
- * by the prefetcher) so it's instant on revisits. Informational, not advice.
- */
+/** Highlight percentages and large numbers in news copy. */
+function HighlightedNews({
+  text,
+  sentiment,
+}: {
+  text: string;
+  sentiment: NewsSentimentLabel;
+}) {
+  const highlight =
+    sentiment === "bullish" ? "#34d399" : sentiment === "bearish" ? "#f87171" : "#94a3b8";
+
+  const parts = text.split(/(\d+(?:\.\d+)?%|\d+(?:\.\d+)?\s*(?:Cr|L|K|M|crore|lakh)?)/gi);
+
+  return (
+    <>
+      {parts.map((part, i) => {
+        const isHighlight = /^\d/.test(part);
+        if (!isHighlight) return <span key={i}>{part}</span>;
+        return (
+          <span
+            key={i}
+            style={{
+              color: highlight,
+              fontWeight: 800,
+              textShadow: glow(highlight),
+            }}
+          >
+            {part}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; symbol: string }) {
   const { news, gaveUp } = useBroadcastNews(scope, symbol);
   const [idx, setIdx] = useState(0);
@@ -68,30 +101,31 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
 
   const sentiment = news?.sentiment ? SENTIMENT[news.sentiment.label] : null;
   const current = items.length ? items[idx % items.length] : null;
+  const sentimentLabel = news?.sentiment?.label ?? "neutral";
 
   return (
-    <div className="flex flex-col min-h-0 flex-1" style={{ marginTop: "1.8vh" }}>
+    <div className="flex flex-col min-h-0 flex-1" style={{ marginTop: "2vh" }}>
       <style dangerouslySetInnerHTML={{ __html: NEWS_CSS }} />
 
-      {/* Header row — label + sentiment tag sit together for instant read. */}
-      <div className="flex items-center shrink-0" style={{ gap: "1.1vh", marginBottom: "1.2vh" }}>
-        <span style={{ width: "0.5vh", height: "2vh", borderRadius: "999px", background: "#60a5fa" }} />
+      <div className="flex items-center shrink-0" style={{ gap: "1vh", marginBottom: "1.3vh" }}>
+        <span style={{ width: "0.45vh", height: "2.1vh", borderRadius: "999px", background: FNO_ACCENT }} />
         <span
           className="font-black"
-          style={{ fontSize: "1.55vh", color: "#e2e8f0", letterSpacing: "0.12em" }}
+          style={{ fontSize: "1.5vh", color: "#e2e8f0", letterSpacing: "0.14em" }}
         >
           RECENT NEWS
         </span>
         {sentiment && (
           <span
-            className="font-black rounded-md"
+            className="font-black rounded-full"
             style={{
-              fontSize: "1.4vh",
-              letterSpacing: "0.06em",
+              fontSize: "1.3vh",
+              letterSpacing: "0.08em",
               color: sentiment.color,
               background: sentiment.bg,
-              border: `1px solid ${sentiment.color}55`,
-              padding: "0.4vh 1vh",
+              border: `1px solid ${sentiment.color}66`,
+              padding: "0.35vh 1vh",
+              boxShadow: glow(sentiment.color),
             }}
           >
             {sentiment.label}
@@ -99,53 +133,54 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
         )}
       </div>
 
-      {/* Rolling headline in big font — clamped so it never bleeds into the
-          header/footer no matter how long an item is. */}
       <div className="flex flex-col flex-1 min-h-0 justify-center overflow-hidden">
         {current ? (
           <p
             key={idx}
             className="broadcast-news-in"
             style={{
-              fontSize: "2.3vh",
-              lineHeight: 1.34,
+              fontSize: "2.15vh",
+              lineHeight: 1.38,
               color: "#f0f4ff",
-              fontWeight: 700,
+              fontWeight: 600,
               display: "-webkit-box",
               WebkitBoxOrient: "vertical",
               WebkitLineClamp: 8,
               overflow: "hidden",
             }}
           >
-            {current}
+            <HighlightedNews text={current} sentiment={sentimentLabel} />
           </p>
         ) : gaveUp ? (
-          <p style={{ fontSize: "2.1vh", lineHeight: 1.34, color: "#94a3b8", fontWeight: 600 }}>
+          <p style={{ fontSize: "2vh", lineHeight: 1.34, color: "#94a3b8", fontWeight: 600 }}>
             No fresh headlines for {symbol} right now — full news &amp; analytics on{" "}
-            <span style={{ color: "#60a5fa", fontWeight: 800 }}>fnoninja.com</span>.
+            <span style={{ color: FNO_ACCENT, fontWeight: 800, textShadow: glow(FNO_ACCENT) }}>
+              fnoninja.com
+            </span>
+            .
           </p>
         ) : (
-          <p style={{ fontSize: "2vh", color: "#64748b" }}>Gathering latest news…</p>
+          <p style={{ fontSize: "1.9vh", color: "#64748b" }}>Gathering latest news…</p>
         )}
       </div>
 
-      {/* Progress dots + footer */}
-      <div className="flex items-center justify-between shrink-0" style={{ marginTop: "1.4vh" }}>
-        <div className="flex items-center" style={{ gap: "0.7vh" }}>
+      <div className="flex items-center justify-between shrink-0" style={{ marginTop: "1.5vh" }}>
+        <div className="flex items-center" style={{ gap: "0.65vh" }}>
           {items.map((_, i) => (
             <span
               key={i}
               style={{
-                width: i === idx % items.length ? "2.6vh" : "0.85vh",
-                height: "0.85vh",
+                width: i === idx % items.length ? "2.8vh" : "0.8vh",
+                height: "0.8vh",
                 borderRadius: "999px",
-                background: i === idx % items.length ? "#60a5fa" : "rgba(96,165,250,0.25)",
+                background: i === idx % items.length ? FNO_ACCENT : "rgba(96,165,250,0.22)",
+                boxShadow: i === idx % items.length ? glow(FNO_ACCENT) : undefined,
                 transition: "width 0.35s ease",
               }}
             />
           ))}
         </div>
-        <span style={{ fontSize: "1.25vh", color: "#475569", fontWeight: 600 }}>
+        <span style={{ fontSize: "1.2vh", color: "#475569", fontWeight: 600 }}>
           AI summary · not investment advice
         </span>
       </div>

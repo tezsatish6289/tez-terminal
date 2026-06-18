@@ -10,13 +10,21 @@ import {
 } from "@/lib/levels/format-cluster-size";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
+import {
+  FNO_ACCENT,
+  FNO_BG_CANVAS,
+  FNO_BG_TEXTURE,
+  FNO_BG_TEXTURE_SIZE,
+  FNO_MUTED,
+  FNO_TEXT,
+} from "@/lib/fnoninja/theme";
 import { BroadcastNews } from "./BroadcastNews";
 import { useBroadcastNews } from "./useBroadcastNews";
 
 const SUPPORT = "#34d399";
 const RESIST = "#f87171";
-const MUTED = "#64748b";
-const INK = "#f0f4ff";
+const MUTED = FNO_MUTED;
+const INK = FNO_TEXT;
 const MAX_PAIN = LEVELS_ZONE_CHART.maxPain.labelText;
 
 const SLIDE_CSS = `
@@ -36,13 +44,16 @@ const STATUS_META: Record<ZoneDisplayKey, { label: string; color: string }> = {
   ILLIQUID: { label: "THIN OI", color: MUTED },
 };
 
+function glow(color: string, spread = 14): string {
+  return `0 0 ${spread}px ${color}66, 0 0 ${spread * 2}px ${color}33`;
+}
+
 function inr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   if (Math.abs(n) >= 1000) return n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
   return n.toFixed(2);
 }
 
-/** Compact Indian-notation OI (e.g. 1.2 Cr, 3.4 L, 12K). */
 function oi(n: number | null | undefined): string {
   return formatClusterContracts(n) ?? "—";
 }
@@ -63,28 +74,49 @@ function Stat({
   sub?: string;
   color?: string;
 }) {
+  const c = color ?? INK;
   return (
     <div
-      className="flex flex-col justify-center rounded-lg"
+      className="flex flex-col justify-center rounded-xl"
       style={{
-        padding: "1.2vh 1.4vh",
-        background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(90,140,220,0.14)",
+        padding: "1.3vh 1.2vh",
+        background: "rgba(255,255,255,0.04)",
+        border: `1px solid ${c}44`,
+        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.04), ${glow(c, 10)}`,
       }}
     >
-      <span style={{ fontSize: "1.25vh", color: MUTED, letterSpacing: "0.06em", fontWeight: 700 }}>
+      <span
+        style={{
+          fontSize: "1.2vh",
+          color: MUTED,
+          letterSpacing: "0.08em",
+          fontWeight: 800,
+        }}
+      >
         {label}
       </span>
       <span
-        className="font-mono tabular-nums"
-        style={{ fontSize: "2.1vh", color: color ?? INK, fontWeight: 700, marginTop: "0.5vh" }}
+        className="font-mono tabular-nums font-black"
+        style={{
+          fontSize: "2.35vh",
+          color: c,
+          marginTop: "0.55vh",
+          textShadow: glow(c, 8),
+        }}
       >
         {value}
       </span>
       {sub && (
         <span
           className="font-mono tabular-nums"
-          style={{ fontSize: "1.65vh", color: color ?? INK, fontWeight: 600, marginTop: "0.35vh", opacity: 0.9 }}
+          style={{
+            fontSize: "1.5vh",
+            color: c,
+            fontWeight: 700,
+            marginTop: "0.35vh",
+            opacity: 0.92,
+            textShadow: glow(c, 6),
+          }}
         >
           {sub}
         </span>
@@ -96,14 +128,14 @@ function Stat({
 function Chip({ text }: { text: string }) {
   return (
     <span
-      className="rounded-full"
+      className="rounded-full font-bold"
       style={{
-        padding: "0.5vh 1.2vh",
-        fontSize: "1.3vh",
-        fontWeight: 700,
-        color: "#93c5fd",
-        background: "rgba(37,99,235,0.12)",
-        border: "1px solid rgba(96,165,250,0.3)",
+        padding: "0.55vh 1.3vh",
+        fontSize: "1.35vh",
+        color: FNO_ACCENT,
+        background: "rgba(37,99,235,0.14)",
+        border: "1px solid rgba(96,165,250,0.45)",
+        boxShadow: glow(FNO_ACCENT, 8),
       }}
     >
       {text}
@@ -141,7 +173,17 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
   }, [item.scope, item.symbol, item.label, news?.name]);
 
   return (
-    <div key={item.symbol} className="broadcast-slide-in flex flex-col flex-1 min-h-0">
+    <div
+      key={item.symbol}
+      className="broadcast-slide-in relative flex flex-col flex-1 min-h-0 overflow-hidden"
+      style={{
+        backgroundColor: FNO_BG_CANVAS,
+        backgroundImage: FNO_BG_TEXTURE,
+        backgroundSize: FNO_BG_TEXTURE_SIZE,
+        margin: "-2vh",
+        padding: "2vh",
+      }}
+    >
       <style dangerouslySetInnerHTML={{ __html: SLIDE_CSS }} />
 
       {/* Symbol + status */}
@@ -150,61 +192,77 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
           <div className="flex items-baseline" style={{ gap: "1.1vh" }}>
             <span
               className="font-black truncate"
-              style={{ fontSize: "3.4vh", color: INK, letterSpacing: "-0.01em" }}
+              style={{
+                fontSize: "3.6vh",
+                color: INK,
+                letterSpacing: "-0.01em",
+                textShadow: glow(INK, 6),
+              }}
             >
               {item.symbol}
             </span>
             <span
               style={{
-                fontSize: "1.2vh",
+                fontSize: "1.15vh",
                 fontWeight: 800,
                 color: MUTED,
-                letterSpacing: "0.08em",
-                border: "1px solid rgba(90,140,220,0.25)",
-                borderRadius: "0.4vh",
-                padding: "0.3vh 0.7vh",
+                letterSpacing: "0.1em",
+                border: "1px solid rgba(90,140,220,0.35)",
+                borderRadius: "0.5vh",
+                padding: "0.35vh 0.75vh",
+                background: "rgba(255,255,255,0.03)",
               }}
             >
               {item.scope === "index" ? "INDEX" : "STOCK"}
             </span>
           </div>
           {subtitleLine && (
-            <span className="truncate" style={{ fontSize: "1.5vh", color: MUTED, marginTop: "0.3vh" }}>
+            <span
+              className="truncate uppercase"
+              style={{ fontSize: "1.35vh", color: MUTED, marginTop: "0.45vh", letterSpacing: "0.04em" }}
+            >
               {subtitleLine}
             </span>
           )}
         </div>
         <span
-          className="font-black shrink-0 rounded-lg"
+          className="font-black shrink-0 rounded-full"
           style={{
-            fontSize: "1.7vh",
+            fontSize: "1.55vh",
             color: status.color,
-            background: `${status.color}1f`,
-            border: `1px solid ${status.color}55`,
-            padding: "0.7vh 1.2vh",
-            letterSpacing: "0.04em",
+            background: `${status.color}18`,
+            border: `1px solid ${status.color}88`,
+            padding: "0.65vh 1.4vh",
+            letterSpacing: "0.06em",
+            boxShadow: glow(status.color, 12),
           }}
         >
           {status.label}
         </span>
       </div>
 
-      {/* Spot + context chips — chips sit on the right, same row as price. */}
+      {/* Spot + context chips */}
       <div
         className="flex items-center justify-between"
-        style={{ gap: "1.2vh", marginTop: "1.6vh" }}
+        style={{ gap: "1.2vh", marginTop: "1.8vh" }}
       >
-        <div className="flex items-baseline min-w-0" style={{ gap: "0.8vh" }}>
-          <span style={{ fontSize: "1.6vh", color: MUTED, fontWeight: 700 }}>SPOT</span>
+        <div className="flex items-baseline min-w-0" style={{ gap: "0.9vh" }}>
+          <span style={{ fontSize: "1.5vh", color: MUTED, fontWeight: 800, letterSpacing: "0.06em" }}>
+            SPOT
+          </span>
           <span
             className="font-mono tabular-nums font-black"
-            style={{ fontSize: "4vh", color: INK }}
+            style={{
+              fontSize: "4.4vh",
+              color: INK,
+              textShadow: "0 0 18px rgba(240,244,255,0.45), 0 0 36px rgba(240,244,255,0.15)",
+            }}
           >
             ₹{inr(item.spot)}
           </span>
         </div>
         {chips.length > 0 && (
-          <div className="flex flex-wrap items-center justify-end shrink-0" style={{ gap: "0.9vh" }}>
+          <div className="flex flex-wrap items-center justify-end shrink-0" style={{ gap: "0.8vh" }}>
             {chips.map((c) => (
               <Chip key={c} text={c} />
             ))}
@@ -212,10 +270,10 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
         )}
       </div>
 
-      {/* Stats — three boxes: max pain (amber) + the two option walls with OI. */}
+      {/* Stats — max pain + option walls */}
       <div
         className="grid"
-        style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "1.1vh", marginTop: "1.6vh" }}
+        style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "1vh", marginTop: "1.8vh" }}
       >
         <Stat label="MAX PAIN" value={`₹${inr(d?.poc)}`} color={MAX_PAIN} />
         <Stat
@@ -232,7 +290,6 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
         />
       </div>
 
-      {/* Rolling recent news fills the freed space below. */}
       <BroadcastNews scope={item.scope} symbol={item.symbol} />
     </div>
   );

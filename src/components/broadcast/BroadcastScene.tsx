@@ -21,7 +21,7 @@ import {
 import { BroadcastClock } from "./BroadcastClock";
 import { BroadcastExplainer } from "./BroadcastExplainer";
 import { BroadcastLiveslide } from "./BroadcastLiveslide";
-import { BroadcastTicker } from "./BroadcastTicker";
+import { BroadcastWebinarInterstitial } from "./BroadcastWebinarInterstitial";
 import { prefetchAllSymbols, prefetchSymbol } from "./broadcast-data";
 
 interface IndexItem {
@@ -49,9 +49,14 @@ const OPENER_MS = 5 * 60_000;
  *  fallback (quiet days) cycles faster. */
 const MAP_MS = 14_000;
 const STOCK_MS = 30_000;
+/** Webinar CTA between stocks — long enough to read headline + scan QR. */
+const WEBINAR_MS = 10_000;
 
 type Scene = "map" | "live";
-type Page = { type: "map" } | { type: "stock"; item: LevelsActionableItem };
+type Page =
+  | { type: "map" }
+  | { type: "webinar" }
+  | { type: "stock"; item: LevelsActionableItem };
 
 /** Index payload row → descriptive item the chart + info rail can render. */
 function indexToItem(it: IndexItem): LevelsActionableItem | null {
@@ -141,14 +146,16 @@ export function BroadcastScene() {
     return s === "live" || s === "map" ? s : null;
   }, [searchParams]);
 
-  // After the opener, the loop is a pure stock slideshow — one symbol at a time.
-  //   stock₁ → stock₂ → stock₃ → … (then loops).
-  // On a quiet day with no in-zone names we fall back to a single map page.
+  // After the opener: stock → webinar CTA → next stock → webinar → …
+  // The interstitial gives the next symbol time to warm in the background.
   const pages = useMemo<Page[]>(() => {
     if (forcedScene === "map") return [{ type: "map" }];
     const stocks = liveItems.map<Page>((item) => ({ type: "stock", item }));
     if (stocks.length === 0) return [{ type: "map" }];
-    return stocks;
+    if (stocks.length === 1) return stocks;
+    return stocks.flatMap<Page>((stock, i) =>
+      i === 0 ? [stock] : [{ type: "webinar" }, stock],
+    );
     // Keyed on liveItemKey (content) so a routine 60s poll that returns the same
     // symbols doesn't rebuild `pages` and reset the dwell timer mid-scene.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,7 +195,12 @@ export function BroadcastScene() {
     if (showOpenerMap) return;
     if (pages.length <= 1) return;
     const current = pages[pageIdx % pages.length];
-    const dwell = current.type === "map" ? MAP_MS : STOCK_MS;
+    const dwell =
+      current.type === "map"
+        ? MAP_MS
+        : current.type === "webinar"
+          ? WEBINAR_MS
+          : STOCK_MS;
     const id = window.setTimeout(
       () => setPageIdx((i) => (i + 1) % pages.length),
       dwell,
@@ -202,7 +214,11 @@ export function BroadcastScene() {
     ? "opener-map"
     : showMap
       ? "map"
-      : `stock-${page.type === "stock" ? page.item.symbol : "unknown"}`;
+      : page.type === "webinar"
+        ? "webinar-cta"
+        : page.type === "stock"
+          ? `stock-${page.item.symbol}`
+          : "unknown";
 
   // Warm the NEXT page's data (levels + news + candles) in the background so it
   // paints instantly when we fade to it. During the opener we warm the whole
@@ -339,6 +355,8 @@ export function BroadcastScene() {
         >
           {showMap ? (
             mapPane
+          ) : page.type === "webinar" ? (
+            <BroadcastWebinarInterstitial />
           ) : page.type === "stock" ? (
             <BroadcastLiveslide item={page.item} />
           ) : (
@@ -346,8 +364,6 @@ export function BroadcastScene() {
           )}
         </div>
       </main>
-
-      <BroadcastTicker />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAnimatedNumber, useChartMotion } from "@/hooks/use-chart-motion";
 import type { LevelsActionableItem } from "@/lib/zones/levels-actionable-list";
 import { bandsFromLevels } from "@/lib/zones/levels-actionable-list";
 import { zoneStatusDisplayKey, type ZoneDisplayKey } from "@/lib/zones/zone-status";
@@ -28,13 +29,72 @@ const INK = FNO_TEXT;
 const MAX_PAIN = LEVELS_ZONE_CHART.maxPain.labelText;
 const PANE_BORDER = "1px solid rgba(90,140,220,0.2)";
 
+/** Match BroadcastScene cross-fade so digits finish rolling as the page lands. */
+const KINETIC_MS = 900;
+
 const SLIDE_CSS = `
 @keyframes broadcast-slide-in {
   0% { opacity: 0; transform: translate3d(0, 14px, 0); }
   100% { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 .broadcast-slide-in { animation: broadcast-slide-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes broadcast-kinetic-num {
+  0% { opacity: 0.35; transform: translateY(0.12em); filter: blur(3px); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.broadcast-kinetic-num { animation: broadcast-kinetic-num ${KINETIC_MS}ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 `;
+
+/** True for the first KINETIC_MS after a new symbol appears — not on background level refreshes. */
+function useKineticRoll(symbol: string): boolean {
+  const { enabled } = useChartMotion();
+  const [rolling, setRolling] = useState(true);
+
+  useEffect(() => {
+    setRolling(true);
+    const id = window.setTimeout(() => setRolling(false), KINETIC_MS);
+    return () => window.clearTimeout(id);
+  }, [symbol]);
+
+  return enabled && rolling;
+}
+
+function KineticNumber({
+  rolling,
+  target,
+  snapshot,
+  format,
+  className,
+  style,
+}: {
+  rolling: boolean;
+  target: number | null | undefined;
+  snapshot: number | null | undefined;
+  format: (n: number) => string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const value = rolling ? snapshot : target;
+  const canRoll = rolling && value != null && Number.isFinite(value);
+  const animated = useAnimatedNumber(value ?? 0, { enabled: canRoll, duration: KINETIC_MS });
+
+  if (value == null || !Number.isFinite(value)) {
+    return (
+      <span className={className} style={style}>
+        —
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={canRoll ? `broadcast-kinetic-num ${className ?? ""}`.trim() : className}
+      style={style}
+    >
+      {format(canRoll ? animated : value)}
+    </span>
+  );
+}
 
 const STATUS_META: Record<ZoneDisplayKey, { label: string; color: string }> = {
   IN_BULL: { label: "AT SUPPORT", color: SUPPORT },
@@ -62,16 +122,31 @@ function wallStrike(strike: number | null | undefined): string {
 
 function Stat({
   label,
-  value,
-  sub,
+  rolling,
+  valueTarget,
+  valueSnapshot,
+  formatValue,
+  subTarget,
+  subSnapshot,
+  formatSub,
   color,
 }: {
   label: string;
-  value: string;
-  sub?: string;
+  rolling: boolean;
+  valueTarget: number | null | undefined;
+  valueSnapshot: number | null | undefined;
+  formatValue: (n: number) => string;
+  subTarget?: number | null;
+  subSnapshot?: number | null;
+  formatSub?: (n: number) => string;
   color?: string;
 }) {
   const c = color ?? INK;
+  const subFmt = formatSub ?? ((n: number) => String(n));
+  const showSub =
+    (rolling ? subSnapshot : subTarget) != null &&
+    Number.isFinite(rolling ? subSnapshot : subTarget);
+
   return (
     <div
       className="flex flex-col justify-center rounded-lg"
@@ -91,14 +166,20 @@ function Stat({
       >
         {label}
       </span>
-      <span
+      <KineticNumber
+        rolling={rolling}
+        target={valueTarget}
+        snapshot={valueSnapshot}
+        format={formatValue}
         className="font-mono tabular-nums font-black"
         style={{ fontSize: "2.35vh", color: c, marginTop: "0.55vh" }}
-      >
-        {value}
-      </span>
-      {sub && (
-        <span
+      />
+      {showSub && (
+        <KineticNumber
+          rolling={rolling}
+          target={subTarget}
+          snapshot={subSnapshot}
+          format={subFmt}
           className="font-mono tabular-nums"
           style={{
             fontSize: "1.5vh",
@@ -107,9 +188,7 @@ function Stat({
             marginTop: "0.35vh",
             opacity: 0.9,
           }}
-        >
-          {sub}
-        </span>
+        />
       )}
     </div>
   );
@@ -138,9 +217,21 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
   const bands = bandsFromLevels(d, item.spot);
   const status = STATUS_META[zoneStatusDisplayKey(bands)];
   const { news } = useBroadcastNews(item.scope, item.symbol);
+  const rolling = useKineticRoll(item.symbol);
 
-  const putOi = oi(d?.putClusterSize);
-  const callOi = oi(d?.callClusterSize);
+  // Snapshot values at symbol change so a mid-roll levels refresh doesn't restart the count.
+  const snap = useMemo(
+    () => ({
+      spot: item.spot,
+      poc: d?.poc,
+      putStrike: d?.putClusterStrike,
+      callStrike: d?.callClusterStrike,
+      putOi: d?.putClusterSize,
+      callOi: d?.callClusterSize,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-snapshot on symbol change
+    [item.symbol],
+  );
 
   const chips: string[] = [];
   if (d?.atmIV != null) chips.push(`IV ${d.atmIV.toFixed(1)}%`);
@@ -233,11 +324,14 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
           <span style={{ fontSize: "1.5vh", color: MUTED, fontWeight: 800, letterSpacing: "0.06em" }}>
             SPOT
           </span>
-          <span
-            className="font-mono tabular-nums font-black"
-            style={{ fontSize: "4.4vh", color: INK }}
-          >
-            ₹{inr(item.spot)}
+          <span style={{ fontSize: "4.4vh", color: INK }}>
+            <KineticNumber
+              rolling={rolling}
+              target={item.spot}
+              snapshot={snap.spot}
+              format={(n) => `₹${inr(n)}`}
+              className="font-mono tabular-nums font-black"
+            />
           </span>
         </div>
         {chips.length > 0 && (
@@ -254,17 +348,34 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
         className="grid"
         style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "1vh", marginTop: "1.8vh" }}
       >
-        <Stat label="MAX PAIN" value={`₹${inr(d?.poc)}`} color={MAX_PAIN} />
+        <Stat
+          label="MAX PAIN"
+          rolling={rolling}
+          valueTarget={d?.poc}
+          valueSnapshot={snap.poc}
+          formatValue={(n) => `₹${inr(n)}`}
+          color={MAX_PAIN}
+        />
         <Stat
           label="PUT WALL"
-          value={wallStrike(d?.putClusterStrike)}
-          sub={putOi !== "—" ? `${putOi} contracts` : undefined}
+          rolling={rolling}
+          valueTarget={d?.putClusterStrike}
+          valueSnapshot={snap.putStrike}
+          formatValue={(n) => wallStrike(n)}
+          subTarget={d?.putClusterSize}
+          subSnapshot={snap.putOi}
+          formatSub={(n) => `${oi(Math.round(n))} contracts`}
           color={SUPPORT}
         />
         <Stat
           label="CALL WALL"
-          value={wallStrike(d?.callClusterStrike)}
-          sub={callOi !== "—" ? `${callOi} contracts` : undefined}
+          rolling={rolling}
+          valueTarget={d?.callClusterStrike}
+          valueSnapshot={snap.callStrike}
+          formatValue={(n) => wallStrike(n)}
+          subTarget={d?.callClusterSize}
+          subSnapshot={snap.callOi}
+          formatSub={(n) => `${oi(Math.round(n))} contracts`}
           color={RESIST}
         />
       </div>

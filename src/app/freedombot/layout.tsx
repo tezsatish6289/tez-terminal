@@ -45,6 +45,15 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  keywords: [
+    "FreedomBot",
+    "crypto trading bot",
+    "on-chain trading",
+    "Bybit bot",
+    "algorithmic trading",
+    "verifiable trades",
+    "Solana trade records",
+  ],
   alternates: {
     canonical: "https://freedombot.ai",
   },

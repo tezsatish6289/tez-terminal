@@ -2,6 +2,8 @@
 
 > FreedomBot.ai is an algorithmic crypto trading platform where every trade is recorded on-chain for public verification. Deploy a bot on Bybit (and other supported exchanges) in under five minutes. No upfront fees — you keep control of your exchange API keys.
 
+Not: FNONINJA / FNO Ninja (NSE F&O option-chain analytics — separate product at https://fnoninja.com/).
+
 ## About
 
 - [Homepage](https://freedombot.ai/): Product overview, transparency promise, and deploy flow

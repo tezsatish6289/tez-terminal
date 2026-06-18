@@ -1,13 +1,13 @@
 "use client";
 
-import { LandingPage } from "@/components/landing/LandingPage";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { trackSignInClicked, trackLogin } from "@/firebase/analytics";
 import { useRouter } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Chrome } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -18,7 +18,7 @@ export default function Home() {
 
   useEffect(() => {
     if (user && !prevUser.current) {
-      trackLogin('google');
+      trackLogin("google");
     }
     prevUser.current = user;
   }, [user]);
@@ -47,7 +47,7 @@ export default function Home() {
     }
   }, [auth]);
 
-  if (isUserLoading) {
+  if (isUserLoading || user) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-accent" />
@@ -55,13 +55,26 @@ export default function Home() {
     );
   }
 
-  if (user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="w-full max-w-sm text-center">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">TezTerminal</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Sign in to continue.</p>
+        <Button
+          onClick={handleGoogleLogin}
+          disabled={isLoggingIn}
+          className="mt-8 h-12 w-full gap-3 bg-white text-black hover:bg-white/90 text-base font-semibold"
+        >
+          {isLoggingIn ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <>
+              <Chrome className="h-5 w-5" />
+              Sign in with Google
+            </>
+          )}
+        </Button>
       </div>
-    );
-  }
-
-  return <LandingPage onLogin={handleGoogleLogin} isLoggingIn={isLoggingIn} />;
+    </div>
+  );
 }

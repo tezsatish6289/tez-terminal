@@ -1,0 +1,43 @@
+# FNONINJA (FNO Ninja)
+
+> FNONINJA is a market analytics and data visualization platform for NSE F&O (Indian futures and options). It processes publicly available option chain data to produce interactive market maps, open-interest clusters, and derived support/resistance zone observations. Informational and educational only — not investment advice.
+
+Also known as: FNO Ninja, F&O Ninja.
+
+Not: NinjaTrader, a brokerage, a signal service, or FreedomBot.ai (crypto — separate product at https://freedombot.ai/).
+
+## About
+
+- [Homepage](https://fnoninja.com/): Product overview, features, pricing, and disclaimer
+- [NSE F&O market map](https://fnoninja.com/levels): Interactive bubble map of the full F&O universe
+- [Learn](https://fnoninja.com/learn): Educational guides to option-chain zones and market structure
+- [Option zones science](https://fnoninja.com/learn/science): Put/call clusters, max pain, and expiry mechanics
+
+## How it works
+
+1. **Live data** — Real-time option chain data for NSE F&O stocks and indices during market hours.
+2. **Analysis** — Algorithms identify open-interest clusters and derive support/resistance zone observations (not trading signals).
+3. **Visualization** — Market maps, symbol dashboards, zone views, slideshow mode, and filters for independent research.
+
+## Key features
+
+- **Market map** — Entire NSE F&O universe in one interactive view
+- **Symbol analytics** — Per-stock/index OI profiles and derived zone context
+- **Zone dashboard** — Price positioning relative to option-derived zones
+- **Slideshow mode** — Cycle through symbols for quick session scans
+- **Community chat** — Subscriber-only moderated room for market-structure discussion (observations only)
+
+## Audience
+
+Indian F&O traders and researchers who want structured option-chain context across 200+ symbols and key indices (NIFTY, BANKNIFTY, FINNIFTY).
+
+## Legal
+
+- [Privacy](https://fnoninja.com/privacy)
+- [Terms](https://fnoninja.com/terms)
+- [Contact](https://fnoninja.com/contact)
+
+## Contact
+
+- Website: https://fnoninja.com/
+- Contact form: https://fnoninja.com/contact

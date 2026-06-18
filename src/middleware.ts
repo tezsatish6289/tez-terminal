@@ -67,12 +67,28 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(new URL("/fnoninja/icon.svg", request.url));
     }
 
+    // Crawler discovery — static only (host-specific; never share FreedomBot files)
+    if (pathname === "/robots.txt") {
+      return NextResponse.rewrite(new URL("/fnoninja/robots.txt", request.url));
+    }
+    if (pathname === "/sitemap.xml") {
+      return NextResponse.rewrite(new URL("/fnoninja/sitemap.xml", request.url));
+    }
+    if (pathname === "/llms.txt") {
+      return NextResponse.rewrite(new URL("/fnoninja/llms.txt", request.url));
+    }
+
     if (
       pathname.startsWith("/_next") ||
       pathname.startsWith("/api") ||
       pathname.match(/\..+$/)
     ) {
       return NextResponse.next();
+    }
+
+    // Social preview images — FNONINJA assets only
+    if (pathname === "/opengraph-image" || pathname === "/twitter-image") {
+      return NextResponse.rewrite(new URL(`/fnoninja${pathname}`, request.url));
     }
 
     // Marketing + legal pages — FNONINJA shell
@@ -172,7 +188,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // TezTerminal: not for search/LLM discovery — consumer site is freedombot.ai
+  // TezTerminal / localhost: internal tool — block search and LLM discovery
   if (pathname === "/robots.txt") {
     return NextResponse.rewrite(new URL("/tez-robots.txt", request.url));
   }

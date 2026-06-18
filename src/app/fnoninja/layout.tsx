@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { FnoNinjaClientProviders } from "@/components/fnoninja/FnoNinjaClientProviders";
 import { FnoNinjaPageShell } from "@/components/fnoninja/FnoNinjaPageShell";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { FNONINJA_SITE_METADATA, FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
+import {
+  FNONINJA_ORGANIZATION_JSON_LD,
+  FNONINJA_WEBSITE_JSON_LD,
+} from "@/lib/fnoninja/seo";
 
 export const metadata: Metadata = {
   ...FNONINJA_SITE_METADATA,
@@ -24,6 +29,7 @@ export const metadata: Metadata = {
 export default function FnoNinjaLayout({ children }: { children: React.ReactNode }) {
   return (
     <FnoNinjaClientProviders>
+      <JsonLd data={[FNONINJA_ORGANIZATION_JSON_LD, FNONINJA_WEBSITE_JSON_LD]} />
       <FnoNinjaPageShell>{children}</FnoNinjaPageShell>
     </FnoNinjaClientProviders>
   );

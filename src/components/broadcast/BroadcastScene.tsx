@@ -21,7 +21,7 @@ import {
 import { BroadcastClock } from "./BroadcastClock";
 import { BroadcastExplainer } from "./BroadcastExplainer";
 import { BroadcastLiveslide } from "./BroadcastLiveslide";
-import { BroadcastWebinarInterstitial } from "./BroadcastWebinarInterstitial";
+import { BroadcastWebinarInfoPane } from "./BroadcastWebinarInfoPane";
 import { prefetchAllSymbols, prefetchSymbol } from "./broadcast-data";
 
 interface IndexItem {
@@ -55,7 +55,7 @@ const WEBINAR_MS = 10_000;
 type Scene = "map" | "live";
 type Page =
   | { type: "map" }
-  | { type: "webinar" }
+  | { type: "webinar"; afterStock: LevelsActionableItem }
   | { type: "stock"; item: LevelsActionableItem };
 
 /** Index payload row → descriptive item the chart + info rail can render. */
@@ -153,9 +153,12 @@ export function BroadcastScene() {
     const stocks = liveItems.map<Page>((item) => ({ type: "stock", item }));
     if (stocks.length === 0) return [{ type: "map" }];
     if (stocks.length === 1) return stocks;
-    return stocks.flatMap<Page>((stock, i) =>
-      i === 0 ? [stock] : [{ type: "webinar" }, stock],
-    );
+    return stocks.flatMap<Page>((stock, i) => {
+      if (i === 0) return [stock];
+      const prev = stocks[i - 1];
+      const afterStock = prev.type === "stock" ? prev.item : liveItems[i - 1];
+      return [{ type: "webinar", afterStock }, stock];
+    });
     // Keyed on liveItemKey (content) so a routine 60s poll that returns the same
     // symbols doesn't rebuild `pages` and reset the dwell timer mid-scene.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,7 +218,7 @@ export function BroadcastScene() {
     : showMap
       ? "map"
       : page.type === "webinar"
-        ? "webinar-cta"
+        ? `stock-${page.afterStock.symbol}`
         : page.type === "stock"
           ? `stock-${page.item.symbol}`
           : "unknown";
@@ -356,7 +359,10 @@ export function BroadcastScene() {
           {showMap ? (
             mapPane
           ) : page.type === "webinar" ? (
-            <BroadcastWebinarInterstitial />
+            <BroadcastLiveslide
+              item={page.afterStock}
+              infoPane={<BroadcastWebinarInfoPane />}
+            />
           ) : page.type === "stock" ? (
             <BroadcastLiveslide item={page.item} />
           ) : (

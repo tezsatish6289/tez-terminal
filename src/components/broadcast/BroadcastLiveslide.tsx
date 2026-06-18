@@ -13,7 +13,14 @@ import { cachedLevels, fetchLevels } from "./broadcast-data";
  * option-wall lines (reusing the app's NativeCandlesChart), beside a compact
  * descriptive levels rail. Purely informational; no calls.
  */
-export function BroadcastLiveslide({ item }: { item: LevelsActionableItem }) {
+export function BroadcastLiveslide({
+  item,
+  infoPane,
+}: {
+  item: LevelsActionableItem;
+  /** When set, replaces the default stock info rail (e.g. webinar CTA). */
+  infoPane?: React.ReactNode;
+}) {
   const [levels, setLevels] = useState<PublicLevels | null>(
     () => cachedLevels(item.scope, item.symbol) ?? item.data,
   );
@@ -77,17 +84,22 @@ export function BroadcastLiveslide({ item }: { item: LevelsActionableItem }) {
         </div>
       </section>
 
-      {/* Descriptive levels + news rail — 40% width, matched height. */}
+      {/* Info pane — stock levels + news, or webinar CTA during transitions. */}
       <aside
-        className="flex flex-col min-h-0 self-stretch rounded-xl"
+        key={infoPane ? "webinar-info" : "stock-info"}
+        className="flex flex-col min-h-0 self-stretch rounded-xl overflow-hidden"
         style={{
           flex: "2 1 0%",
           padding: "2vh",
-          background: "linear-gradient(180deg, rgba(13,27,46,0.85), rgba(8,15,30,0.85))",
-          border: "1px solid rgba(90,140,220,0.2)",
+          background: infoPane
+            ? "linear-gradient(160deg, rgba(13,27,46,0.92), rgba(8,15,30,0.95))"
+            : "linear-gradient(180deg, rgba(13,27,46,0.85), rgba(8,15,30,0.85))",
+          border: infoPane
+            ? "1px solid rgba(45,212,191,0.2)"
+            : "1px solid rgba(90,140,220,0.2)",
         }}
       >
-        <BroadcastSlide item={enriched} />
+        {infoPane ?? <BroadcastSlide item={enriched} />}
       </aside>
     </>
   );

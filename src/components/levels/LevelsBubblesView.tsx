@@ -194,6 +194,11 @@ export function LevelsBubblesView({
         n.vx = 0;
         n.vy = 0;
       }
+      // Preserved positions may come from a transient wrong-size layout (e.g. a
+      // freshly-mounted broadcast scene measured mid-fade). Clamp into current
+      // bounds so a bubble can never get stranded off-screen and "disappear".
+      n.x = Math.max(n.r + 8, Math.min(size.w - n.r - 8, n.x));
+      n.y = Math.max(n.r + 8, Math.min(size.h - n.r - 8, n.y));
     }
 
     physicsFrameRef.current = 0;

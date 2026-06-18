@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
@@ -148,12 +148,22 @@ export function BroadcastScene() {
     if (forcedScene === "live") return stocks.length ? stocks : [{ type: "map" }];
     if (stocks.length === 0) return [{ type: "map" }];
     return stocks.flatMap<Page>((stock) => [{ type: "map" }, stock]);
-  }, [liveItemKey, liveItems, forcedScene]);
-
-  // Always open on the bubble map when the queue first arrives or changes.
-  useEffect(() => {
-    setPageIdx(0);
+    // Keyed on liveItemKey (content) so a routine 60s poll that returns the same
+    // symbols doesn't rebuild `pages` and reset the dwell timer mid-scene.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveItemKey, forcedScene]);
+
+  // Open on the bubble map only when the rotation first becomes available or the
+  // forced scene changes — NOT on every in-zone refresh (that would yank the
+  // stream back to the map every poll during data hours).
+  const hadRotationRef = useRef(false);
+  useEffect(() => {
+    const hasRotation = pages.length > 1;
+    if (forcedScene || (hasRotation && !hadRotationRef.current)) {
+      setPageIdx(0);
+    }
+    hadRotationRef.current = hasRotation;
+  }, [pages.length, forcedScene]);
 
   // Warm news + levels for the entire queue as soon as levels load. Cold AI news
   // can take 15–25s — the 14s map interstitial alone is often not enough.

@@ -16,10 +16,13 @@ import { cachedLevels, fetchLevels } from "./broadcast-data";
 export function BroadcastLiveslide({
   item,
   infoPane,
+  rollKey,
 }: {
   item: LevelsActionableItem;
   /** When set, replaces the default stock info rail (e.g. webinar CTA). */
   infoPane?: React.ReactNode;
+  /** Unique per slideshow appearance — drives kinetic number rolls. */
+  rollKey?: string;
 }) {
   const [levels, setLevels] = useState<PublicLevels | null>(
     () => cachedLevels(item.scope, item.symbol) ?? item.data,
@@ -97,7 +100,7 @@ export function BroadcastLiveslide({
           border: "1px solid rgba(90,140,220,0.2)",
         }}
       >
-        {infoPane ?? <BroadcastSlide item={enriched} />}
+        {infoPane ?? <BroadcastSlide item={enriched} rollKey={rollKey ?? item.symbol} />}
       </aside>
     </>
   );

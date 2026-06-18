@@ -45,40 +45,48 @@ const SLIDE_CSS = `
 .broadcast-kinetic-num { animation: broadcast-kinetic-num ${KINETIC_MS}ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 `;
 
-/** True for the first KINETIC_MS after a new symbol appears — not on background level refreshes. */
-function useKineticRoll(symbol: string): boolean {
-  const { enabled } = useChartMotion();
-  const [rolling, setRolling] = useState(true);
-
-  useEffect(() => {
-    setRolling(true);
-    const id = window.setTimeout(() => setRolling(false), KINETIC_MS);
-    return () => window.clearTimeout(id);
-  }, [symbol]);
-
-  return enabled && rolling;
-}
-
+/**
+ * Count up once per `rollKey` when `target` first becomes available.
+ * Wall stats often load a beat after spot (compact in-zone row → full ladder fetch),
+ * so we lock the end value on arrival instead of snapshotting at symbol change.
+ */
 function KineticNumber({
-  rolling,
+  rollKey,
   target,
-  snapshot,
   format,
   className,
   style,
+  hideWhenEmpty = false,
 }: {
-  rolling: boolean;
+  rollKey: string;
   target: number | null | undefined;
-  snapshot: number | null | undefined;
   format: (n: number) => string;
   className?: string;
   style?: React.CSSProperties;
+  hideWhenEmpty?: boolean;
 }) {
-  const value = rolling ? snapshot : target;
-  const canRoll = rolling && value != null && Number.isFinite(value);
-  const animated = useAnimatedNumber(value ?? 0, { enabled: canRoll, duration: KINETIC_MS });
+  const { enabled } = useChartMotion();
+  const [endValue, setEndValue] = useState<number | null>(null);
+  const [rolling, setRolling] = useState(false);
 
-  if (value == null || !Number.isFinite(value)) {
+  useEffect(() => {
+    setEndValue(null);
+    setRolling(false);
+  }, [rollKey]);
+
+  useEffect(() => {
+    if (endValue != null) return;
+    if (target == null || !Number.isFinite(target)) return;
+    setEndValue(target);
+    if (!enabled) return;
+    setRolling(true);
+    const id = window.setTimeout(() => setRolling(false), KINETIC_MS);
+    return () => window.clearTimeout(id);
+  }, [rollKey, target, endValue, enabled]);
+
+  const display = rolling ? endValue : (target ?? endValue);
+  if (display == null || !Number.isFinite(display)) {
+    if (hideWhenEmpty) return null;
     return (
       <span className={className} style={style}>
         —
@@ -86,12 +94,17 @@ function KineticNumber({
     );
   }
 
+  const animated = useAnimatedNumber(endValue ?? display, {
+    enabled: rolling && endValue != null,
+    duration: KINETIC_MS,
+  });
+
   return (
     <span
-      className={canRoll ? `broadcast-kinetic-num ${className ?? ""}`.trim() : className}
+      className={rolling ? `broadcast-kinetic-num ${className ?? ""}`.trim() : className}
       style={style}
     >
-      {format(canRoll ? animated : value)}
+      {format(rolling ? animated : display)}
     </span>
   );
 }
@@ -122,30 +135,23 @@ function wallStrike(strike: number | null | undefined): string {
 
 function Stat({
   label,
-  rolling,
+  rollKey,
   valueTarget,
-  valueSnapshot,
   formatValue,
   subTarget,
-  subSnapshot,
   formatSub,
   color,
 }: {
   label: string;
-  rolling: boolean;
+  rollKey: string;
   valueTarget: number | null | undefined;
-  valueSnapshot: number | null | undefined;
   formatValue: (n: number) => string;
   subTarget?: number | null;
-  subSnapshot?: number | null;
   formatSub?: (n: number) => string;
   color?: string;
 }) {
   const c = color ?? INK;
   const subFmt = formatSub ?? ((n: number) => String(n));
-  const showSub =
-    (rolling ? subSnapshot : subTarget) != null &&
-    Number.isFinite(rolling ? subSnapshot : subTarget);
 
   return (
     <div
@@ -167,19 +173,18 @@ function Stat({
         {label}
       </span>
       <KineticNumber
-        rolling={rolling}
+        rollKey={rollKey}
         target={valueTarget}
-        snapshot={valueSnapshot}
         format={formatValue}
         className="font-mono tabular-nums font-black"
         style={{ fontSize: "2.35vh", color: c, marginTop: "0.55vh" }}
       />
-      {showSub && (
+      {formatSub && (
         <KineticNumber
-          rolling={rolling}
+          rollKey={`${rollKey}-sub`}
           target={subTarget}
-          snapshot={subSnapshot}
           format={subFmt}
+          hideWhenEmpty
           className="font-mono tabular-nums"
           style={{
             fontSize: "1.5vh",
@@ -212,26 +217,18 @@ function Chip({ text }: { text: string }) {
 }
 
 /** Descriptive levels card for one stock (used in the single-stock focus page). */
-export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
+export function BroadcastSlide({
+  item,
+  rollKey,
+}: {
+  item: LevelsActionableItem;
+  /** Changes each time this stock appears in the rotation (not just on symbol). */
+  rollKey: string;
+}) {
   const d = item.data;
   const bands = bandsFromLevels(d, item.spot);
   const status = STATUS_META[zoneStatusDisplayKey(bands)];
   const { news } = useBroadcastNews(item.scope, item.symbol);
-  const rolling = useKineticRoll(item.symbol);
-
-  // Snapshot values at symbol change so a mid-roll levels refresh doesn't restart the count.
-  const snap = useMemo(
-    () => ({
-      spot: item.spot,
-      poc: d?.poc,
-      putStrike: d?.putClusterStrike,
-      callStrike: d?.callClusterStrike,
-      putOi: d?.putClusterSize,
-      callOi: d?.callClusterSize,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-snapshot on symbol change
-    [item.symbol],
-  );
 
   const chips: string[] = [];
   if (d?.atmIV != null) chips.push(`IV ${d.atmIV.toFixed(1)}%`);
@@ -326,9 +323,8 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
           </span>
           <span style={{ fontSize: "4.4vh", color: INK }}>
             <KineticNumber
-              rolling={rolling}
+              rollKey={`${rollKey}-spot`}
               target={item.spot}
-              snapshot={snap.spot}
               format={(n) => `₹${inr(n)}`}
               className="font-mono tabular-nums font-black"
             />
@@ -350,31 +346,26 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
       >
         <Stat
           label="MAX PAIN"
-          rolling={rolling}
+          rollKey={`${rollKey}-poc`}
           valueTarget={d?.poc}
-          valueSnapshot={snap.poc}
           formatValue={(n) => `₹${inr(n)}`}
           color={MAX_PAIN}
         />
         <Stat
           label="PUT WALL"
-          rolling={rolling}
+          rollKey={`${rollKey}-put`}
           valueTarget={d?.putClusterStrike}
-          valueSnapshot={snap.putStrike}
           formatValue={(n) => wallStrike(n)}
           subTarget={d?.putClusterSize}
-          subSnapshot={snap.putOi}
           formatSub={(n) => `${oi(Math.round(n))} contracts`}
           color={SUPPORT}
         />
         <Stat
           label="CALL WALL"
-          rolling={rolling}
+          rollKey={`${rollKey}-call`}
           valueTarget={d?.callClusterStrike}
-          valueSnapshot={snap.callStrike}
           formatValue={(n) => wallStrike(n)}
           subTarget={d?.callClusterSize}
-          subSnapshot={snap.callOi}
           formatSub={(n) => `${oi(Math.round(n))} contracts`}
           color={RESIST}
         />

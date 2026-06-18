@@ -364,7 +364,7 @@ export function BroadcastScene() {
               infoPane={<BroadcastWebinarInfoPane />}
             />
           ) : page.type === "stock" ? (
-            <BroadcastLiveslide item={page.item} />
+            <BroadcastLiveslide item={page.item} rollKey={`${page.item.symbol}-${pageIdx}`} />
           ) : (
             mapPane
           )}

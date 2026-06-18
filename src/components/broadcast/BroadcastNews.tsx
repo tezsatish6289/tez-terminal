@@ -20,6 +20,7 @@ const NEWS_CSS = `
 `;
 
 const ITEM_MS = 5500;
+const INK = "#f0f4ff";
 
 function splitSentences(text: string): string[] {
   return text
@@ -44,34 +45,6 @@ function buildRollingItems(news: LevelsNews): string[] {
   return out;
 }
 
-/** Highlight percentages and key numbers — color only, no glow. */
-function HighlightedNews({
-  text,
-  sentiment,
-}: {
-  text: string;
-  sentiment: NewsSentimentLabel;
-}) {
-  const highlight =
-    sentiment === "bullish" ? "#34d399" : sentiment === "bearish" ? "#f87171" : "#94a3b8";
-
-  const parts = text.split(/(\d+(?:\.\d+)?%|\d+(?:\.\d+)?\s*(?:Cr|L|K|M|crore|lakh)?)/gi);
-
-  return (
-    <>
-      {parts.map((part, i) => {
-        const isHighlight = /^\d/.test(part);
-        if (!isHighlight) return <span key={i}>{part}</span>;
-        return (
-          <span key={i} style={{ color: highlight, fontWeight: 800 }}>
-            {part}
-          </span>
-        );
-      })}
-    </>
-  );
-}
-
 export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; symbol: string }) {
   const { news, gaveUp } = useBroadcastNews(scope, symbol);
   const [idx, setIdx] = useState(0);
@@ -90,7 +63,6 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
 
   const sentiment = news?.sentiment ? SENTIMENT[news.sentiment.label] : null;
   const current = items.length ? items[idx % items.length] : null;
-  const sentimentLabel = news?.sentiment?.label ?? "neutral";
 
   return (
     <div className="flex flex-col min-h-0 flex-1" style={{ marginTop: "2vh" }}>
@@ -100,7 +72,7 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
         <span style={{ width: "0.45vh", height: "2.1vh", borderRadius: "999px", background: FNO_ACCENT }} />
         <span
           className="font-black"
-          style={{ fontSize: "1.5vh", color: "#e2e8f0", letterSpacing: "0.14em" }}
+          style={{ fontSize: "1.5vh", color: INK, letterSpacing: "0.14em" }}
         >
           RECENT NEWS
         </span>
@@ -129,7 +101,7 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
             style={{
               fontSize: "2.15vh",
               lineHeight: 1.38,
-              color: "#f0f4ff",
+              color: INK,
               fontWeight: 600,
               display: "-webkit-box",
               WebkitBoxOrient: "vertical",
@@ -137,12 +109,11 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
               overflow: "hidden",
             }}
           >
-            <HighlightedNews text={current} sentiment={sentimentLabel} />
+            {current}
           </p>
         ) : gaveUp ? (
-          <p style={{ fontSize: "2vh", lineHeight: 1.34, color: "#94a3b8", fontWeight: 600 }}>
-            No fresh headlines for {symbol} right now — full news &amp; analytics on{" "}
-            <span style={{ color: FNO_ACCENT, fontWeight: 800 }}>fnoninja.com</span>.
+          <p style={{ fontSize: "2vh", lineHeight: 1.34, color: INK, fontWeight: 600 }}>
+            No fresh headlines for {symbol} right now — full news &amp; analytics on fnoninja.com.
           </p>
         ) : (
           <p style={{ fontSize: "1.9vh", color: "#64748b" }}>Gathering latest news…</p>

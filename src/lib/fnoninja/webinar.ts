@@ -1,34 +1,32 @@
 /**
  * FNONINJA free webinar — schedule, copy, and calendar-invite helpers.
  *
- * The webinar runs DAILY at 20:00 IST (8:00 PM) for 60 minutes. IST has no DST
- * and is a fixed UTC+05:30 offset, so all scheduling is plain epoch math.
+ * Sessions (IST, fixed UTC+05:30):
+ *   · Monday    9:00 PM
+ *   · Wednesday 9:00 PM
+ *   · Sunday   11:00 AM
  *
- * Compliance: this is an educational session. Copy here intentionally avoids any
- * profit / returns / guaranteed-income language (SEBI finfluencer rules + YouTube
- * financial-services policy). Keep it skill- and process-focused.
+ * Compliance: educational session only — no profit / returns language.
  */
 
 export const WEBINAR_PATH = "/webinar";
 export const WEBINAR_PUBLIC_URL = "https://fnoninja.com/webinar";
 
-/** IST is a fixed UTC+05:30 offset. */
 const IST_OFFSET_MIN = 5 * 60 + 30;
-/** Daily start, in IST wall-clock. */
-const WEBINAR_START_HOUR_IST = 20; // 8:00 PM
-const WEBINAR_START_MIN_IST = 0;
 export const WEBINAR_DURATION_MIN = 60;
+
+export const WEBINAR_SCHEDULE_LABEL = "Mon & Wed · 9 PM IST · Sun · 11 AM IST";
 
 export const WEBINAR_TITLE = "FNONINJA Free Webinar — Reading Option Walls & Key Levels";
 export const WEBINAR_SHORT_TITLE = "FNONINJA Free Webinar (1 hr)";
-export const WEBINAR_TAGLINE = "A free 1-hour live session, every evening at 8 PM IST.";
+export const WEBINAR_TAGLINE =
+  "A free 1-hour live session — Monday & Wednesday at 9 PM IST, Sunday at 11 AM IST.";
 
 export const WEBINAR_DESCRIPTION =
   "A free, beginner-friendly live session on how to read option-chain market structure — " +
   "support & resistance zones, max-pain, and open-interest walls — and how to build a simple, " +
   "rule-based plan around those levels using FNONINJA. Educational only; not investment advice.";
 
-/** What attendees will learn — skill/process framed, no outcome claims. */
 export const WEBINAR_LEARN_POINTS: string[] = [
   "How to read option-chain support & resistance zones",
   "What max-pain and open-interest walls reveal about positioning",
@@ -37,18 +35,24 @@ export const WEBINAR_LEARN_POINTS: string[] = [
   "Live Q&A — bring your questions",
 ];
 
-/**
- * Where attendees join. Until a dedicated meeting link is provisioned, this
- * points at the webinar page (which will host/redirect to the live room).
- */
 export const WEBINAR_JOIN_URL = WEBINAR_PUBLIC_URL;
 
+/** 0 = Sun … 6 = Sat */
+interface WebinarSlot {
+  weekday: number;
+  hour: number;
+  minute: number;
+}
+
+const WEBINAR_SLOTS: WebinarSlot[] = [
+  { weekday: 1, hour: 21, minute: 0 },
+  { weekday: 3, hour: 21, minute: 0 },
+  { weekday: 0, hour: 11, minute: 0 },
+];
+
 export interface WebinarSession {
-  /** Session start instant. */
   start: Date;
-  /** Session end instant. */
   end: Date;
-  /** ISO date of the session in IST, e.g. "2026-06-19" — stable session key. */
   istDate: string;
 }
 
@@ -57,12 +61,13 @@ function istParts(now: Date): { y: number; m: number; d: number } {
   return { y: ist.getUTCFullYear(), m: ist.getUTCMonth(), d: ist.getUTCDate() };
 }
 
-/** UTC epoch (ms) for the webinar start on the given IST calendar date. */
-function startMsForIstDate(y: number, m: number, d: number): number {
-  return (
-    Date.UTC(y, m, d, WEBINAR_START_HOUR_IST, WEBINAR_START_MIN_IST, 0) -
-    IST_OFFSET_MIN * 60_000
-  );
+function istWeekdayForDate(y: number, m: number, d: number): number {
+  const ist = new Date(Date.UTC(y, m, d, 12, 0, 0) - IST_OFFSET_MIN * 60_000 + IST_OFFSET_MIN * 60_000);
+  return ist.getUTCDay();
+}
+
+function startMsForIstSlot(y: number, m: number, d: number, hour: number, minute: number): number {
+  return Date.UTC(y, m, d, hour, minute, 0) - IST_OFFSET_MIN * 60_000;
 }
 
 function istDateKey(startMs: number): string {
@@ -81,39 +86,57 @@ function sessionFromStartMs(startMs: number): WebinarSession {
   };
 }
 
-/**
- * The next upcoming session. If today's 8 PM IST has already started, returns
- * tomorrow's session.
- */
+/** The next upcoming session on the Mon / Wed / Sun schedule. */
 export function getNextWebinarSession(now: Date = new Date()): WebinarSession {
   const { y, m, d } = istParts(now);
-  let startMs = startMsForIstDate(y, m, d);
-  if (now.getTime() >= startMs) {
-    startMs = startMsForIstDate(y, m, d + 1); // Date.UTC normalises overflow
+  let bestMs = Infinity;
+
+  for (let offset = 0; offset < 21; offset++) {
+    const cal = new Date(Date.UTC(y, m, d + offset));
+    const yy = cal.getUTCFullYear();
+    const mo = cal.getUTCMonth();
+    const dy = cal.getUTCDate();
+    const wd = istWeekdayForDate(yy, mo, dy);
+
+    for (const slot of WEBINAR_SLOTS) {
+      if (slot.weekday !== wd) continue;
+      const startMs = startMsForIstSlot(yy, mo, dy, slot.hour, slot.minute);
+      if (startMs <= now.getTime()) continue;
+      if (startMs < bestMs) bestMs = startMs;
+    }
   }
-  return sessionFromStartMs(startMs);
+
+  if (bestMs === Infinity) {
+    const fallback = startMsForIstSlot(y, m, d + 7, 21, 0);
+    return sessionFromStartMs(fallback);
+  }
+  return sessionFromStartMs(bestMs);
 }
 
-/** The next `count` sessions (today/tomorrow onward), one per day. */
+/** The next `count` sessions on the recurring schedule. */
 export function getUpcomingWebinarSessions(
   count: number,
   now: Date = new Date(),
 ): WebinarSession[] {
-  const first = getNextWebinarSession(now);
   const out: WebinarSession[] = [];
-  for (let i = 0; i < count; i++) {
-    const startMs = first.start.getTime() + i * 24 * 60 * 60 * 1000;
-    out.push(sessionFromStartMs(startMs));
+  const seen = new Set<string>();
+  let cursor = now;
+
+  while (out.length < count) {
+    const next = getNextWebinarSession(cursor);
+    const key = `${next.istDate}@${next.start.getTime()}`;
+    if (seen.has(key)) break;
+    seen.add(key);
+    out.push(next);
+    cursor = new Date(next.start.getTime() + 60_000);
   }
   return out;
 }
 
-/** UTC basic format for calendar links: YYYYMMDDTHHMMSSZ. */
 function toCalendarUtc(date: Date): string {
   return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
-/** "Add to Google Calendar" deep link for a session. */
 export function googleCalendarUrl(session: WebinarSession): string {
   const params = new URLSearchParams({
     action: "TEMPLATE",
@@ -125,7 +148,6 @@ export function googleCalendarUrl(session: WebinarSession): string {
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
-/** RFC 5545 .ics body for a session (Apple Calendar / Outlook). */
 export function buildWebinarIcs(session: WebinarSession): string {
   const uid = `fnoninja-webinar-${session.istDate}@fnoninja.com`;
   const escape = (s: string) =>
@@ -150,7 +172,6 @@ export function buildWebinarIcs(session: WebinarSession): string {
   ].join("\r\n");
 }
 
-/** Human label for a session, e.g. "Thu, 19 Jun · 8:00 PM IST". */
 export function formatWebinarSession(session: WebinarSession): string {
   const fmt = new Intl.DateTimeFormat("en-IN", {
     weekday: "short",

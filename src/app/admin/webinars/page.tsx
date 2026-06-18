@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import {
   formatWebinarSession,
   getUpcomingWebinarSessions,
+  WEBINAR_SCHEDULE_LABEL,
 } from "@/lib/fnoninja/webinar";
 
 const ADMIN_EMAILS = new Set(["hello@tezterminal.com"]);
@@ -166,7 +167,7 @@ export default function WebinarsAdminPage() {
         <div className="mb-6">
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-2 flex items-center gap-1.5">
             <CalendarClock className="h-3.5 w-3.5" />
-            Upcoming sessions · daily 8:00 PM IST
+            Upcoming sessions · {WEBINAR_SCHEDULE_LABEL}
           </p>
           <div className="flex flex-wrap gap-2">
             {upcoming.map((s) => (

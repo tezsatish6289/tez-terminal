@@ -10,7 +10,7 @@ import {
   FNO_MUTED,
   FNO_TEXT,
 } from "@/lib/fnoninja/theme";
-import { WEBINAR_PUBLIC_URL } from "@/lib/fnoninja/webinar";
+import { WEBINAR_PUBLIC_URL, WEBINAR_SCHEDULE_LABEL } from "@/lib/fnoninja/webinar";
 
 const PANE_BORDER = "1px solid rgba(90,140,220,0.2)";
 
@@ -133,12 +133,12 @@ export function BroadcastWebinarInfoPane() {
           <div className="shrink-0 text-center" style={{ marginTop: "auto" }}>
             <p
               className="font-black"
-              style={{ fontSize: "2.1vh", color: FNO_ACCENT, letterSpacing: "0.01em" }}
+              style={{ fontSize: "2.1vh", color: FNO_TEXT, letterSpacing: "0.01em" }}
             >
               {url}
             </p>
             <p style={{ fontSize: "1.45vh", color: "#94a3b8", fontWeight: 600, marginTop: "0.9vh" }}>
-              Live every evening at 8 PM IST
+              {WEBINAR_SCHEDULE_LABEL}
             </p>
             <p
               style={{

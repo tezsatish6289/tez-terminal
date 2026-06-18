@@ -64,6 +64,7 @@ export function LevelsBubblesView({
   hasMarketData = true,
   toneFilter = "all",
   searchQuery = "",
+  layoutActive = true,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
@@ -73,6 +74,8 @@ export function LevelsBubblesView({
   toneFilter?: BubbleMapFilter;
   /** Search string from parent toolbar. */
   searchQuery?: string;
+  /** When true, re-measure the container (e.g. broadcast map scene is visible). */
+  layoutActive?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
@@ -125,6 +128,24 @@ export function LevelsBubblesView({
     () => filtered.map((it) => it.id).join("|"),
     [filtered],
   );
+
+  // Broadcast map scene mounts in-flow when visible — kick layout after paint.
+  useEffect(() => {
+    if (!layoutActive) return;
+    syncSize();
+    let outer = 0;
+    let inner = 0;
+    outer = window.requestAnimationFrame(() => {
+      syncSize();
+      inner = window.requestAnimationFrame(syncSize);
+    });
+    const t = window.setTimeout(syncSize, 450);
+    return () => {
+      window.cancelAnimationFrame(outer);
+      window.cancelAnimationFrame(inner);
+      window.clearTimeout(t);
+    };
+  }, [layoutActive, syncSize, filteredIds, items.length]);
 
   useEffect(() => {
     if (size.w < 120 || size.h < 120) {

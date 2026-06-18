@@ -66,6 +66,9 @@ function indexToItem(it: IndexItem): LevelsActionableItem | null {
   };
 }
 
+/** Cross-fade duration for scene swaps. */
+const FADE_MS = 900;
+
 const ON_AIR_CSS = `
 @keyframes broadcast-onair-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -76,17 +79,13 @@ const ON_AIR_CSS = `
   0% { opacity: 0; transform: scale(0.994); }
   100% { opacity: 1; transform: scale(1); }
 }
-.broadcast-page-fade { animation: broadcast-page-fade 0.9s ease both; }
-.broadcast-layer {
-  transition: opacity 0.9s ease, visibility 0.9s ease;
-}
+.broadcast-page-fade { animation: broadcast-page-fade ${FADE_MS}ms ease both; }
 `;
 
 export function BroadcastScene() {
   const searchParams = useSearchParams();
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [pageIdx, setPageIdx] = useState(0);
-  const [heldStock, setHeldStock] = useState<LevelsActionableItem | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -128,6 +127,11 @@ export function BroadcastScene() {
       .filter((x): x is LevelsActionableItem => x != null);
   }, [payload?.inZone, payload?.indices]);
 
+  const liveItemKey = useMemo(
+    () => liveItems.map((i) => `${i.scope}:${i.symbol}`).join("|"),
+    [liveItems],
+  );
+
   // Optional ?scene=map|live override — pins the rotation (preview/debug).
   const forcedScene = useMemo<Scene | null>(() => {
     const s = searchParams.get("scene");
@@ -144,7 +148,12 @@ export function BroadcastScene() {
     if (forcedScene === "live") return stocks.length ? stocks : [{ type: "map" }];
     if (stocks.length === 0) return [{ type: "map" }];
     return stocks.flatMap<Page>((stock) => [{ type: "map" }, stock]);
-  }, [liveItems, forcedScene]);
+  }, [liveItemKey, liveItems, forcedScene]);
+
+  // Always open on the bubble map when the queue first arrives or changes.
+  useEffect(() => {
+    setPageIdx(0);
+  }, [liveItemKey, forcedScene]);
 
   // Warm news + levels for the entire queue as soon as levels load. Cold AI news
   // can take 15–25s — the 14s map interstitial alone is often not enough.
@@ -167,10 +176,7 @@ export function BroadcastScene() {
 
   const page = pages[pageIdx % pages.length] ?? { type: "map" };
   const showMap = page.type === "map";
-
-  useEffect(() => {
-    if (page.type === "stock") setHeldStock(page.item);
-  }, [page]);
+  const sceneKey = showMap ? "map" : `stock-${page.type === "stock" ? page.item.symbol : "unknown"}`;
 
   // Warm the NEXT page's data (levels + news + candles) in the background so it
   // paints instantly when we fade to it. Because the map is interleaved before
@@ -185,19 +191,18 @@ export function BroadcastScene() {
 
   const mapPane = (
     <>
-      {/* Bubble map — kept mounted so physics/layout stay warm between stock pages. */}
+      {/* Bubble map — in-flow flex layout so LevelsBubblesView gets real height. */}
       <section
-        className="relative flex flex-col min-h-0 self-stretch h-full"
-        style={{ flex: "1.7 1 0%" }}
+        className="relative flex flex-col min-h-0 self-stretch overflow-hidden"
+        style={{ flex: "1.7 1 0%", minHeight: 0 }}
       >
-        <div className="flex flex-1 min-h-0 h-full pointer-events-none select-none">
-          <LevelsBubblesView
-            items={bubbleItems}
-            onBubbleOpen={() => {}}
-            hasMarketData={Boolean(payload)}
-            toneFilter="all"
-          />
-        </div>
+        <LevelsBubblesView
+          items={bubbleItems}
+          onBubbleOpen={() => {}}
+          hasMarketData={Boolean(payload)}
+          toneFilter="all"
+          layoutActive={showMap}
+        />
         <div
           className="absolute z-10 flex items-center rounded-lg"
           style={{
@@ -218,9 +223,10 @@ export function BroadcastScene() {
       </section>
 
       <aside
-        className="flex flex-col min-h-0 self-stretch rounded-xl"
+        className="flex flex-col min-h-0 self-stretch rounded-xl overflow-hidden"
         style={{
           flex: "1 1 0%",
+          minHeight: 0,
           padding: "2.4vh",
           background: "linear-gradient(180deg, rgba(13,27,46,0.85), rgba(8,15,30,0.85))",
           border: "1px solid rgba(90,140,220,0.2)",
@@ -296,39 +302,23 @@ export function BroadcastScene() {
         </div>
       </header>
 
-      {/* Body — map and stock are separate persistent layers that cross-fade via
-          opacity. The bubble map never unmounts so its layout/physics stay warm. */}
-      <main className="relative flex flex-1 min-h-0">
+      {/* Body — one scene at a time in normal flex flow (not stacked absolute
+          layers). This gives LevelsBubblesView a real height, which it needs for
+          its physics layout. */}
+      <main className="flex flex-1 min-h-0 overflow-hidden" style={{ padding: "2vh" }}>
         <div
-          className="broadcast-layer absolute inset-0 flex min-h-0 w-full items-stretch"
-          style={{
-            padding: "2vh",
-            gap: "2vh",
-            opacity: showMap ? 1 : 0,
-            pointerEvents: showMap ? "auto" : "none",
-            zIndex: showMap ? 2 : 1,
-          }}
-          aria-hidden={!showMap}
+          key={sceneKey}
+          className={`broadcast-page-fade flex flex-1 min-h-0 w-full items-stretch${showMap ? " pointer-events-none select-none" : ""}`}
+          style={{ gap: "2vh", minHeight: 0 }}
         >
-          {mapPane}
+          {showMap ? (
+            mapPane
+          ) : page.type === "stock" ? (
+            <BroadcastLiveslide item={page.item} />
+          ) : (
+            mapPane
+          )}
         </div>
-        {heldStock && (
-          <div
-            key={heldStock.symbol}
-            className="broadcast-layer absolute inset-0 flex min-h-0 w-full items-stretch"
-            style={{
-              padding: "2vh",
-              gap: "2vh",
-              opacity: showMap ? 0 : 1,
-              visibility: showMap ? "hidden" : "visible",
-              pointerEvents: showMap ? "none" : "auto",
-              zIndex: showMap ? 1 : 2,
-            }}
-            aria-hidden={showMap}
-          >
-            <BroadcastLiveslide item={heldStock} />
-          </div>
-        )}
       </main>
 
       <BroadcastTicker />

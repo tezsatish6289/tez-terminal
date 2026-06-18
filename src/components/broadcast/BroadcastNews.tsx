@@ -19,7 +19,28 @@ const NEWS_CSS = `
 `;
 
 /** How long each rolling headline stays on screen. */
-const ITEM_MS = 6500;
+const ITEM_MS = 5500;
+
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/** Summary sentences first (chart-page lead copy), then bullet highlights. */
+function buildRollingItems(news: LevelsNews): string[] {
+  const summaryParts = news.summary ? splitSentences(news.summary) : [];
+  const seen = new Set(summaryParts.map((s) => s.toLowerCase()));
+  const out = [...summaryParts];
+  for (const h of news.highlights) {
+    const key = h.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(h.trim());
+  }
+  return out;
+}
 
 /**
  * Rolling recent-news block for the single-stock page. Big-font headlines that
@@ -61,20 +82,9 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
     };
   }, [scope, symbol]);
 
-  // Rolling items: concise highlights are ideal for big-font rotation. If a
-  // symbol only has the long summary paragraph, split it into sentences so each
-  // rolling item stays short instead of overflowing the box.
-  const items = useMemo(() => {
-    if (!news) return [];
-    if (news.highlights.length > 0) return news.highlights;
-    if (news.summary) {
-      return news.summary
-        .split(/(?<=[.!?])\s+/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-    }
-    return [];
-  }, [news]);
+  // Roll summary sentences first, then highlights — same content as the chart
+  // page, split so each item fits the broadcast rail.
+  const items = useMemo(() => (news ? buildRollingItems(news) : []), [news]);
 
   useEffect(() => {
     if (items.length <= 1) return;
@@ -148,14 +158,14 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
       {/* Progress dots + footer */}
       <div className="flex items-center justify-between shrink-0" style={{ marginTop: "1.4vh" }}>
         <div className="flex items-center" style={{ gap: "0.7vh" }}>
-          {items.slice(0, 8).map((_, i) => (
+          {items.map((_, i) => (
             <span
               key={i}
               style={{
-                width: i === idx % Math.max(items.length, 1) ? "2.6vh" : "1vh",
-                height: "1vh",
+                width: i === idx % items.length ? "2.6vh" : "0.85vh",
+                height: "0.85vh",
                 borderRadius: "999px",
-                background: i === idx % Math.max(items.length, 1) ? "#60a5fa" : "rgba(96,165,250,0.25)",
+                background: i === idx % items.length ? "#60a5fa" : "rgba(96,165,250,0.25)",
                 transition: "width 0.35s ease",
               }}
             />

@@ -85,6 +85,13 @@ function KineticNumber({
   }, [rollKey, target, endValue, enabled]);
 
   const display = rolling ? endValue : (target ?? endValue);
+  const canAnimate =
+    rolling && endValue != null && display != null && Number.isFinite(display);
+  const animated = useAnimatedNumber(endValue ?? display ?? 0, {
+    enabled: canAnimate,
+    duration: KINETIC_MS,
+  });
+
   if (display == null || !Number.isFinite(display)) {
     if (hideWhenEmpty) return null;
     return (
@@ -93,11 +100,6 @@ function KineticNumber({
       </span>
     );
   }
-
-  const animated = useAnimatedNumber(endValue ?? display, {
-    enabled: rolling && endValue != null,
-    duration: KINETIC_MS,
-  });
 
   return (
     <span

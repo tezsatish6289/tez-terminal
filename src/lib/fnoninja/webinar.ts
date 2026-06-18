@@ -35,7 +35,16 @@ export const WEBINAR_LEARN_POINTS: string[] = [
   "Live Q&A — bring your questions",
 ];
 
-export const WEBINAR_JOIN_URL = WEBINAR_PUBLIC_URL;
+/**
+ * Where attendees actually join — a scheduled YouTube Live URL.
+ * Set NEXT_PUBLIC_WEBINAR_YOUTUBE_URL to the channel's live/scheduled watch URL
+ * (e.g. https://www.youtube.com/@fnoninja/live). Falls back to the webinar page.
+ */
+export const WEBINAR_JOIN_URL =
+  process.env.NEXT_PUBLIC_WEBINAR_YOUTUBE_URL?.trim() || WEBINAR_PUBLIC_URL;
+export const WEBINAR_HAS_YOUTUBE = Boolean(
+  process.env.NEXT_PUBLIC_WEBINAR_YOUTUBE_URL?.trim(),
+);
 
 /** 0 = Sun … 6 = Sat */
 interface WebinarSlot {

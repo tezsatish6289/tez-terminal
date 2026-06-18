@@ -8,6 +8,7 @@ import {
   Download,
   Loader2,
   Video,
+  Youtube,
 } from "lucide-react";
 import { FB_NARROW_SHELL } from "@/lib/freedombot/responsive";
 import {
@@ -20,12 +21,13 @@ import {
 import {
   WEBINAR_DESCRIPTION,
   WEBINAR_DURATION_MIN,
+  WEBINAR_HAS_YOUTUBE,
+  WEBINAR_JOIN_URL,
   WEBINAR_LEARN_POINTS,
-  WEBINAR_SHORT_TITLE,
   WEBINAR_TAGLINE,
   buildWebinarIcs,
   formatWebinarSession,
-  getNextWebinarSession,
+  getUpcomingWebinarSessions,
   googleCalendarUrl,
 } from "@/lib/fnoninja/webinar";
 
@@ -67,7 +69,9 @@ function CountdownCell({ value, label }: { value: number; label: string }) {
 }
 
 export function FnoNinjaWebinarPage() {
-  const session = useMemo(() => getNextWebinarSession(), []);
+  const sessions = useMemo(() => getUpcomingWebinarSessions(6), []);
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const session = sessions[selectedIdx] ?? sessions[0];
   const cd = useCountdown(session.start);
   const sessionLabel = useMemo(() => formatWebinarSession(session), [session]);
 
@@ -134,7 +138,7 @@ export function FnoNinjaWebinarPage() {
           Free live webinar · {WEBINAR_DURATION_MIN} min
         </span>
         <h1 className="mt-5 text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.08]">
-          {WEBINAR_SHORT_TITLE.replace(" (1 hr)", "")}
+          FNO <span style={{ color: FNO_ACCENT }}>NINJA</span> Free Webinar
           <br />
           <span style={{ color: FNO_ACCENT }}>Reading option walls &amp; key levels</span>
         </h1>
@@ -143,14 +147,48 @@ export function FnoNinjaWebinarPage() {
         </p>
       </section>
 
-      {/* Next session + countdown */}
+      {/* Session picker + countdown */}
       <section className={`${FB_NARROW_SHELL} pb-8`}>
         <div className="rounded-2xl p-6 sm:p-8" style={cardStyle}>
-          <div className="flex items-center justify-center gap-2 text-sm font-semibold" style={{ color: "#93c5fd" }}>
-            <Clock className="h-4 w-4" />
-            Next session · {sessionLabel}
+          {/* Pick a session */}
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-center" style={{ color: FNO_ACCENT }}>
+            Pick a session
+          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+            {sessions.map((s, i) => {
+              const active = i === selectedIdx;
+              return (
+                <button
+                  key={s.istDate + s.start.getTime()}
+                  type="button"
+                  onClick={() => {
+                    setSelectedIdx(i);
+                    if (status === "done") setStatus("idle");
+                  }}
+                  className="rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold transition-all"
+                  style={{
+                    background: active ? FNO_CTA_GRADIENT : "#0d1525",
+                    color: active ? "#fff" : "#cbd5f5",
+                    border: active
+                      ? "1px solid transparent"
+                      : "1px solid rgba(90,140,220,0.2)",
+                    boxShadow: active ? FNO_CTA_SHADOW : undefined,
+                  }}
+                >
+                  {formatWebinarSession(s)}
+                </button>
+              );
+            })}
           </div>
-          <div className="mt-6 flex items-start justify-center gap-4 sm:gap-7">
+
+          <div
+            className="mt-6 pt-6 flex items-center justify-center gap-2 text-sm font-semibold"
+            style={{ color: "#93c5fd", borderTop: `1px solid ${FNO_NAV_BORDER}` }}
+          >
+            <Clock className="h-4 w-4" />
+            Starts in · {sessionLabel}
+          </div>
+          <div className="mt-5 flex items-start justify-center gap-4 sm:gap-7">
             <CountdownCell value={cd.days} label="Days" />
             <CountdownCell value={cd.hours} label="Hrs" />
             <CountdownCell value={cd.minutes} label="Min" />
@@ -213,7 +251,22 @@ export function FnoNinjaWebinarPage() {
                     Download invite (.ics)
                   </a>
                 )}
+                {WEBINAR_HAS_YOUTUBE && (
+                  <a
+                    href={WEBINAR_JOIN_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition-all hover:scale-[1.02]"
+                    style={{ border: "1px solid rgba(90,140,220,0.3)", color: "#93c5fd" }}
+                  >
+                    <Youtube className="h-4 w-4" />
+                    Set reminder on YouTube
+                  </a>
+                )}
               </div>
+              <p className="mt-4 text-[11px] leading-relaxed" style={{ color: "#475569" }}>
+                We&apos;ll go live on YouTube. Add the calendar invite{WEBINAR_HAS_YOUTUBE ? " and tap “Set reminder” on YouTube" : ""} so you don&apos;t miss it.
+              </p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">

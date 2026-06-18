@@ -90,12 +90,12 @@ export function BroadcastLiveslide({
         className="flex flex-col min-h-0 self-stretch rounded-xl overflow-hidden"
         style={{
           flex: "2 1 0%",
-          padding: "2vh",
+          padding: infoPane ? 0 : "2vh",
           background: infoPane
-            ? "linear-gradient(160deg, rgba(13,27,46,0.92), rgba(8,15,30,0.95))"
+            ? undefined
             : "linear-gradient(180deg, rgba(13,27,46,0.85), rgba(8,15,30,0.85))",
           border: infoPane
-            ? "1px solid rgba(45,212,191,0.2)"
+            ? "1px solid rgba(96,165,250,0.28)"
             : "1px solid rgba(90,140,220,0.2)",
         }}
       >

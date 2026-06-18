@@ -22,7 +22,7 @@ import { BroadcastClock } from "./BroadcastClock";
 import { BroadcastExplainer } from "./BroadcastExplainer";
 import { BroadcastLiveslide } from "./BroadcastLiveslide";
 import { BroadcastTicker } from "./BroadcastTicker";
-import { prefetchSymbol } from "./broadcast-data";
+import { prefetchAllSymbols, prefetchSymbol } from "./broadcast-data";
 
 interface IndexItem {
   symbol?: string;
@@ -145,6 +145,13 @@ export function BroadcastScene() {
     if (stocks.length === 0) return [{ type: "map" }];
     return stocks.flatMap<Page>((stock) => [{ type: "map" }, stock]);
   }, [liveItems, forcedScene]);
+
+  // Warm news + levels for the entire queue as soon as levels load. Cold AI news
+  // can take 15–25s — the 14s map interstitial alone is often not enough.
+  useEffect(() => {
+    if (liveItems.length === 0) return;
+    prefetchAllSymbols(liveItems);
+  }, [liveItems]);
 
   // Advance to the next page after the current page's dwell time.
   useEffect(() => {

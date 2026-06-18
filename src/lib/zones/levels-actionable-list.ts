@@ -1,5 +1,6 @@
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import type { PublicLevelsSource } from "@/lib/levels/levels-source";
+import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 import {
   deriveZoneStatus,
@@ -87,6 +88,10 @@ export function levelsFromStockRow(row: {
   };
 }
 
+function stockDisplayLabel(symbol: string, label?: string | null): string {
+  return fnoCompanyName(symbol) ?? label ?? symbol;
+}
+
 /** Build the geographic In-Zone list (spot inside or near a band). */
 export function buildGeographicInZoneList(input: {
   indices: { symbol?: string; label: string; data: PublicLevels | null }[];
@@ -130,7 +135,7 @@ export function buildGeographicInZoneList(input: {
     out.push({
       scope: "stock",
       symbol: row.symbol,
-      label: row.label ?? row.symbol,
+      label: stockDisplayLabel(row.symbol, row.label),
       status: deriveZoneStatus(bands),
       spot: bands.spot,
       currency: "₹",
@@ -189,7 +194,7 @@ export function buildLevelsActionableList(input: {
     out.push({
       scope: "stock",
       symbol: row.symbol,
-      label: row.label ?? row.symbol,
+      label: stockDisplayLabel(row.symbol, row.label),
       status: deriveZoneStatus(bands),
       spot: bands.spot,
       currency: "₹",

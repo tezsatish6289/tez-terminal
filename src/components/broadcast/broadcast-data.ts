@@ -125,3 +125,11 @@ export function prefetchSymbol(scope: Scope, symbol: string): void {
   void fetchNews(scope, symbol);
   warmCandles(scope, symbol);
 }
+
+/** Warm the full rotation queue as soon as levels load — news cold-starts
+ *  take 15–25s so waiting until the 14s map interstitial is often too late. */
+export function prefetchAllSymbols(items: { scope: Scope; symbol: string }[]): void {
+  for (const { scope, symbol } of items) {
+    prefetchSymbol(scope, symbol);
+  }
+}

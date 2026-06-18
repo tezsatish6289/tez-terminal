@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { LevelsNews, NewsSentimentLabel } from "@/lib/levels/news-types";
-import { cachedNews, fetchNews } from "./broadcast-data";
+import { useBroadcastNews } from "./useBroadcastNews";
 
 const SENTIMENT: Record<NewsSentimentLabel, { label: string; color: string; bg: string }> = {
   bullish: { label: "BULLISH", color: "#86efac", bg: "rgba(34,197,94,0.14)" },
@@ -39,6 +39,9 @@ function buildRollingItems(news: LevelsNews): string[] {
     seen.add(key);
     out.push(h.trim());
   }
+  if (out.length === 0 && news.sentiment.note.trim()) {
+    out.push(news.sentiment.note.trim());
+  }
   return out;
 }
 
@@ -48,42 +51,13 @@ function buildRollingItems(news: LevelsNews): string[] {
  * by the prefetcher) so it's instant on revisits. Informational, not advice.
  */
 export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; symbol: string }) {
-  const [news, setNews] = useState<LevelsNews | null>(() => cachedNews(scope, symbol));
+  const { news, gaveUp } = useBroadcastNews(scope, symbol);
   const [idx, setIdx] = useState(0);
-  const [gaveUp, setGaveUp] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    let timer = 0;
-    let attempts = 0;
-    setNews(cachedNews(scope, symbol));
     setIdx(0);
-    setGaveUp(false);
+  }, [scope, symbol, news?.generatedAt]);
 
-    // fetchNews retries internally; keep re-asking while this symbol is on
-    // screen so a slow cold generation that finishes later still shows up.
-    const tryLoad = () => {
-      void fetchNews(scope, symbol).then((n) => {
-        if (cancelled) return;
-        if (n) {
-          setNews(n);
-          return;
-        }
-        attempts += 1;
-        if (attempts < 3) timer = window.setTimeout(tryLoad, 8000);
-        else setGaveUp(true);
-      });
-    };
-    tryLoad();
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [scope, symbol]);
-
-  // Roll summary sentences first, then highlights — same content as the chart
-  // page, split so each item fits the broadcast rail.
   const items = useMemo(() => (news ? buildRollingItems(news) : []), [news]);
 
   useEffect(() => {

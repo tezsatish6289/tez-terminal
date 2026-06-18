@@ -11,6 +11,7 @@ import {
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { BroadcastNews } from "./BroadcastNews";
+import { useBroadcastNews } from "./useBroadcastNews";
 
 const SUPPORT = "#34d399";
 const RESIST = "#f87171";
@@ -115,6 +116,7 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
   const d = item.data;
   const bands = bandsFromLevels(d, item.spot);
   const status = STATUS_META[zoneStatusDisplayKey(bands)];
+  const { news } = useBroadcastNews(item.scope, item.symbol);
 
   const putOi = oi(d?.putClusterSize);
   const callOi = oi(d?.callClusterSize);
@@ -127,15 +129,16 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
   }
 
   const subtitleLine = useMemo(() => {
-    if (item.scope === "stock") {
-      const full = fnoCompanyName(item.symbol);
-      if (full && full.toUpperCase() !== item.symbol) return full;
-      if (item.label && item.label.toUpperCase() !== item.symbol) return item.label;
-      return null;
+    const candidates = [
+      item.scope === "stock" ? fnoCompanyName(item.symbol) : null,
+      item.label,
+      news?.name,
+    ];
+    for (const name of candidates) {
+      if (name && name.toUpperCase() !== item.symbol) return name;
     }
-    if (item.label && item.label.toUpperCase() !== item.symbol) return item.label;
     return null;
-  }, [item.scope, item.symbol, item.label]);
+  }, [item.scope, item.symbol, item.label, news?.name]);
 
   return (
     <div key={item.symbol} className="broadcast-slide-in flex flex-col flex-1 min-h-0">

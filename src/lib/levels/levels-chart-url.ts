@@ -9,9 +9,9 @@ function levelsChartQuery(scope: LevelsTvScope, symbol: string): string {
   return params.toString();
 }
 
-/** Opens in a new browser tab from the bubbles map (dev / tezterminal paths). */
+/** Opens in a new browser tab from the bubbles map (localhost dev paths). */
 export function levelsChartPagePath(scope: LevelsTvScope, symbol: string): string {
-  return `/freedombot/levels/chart?${levelsChartQuery(scope, symbol)}`;
+  return `/fnoninja/levels/chart?${levelsChartQuery(scope, symbol)}`;
 }
 
 const FNONINJA_LEVELS_HOSTS = new Set(["fnoninja.com", "www.fnoninja.com"]);
@@ -31,10 +31,10 @@ export function levelsChartPagePathForHost(
   if (FREEDOMBOT_LEVELS_DEPRECATED_HOSTS.has(h)) {
     return `${FNONINJA_SITE_URL}/levels/chart?${q}`;
   }
-  return `/freedombot/levels/chart?${q}`;
+  return `/fnoninja/levels/chart?${q}`;
 }
 
-/** Bubble-map levels page — fnoninja.com /levels; freedombot.ai → fnoninja.com; dev → /freedombot/levels. */
+/** Bubble-map levels page — fnoninja.com /levels; freedombot.ai → fnoninja.com; dev → /fnoninja/levels. */
 export function levelsBubblesPagePathForHost(hostname: string): string {
   const h = hostname.toLowerCase();
   if (FNONINJA_LEVELS_HOSTS.has(h)) {
@@ -43,5 +43,5 @@ export function levelsBubblesPagePathForHost(hostname: string): string {
   if (FREEDOMBOT_LEVELS_DEPRECATED_HOSTS.has(h)) {
     return `${FNONINJA_SITE_URL}/levels`;
   }
-  return "/freedombot/levels";
+  return "/fnoninja/levels";
 }

@@ -29,14 +29,49 @@ function isTezTerminal(request: NextRequest): boolean {
   return hostCandidates(request).some((h) => TEZTERMINAL_HOSTS.includes(h));
 }
 
-/** tezterminal.com public URLs → fnoninja.com (localhost keeps /fnoninja for dev). */
-/** Levels analytics moved to fnoninja.com — preserve path + query (e.g. /levels/chart?scope=…). */
+/** tezterminal.com / localhost stale paths → fnoninja.com levels. */
+function tezStaleLevelsRedirect(request: NextRequest, pathname: string): NextResponse | null {
+  if (pathname !== "/freedombot/levels" && !pathname.startsWith("/freedombot/levels/")) {
+    return null;
+  }
+  const dest = pathname.replace(/^\/freedombot\/levels/, "/levels") || "/levels";
+  const url = new URL(dest, FNONINJA_PUBLIC_ORIGIN);
+  url.search = request.nextUrl.search;
+  return NextResponse.redirect(url, 301);
+}
+
+/** Levels analytics live on fnoninja.com — redirect from freedombot.ai (or legacy paths). */
 function fnoninjaLevelsRedirect(request: NextRequest, pathname: string): NextResponse {
   let destPath = pathname;
   if (pathname === "/freedombot/levels" || pathname.startsWith("/freedombot/levels/")) {
     destPath = pathname.replace(/^\/freedombot\/levels/, "/levels") || "/levels";
   }
   const url = new URL(destPath, FNONINJA_PUBLIC_ORIGIN);
+  url.search = request.nextUrl.search;
+  return NextResponse.redirect(url, 301);
+}
+
+/** fnoninja.com legacy /freedombot/levels → public /levels on same host. */
+function legacyFreedombotLevelsOnFnoNinjaRedirect(
+  request: NextRequest,
+  pathname: string,
+): NextResponse | null {
+  if (pathname !== "/freedombot/levels" && !pathname.startsWith("/freedombot/levels/")) {
+    return null;
+  }
+  const dest = pathname.replace(/^\/freedombot\/levels/, "/levels") || "/levels";
+  const url = new URL(dest, request.url);
+  url.search = request.nextUrl.search;
+  return NextResponse.redirect(url, 301);
+}
+
+/** localhost dev: legacy /freedombot/levels → /fnoninja/levels. */
+function staleFreedombotLevelsRedirect(request: NextRequest, pathname: string): NextResponse | null {
+  if (pathname !== "/freedombot/levels" && !pathname.startsWith("/freedombot/levels/")) {
+    return null;
+  }
+  const dest = pathname.replace(/^\/freedombot\/levels/, "/fnoninja/levels") || "/fnoninja/levels";
+  const url = new URL(dest, request.url);
   url.search = request.nextUrl.search;
   return NextResponse.redirect(url, 301);
 }
@@ -48,12 +83,7 @@ function tezTerminalFnoNinjaRedirect(request: NextRequest, pathname: string): Ne
     return NextResponse.redirect(FNONINJA_PUBLIC_ORIGIN, 301);
   }
 
-  if (pathname === "/freedombot/levels" || pathname.startsWith("/freedombot/levels/")) {
-    const dest = pathname.replace(/^\/freedombot\/levels/, "/levels") || "/levels";
-    return NextResponse.redirect(`${FNONINJA_PUBLIC_ORIGIN}${dest}`, 301);
-  }
-
-  return null;
+  return tezStaleLevelsRedirect(request, pathname);
 }
 
 export function middleware(request: NextRequest) {
@@ -104,11 +134,9 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(new URL(`/fnoninja${pathname}`, request.url));
     }
 
-    // Stale internal paths → same FNONINJA shell
-    if (pathname === "/freedombot/levels" || pathname.startsWith("/freedombot/levels/")) {
-      const dest = pathname.replace(/^\/freedombot\/levels/, "/fnoninja/levels") || "/fnoninja/levels";
-      return NextResponse.rewrite(new URL(dest, request.url));
-    }
+    // Legacy /freedombot/levels → public /levels on this host
+    const staleLevels = legacyFreedombotLevelsOnFnoNinjaRedirect(request, pathname);
+    if (staleLevels) return staleLevels;
 
     if (pathname === "/embed" || pathname.startsWith("/embed/")) {
       return NextResponse.next();
@@ -195,6 +223,9 @@ export function middleware(request: NextRequest) {
   if (pathname === "/llms.txt" || pathname === "/sitemap.xml") {
     return new NextResponse("Not found", { status: 404 });
   }
+
+  const devStaleLevels = staleFreedombotLevelsRedirect(request, pathname);
+  if (devStaleLevels) return devStaleLevels;
 
   const response = NextResponse.next();
   if (

@@ -22,6 +22,10 @@ export const FNO_LEVELS_PAGE_ROOT =
 /** Min height for slide auth gate + content on mobile (below nav + toolbar). */
 export const FNO_MOBILE_SLIDE_BODY_MIN_CLASS = "max-md:min-h-[calc(100dvh-3.5rem-0.5rem-4.5rem)]";
 
+/** Levels slideshow + bubbles (wide data canvas). */
+export const FNO_LEVELS_SHELL =
+  "w-full max-w-[100rem] mx-auto px-3 sm:px-5 min-w-0";
+
 export const FNO_CONTENT_SHELL = "max-w-[1100px] mx-auto w-full px-4 sm:px-6";
 
 export const FNO_NARROW_SHELL = "max-w-3xl mx-auto w-full px-4 sm:px-6";

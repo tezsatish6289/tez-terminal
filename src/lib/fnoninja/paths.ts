@@ -30,15 +30,14 @@ export function fnoCommunityChatHref(pathname: string): string {
   return `${fnoAnalyticsHref(pathname)}?chat=1`;
 }
 
-/** Levels app — fnoninja.com uses /levels; local dev uses /fnoninja/levels or /freedombot/levels. */
+/** Levels app — fnoninja.com uses /levels; local dev uses /fnoninja/levels. */
 export function fnoAnalyticsHref(pathname: string): string {
   if (typeof window !== "undefined") {
     const h = window.location.hostname.toLowerCase();
     if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/levels";
   }
   if (pathname.startsWith("/fnoninja")) return "/fnoninja/levels";
-  if (pathname.startsWith("/freedombot")) return "/freedombot/levels";
-  return "/levels";
+  return "/fnoninja/levels";
 }
 
 /** Public /levels URL for the current host (embed + CTAs on fnoninja.com). */

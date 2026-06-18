@@ -21,10 +21,6 @@ const NEWS_CSS = `
 
 const ITEM_MS = 5500;
 
-function glow(color: string): string {
-  return `0 0 10px ${color}77, 0 0 20px ${color}33`;
-}
-
 function splitSentences(text: string): string[] {
   return text
     .split(/(?<=[.!?])\s+/)
@@ -48,7 +44,7 @@ function buildRollingItems(news: LevelsNews): string[] {
   return out;
 }
 
-/** Highlight percentages and large numbers in news copy. */
+/** Highlight percentages and key numbers — color only, no glow. */
 function HighlightedNews({
   text,
   sentiment,
@@ -67,14 +63,7 @@ function HighlightedNews({
         const isHighlight = /^\d/.test(part);
         if (!isHighlight) return <span key={i}>{part}</span>;
         return (
-          <span
-            key={i}
-            style={{
-              color: highlight,
-              fontWeight: 800,
-              textShadow: glow(highlight),
-            }}
-          >
+          <span key={i} style={{ color: highlight, fontWeight: 800 }}>
             {part}
           </span>
         );
@@ -117,15 +106,14 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
         </span>
         {sentiment && (
           <span
-            className="font-black rounded-full"
+            className="font-black rounded-lg"
             style={{
               fontSize: "1.3vh",
               letterSpacing: "0.08em",
               color: sentiment.color,
               background: sentiment.bg,
-              border: `1px solid ${sentiment.color}66`,
+              border: `1px solid ${sentiment.color}55`,
               padding: "0.35vh 1vh",
-              boxShadow: glow(sentiment.color),
             }}
           >
             {sentiment.label}
@@ -154,10 +142,7 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
         ) : gaveUp ? (
           <p style={{ fontSize: "2vh", lineHeight: 1.34, color: "#94a3b8", fontWeight: 600 }}>
             No fresh headlines for {symbol} right now — full news &amp; analytics on{" "}
-            <span style={{ color: FNO_ACCENT, fontWeight: 800, textShadow: glow(FNO_ACCENT) }}>
-              fnoninja.com
-            </span>
-            .
+            <span style={{ color: FNO_ACCENT, fontWeight: 800 }}>fnoninja.com</span>.
           </p>
         ) : (
           <p style={{ fontSize: "1.9vh", color: "#64748b" }}>Gathering latest news…</p>
@@ -174,7 +159,6 @@ export function BroadcastNews({ scope, symbol }: { scope: "stock" | "index"; sym
                 height: "0.8vh",
                 borderRadius: "999px",
                 background: i === idx % items.length ? FNO_ACCENT : "rgba(96,165,250,0.22)",
-                boxShadow: i === idx % items.length ? glow(FNO_ACCENT) : undefined,
                 transition: "width 0.35s ease",
               }}
             />

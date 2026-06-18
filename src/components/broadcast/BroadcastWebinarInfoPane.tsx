@@ -7,11 +7,12 @@ import {
   FNO_BG_TEXTURE,
   FNO_BG_TEXTURE_SIZE,
   FNO_CTA_GRADIENT,
-  FNO_CTA_SHADOW,
   FNO_MUTED,
   FNO_TEXT,
 } from "@/lib/fnoninja/theme";
 import { WEBINAR_PUBLIC_URL } from "@/lib/fnoninja/webinar";
+
+const PANE_BORDER = "1px solid rgba(90,140,220,0.2)";
 
 const INFO_PANE_CSS = `
 @keyframes broadcast-info-fade {
@@ -19,16 +20,10 @@ const INFO_PANE_CSS = `
   100% { opacity: 1; transform: translateX(0); }
 }
 .broadcast-info-pane-enter { animation: broadcast-info-fade 700ms ease both; }
-@keyframes broadcast-info-glow {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.85; }
-}
-.broadcast-info-glow { animation: broadcast-info-glow 7s ease-in-out infinite; }
 `;
 
 /**
- * Webinar CTA — info pane only (right rail). Matches the poster layout:
- * vertical pill · serif headline · glass QR · URL — in FNONINJA blue theme.
+ * Webinar CTA — info pane only (right rail). Same sharp borders + grid as stock slide.
  */
 export function BroadcastWebinarInfoPane() {
   const url = WEBINAR_PUBLIC_URL.replace("https://", "");
@@ -44,24 +39,13 @@ export function BroadcastWebinarInfoPane() {
           backgroundSize: FNO_BG_TEXTURE_SIZE,
         }}
       >
-        {/* Corner glows — brand blue */}
-        <div
-          className="broadcast-info-glow pointer-events-none absolute inset-0"
-          style={{
-            background: `
-              radial-gradient(ellipse 70% 50% at 0% 0%, rgba(37,99,235,0.22), transparent),
-              radial-gradient(ellipse 60% 45% at 100% 100%, rgba(59,130,246,0.16), transparent)
-            `,
-          }}
-        />
-
         {/* Vertical FREE WEBINAR pill */}
         <div
           className="relative z-10 flex shrink-0 items-center justify-center font-black"
           style={{
             width: "5vh",
             background: FNO_CTA_GRADIENT,
-            boxShadow: FNO_CTA_SHADOW,
+            borderRight: PANE_BORDER,
             writingMode: "vertical-rl",
             transform: "rotate(180deg)",
             fontSize: "1.55vh",
@@ -77,7 +61,6 @@ export function BroadcastWebinarInfoPane() {
           className="relative z-10 flex flex-1 flex-col min-w-0 min-h-0"
           style={{ padding: "2.2vh 2.4vh 1.8vh 2vh" }}
         >
-          {/* Headline */}
           <div className="shrink-0">
             <h2
               className="font-serif font-bold leading-none"
@@ -107,19 +90,15 @@ export function BroadcastWebinarInfoPane() {
             </div>
           </div>
 
-          {/* Glass QR card */}
+          {/* QR card — sharp border, no glow */}
           <div className="flex flex-1 flex-col items-center justify-center min-h-0" style={{ margin: "1.4vh 0" }}>
             <div
-              className="flex flex-col items-center w-full"
+              className="flex flex-col items-center w-full rounded-lg"
               style={{
                 maxWidth: "100%",
                 padding: "2vh 1.8vh",
-                borderRadius: "1.4vh",
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(96,165,250,0.28)",
-                backdropFilter: "blur(14px)",
-                boxShadow:
-                  "0 0 0 1px rgba(96,165,250,0.08), 0 12px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)",
+                background: "rgba(255,255,255,0.03)",
+                border: PANE_BORDER,
               }}
             >
               <span
@@ -133,7 +112,7 @@ export function BroadcastWebinarInfoPane() {
                 style={{
                   padding: "0.85vh",
                   background: "#fff",
-                  boxShadow: "0 0 24px rgba(59,130,246,0.28)",
+                  border: PANE_BORDER,
                 }}
               >
                 <div
@@ -151,7 +130,6 @@ export function BroadcastWebinarInfoPane() {
             </div>
           </div>
 
-          {/* URL + schedule + disclaimer */}
           <div className="shrink-0 text-center" style={{ marginTop: "auto" }}>
             <p
               className="font-black"

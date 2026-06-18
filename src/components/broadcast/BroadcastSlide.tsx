@@ -26,6 +26,7 @@ const RESIST = "#f87171";
 const MUTED = FNO_MUTED;
 const INK = FNO_TEXT;
 const MAX_PAIN = LEVELS_ZONE_CHART.maxPain.labelText;
+const PANE_BORDER = "1px solid rgba(90,140,220,0.2)";
 
 const SLIDE_CSS = `
 @keyframes broadcast-slide-in {
@@ -43,10 +44,6 @@ const STATUS_META: Record<ZoneDisplayKey, { label: string; color: string }> = {
   NEUTRAL: { label: "IN RANGE", color: MUTED },
   ILLIQUID: { label: "THIN OI", color: MUTED },
 };
-
-function glow(color: string, spread = 14): string {
-  return `0 0 ${spread}px ${color}66, 0 0 ${spread * 2}px ${color}33`;
-}
 
 function inr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -77,12 +74,11 @@ function Stat({
   const c = color ?? INK;
   return (
     <div
-      className="flex flex-col justify-center rounded-xl"
+      className="flex flex-col justify-center rounded-lg"
       style={{
         padding: "1.3vh 1.2vh",
-        background: "rgba(255,255,255,0.04)",
+        background: "rgba(255,255,255,0.03)",
         border: `1px solid ${c}44`,
-        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.04), ${glow(c, 10)}`,
       }}
     >
       <span
@@ -97,12 +93,7 @@ function Stat({
       </span>
       <span
         className="font-mono tabular-nums font-black"
-        style={{
-          fontSize: "2.35vh",
-          color: c,
-          marginTop: "0.55vh",
-          textShadow: glow(c, 8),
-        }}
+        style={{ fontSize: "2.35vh", color: c, marginTop: "0.55vh" }}
       >
         {value}
       </span>
@@ -114,8 +105,7 @@ function Stat({
             color: c,
             fontWeight: 700,
             marginTop: "0.35vh",
-            opacity: 0.92,
-            textShadow: glow(c, 6),
+            opacity: 0.9,
           }}
         >
           {sub}
@@ -133,9 +123,8 @@ function Chip({ text }: { text: string }) {
         padding: "0.55vh 1.3vh",
         fontSize: "1.35vh",
         color: FNO_ACCENT,
-        background: "rgba(37,99,235,0.14)",
-        border: "1px solid rgba(96,165,250,0.45)",
-        boxShadow: glow(FNO_ACCENT, 8),
+        background: "rgba(37,99,235,0.12)",
+        border: "1px solid rgba(96,165,250,0.3)",
       }}
     >
       {text}
@@ -192,12 +181,7 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
           <div className="flex items-baseline" style={{ gap: "1.1vh" }}>
             <span
               className="font-black truncate"
-              style={{
-                fontSize: "3.6vh",
-                color: INK,
-                letterSpacing: "-0.01em",
-                textShadow: glow(INK, 6),
-              }}
+              style={{ fontSize: "3.6vh", color: INK, letterSpacing: "-0.01em" }}
             >
               {item.symbol}
             </span>
@@ -207,7 +191,7 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
                 fontWeight: 800,
                 color: MUTED,
                 letterSpacing: "0.1em",
-                border: "1px solid rgba(90,140,220,0.35)",
+                border: PANE_BORDER,
                 borderRadius: "0.5vh",
                 padding: "0.35vh 0.75vh",
                 background: "rgba(255,255,255,0.03)",
@@ -226,15 +210,14 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
           )}
         </div>
         <span
-          className="font-black shrink-0 rounded-full"
+          className="font-black shrink-0 rounded-lg"
           style={{
             fontSize: "1.55vh",
             color: status.color,
-            background: `${status.color}18`,
-            border: `1px solid ${status.color}88`,
+            background: `${status.color}14`,
+            border: `1px solid ${status.color}55`,
             padding: "0.65vh 1.4vh",
             letterSpacing: "0.06em",
-            boxShadow: glow(status.color, 12),
           }}
         >
           {status.label}
@@ -252,11 +235,7 @@ export function BroadcastSlide({ item }: { item: LevelsActionableItem }) {
           </span>
           <span
             className="font-mono tabular-nums font-black"
-            style={{
-              fontSize: "4.4vh",
-              color: INK,
-              textShadow: "0 0 18px rgba(240,244,255,0.45), 0 0 36px rgba(240,244,255,0.15)",
-            }}
+            style={{ fontSize: "4.4vh", color: INK }}
           >
             ₹{inr(item.spot)}
           </span>

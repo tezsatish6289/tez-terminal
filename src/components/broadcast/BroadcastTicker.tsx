@@ -24,13 +24,16 @@ const TICKER_CSS = `
 const MESSAGES: { icon: string; text: string; accent?: boolean }[] = [
   {
     icon: "▲",
-    text: `Get LIVE F&O data FREE — start your ${FNONINJA_FREE_TRIAL_DAYS}-day free trial at fnoninja.com`,
+    text: "FREE 1-hour webinar — learn to read option walls & key levels → fnoninja.com/webinar",
     accent: true,
   },
-  { icon: "✦", text: "No credit card required · cancel anytime" },
+  { icon: "✦", text: "Live every evening at 8 PM IST · reserve your free seat at fnoninja.com/webinar" },
   { icon: "◆", text: "Support & resistance zones, option walls and max-pain for every F&O stock" },
+  {
+    icon: "★",
+    text: `Want live F&O data too? Start a ${FNONINJA_FREE_TRIAL_DAYS}-day free trial at fnoninja.com`,
+  },
   { icon: "●", text: "Showing today's closing positioning — live updates resume at the next market open" },
-  { icon: "★", text: "Join the FNONINJA community → fnoninja.com" },
 ];
 
 function TickerRun() {
@@ -87,7 +90,7 @@ export function BroadcastTicker() {
           boxShadow: "0 0 24px rgba(59,130,246,0.45)",
         }}
       >
-        FREE TRIAL
+        FREE WEBINAR
       </div>
 
       <div className="relative flex-1 h-full overflow-hidden flex items-center">

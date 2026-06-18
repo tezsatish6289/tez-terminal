@@ -5,6 +5,7 @@ import { FnoNinjaHowItWorksSection } from "@/components/fnoninja/FnoNinjaHowItWo
 import { FnoNinjaProblemSection } from "@/components/fnoninja/FnoNinjaProblemSection";
 import { FnoNinjaDisclaimerSection } from "@/components/fnoninja/FnoNinjaDisclaimerSection";
 import { FnoNinjaPricingSection } from "@/components/fnoninja/FnoNinjaPricingSection";
+import { FnoNinjaWebinarSection } from "@/components/fnoninja/FnoNinjaWebinarSection";
 import { FnoNinjaWhoItsForSection } from "@/components/fnoninja/FnoNinjaWhoItsForSection";
 import { FnoNinjaCommunitySection } from "@/components/fnoninja/FnoNinjaCommunitySection";
 import { FnoNinjaSocialSection } from "@/components/fnoninja/FnoNinjaSocialSection";
@@ -27,6 +28,8 @@ export default function FnoNinjaLandingPage() {
       <FnoNinjaCommunitySection />
 
       <FnoNinjaPricingSection />
+
+      <FnoNinjaWebinarSection />
 
       {/* Closing CTA */}
       <section className="py-16 sm:py-24" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>

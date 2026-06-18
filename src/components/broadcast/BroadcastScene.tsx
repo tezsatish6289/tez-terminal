@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
@@ -40,10 +40,13 @@ interface LevelsPayload {
 
 /** How often to re-pull levels. */
 const POLL_MS = 60_000;
-/** Dwell per page. The bubble map plays as the interstitial between every stock
- *  — long enough to prefetch the next symbol in the background and keep the
- *  video varied, but short enough to stay lively. The stock focus page dwells
- *  longer so it can roll through that symbol's news headlines. */
+/** The branded bubble map plays as an opener for the first few minutes of the
+ *  stream, then we switch to a pure stock slideshow (the slideshow is where the
+ *  per-symbol value + webinar hook live). */
+const OPENER_MS = 5 * 60_000;
+/** Dwell per page once the slideshow is running. The stock focus page dwells
+ *  long enough to roll through that symbol's news headlines; the map-only
+ *  fallback (quiet days) cycles faster. */
 const MAP_MS = 14_000;
 const STOCK_MS = 30_000;
 
@@ -138,32 +141,39 @@ export function BroadcastScene() {
     return s === "live" || s === "map" ? s : null;
   }, [searchParams]);
 
-  // The full broadcast loop alternates the bubble map with one stock at a time:
-  //   map → stock₁ → map → stock₂ → map → stock₃ → … (then loops).
-  // The map interstitial gives the next symbol's chart + news time to warm in
-  // the background and keeps the video from being a wall of stock pages.
+  // After the opener, the loop is a pure stock slideshow — one symbol at a time.
+  //   stock₁ → stock₂ → stock₃ → … (then loops).
+  // On a quiet day with no in-zone names we fall back to a single map page.
   const pages = useMemo<Page[]>(() => {
-    const stocks = liveItems.map<Page>((item) => ({ type: "stock", item }));
     if (forcedScene === "map") return [{ type: "map" }];
-    if (forcedScene === "live") return stocks.length ? stocks : [{ type: "map" }];
+    const stocks = liveItems.map<Page>((item) => ({ type: "stock", item }));
     if (stocks.length === 0) return [{ type: "map" }];
-    return stocks.flatMap<Page>((stock) => [{ type: "map" }, stock]);
+    return stocks;
     // Keyed on liveItemKey (content) so a routine 60s poll that returns the same
     // symbols doesn't rebuild `pages` and reset the dwell timer mid-scene.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveItemKey, forcedScene]);
 
-  // Open on the bubble map only when the rotation first becomes available or the
-  // forced scene changes — NOT on every in-zone refresh (that would yank the
-  // stream back to the map every poll during data hours).
-  const hadRotationRef = useRef(false);
+  // Branded bubble-map opener: hold the map for the first OPENER_MS of the
+  // stream, then start the slideshow. Pinned scenes (?scene=...) skip the opener.
+  const [openerDone, setOpenerDone] = useState(Boolean(forcedScene));
   useEffect(() => {
-    const hasRotation = pages.length > 1;
-    if (forcedScene || (hasRotation && !hadRotationRef.current)) {
-      setPageIdx(0);
+    if (forcedScene) {
+      setOpenerDone(true);
+      return;
     }
-    hadRotationRef.current = hasRotation;
-  }, [pages.length, forcedScene]);
+    setOpenerDone(false);
+    const id = window.setTimeout(() => setOpenerDone(true), OPENER_MS);
+    return () => window.clearTimeout(id);
+  }, [forcedScene]);
+
+  const showOpenerMap = !forcedScene && !openerDone;
+
+  // Start the slideshow at the first symbol whenever the opener ends or the
+  // forced scene changes — never on a routine in-zone poll.
+  useEffect(() => {
+    setPageIdx(0);
+  }, [openerDone, forcedScene]);
 
   // Warm news + levels for the entire queue as soon as levels load. Cold AI news
   // can take 15–25s — the 14s map interstitial alone is often not enough.
@@ -172,8 +182,10 @@ export function BroadcastScene() {
     prefetchAllSymbols(liveItems);
   }, [liveItems]);
 
-  // Advance to the next page after the current page's dwell time.
+  // Advance to the next page after the current page's dwell time. Paused while
+  // the opener map is on screen.
   useEffect(() => {
+    if (showOpenerMap) return;
     if (pages.length <= 1) return;
     const current = pages[pageIdx % pages.length];
     const dwell = current.type === "map" ? MAP_MS : STOCK_MS;
@@ -182,15 +194,19 @@ export function BroadcastScene() {
       dwell,
     );
     return () => window.clearTimeout(id);
-  }, [pageIdx, pages]);
+  }, [pageIdx, pages, showOpenerMap]);
 
   const page = pages[pageIdx % pages.length] ?? { type: "map" };
-  const showMap = page.type === "map";
-  const sceneKey = showMap ? "map" : `stock-${page.type === "stock" ? page.item.symbol : "unknown"}`;
+  const showMap = showOpenerMap || page.type === "map";
+  const sceneKey = showOpenerMap
+    ? "opener-map"
+    : showMap
+      ? "map"
+      : `stock-${page.type === "stock" ? page.item.symbol : "unknown"}`;
 
   // Warm the NEXT page's data (levels + news + candles) in the background so it
-  // paints instantly when we fade to it. Because the map is interleaved before
-  // every stock, this warms each symbol during its leading map interstitial.
+  // paints instantly when we fade to it. During the opener we warm the whole
+  // queue (see prefetchAllSymbols below); here we keep the next symbol hot.
   useEffect(() => {
     if (pages.length <= 1) return;
     const next = pages[(pageIdx + 1) % pages.length];

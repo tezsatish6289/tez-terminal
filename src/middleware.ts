@@ -128,6 +128,8 @@ export function middleware(request: NextRequest) {
       pathname === "/terms" ||
       pathname === "/learn" ||
       pathname.startsWith("/learn/") ||
+      pathname === "/webinar" ||
+      pathname.startsWith("/webinar/") ||
       pathname === "/levels" ||
       pathname.startsWith("/levels/")
     ) {

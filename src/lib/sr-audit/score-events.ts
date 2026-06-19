@@ -7,7 +7,6 @@ import {
   SR_AUDIT_META_DOC,
   SR_SCORE_BATCH_SIZE,
   SR_SCORE_CANDLE_INTERVAL,
-  SR_SUCCESS_MIN_MOVE_PCT,
   SR_ZONE_EVENTS_COLLECTION,
 } from "@/lib/sr-audit/constants";
 import {
@@ -145,13 +144,9 @@ export async function scoreOpenSrZoneEvents(
       // ▲% at the max-pain target (entry→max-pain distance) — the headline payoff.
       const pocHitPct =
         event.pocHitPct ?? (stickyHitPoc ? maxPainDistPct : null);
-      // Clean, selectable win: reached max pain AND both the realized move and the
-      // cluster→max-pain distance clear the success threshold.
-      const reachedTarget =
-        stickyHitPoc &&
-        cumMfe >= SR_SUCCESS_MIN_MOVE_PCT &&
-        maxPainDistPct != null &&
-        maxPainDistPct >= SR_SUCCESS_MIN_MOVE_PCT;
+      // A win is simply reaching max pain. The entry RR gate already guarantees a
+      // meaningful, tradeable cluster→max-pain target, so no extra % filter.
+      const reachedTarget = stickyHitPoc;
 
       // Snapshot the 15-min chart window for winners so it survives Dhan's 30-day
       // window (cheap: only candidates, few per day). Refreshes while still open.

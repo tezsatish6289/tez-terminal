@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
-import { findSuccessStories, SUCCESS_MIN_MOVE_PCT } from "@/lib/videos/success-story";
+import { findSuccessStories } from "@/lib/videos/success-story";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -21,14 +21,13 @@ export async function GET(request: NextRequest) {
   }
 
   const params = request.nextUrl.searchParams;
-  const minMovePct = Number(params.get("minMovePct") ?? SUCCESS_MIN_MOVE_PCT) || SUCCESS_MIN_MOVE_PCT;
   const withinDays = Number(params.get("withinDays") ?? 45) || 45;
   const scanLimit = Math.min(500, Math.max(50, Number(params.get("scanLimit") ?? 300) || 300));
 
   try {
     const db = getAdminFirestore();
-    const stories = await findSuccessStories(db, { minMovePct, withinDays, scanLimit });
-    return NextResponse.json({ minMovePct, withinDays, count: stories.length, stories });
+    const stories = await findSuccessStories(db, { withinDays, scanLimit });
+    return NextResponse.json({ withinDays, count: stories.length, stories });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[admin/videos/success-stories]", msg);

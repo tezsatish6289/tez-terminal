@@ -5,7 +5,6 @@ import { getIndexCandles, getStockCandles } from "@/lib/dhan-candles";
 import { snapshotEventCandles } from "@/lib/sr-audit/candle-snapshot";
 import {
   SR_SCORE_CANDLE_INTERVAL,
-  SR_SUCCESS_MIN_MOVE_PCT,
   SR_ZONE_EVENTS_COLLECTION,
 } from "@/lib/sr-audit/constants";
 import { analyzeCandlesForEvent } from "@/lib/sr-audit/score-logic";
@@ -123,11 +122,7 @@ export async function backfillSrZoneEvents(
           ? (Math.abs(event.maxPain - event.entrySpot) / event.entrySpot) * 100
           : null;
       const pocHitPct = event.pocHitPct ?? (stickyHitPoc ? maxPainDistPct : null);
-      const reachedTarget =
-        stickyHitPoc &&
-        cumMfe >= SR_SUCCESS_MIN_MOVE_PCT &&
-        maxPainDistPct != null &&
-        maxPainDistPct >= SR_SUCCESS_MIN_MOVE_PCT;
+      const reachedTarget = stickyHitPoc;
 
       let candlesSnapshotAt = event.candlesSnapshotAt ?? null;
       if (reachedTarget) {

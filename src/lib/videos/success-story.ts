@@ -67,18 +67,15 @@ function pct(a: number, b: number): number {
  */
 export function qualifySuccessStory(
   event: SrZoneEvent & { id: string },
-  minMovePct = SUCCESS_MIN_MOVE_PCT,
 ): SuccessStoryCandidate | null {
   if (event.maxPain == null || !Number.isFinite(event.maxPain)) return null;
   if (!Number.isFinite(event.entrySpot) || event.entrySpot <= 0) return null;
 
-  const movePct = event.maxFavorablePct;
-  if (typeof movePct !== "number" || !Number.isFinite(movePct)) return null;
+  const movePct = typeof event.maxFavorablePct === "number" ? event.maxFavorablePct : 0;
   const maxPainDistancePct = pct(event.maxPain, event.entrySpot);
 
-  const qualifies =
-    event.reachedTarget === true ||
-    (event.hitPoc === true && movePct >= minMovePct && maxPainDistancePct >= minMovePct);
+  // A win is simply reaching max pain (entry RR gate guarantees a real target).
+  const qualifies = event.reachedTarget === true || event.hitPoc === true;
   if (!qualifies) return null;
 
   const clusterLow = event.side === "support" ? event.bullZoneLow : event.bearZoneLow;
@@ -114,7 +111,6 @@ export function qualifySuccessStory(
 export interface FindSuccessStoriesOpts {
   /** Only consider events whose entry is within this many days. */
   withinDays?: number;
-  minMovePct?: number;
   /** How many recent events to scan. */
   scanLimit?: number;
   /** Only return stories that have a stored candle snapshot (chart-ready). */
@@ -130,7 +126,6 @@ export async function findSuccessStories(
   opts: FindSuccessStoriesOpts = {},
 ): Promise<SuccessStoryCandidate[]> {
   const withinDays = opts.withinDays ?? 45;
-  const minMovePct = opts.minMovePct ?? SUCCESS_MIN_MOVE_PCT;
   const scanLimit = opts.scanLimit ?? 300;
 
   const snap = await db
@@ -145,7 +140,7 @@ export async function findSuccessStories(
   for (const doc of snap.docs) {
     const event = { id: doc.id, ...(doc.data() as SrZoneEvent) };
     if (event.eventAt && Date.parse(event.eventAt) < cutoffMs) continue;
-    const candidate = qualifySuccessStory(event, minMovePct);
+    const candidate = qualifySuccessStory(event);
     if (candidate && (!opts.requireSnapshot || candidate.hasSnapshot)) out.push(candidate);
   }
 

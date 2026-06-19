@@ -39,10 +39,15 @@ export async function GET(request: NextRequest) {
       candles: snapshot?.bars ?? [],
       levels: snapshot
         ? {
+            side: snapshot.side,
             entrySpot: snapshot.entrySpot,
             maxPain: snapshot.maxPain,
             invalidation: snapshot.invalidation,
             clusterStrike: snapshot.clusterStrike,
+            putClusterStrike: snapshot.putClusterStrike,
+            putClusterSize: snapshot.putClusterSize,
+            callClusterStrike: snapshot.callClusterStrike,
+            callClusterSize: snapshot.callClusterSize,
             bullZoneLow: snapshot.bullZoneLow,
             bullZoneHigh: snapshot.bullZoneHigh,
             bearZoneLow: snapshot.bearZoneLow,

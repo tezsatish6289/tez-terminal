@@ -33,10 +33,15 @@ export interface SrZoneEventCandles {
   fromTime: number;
   toTime: number;
   /** Levels copied so the chart can draw without re-reading the event doc. */
+  side: "support" | "resistance";
   entrySpot: number;
   maxPain: number | null;
   invalidation: number | null;
   clusterStrike: number | null;
+  putClusterStrike: number | null;
+  putClusterSize: number | null;
+  callClusterStrike: number | null;
+  callClusterSize: number | null;
   bullZoneLow: number | null;
   bullZoneHigh: number | null;
   bearZoneLow: number | null;
@@ -85,10 +90,15 @@ export async function snapshotEventCandles(
       interval: SR_STORY_CANDLE_INTERVAL,
       fromTime: windowed[0].time,
       toTime: windowed[windowed.length - 1].time,
+      side: event.side,
       entrySpot: event.entrySpot,
       maxPain: event.maxPain ?? null,
       invalidation: event.invalidation ?? null,
       clusterStrike: event.clusterStrike ?? null,
+      putClusterStrike: event.putClusterStrike ?? null,
+      putClusterSize: event.putClusterSize ?? null,
+      callClusterStrike: event.callClusterStrike ?? null,
+      callClusterSize: event.callClusterSize ?? null,
       bullZoneLow: event.bullZoneLow,
       bullZoneHigh: event.bullZoneHigh,
       bearZoneLow: event.bearZoneLow,

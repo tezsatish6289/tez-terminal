@@ -37,6 +37,18 @@ export interface SrZoneEvent {
   /** Dominant wall on the active side at entry — strike + OI (contracts). */
   clusterStrike?: number | null;
   clusterOi?: number | null;
+  /** Both walls at entry (full chart context) — put = support, call = resistance. */
+  putClusterStrike?: number | null;
+  putClusterSize?: number | null;
+  callClusterStrike?: number | null;
+  callClusterSize?: number | null;
+  /** Option-chain expiry the zones were derived from (DD/MM/YYYY). */
+  zonesExpiry?: string | null;
+  /** ATM IV + vol regime at entry (for the chart badge). */
+  atmIV?: number | null;
+  volRegimeFlag?: string | null;
+  /** Reward:risk on the active side at entry (cluster strike → max pain vs invalidation). */
+  entryRr?: number | null;
   levelsSource: PublicLevelsSource | null;
   statusAtEntry: "IN_BULL" | "IN_BEAR";
   state: SrEventState;

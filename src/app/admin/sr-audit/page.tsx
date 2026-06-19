@@ -6,6 +6,7 @@ import { useUser } from "@/firebase";
 import { isAdminEmail } from "@/lib/admin-emails-client";
 import { srCloseComment } from "@/lib/sr-audit/pnl";
 import type { SrAuditSummary, SrZoneEvent } from "@/lib/sr-audit/types";
+import type { SuccessStoryCandidate } from "@/lib/videos/success-story";
 import { format } from "date-fns";
 import {
   Activity,
@@ -22,6 +23,27 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type SrEventRow = SrZoneEvent & { id?: string };
+
+interface StoryFetchResponse {
+  candidate: SuccessStoryCandidate | null;
+  candles: StoryReplayData["candles"];
+  levels: {
+    side: "support" | "resistance";
+    entrySpot: number;
+    maxPain: number | null;
+    invalidation: number | null;
+    clusterStrike: number | null;
+    putClusterStrike: number | null;
+    putClusterSize: number | null;
+    callClusterStrike: number | null;
+    callClusterSize: number | null;
+    bullZoneLow: number | null;
+    bullZoneHigh: number | null;
+    bearZoneLow: number | null;
+    bearZoneHigh: number | null;
+  } | null;
+  hasSnapshot: boolean;
+}
 
 function pct(v: number | null | undefined, digits = 1): string {
   if (v == null || !Number.isFinite(v)) return "—";
@@ -140,18 +162,7 @@ export default function SrAuditAdminPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to load story");
-      return json as {
-        candidate: {
-          symbol: string;
-          label: string;
-          side: "support" | "resistance";
-          movePct: number;
-          eventAt: string;
-          pocHitAt: string | null;
-        } | null;
-        candles: StoryReplayData["candles"];
-        levels: StoryReplayData["levels"];
-      };
+      return json as StoryFetchResponse;
     },
     [user],
   );
@@ -164,29 +175,36 @@ export default function SrAuditAdminPage() {
       setReplayData(null);
       try {
         const json = await fetchStory(row.id);
-        if (json?.candidate) {
-          setReplayData({
-            symbol: json.candidate.symbol,
-            label: json.candidate.label,
-            side: json.candidate.side,
-            movePct: json.candidate.movePct,
-            eventAt: json.candidate.eventAt,
-            pocHitAt: json.candidate.pocHitAt,
-            candles: json.candles ?? [],
-            levels: json.levels,
-          });
-        } else {
-          setReplayData({
-            symbol: row.symbol,
-            label: row.label ?? row.symbol,
-            side: row.side,
-            movePct: row.maxFavorablePct ?? 0,
-            eventAt: row.eventAt,
-            pocHitAt: row.pocHitAt ?? null,
-            candles: json?.candles ?? [],
-            levels: json?.levels ?? null,
-          });
-        }
+        const c = json?.candidate;
+        const lv = json?.levels;
+        setReplayData({
+          symbol: c?.symbol ?? row.symbol,
+          label: c?.label ?? row.label ?? row.symbol,
+          scope: c?.scope ?? (row.scope === "index" ? "index" : "stock"),
+          side: c?.side ?? row.side,
+          entrySpot: c?.entrySpot ?? lv?.entrySpot ?? row.entrySpot ?? 0,
+          maxPain: c?.maxPain ?? lv?.maxPain ?? row.maxPain ?? null,
+          invalidation: c?.invalidation ?? lv?.invalidation ?? null,
+          putClusterStrike: c?.putClusterStrike ?? lv?.putClusterStrike ?? null,
+          putClusterSize: c?.putClusterSize ?? lv?.putClusterSize ?? null,
+          callClusterStrike: c?.callClusterStrike ?? lv?.callClusterStrike ?? null,
+          callClusterSize: c?.callClusterSize ?? lv?.callClusterSize ?? null,
+          bullZoneLow: lv?.bullZoneLow ?? null,
+          bullZoneHigh: lv?.bullZoneHigh ?? null,
+          bearZoneLow: lv?.bearZoneLow ?? null,
+          bearZoneHigh: lv?.bearZoneHigh ?? null,
+          zonesExpiry: c?.zonesExpiry ?? null,
+          atmIV: c?.atmIV ?? null,
+          entryRr: c?.entryRr ?? null,
+          movePct: c?.movePct ?? row.maxFavorablePct ?? 0,
+          maxPainDistancePct: c?.maxPainDistancePct ?? 0,
+          eventAt: c?.eventAt ?? row.eventAt,
+          pocHitAt: c?.pocHitAt ?? row.pocHitAt ?? null,
+          resolvedAt: c?.resolvedAt ?? row.resolvedAt ?? null,
+          resolveReason: c?.resolveReason ?? row.resolveReason ?? null,
+          finalPnlPct: c?.finalPnlPct ?? row.finalPnlPct ?? null,
+          candles: json?.candles ?? [],
+        });
       } catch {
         setReplayData(null);
       } finally {

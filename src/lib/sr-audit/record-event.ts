@@ -6,7 +6,11 @@ import type { IndexOptionsZones } from "@/lib/index-options-zones";
 import { storedSourceToPublic } from "@/lib/levels/levels-source";
 import type { StockZoneAggregateEntry } from "@/lib/equity-zones-store";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
-import { deriveZoneStatus, matchesDirectionalSetup } from "@/lib/zones/zone-status";
+import {
+  deriveZoneStatus,
+  matchesDirectionalSetup,
+  pocRiskRewardRatio,
+} from "@/lib/zones/zone-status";
 import {
   SR_EVENT_DEBOUNCE_MS,
   SR_ZONE_EVENTS_COLLECTION,
@@ -106,9 +110,22 @@ export async function maybeRecordSrZoneEvent(
 
     const now = new Date().toISOString();
     const invalidation = invalidationForStatus(zones);
+    const halfWidth = zones.halfWidth > 0 ? zones.halfWidth : null;
     // Dominant wall on the active side (the cluster price reacted at).
     const clusterStrike = side === "support" ? zones.bullStrike : zones.bearStrike;
     const clusterOi = side === "support" ? zones.bullOI : zones.bearOI;
+    const entryRr = pocRiskRewardRatio(
+      {
+        spot,
+        bullLow: zones.bullZoneLow,
+        bullHigh: zones.bullZoneHigh,
+        bearLow: zones.bearZoneLow,
+        bearHigh: zones.bearZoneHigh,
+      },
+      zones.maxPain ?? NaN,
+      halfWidth,
+      side === "support" ? "bull" : "bear",
+    );
     const doc: SrZoneEvent = {
       symbol,
       label: zones.label || symbol,
@@ -121,11 +138,19 @@ export async function maybeRecordSrZoneEvent(
       bullZoneHigh: zones.bullZoneHigh,
       bearZoneLow: zones.bearZoneLow,
       bearZoneHigh: zones.bearZoneHigh,
-      halfWidth: zones.halfWidth > 0 ? zones.halfWidth : null,
+      halfWidth,
       invalidation,
       maxPain: zones.maxPain,
       clusterStrike: clusterStrike ?? null,
       clusterOi: clusterOi ?? null,
+      putClusterStrike: zones.bullStrike ?? null,
+      putClusterSize: zones.bullOI ?? null,
+      callClusterStrike: zones.bearStrike ?? null,
+      callClusterSize: zones.bearOI ?? null,
+      zonesExpiry: zones.expiryUsed ?? null,
+      atmIV: zones.atmIV ?? null,
+      volRegimeFlag: zones.volRegime?.flag ?? null,
+      entryRr: entryRr ?? null,
       levelsSource: storedSourceToPublic(source),
       statusAtEntry: status,
       state: "open",
@@ -196,6 +221,18 @@ export async function maybeRecordIndexSrZoneEvent(
     const invalidation = status === "IN_BULL" ? bullSl : bearSl;
     const clusterStrike = side === "support" ? zones.bullStrike : zones.bearStrike;
     const clusterOi = side === "support" ? zones.bullOI : zones.bearOI;
+    const entryRr = pocRiskRewardRatio(
+      {
+        spot,
+        bullLow: zones.bullZoneLow,
+        bullHigh: zones.bullZoneHigh,
+        bearLow: zones.bearZoneLow,
+        bearHigh: zones.bearZoneHigh,
+      },
+      zones.maxPain ?? NaN,
+      halfWidth,
+      side === "support" ? "bull" : "bear",
+    );
 
     const now = new Date().toISOString();
     const doc: SrZoneEvent = {
@@ -215,6 +252,14 @@ export async function maybeRecordIndexSrZoneEvent(
       maxPain: zones.maxPain,
       clusterStrike: clusterStrike ?? null,
       clusterOi: clusterOi ?? null,
+      putClusterStrike: zones.bullStrike ?? null,
+      putClusterSize: zones.bullOI ?? null,
+      callClusterStrike: zones.bearStrike ?? null,
+      callClusterSize: zones.bearOI ?? null,
+      zonesExpiry: zones.expiryUsed ?? null,
+      atmIV: zones.atmIV ?? null,
+      volRegimeFlag: zones.volRegime?.flag ?? null,
+      entryRr: entryRr ?? null,
       levelsSource: "nse",
       statusAtEntry: status,
       state: "open",

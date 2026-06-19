@@ -40,6 +40,23 @@ export interface SuccessStoryCandidate {
   /** Dominant wall strike + OI at entry. */
   clusterStrike: number | null;
   clusterOi: number | null;
+  /** Both walls (put = support, call = resistance). */
+  putClusterStrike: number | null;
+  putClusterSize: number | null;
+  callClusterStrike: number | null;
+  callClusterSize: number | null;
+  /** Option-chain expiry the zones were derived from. */
+  zonesExpiry: string | null;
+  atmIV: number | null;
+  volRegimeFlag: string | null;
+  /** Reward:risk at entry (cluster strike → max pain vs invalidation). */
+  entryRr: number | null;
+  /** Invalidation level price. */
+  invalidation: number | null;
+  /** Resolution outcome (how the move ended). */
+  resolveReason: string | null;
+  resolvedAt: string | null;
+  finalPnlPct: number | null;
   /** Max pain — the target the move ran to. */
   maxPain: number;
   /** Realized favorable move from entry (%). */
@@ -49,7 +66,6 @@ export interface SuccessStoryCandidate {
   /** ISO timestamps for the on-screen dates. */
   eventAt: string;
   pocHitAt: string | null;
-  resolvedAt: string | null;
   /** Whether a 15-min candle snapshot is stored (chart renderable). */
   hasSnapshot: boolean;
   /** Recency / strength score used to pick the headline story. */
@@ -97,12 +113,23 @@ export function qualifySuccessStory(
     clusterHigh,
     clusterStrike: event.clusterStrike ?? null,
     clusterOi: event.clusterOi ?? null,
+    putClusterStrike: event.putClusterStrike ?? null,
+    putClusterSize: event.putClusterSize ?? null,
+    callClusterStrike: event.callClusterStrike ?? null,
+    callClusterSize: event.callClusterSize ?? null,
+    zonesExpiry: event.zonesExpiry ?? null,
+    atmIV: event.atmIV ?? null,
+    volRegimeFlag: event.volRegimeFlag ?? null,
+    entryRr: event.entryRr ?? null,
+    invalidation: event.invalidation ?? null,
+    resolveReason: event.resolveReason ?? null,
+    resolvedAt: event.resolvedAt ?? null,
+    finalPnlPct: event.finalPnlPct ?? null,
     maxPain: event.maxPain,
     movePct,
     maxPainDistancePct,
     eventAt: event.eventAt,
     pocHitAt: event.pocHitAt ?? null,
-    resolvedAt: event.resolvedAt ?? null,
     hasSnapshot: !!event.candlesSnapshotAt,
     score,
   };

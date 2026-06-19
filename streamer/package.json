@@ -1,0 +1,19 @@
+{
+  "name": "fnoninja-streamer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Nightly headless-Chrome → FFmpeg → YouTube Live streamer for the FNONINJA broadcast page.",
+  "scripts": {
+    "start": "node --import tsx src/run.ts",
+    "provision-only": "PROVISION_ONLY=1 node --import tsx src/run.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

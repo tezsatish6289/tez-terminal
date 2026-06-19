@@ -26,6 +26,7 @@ import {
 
 const cfg = {
   url: process.env.BROADCAST_URL?.trim() || "https://fnoninja.com/broadcast/live?scene=live",
+  thumbnailUrl: process.env.THUMBNAIL_URL?.trim() || "https://fnoninja.com/broadcast/thumbnail",
   width: Number(process.env.WIDTH ?? 1920),
   height: Number(process.env.HEIGHT ?? 1080),
   fps: Number(process.env.FPS ?? 30),
@@ -58,19 +59,45 @@ function ytResolution(): string {
   return "480p";
 }
 
-function todayLabelIst(): string {
-  return new Intl.DateTimeFormat("en-IN", {
+function istParts(): { dateLabel: string; weekday: number; weekdayFull: string } {
+  const now = new Date();
+  const dateLabel = new Intl.DateTimeFormat("en-IN", {
     day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata",
-  }).format(new Date());
+  }).format(now);
+  const weekdayFull = new Intl.DateTimeFormat("en-US", {
+    weekday: "long", timeZone: "Asia/Kolkata",
+  }).format(now);
+  const map: Record<string, number> = {
+    Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
+  };
+  return { dateLabel, weekday: map[weekdayFull] ?? 0, weekdayFull };
 }
 
+/** Title varies by weekday so consecutive nights aren't near-identical metadata. */
 function buildTitle(): string {
-  return `FNONINJA Live — Today's F&O Option Walls & Key Levels (${todayLabelIst()})`;
+  const { dateLabel, weekday, weekdayFull } = istParts();
+  const session =
+    weekday === 5 ? "Weekly Wrap — F&O Option Walls & Key Levels"
+    : weekday === 0 ? "Week-Ahead Setup — F&O Option Walls & Key Levels"
+    : weekday === 6 ? "Weekend Recap — F&O Option Walls & Key Levels"
+    : `${weekdayFull} Close — F&O Option Walls & Key Levels`;
+  return `FNONINJA Live · ${session} (${dateLabel})`;
 }
 
+/** Rotate the description body by weekday — same disclaimer + links, fresh framing. */
 function buildDescription(): string {
+  const { dateLabel, weekday } = istParts();
+  const intros = [
+    "Week-ahead option positioning across the NSE F&O universe.",          // Sun
+    "Today's closing option-wall map and key support/resistance levels.",  // Mon
+    "Where the big option walls sit after today's close.",                 // Tue
+    "Midweek option-wall positioning and key levels for F&O stocks.",      // Wed
+    "Today's close: option walls, max-pain and key levels.",               // Thu
+    "Weekly wrap — how option walls shifted into the close.",              // Fri
+    "Weekend recap of the week's option-wall positioning.",                // Sat
+  ];
   return [
-    "Live option-wall map and key support/resistance levels for the NSE F&O universe.",
+    `${intros[weekday] ?? intros[1]} (${dateLabel})`,
     "Educational market-structure visualization — not investment advice. F&O involves risk.",
     "",
     "Free webinar — reading option walls & key levels: https://fnoninja.com/webinar",
@@ -131,8 +158,17 @@ async function main(): Promise<void> {
   await sleep(cfg.warmupSec * 1000);
 
   // ── 4. Thumbnail (best-effort) ───────────────────────────
+  // Prefer the dedicated 1280×720 thumbnail card (big weekday headline + date);
+  // fall back to a live frame grab if that page can't be captured.
   try {
-    const thumb = await captureThumbnail(work);
+    let thumb: Buffer;
+    try {
+      thumb = await captureUrlThumbnail(work);
+      console.log("[run] thumbnail rendered from /broadcast/thumbnail");
+    } catch (e) {
+      console.warn("[run] thumbnail page capture failed, using live frame:", e instanceof Error ? e.message : e);
+      thumb = await captureThumbnail(work);
+    }
     await setThumbnail(token, broadcastId, thumb);
     console.log("[run] thumbnail set");
   } catch (err) {
@@ -178,6 +214,31 @@ function ffmpegArgs(playlistPath: string, rtmpTarget: string): string[] {
     "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2",
     "-f", "flv", rtmpTarget,
   ];
+}
+
+/** Render the dedicated thumbnail card to a 1280×720 JPEG via headless Chromium. */
+async function captureUrlThumbnail(work: string): Promise<Buffer> {
+  const png = join(work, "thumb-page.png");
+  const out = join(work, "thumb-page.jpg");
+  await new Promise<void>((resolve, reject) => {
+    const p = spawn(chromiumBin(), [
+      "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars",
+      "--force-device-scale-factor=1", "--window-size=1280,720",
+      "--default-background-color=00000000", "--virtual-time-budget=8000",
+      `--screenshot=${png}`, cfg.thumbnailUrl,
+    ], { stdio: "ignore" });
+    p.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`chromium screenshot exit ${code}`))));
+    p.on("error", reject);
+  });
+  // YouTube thumbnails must be JPEG/PNG ≤ 2MB; re-encode the PNG to JPEG.
+  await new Promise<void>((resolve, reject) => {
+    const p = spawn("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-i", png, "-q:v", "2", out], {
+      stdio: "ignore",
+    });
+    p.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`thumbnail re-encode exit ${code}`))));
+    p.on("error", reject);
+  });
+  return readFileSync(out);
 }
 
 async function captureThumbnail(work: string): Promise<Buffer> {

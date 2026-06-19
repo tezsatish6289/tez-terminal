@@ -18,6 +18,10 @@ import {
   FNO_BG_TEXTURE,
   FNO_BG_TEXTURE_SIZE,
 } from "@/lib/fnoninja/theme";
+import {
+  getBroadcastDailyPlan,
+  rotateList,
+} from "@/lib/fnoninja/broadcast-daily-plan";
 import { BroadcastClock } from "./BroadcastClock";
 import { BroadcastExplainer } from "./BroadcastExplainer";
 import { BroadcastLiveslide } from "./BroadcastLiveslide";
@@ -42,8 +46,8 @@ interface LevelsPayload {
 const POLL_MS = 60_000;
 /** The branded bubble map plays as an opener for the first few minutes of the
  *  stream, then we switch to a pure stock slideshow (the slideshow is where the
- *  per-symbol value + webinar hook live). */
-const OPENER_MS = 5 * 60_000;
+ *  per-symbol value + webinar hook live). The exact opener length varies by
+ *  weekday — see `getBroadcastDailyPlan` — so the pacing isn't identical nightly. */
 /** Dwell per page once the slideshow is running. The stock focus page dwells
  *  long enough to roll through that symbol's news headlines; the map-only
  *  fallback (quiet days) cycles faster. */
@@ -95,6 +99,11 @@ export function BroadcastScene() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [pageIdx, setPageIdx] = useState(0);
 
+  // Per-night show plan: keeps the stream from reading as a repetitive loop by
+  // varying the lead symbol, opener pacing and on-screen session context daily.
+  // Computed once per page load (the streamer launches a fresh page each night).
+  const [dailyPlan] = useState(() => getBroadcastDailyPlan());
+
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/freedombot/levels", { cache: "no-store" });
@@ -129,11 +138,15 @@ export function BroadcastScene() {
   // zone data, so the chart scene works even after the close on a quiet day).
   const liveItems = useMemo<LevelsActionableItem[]>(() => {
     const inZone = payload?.inZone ?? [];
-    if (inZone.length > 0) return inZone;
-    return (payload?.indices ?? [])
-      .map(indexToItem)
-      .filter((x): x is LevelsActionableItem => x != null);
-  }, [payload?.inZone, payload?.indices]);
+    const base =
+      inZone.length > 0
+        ? inZone
+        : (payload?.indices ?? [])
+            .map(indexToItem)
+            .filter((x): x is LevelsActionableItem => x != null);
+    // Rotate the running order so a different name leads the slideshow each night.
+    return rotateList(base, dailyPlan.rotateBy);
+  }, [payload?.inZone, payload?.indices, dailyPlan.rotateBy]);
 
   const liveItemKey = useMemo(
     () => liveItems.map((i) => `${i.scope}:${i.symbol}`).join("|"),
@@ -173,9 +186,9 @@ export function BroadcastScene() {
       return;
     }
     setOpenerDone(false);
-    const id = window.setTimeout(() => setOpenerDone(true), OPENER_MS);
+    const id = window.setTimeout(() => setOpenerDone(true), dailyPlan.openerMs);
     return () => window.clearTimeout(id);
-  }, [forcedScene]);
+  }, [forcedScene, dailyPlan.openerMs]);
 
   const showOpenerMap = !forcedScene && !openerDone;
 
@@ -321,6 +334,38 @@ export function BroadcastScene() {
             </span>
             <span style={{ fontSize: "1.3vh", color: "#64748b", marginTop: "0.4vh" }}>
               F&O option walls · support &amp; resistance · max-pain
+            </span>
+          </div>
+        </div>
+
+        {/* Tonight's session context — date + what this broadcast covers. Makes
+            the stream read as a fresh, dated show rather than a static loop. */}
+        <div
+          className="flex items-center rounded-lg"
+          style={{
+            gap: "1.1vh",
+            padding: "0.7vh 1.6vh",
+            background: "rgba(8,15,30,0.6)",
+            border: `1px solid ${dailyPlan.accent}44`,
+          }}
+        >
+          <span
+            style={{
+              width: "0.5vh",
+              height: "2.4vh",
+              borderRadius: "999px",
+              background: dailyPlan.accent,
+            }}
+          />
+          <div className="flex flex-col leading-none">
+            <span
+              className="font-black"
+              style={{ fontSize: "1.7vh", color: "#f0f4ff", letterSpacing: "0.01em" }}
+            >
+              {dailyPlan.sessionLabel}
+            </span>
+            <span style={{ fontSize: "1.15vh", color: "#94a3b8", marginTop: "0.4vh", letterSpacing: "0.04em" }}>
+              {dailyPlan.dateLabel} · {dailyPlan.isMarketDay ? "today's closing option walls" : "latest option walls"}
             </span>
           </div>
         </div>

@@ -219,7 +219,7 @@ export function LevelsSlideshowToolbar({
             className="shrink-0"
           />
           {symbolStrip ? (
-            <div className="relative flex-1 min-w-0 w-0 h-full overflow-hidden">
+            <div className="relative flex flex-1 min-w-0 h-full overflow-hidden">
               {symbolStrip}
             </div>
           ) : null}

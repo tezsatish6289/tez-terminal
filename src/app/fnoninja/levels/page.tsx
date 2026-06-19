@@ -997,7 +997,7 @@ export default function LevelsPage() {
           <div
             data-liveslide-tour="strip"
             data-favslide-tour="strip"
-            className="h-full min-w-0 flex-1 w-0"
+            className="h-full w-full min-w-0"
           >
             {slideshowSymbolStrip}
           </div>

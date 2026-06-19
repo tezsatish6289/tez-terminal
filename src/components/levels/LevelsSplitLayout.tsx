@@ -142,7 +142,7 @@ export function LevelsSymbolList({
 
   if (isRunnerStrip) {
     return (
-      <div className="relative flex-1 min-w-0 w-full min-h-0 h-full">
+      <div className="relative h-full w-full min-w-0 min-h-0">
         <div
           className="pointer-events-none absolute left-0 top-0 bottom-0 w-5 sm:w-8 z-10"
           style={{

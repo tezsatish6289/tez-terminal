@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift, Users, Twitter, Activity, Link2, ClipboardList, MessageSquare, Bot, ListChecks, BarChart3, ShieldCheck, Target, Gauge, Map, Clapperboard } from "lucide-react";
+import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift, Users, Twitter, Activity, Link2, ClipboardList, MessageSquare, Bot, ListChecks, BarChart3, ShieldCheck, Target, Gauge, Map, Clapperboard, Video } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
@@ -74,6 +74,7 @@ export function TopBar() {
     { name: "FNONINJA Users", icon: Map, href: "/admin/fnoninja-users" },
     { name: "Bot users", icon: Bot, href: "/admin/bot-users" },
     { name: "Waitlist", icon: ClipboardList, href: "/admin/waitlist" },
+    { name: "Webinars", icon: Video, href: "/admin/webinars" },
     { name: "Ideal Watchlist", icon: ListChecks, href: "/admin/watchlist" },
     { name: "Contact", icon: MessageSquare, href: "/admin/contact" },
     { name: "Chat Mod", icon: MessageSquare, href: "/admin/chat" },

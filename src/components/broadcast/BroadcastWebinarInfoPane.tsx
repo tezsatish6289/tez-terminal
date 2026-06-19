@@ -91,26 +91,26 @@ export function BroadcastWebinarInfoPane() {
           </div>
 
           {/* QR card — sharp border, no glow */}
-          <div className="flex flex-1 flex-col items-center justify-center min-h-0" style={{ margin: "1.4vh 0" }}>
+          <div className="flex flex-1 flex-col items-center justify-center min-h-0" style={{ margin: "1.2vh 0" }}>
             <div
               className="flex flex-col items-center w-full rounded-lg"
               style={{
                 maxWidth: "100%",
-                padding: "2vh 1.8vh",
+                padding: "1.8vh 1.6vh",
                 background: "rgba(255,255,255,0.03)",
                 border: PANE_BORDER,
               }}
             >
               <span
-                className="font-black uppercase tracking-[0.18em]"
-                style={{ fontSize: "1.45vh", color: FNO_TEXT, marginBottom: "1.4vh" }}
+                className="font-black uppercase"
+                style={{ fontSize: "1.7vh", color: FNO_ACCENT, letterSpacing: "0.16em", marginBottom: "1.3vh" }}
               >
-                Scan to Join
+                Scan to Register
               </span>
               <div
                 className="rounded-lg overflow-hidden"
                 style={{
-                  padding: "0.85vh",
+                  padding: "0.95vh",
                   background: "#fff",
                   border: PANE_BORDER,
                 }}
@@ -118,8 +118,8 @@ export function BroadcastWebinarInfoPane() {
                 <div
                   aria-hidden
                   style={{
-                    width: "13.5vh",
-                    height: "13.5vh",
+                    width: "16vh",
+                    height: "16vh",
                     backgroundImage: "url(/fnoninja/webinar-qr.svg)",
                     backgroundSize: "contain",
                     backgroundRepeat: "no-repeat",
@@ -130,22 +130,49 @@ export function BroadcastWebinarInfoPane() {
             </div>
           </div>
 
+          {/* Action block — big, unmistakable: how to join + the link + when */}
           <div className="shrink-0 text-center" style={{ marginTop: "auto" }}>
             <p
-              className="font-black"
-              style={{ fontSize: "2.1vh", color: FNO_TEXT, letterSpacing: "0.01em" }}
+              className="font-semibold uppercase"
+              style={{ fontSize: "1.3vh", color: "#94a3b8", letterSpacing: "0.14em", marginBottom: "1vh" }}
             >
-              {url}
+              Scan the code · or visit
             </p>
-            <p style={{ fontSize: "1.45vh", color: "#94a3b8", fontWeight: 600, marginTop: "0.9vh" }}>
-              {WEBINAR_SCHEDULE_LABEL}
-            </p>
+            <div
+              className="flex items-center justify-center rounded-lg"
+              style={{
+                padding: "1.4vh 1.2vh",
+                background: FNO_CTA_GRADIENT,
+                border: "1px solid rgba(147,197,253,0.45)",
+              }}
+            >
+              <span
+                className="font-black"
+                style={{ fontSize: "2.7vh", color: "#fff", letterSpacing: "0.005em" }}
+              >
+                {url}
+              </span>
+            </div>
+            <div
+              className="flex items-center justify-center rounded-md"
+              style={{
+                gap: "0.8vh",
+                marginTop: "1.3vh",
+                padding: "0.9vh 1.2vh",
+                background: "rgba(96,165,250,0.1)",
+                border: "1px solid rgba(96,165,250,0.28)",
+              }}
+            >
+              <span style={{ fontSize: "1.55vh", color: FNO_TEXT, fontWeight: 800, letterSpacing: "0.01em" }}>
+                {WEBINAR_SCHEDULE_LABEL}
+              </span>
+            </div>
             <p
               style={{
-                fontSize: "1.15vh",
+                fontSize: "1.1vh",
                 color: FNO_MUTED,
                 fontWeight: 600,
-                marginTop: "1.2vh",
+                marginTop: "1.1vh",
                 letterSpacing: "0.03em",
               }}
             >

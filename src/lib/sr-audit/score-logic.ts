@@ -17,6 +17,8 @@ export interface SrCandleAnalysis {
   maxFavorablePct: number;
   maxAdversePct: number;
   hitPoc: boolean;
+  /** ISO time of the first bar that reached max pain (null if never). */
+  pocHitAt: string | null;
   invalidationHit: { resolvedAt: string } | null;
 }
 
@@ -39,6 +41,7 @@ export function analyzeCandlesForEvent(
   let maxFavorablePct = 0;
   let maxAdversePct = 0;
   let hitPoc = false;
+  let pocHitAt: string | null = null;
   let invalidationHit: { resolvedAt: string } | null = null;
 
   for (const bar of bars) {
@@ -48,7 +51,10 @@ export function analyzeCandlesForEvent(
         ((bar.high - entry) / entry) * 100,
       );
       maxAdversePct = Math.max(maxAdversePct, ((entry - bar.low) / entry) * 100);
-      if (event.maxPain != null && bar.high >= event.maxPain) hitPoc = true;
+      if (event.maxPain != null && bar.high >= event.maxPain) {
+        hitPoc = true;
+        if (!pocHitAt) pocHitAt = new Date(bar.time * 1000).toISOString();
+      }
       if (
         !invalidationHit &&
         event.invalidation != null &&
@@ -63,7 +69,10 @@ export function analyzeCandlesForEvent(
         ((entry - bar.low) / entry) * 100,
       );
       maxAdversePct = Math.max(maxAdversePct, ((bar.high - entry) / entry) * 100);
-      if (event.maxPain != null && bar.low <= event.maxPain) hitPoc = true;
+      if (event.maxPain != null && bar.low <= event.maxPain) {
+        hitPoc = true;
+        if (!pocHitAt) pocHitAt = new Date(bar.time * 1000).toISOString();
+      }
       if (
         !invalidationHit &&
         event.invalidation != null &&
@@ -75,7 +84,7 @@ export function analyzeCandlesForEvent(
     }
   }
 
-  return { maxFavorablePct, maxAdversePct, hitPoc, invalidationHit };
+  return { maxFavorablePct, maxAdversePct, hitPoc, pocHitAt, invalidationHit };
 }
 
 /** Last candle close after event time — spot fallback when aggregate is stale. */

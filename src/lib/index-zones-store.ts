@@ -20,6 +20,7 @@ import {
 import { loadIndiaVixState } from "@/lib/india-vix";
 import { loadIvHistory, recordDailyAtmIv } from "@/lib/iv-history";
 import { isIndexZonesCronWindow } from "@/lib/market-hours";
+import { maybeRecordIndexSrZoneEvent } from "@/lib/sr-audit/record-event";
 
 function docId(symbol: IndexKey): string {
   return `config/suggested_index_zones_${symbol}`;
@@ -131,6 +132,7 @@ export async function refreshIndexZones(db: Firestore): Promise<IndexZonesRefres
         continue;
       }
       await db.doc(docId(key)).set(serialize(primary, byExpiry));
+      await maybeRecordIndexSrZoneEvent(db, primary);
       results[key] = "ok";
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

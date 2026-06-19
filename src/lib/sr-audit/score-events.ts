@@ -1,11 +1,13 @@
 import "server-only";
 
 import type { Firestore } from "firebase-admin/firestore";
-import { getStockCandles } from "@/lib/dhan-candles";
+import { getIndexCandles, getStockCandles } from "@/lib/dhan-candles";
+import { snapshotEventCandles } from "@/lib/sr-audit/candle-snapshot";
 import {
   SR_AUDIT_META_DOC,
   SR_SCORE_BATCH_SIZE,
   SR_SCORE_CANDLE_INTERVAL,
+  SR_SUCCESS_MIN_MOVE_PCT,
   SR_ZONE_EVENTS_COLLECTION,
 } from "@/lib/sr-audit/constants";
 import {
@@ -97,7 +99,11 @@ export async function scoreOpenSrZoneEvents(
     const symbol = event.symbol;
 
     try {
-      const candleResult = await getStockCandles(symbol, SR_SCORE_CANDLE_INTERVAL);
+      const scope = event.scope === "index" ? "index" : "stock";
+      const candleResult =
+        scope === "index"
+          ? await getIndexCandles(symbol, SR_SCORE_CANDLE_INTERVAL)
+          : await getStockCandles(symbol, SR_SCORE_CANDLE_INTERVAL);
       if (!candleResult.ok || !candleResult.candles.length) {
         summary.failed += 1;
         await doc.ref.set(
@@ -124,10 +130,52 @@ export async function scoreOpenSrZoneEvents(
       const currentPnlPct =
         markSpot != null ? srPnlPct(event.side, event.entrySpot, markSpot) : null;
 
+      // Cumulative running extremes — the candle window slides (Dhan ~30d), so
+      // never lower a previously-recorded MFE/MAE; once max pain is hit it stays.
+      const priorMfe = typeof event.maxFavorablePct === "number" ? event.maxFavorablePct : 0;
+      const priorMae = typeof event.maxAdversePct === "number" ? event.maxAdversePct : 0;
+      const cumMfe = Math.max(priorMfe, analysis.maxFavorablePct);
+      const cumMae = Math.max(priorMae, analysis.maxAdversePct);
+      const stickyHitPoc = event.hitPoc === true || analysis.hitPoc;
+      const pocHitAt = event.pocHitAt ?? analysis.pocHitAt ?? null;
+      const maxPainDistPct =
+        event.maxPain != null && event.entrySpot > 0
+          ? (Math.abs(event.maxPain - event.entrySpot) / event.entrySpot) * 100
+          : null;
+      // ▲% at the max-pain target (entry→max-pain distance) — the headline payoff.
+      const pocHitPct =
+        event.pocHitPct ?? (stickyHitPoc ? maxPainDistPct : null);
+      // Clean, selectable win: reached max pain AND both the realized move and the
+      // cluster→max-pain distance clear the success threshold.
+      const reachedTarget =
+        stickyHitPoc &&
+        cumMfe >= SR_SUCCESS_MIN_MOVE_PCT &&
+        maxPainDistPct != null &&
+        maxPainDistPct >= SR_SUCCESS_MIN_MOVE_PCT;
+
+      // Snapshot the 15-min chart window for winners so it survives Dhan's 30-day
+      // window (cheap: only candidates, few per day). Refreshes while still open.
+      let candlesSnapshotAt = event.candlesSnapshotAt ?? null;
+      if (reachedTarget) {
+        const bars = await snapshotEventCandles(db, doc.id, {
+          ...event,
+          maxFavorablePct: cumMfe,
+          hitPoc: stickyHitPoc,
+          pocHitAt,
+          pocHitPct,
+          reachedTarget,
+        });
+        if (bars != null) candlesSnapshotAt = now;
+      }
+
       const openPatch = {
-        maxFavorablePct: analysis.maxFavorablePct,
-        maxAdversePct: analysis.maxAdversePct,
-        hitPoc: analysis.hitPoc,
+        maxFavorablePct: cumMfe,
+        maxAdversePct: cumMae,
+        hitPoc: stickyHitPoc,
+        pocHitAt,
+        pocHitPct,
+        reachedTarget,
+        candlesSnapshotAt,
         currentSpot: markSpot,
         currentPnlPct,
         lastScoredAt: now,

@@ -2,9 +2,11 @@ import "server-only";
 
 import type { Firestore } from "firebase-admin/firestore";
 import type { EquityOptionsZones } from "@/lib/equity-options-zones";
+import type { IndexOptionsZones } from "@/lib/index-options-zones";
 import { storedSourceToPublic } from "@/lib/levels/levels-source";
 import type { StockZoneAggregateEntry } from "@/lib/equity-zones-store";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
+import { deriveZoneStatus, matchesDirectionalSetup } from "@/lib/zones/zone-status";
 import {
   SR_EVENT_DEBOUNCE_MS,
   SR_ZONE_EVENTS_COLLECTION,
@@ -82,15 +84,35 @@ export async function maybeRecordSrZoneEvent(
   const spot = zones.spot;
   if (!Number.isFinite(spot) || spot <= 0) return;
 
+  // Only record tradeable setups — same gate as the actionable/slideshow list:
+  // max pain on the pull side AND ≥ min POC reward:risk. Non-RR entries are noise.
+  const tradeable = matchesDirectionalSetup(
+    {
+      spot,
+      bullLow: zones.bullZoneLow,
+      bullHigh: zones.bullZoneHigh,
+      bearLow: zones.bearZoneLow,
+      bearHigh: zones.bearZoneHigh,
+    },
+    zones.maxPain,
+    side === "support" ? "bull" : "bear",
+    zones.halfWidth > 0 ? zones.halfWidth : null,
+  );
+  if (!tradeable) return;
+
   try {
     if (await hasOpenEvent(db, symbol, side)) return;
     if (await recentlyResolved(db, symbol, side)) return;
 
     const now = new Date().toISOString();
     const invalidation = invalidationForStatus(zones);
+    // Dominant wall on the active side (the cluster price reacted at).
+    const clusterStrike = side === "support" ? zones.bullStrike : zones.bearStrike;
+    const clusterOi = side === "support" ? zones.bullOI : zones.bearOI;
     const doc: SrZoneEvent = {
       symbol,
       label: zones.label || symbol,
+      scope: "stock",
       side,
       entryKind: "at",
       eventAt: now,
@@ -102,6 +124,8 @@ export async function maybeRecordSrZoneEvent(
       halfWidth: zones.halfWidth > 0 ? zones.halfWidth : null,
       invalidation,
       maxPain: zones.maxPain,
+      clusterStrike: clusterStrike ?? null,
+      clusterOi: clusterOi ?? null,
       levelsSource: storedSourceToPublic(source),
       statusAtEntry: status,
       state: "open",
@@ -113,6 +137,95 @@ export async function maybeRecordSrZoneEvent(
   } catch (e) {
     console.warn(
       `[sr-audit] record ${symbol} failed:`,
+      e instanceof Error ? e.message : String(e),
+    );
+  }
+}
+
+/**
+ * Index counterpart of {@link maybeRecordSrZoneEvent}. Index zones carry no
+ * persisted prev-status, so we rely on the open-event + recent-resolve guards
+ * to dedup (status is re-derived from bands + spot each refresh).
+ */
+export async function maybeRecordIndexSrZoneEvent(
+  db: Firestore,
+  zones: IndexOptionsZones,
+): Promise<void> {
+  const spot = zones.spot;
+  if (!Number.isFinite(spot) || spot <= 0) return;
+
+  const status = deriveZoneStatus({
+    spot,
+    bullLow: zones.bullZoneLow,
+    bullHigh: zones.bullZoneHigh,
+    bearLow: zones.bearZoneLow,
+    bearHigh: zones.bearZoneHigh,
+  });
+  if (status !== "IN_BULL" && status !== "IN_BEAR") return;
+
+  const side: SrZoneSide = status === "IN_BULL" ? "support" : "resistance";
+  const symbol = zones.symbol.toUpperCase();
+  const halfWidth = zones.halfWidthPts > 0 ? zones.halfWidthPts : null;
+
+  // Only record tradeable setups (max pain on the pull side + ≥ min POC RR).
+  const tradeable = matchesDirectionalSetup(
+    {
+      spot,
+      bullLow: zones.bullZoneLow,
+      bullHigh: zones.bullZoneHigh,
+      bearLow: zones.bearZoneLow,
+      bearHigh: zones.bearZoneHigh,
+    },
+    zones.maxPain,
+    side === "support" ? "bull" : "bear",
+    halfWidth,
+  );
+  if (!tradeable) return;
+
+  try {
+    if (await hasOpenEvent(db, symbol, side)) return;
+    if (await recentlyResolved(db, symbol, side)) return;
+
+    const { bullSl, bearSl } = computeZoneSlAnchors({
+      halfWidthUsd: halfWidth,
+      bullZoneLow: zones.bullZoneLow,
+      bullZoneHigh: zones.bullZoneHigh,
+      bearZoneLow: zones.bearZoneLow,
+      bearZoneHigh: zones.bearZoneHigh,
+    });
+    const invalidation = status === "IN_BULL" ? bullSl : bearSl;
+    const clusterStrike = side === "support" ? zones.bullStrike : zones.bearStrike;
+    const clusterOi = side === "support" ? zones.bullOI : zones.bearOI;
+
+    const now = new Date().toISOString();
+    const doc: SrZoneEvent = {
+      symbol,
+      label: zones.label || symbol,
+      scope: "index",
+      side,
+      entryKind: "at",
+      eventAt: now,
+      entrySpot: spot,
+      bullZoneLow: zones.bullZoneLow,
+      bullZoneHigh: zones.bullZoneHigh,
+      bearZoneLow: zones.bearZoneLow,
+      bearZoneHigh: zones.bearZoneHigh,
+      halfWidth,
+      invalidation,
+      maxPain: zones.maxPain,
+      clusterStrike: clusterStrike ?? null,
+      clusterOi: clusterOi ?? null,
+      levelsSource: "nse",
+      statusAtEntry: status,
+      state: "open",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await db.collection(SR_ZONE_EVENTS_COLLECTION).add(doc);
+  } catch (e) {
+    console.warn(
+      `[sr-audit] record index ${symbol} failed:`,
       e instanceof Error ? e.message : String(e),
     );
   }

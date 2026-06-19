@@ -12,7 +12,7 @@ import {
   type BubbleMapFilter,
   type SlideshowMapFilter,
 } from "@/lib/zones/bubble-map-filter";
-import { LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS, LEVELS_MOBILE_HSTRIP_SCROLL_CLASS } from "@/components/levels/levels-symbol-strip";
+import { LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS } from "@/components/levels/levels-symbol-strip";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
 
 const FILTER_OPTIONS: {
@@ -184,9 +184,9 @@ export function LevelsSlideshowToolbar({
 
   if (filtersOnly) {
     return (
-      <div className={`shrink-0 mb-1.5 px-0.5 min-w-0 ${LEVELS_MOBILE_HSTRIP_SCROLL_CLASS}`}>
+      <div className="shrink-0 mb-1.5 px-0.5 min-w-0">
         <div
-          className={`flex items-stretch gap-1.5 sm:gap-2 max-md:flex-nowrap max-md:w-max md:min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
+          className={`flex items-stretch gap-1.5 sm:gap-2 min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
         >
           <LevelsSlideshowStripControls
             zoneFilter={zoneFilter ?? "all"}
@@ -216,10 +216,10 @@ export function LevelsSlideshowToolbar({
             viewSwitchGroup={viewSwitchGroup}
             slideModePill={slideModePill}
             stripTrailing={stripTrailing}
-            className="max-md:shrink-0 max-md:relative max-md:z-10"
+            className="shrink-0"
           />
           {symbolStrip ? (
-            <div className="flex-1 min-w-0 min-h-0 h-full max-md:flex-none max-md:shrink-0 max-md:w-auto max-md:pl-0.5">
+            <div className="relative flex-1 min-w-0 min-h-0 h-full overflow-hidden">
               {symbolStrip}
             </div>
           ) : null}

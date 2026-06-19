@@ -54,27 +54,17 @@ function timeAgo(iso: string): string {
 function NewsSentimentBadge({ sentiment }: { sentiment: NewsSentiment }) {
   const style = SENTIMENT_DISPLAY[sentiment.label];
   return (
-    <div
-      className="flex flex-col items-end gap-0.5 shrink-0 max-w-[9.5rem]"
-      title={sentiment.note}
+    <span
+      className="shrink-0 px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider tabular-nums whitespace-nowrap"
+      style={{
+        color: style.text,
+        backgroundColor: style.bg,
+        border: `1px solid ${style.border}`,
+      }}
+      title={sentiment.note || undefined}
     >
-      <span
-        className="px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider tabular-nums"
-        style={{
-          color: style.text,
-          backgroundColor: style.bg,
-          border: `1px solid ${style.border}`,
-        }}
-      >
-        {sentiment.score} · {style.label}
-      </span>
-      <span
-        className="text-[9px] leading-tight text-right line-clamp-2"
-        style={{ color: "#64748b" }}
-      >
-        {sentiment.note}
-      </span>
-    </div>
+      {sentiment.score} · {style.label}
+    </span>
   );
 }
 
@@ -132,10 +122,10 @@ export function LevelsNewsPanel({
       }}
     >
       <div
-        className="shrink-0 flex items-start justify-between gap-2 px-3 py-2"
+        className="shrink-0 flex items-center justify-between gap-3 pl-3 pr-3.5 py-2"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
-        <div className="flex items-center gap-1.5 min-w-0 pt-0.5">
+        <div className="flex items-center gap-1.5 min-w-0">
           <Newspaper className="h-4 w-4 shrink-0" style={{ color: "#60a5fa" }} />
           <div className="min-w-0">
             <span
@@ -164,7 +154,7 @@ export function LevelsNewsPanel({
         ) : null}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5 [scrollbar-width:thin] max-md:overflow-visible max-md:flex-none">
+      <div className="flex-1 min-h-0 overflow-y-auto pl-3 pr-3.5 py-2.5 [scrollbar-width:thin] max-md:overflow-visible max-md:flex-none">
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
             <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#60a5fa" }} />
@@ -239,7 +229,7 @@ export function LevelsNewsPanel({
 
       {news ? (
         <div
-          className="shrink-0 px-3 py-1.5 flex items-center justify-between gap-2"
+          className="shrink-0 pl-3 pr-3.5 py-1.5 flex items-center justify-between gap-2"
           style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
         >
           <p className="text-[11px] leading-snug" style={{ color: "#475569" }}>

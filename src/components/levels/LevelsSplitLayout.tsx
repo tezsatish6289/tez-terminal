@@ -119,14 +119,14 @@ export function LevelsSymbolList({
   const stripScrollClass =
     layout === "horizontal"
       ? runnerMode
-        ? "flex flex-row gap-1.5 max-md:flex-nowrap max-md:overflow-visible md:flex-1 md:min-h-0 md:overflow-x-auto md:overflow-y-hidden md:pr-0.5 md:snap-x md:snap-mandatory md:scroll-smooth md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden"
+        ? "flex flex-row flex-nowrap gap-1.5 flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x snap-x snap-mandatory scroll-smooth [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pr-0.5"
         : "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin]"
       : layout === "responsive"
         ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:snap-none lg:pb-0"
         : "flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-0.5";
 
   return (
-    <aside className="flex flex-col min-h-0 w-full max-md:w-auto max-md:shrink-0 h-full max-md:h-auto">
+    <aside className="flex flex-col min-h-0 w-full min-w-0 flex-1 h-full max-md:h-auto">
       {header}
       {countLabel && (
         <p
@@ -136,17 +136,17 @@ export function LevelsSymbolList({
           {countLabel}
         </p>
       )}
-      <div className={runnerMode && layout === "horizontal" ? "relative flex-1 min-h-0 min-w-0 max-md:flex-none max-md:w-auto" : "flex flex-col flex-1 min-h-0"}>
+      <div className={runnerMode && layout === "horizontal" ? "relative flex-1 min-h-0 min-w-0 overflow-hidden" : "flex flex-col flex-1 min-h-0"}>
         {runnerMode && layout === "horizontal" ? (
           <>
             <div
-              className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10 max-md:hidden"
+              className="pointer-events-none absolute left-0 top-0 bottom-0 w-5 sm:w-8 z-10"
               style={{
                 background: `linear-gradient(to right, ${FNO_BG_CANVAS} 0%, ${FNO_BG_CANVAS} 35%, transparent 100%)`,
               }}
             />
             <div
-              className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10 max-md:hidden"
+              className="pointer-events-none absolute right-0 top-0 bottom-0 w-5 sm:w-8 z-10"
               style={{
                 background: `linear-gradient(to left, ${FNO_BG_CANVAS} 0%, ${FNO_BG_CANVAS} 35%, transparent 100%)`,
               }}

@@ -130,7 +130,7 @@ export function BroadcastWebinarInfoPane() {
             </div>
           </div>
 
-          {/* Action block — big, unmistakable: how to join + the link + when */}
+          {/* Action block — outlined cards (no second solid fill; left strip owns the accent) */}
           <div className="shrink-0 text-center" style={{ marginTop: "auto" }}>
             <p
               className="font-semibold uppercase"
@@ -141,29 +141,28 @@ export function BroadcastWebinarInfoPane() {
             <div
               className="flex items-center justify-center rounded-lg"
               style={{
-                padding: "1.4vh 1.2vh",
-                background: FNO_CTA_GRADIENT,
-                border: "1px solid rgba(147,197,253,0.45)",
+                padding: "1.5vh 1.4vh",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(96,165,250,0.45)",
               }}
             >
               <span
                 className="font-black"
-                style={{ fontSize: "2.7vh", color: "#fff", letterSpacing: "0.005em" }}
+                style={{ fontSize: "2.8vh", color: FNO_ACCENT, letterSpacing: "0.005em" }}
               >
                 {url}
               </span>
             </div>
             <div
-              className="flex items-center justify-center rounded-md"
+              className="flex items-center justify-center rounded-lg"
               style={{
-                gap: "0.8vh",
-                marginTop: "1.3vh",
-                padding: "0.9vh 1.2vh",
-                background: "rgba(96,165,250,0.1)",
-                border: "1px solid rgba(96,165,250,0.28)",
+                marginTop: "1.1vh",
+                padding: "1vh 1.2vh",
+                background: "rgba(255,255,255,0.03)",
+                border: PANE_BORDER,
               }}
             >
-              <span style={{ fontSize: "1.55vh", color: FNO_TEXT, fontWeight: 800, letterSpacing: "0.01em" }}>
+              <span style={{ fontSize: "1.55vh", color: FNO_TEXT, fontWeight: 700, letterSpacing: "0.01em" }}>
                 {WEBINAR_SCHEDULE_LABEL}
               </span>
             </div>

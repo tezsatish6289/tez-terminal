@@ -184,9 +184,9 @@ export function LevelsSlideshowToolbar({
 
   if (filtersOnly) {
     return (
-      <div className="shrink-0 mb-1.5 px-0.5 min-w-0">
+      <div className="shrink-0 mb-1.5 px-0.5 min-w-0 w-full max-w-full overflow-hidden">
         <div
-          className={`flex items-stretch gap-1.5 sm:gap-2 min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
+          className={`flex items-stretch gap-1.5 sm:gap-2 min-w-0 w-full max-w-full overflow-hidden ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
         >
           <LevelsSlideshowStripControls
             zoneFilter={zoneFilter ?? "all"}
@@ -219,7 +219,7 @@ export function LevelsSlideshowToolbar({
             className="shrink-0"
           />
           {symbolStrip ? (
-            <div className="relative flex-1 min-w-0 min-h-0 h-full overflow-hidden">
+            <div className="relative flex-1 min-w-0 w-0 h-full overflow-hidden">
               {symbolStrip}
             </div>
           ) : null}

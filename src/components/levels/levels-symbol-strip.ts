@@ -16,6 +16,10 @@ export const LEVELS_MOBILE_HSTRIP_SCROLL_CLASS =
 export const LEVELS_BUBBLE_TOOLBAR_SCROLL_CLASS =
   "shrink-0 mb-2 px-0.5 min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
+/** Horizontal scrollport for liveslide/favslide symbol chips (matches SimBotStrip). */
+export const LEVELS_SYMBOL_STRIP_SCROLL_CLASS =
+  "overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x [-webkit-overflow-scrolling:touch] snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
 /** Icon stacked above caption inside strip control boxes. */
 export const LEVELS_STRIP_ICON_INNER_CLASS =
   "flex flex-col items-center justify-center gap-1.5";

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { ZonePriceLadder, formatHeroPrice, type PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { LEVELS_SYMBOL_STRIP_SCROLL_CLASS } from "@/components/levels/levels-symbol-strip";
 import { FNO_BG_CANVAS, FNO_FAVSLIDE_ACCENT } from "@/lib/fnoninja/theme";
 import { LevelsChartNewsSplit } from "@/components/levels/LevelsChartNewsSplit";
 
@@ -31,6 +32,25 @@ const STRIP_ACCENT_STYLE: Record<
     sublabelBg: "rgba(251,191,36,0.12)",
   },
 };
+
+/** Map vertical wheel to horizontal scroll on desktop trackpads/mice. */
+function useHorizontalWheelScroll(ref: RefObject<HTMLDivElement | null>, enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    const el = ref.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return;
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [enabled, ref]);
+}
 
 /** Shared list row for every levels tab (left rail). */
 export interface LevelsListEntry {
@@ -92,8 +112,11 @@ export function LevelsSymbolList({
   const prevActiveRef = useRef(activeIndex);
   const [runnerPulse, setRunnerPulse] = useState(false);
 
+  const isRunnerStrip = runnerMode && layout === "horizontal";
+  useHorizontalWheelScroll(scrollRef, isRunnerStrip);
+
   useEffect(() => {
-    if (!runnerMode || layout !== "horizontal") return;
+    if (!isRunnerStrip) return;
 
     const container = scrollRef.current;
     const tile = container?.querySelector(
@@ -107,7 +130,8 @@ export function LevelsSymbolList({
       const id = window.setTimeout(() => setRunnerPulse(false), 700);
       return () => window.clearTimeout(id);
     }
-  }, [activeIndex, runnerMode, layout, entries.length]);
+  }, [activeIndex, isRunnerStrip, entries.length]);
+
   if (!entries.length) {
     return (
       <p className="text-sm text-center py-8 px-4" style={{ color: "#64748b" }}>
@@ -116,134 +140,67 @@ export function LevelsSymbolList({
     );
   }
 
-  const stripScrollClass =
-    layout === "horizontal"
-      ? runnerMode
-        ? "flex flex-row flex-nowrap gap-1.5 flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x snap-x snap-mandatory scroll-smooth [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pr-0.5"
-        : "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin]"
-      : layout === "responsive"
-        ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:snap-none lg:pb-0"
-        : "flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-0.5";
-
-  return (
-    <aside className="flex flex-col min-h-0 w-full min-w-0 flex-1 h-full max-md:h-auto">
-      {header}
-      {countLabel && (
-        <p
-          className="text-[9px] font-black uppercase tracking-[0.14em] mb-2 shrink-0 px-0.5"
-          style={{ color: "#64748b" }}
-        >
-          {countLabel}
-        </p>
-      )}
-      <div className={runnerMode && layout === "horizontal" ? "relative flex-1 min-h-0 min-w-0 overflow-hidden" : "flex flex-col flex-1 min-h-0"}>
-        {runnerMode && layout === "horizontal" ? (
-          <>
-            <div
-              className="pointer-events-none absolute left-0 top-0 bottom-0 w-5 sm:w-8 z-10"
-              style={{
-                background: `linear-gradient(to right, ${FNO_BG_CANVAS} 0%, ${FNO_BG_CANVAS} 35%, transparent 100%)`,
-              }}
-            />
-            <div
-              className="pointer-events-none absolute right-0 top-0 bottom-0 w-5 sm:w-8 z-10"
-              style={{
-                background: `linear-gradient(to left, ${FNO_BG_CANVAS} 0%, ${FNO_BG_CANVAS} 35%, transparent 100%)`,
-              }}
-            />
-          </>
-        ) : null}
+  if (isRunnerStrip) {
+    return (
+      <div className="relative flex-1 min-w-0 w-full min-h-0 h-full">
         <div
-          ref={runnerMode && layout === "horizontal" ? scrollRef : undefined}
-          className={stripScrollClass}
-          style={{ scrollbarGutter: layout === "horizontal" && !runnerMode ? undefined : layout !== "horizontal" ? "stable" : undefined }}
+          className="pointer-events-none absolute left-0 top-0 bottom-0 w-5 sm:w-8 z-10"
+          style={{
+            background: `linear-gradient(to right, ${FNO_BG_CANVAS} 0%, ${FNO_BG_CANVAS} 35%, transparent 100%)`,
+          }}
+        />
+        <div
+          className="pointer-events-none absolute right-0 top-0 bottom-0 w-5 sm:w-8 z-10"
+          style={{
+            background: `linear-gradient(to left, ${FNO_BG_CANVAS} 0%, ${FNO_BG_CANVAS} 35%, transparent 100%)`,
+          }}
+        />
+        <div
+          ref={scrollRef}
+          className={`${LEVELS_SYMBOL_STRIP_SCROLL_CLASS} h-full w-full flex flex-row flex-nowrap gap-1.5 pr-0.5`}
         >
-        {entries.map((entry, i) => {
-          const active = i === activeIndex;
-          const runnerStrip = runnerMode && layout === "horizontal";
-          const stripCard =
-            layout === "horizontal" || layout === "responsive"
-              ? runnerStrip
-                ? "min-w-[4.75rem] max-w-[7.25rem] snap-center md:min-w-[9.5rem] md:max-w-[11rem]"
-                : "min-w-[9.5rem] max-w-[11rem] snap-start lg:min-w-0 lg:max-w-none lg:snap-align-none"
-              : "";
-          const pulse = runnerMode && active && runnerPulse;
-          return (
-            <button
-              key={entry.id}
-              data-strip-index={i}
-              onClick={() => onSelect(i)}
-              className={`flex text-left shrink-0 h-12 md:h-full ${stripCard} ${
-                runnerStrip
-                  ? "max-md:flex-col max-md:justify-center max-md:gap-0.5 max-md:py-1 max-md:px-2 flex-col gap-1 px-3 py-2"
-                  : "flex-col gap-1 px-3 py-2"
-              } ${
-                runnerMode ? "transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out" : "transition-all"
-              } rounded-lg`}
-              style={{
-                backgroundColor: active ? accent.bg : "rgba(255,255,255,0.02)",
-                border: `1px solid ${active ? (pulse ? accent.borderPulse : accent.border) : "rgba(255,255,255,0.05)"}`,
-                transform: pulse ? "scale(1.04)" : active && runnerMode ? "scale(1.01)" : "scale(1)",
-                boxShadow: pulse ? accent.glow : active && runnerMode ? accent.glowSoft : undefined,
-              }}
-            >
-              {runnerStrip ? (
-                <>
-                  {/* Mobile slideshow strip: ticker + spot/status only (fits h-12 toolbar row). */}
-                  <div className="md:hidden flex flex-col justify-center min-w-0 w-full gap-0.5">
-                    <span
-                      className="text-[11px] font-bold leading-none truncate"
-                      style={{ color: "#e2e8f0" }}
-                    >
-                      {entry.label}
-                    </span>
-                    {(entry.spot != null && entry.currency) || entry.trailing ? (
-                      <div className="flex items-center justify-between gap-1 min-w-0">
-                        {entry.spot != null && entry.currency ? (
-                          <span
-                            className="text-[9px] font-mono tabular-nums leading-none truncate min-w-0"
-                            style={{ color: "#94a3b8" }}
-                          >
-                            {formatHeroPrice(entry.spot, entry.currency)}
-                          </span>
-                        ) : (
-                          <span className="min-w-0 flex-1" />
-                        )}
-                        {entry.trailing ? (
-                          <span className="shrink-0 scale-[0.88] origin-right">{entry.trailing}</span>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  {/* Tablet/desktop slideshow strip: full tile. */}
-                  <div className="hidden md:flex flex-col gap-1 w-full min-w-0">
-                    {(entry.sublabel || entry.trailing) && (
-                      <div className="flex items-center justify-between gap-2 w-full">
-                        {entry.sublabel ? (
-                          <span
-                            className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
-                            style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
-                          >
-                            {entry.sublabel}
-                          </span>
-                        ) : (
-                          <span />
-                        )}
-                        {entry.trailing}
-                      </div>
-                    )}
-                    <span className="text-[13px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>
-                      {entry.label}
-                    </span>
-                    {entry.spot != null && entry.currency && (
-                      <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
-                        {formatHeroPrice(entry.spot, entry.currency)}
-                      </span>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
+          {entries.map((entry, i) => {
+            const active = i === activeIndex;
+            const pulse = active && runnerPulse;
+            return (
+              <button
+                key={entry.id}
+                data-strip-index={i}
+                onClick={() => onSelect(i)}
+                className="flex text-left shrink-0 h-full min-w-[4.75rem] max-w-[7.25rem] snap-center md:min-w-[9.5rem] md:max-w-[11rem] max-md:flex-col max-md:justify-center max-md:gap-0.5 max-md:py-1 max-md:px-2 flex-col gap-1 px-3 py-2 transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-lg"
+                style={{
+                  backgroundColor: active ? accent.bg : "rgba(255,255,255,0.02)",
+                  border: `1px solid ${active ? (pulse ? accent.borderPulse : accent.border) : "rgba(255,255,255,0.05)"}`,
+                  transform: pulse ? "scale(1.04)" : active ? "scale(1.01)" : "scale(1)",
+                  boxShadow: pulse ? accent.glow : active ? accent.glowSoft : undefined,
+                }}
+              >
+                <div className="md:hidden flex flex-col justify-center min-w-0 w-full gap-0.5">
+                  <span
+                    className="text-[11px] font-bold leading-none truncate"
+                    style={{ color: "#e2e8f0" }}
+                  >
+                    {entry.label}
+                  </span>
+                  {(entry.spot != null && entry.currency) || entry.trailing ? (
+                    <div className="flex items-center justify-between gap-1 min-w-0">
+                      {entry.spot != null && entry.currency ? (
+                        <span
+                          className="text-[9px] font-mono tabular-nums leading-none truncate min-w-0"
+                          style={{ color: "#94a3b8" }}
+                        >
+                          {formatHeroPrice(entry.spot, entry.currency)}
+                        </span>
+                      ) : (
+                        <span className="min-w-0 flex-1" />
+                      )}
+                      {entry.trailing ? (
+                        <span className="shrink-0 scale-[0.88] origin-right">{entry.trailing}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="hidden md:flex flex-col gap-1 w-full min-w-0">
                   {(entry.sublabel || entry.trailing) && (
                     <div className="flex items-center justify-between gap-2 w-full">
                       {entry.sublabel ? (
@@ -267,7 +224,77 @@ export function LevelsSymbolList({
                       {formatHeroPrice(entry.spot, entry.currency)}
                     </span>
                   )}
-                </>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  const stripScrollClass =
+    layout === "horizontal"
+      ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin]"
+      : layout === "responsive"
+        ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:snap-none lg:pb-0"
+        : "flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-0.5";
+
+  return (
+    <aside className="flex flex-col min-h-0 w-full min-w-0 flex-1 h-full max-md:h-auto">
+      {header}
+      {countLabel && (
+        <p
+          className="text-[9px] font-black uppercase tracking-[0.14em] mb-2 shrink-0 px-0.5"
+          style={{ color: "#64748b" }}
+        >
+          {countLabel}
+        </p>
+      )}
+      <div className="flex flex-col flex-1 min-h-0">
+        <div
+          className={stripScrollClass}
+          style={{ scrollbarGutter: layout === "horizontal" ? undefined : "stable" }}
+        >
+        {entries.map((entry, i) => {
+          const active = i === activeIndex;
+          const stripCard =
+            layout === "horizontal" || layout === "responsive"
+              ? "min-w-[9.5rem] max-w-[11rem] snap-start lg:min-w-0 lg:max-w-none lg:snap-align-none"
+              : "";
+          return (
+            <button
+              key={entry.id}
+              data-strip-index={i}
+              onClick={() => onSelect(i)}
+              className={`flex text-left shrink-0 h-12 md:h-full ${stripCard} flex-col gap-1 px-3 py-2 transition-all rounded-lg`}
+              style={{
+                backgroundColor: active ? accent.bg : "rgba(255,255,255,0.02)",
+                border: `1px solid ${active ? accent.border : "rgba(255,255,255,0.05)"}`,
+              }}
+            >
+              {(entry.sublabel || entry.trailing) && (
+                <div className="flex items-center justify-between gap-2 w-full">
+                  {entry.sublabel ? (
+                    <span
+                      className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
+                      style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
+                    >
+                      {entry.sublabel}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  {entry.trailing}
+                </div>
+              )}
+              <span className="text-[13px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>
+                {entry.label}
+              </span>
+              {entry.spot != null && entry.currency && (
+                <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
+                  {formatHeroPrice(entry.spot, entry.currency)}
+                </span>
               )}
             </button>
           );

@@ -249,9 +249,22 @@ export default function LevelsPage() {
     const body = document.body;
     const prevHtml = html.style.overflow;
     const prevBody = body.style.overflow;
-    html.style.overflow = "hidden";
-    body.style.overflow = "hidden";
+    const mq = window.matchMedia("(min-width: 768px)");
+
+    const apply = () => {
+      if (mq.matches) {
+        html.style.overflow = "hidden";
+        body.style.overflow = "hidden";
+      } else {
+        html.style.overflow = prevHtml;
+        body.style.overflow = prevBody;
+      }
+    };
+
+    apply();
+    mq.addEventListener("change", apply);
     return () => {
+      mq.removeEventListener("change", apply);
       html.style.overflow = prevHtml;
       body.style.overflow = prevBody;
     };
@@ -984,7 +997,7 @@ export default function LevelsPage() {
           <div
             data-liveslide-tour="strip"
             data-favslide-tour="strip"
-            className="h-full min-w-0 flex-1"
+            className="h-full min-w-0 flex-1 w-0"
           >
             {slideshowSymbolStrip}
           </div>

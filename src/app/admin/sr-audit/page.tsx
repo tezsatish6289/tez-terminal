@@ -4,7 +4,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { SrStoryReplay, type StoryReplayData } from "@/components/admin/SrStoryReplay";
 import { useUser } from "@/firebase";
 import { isAdminEmail } from "@/lib/admin-emails-client";
-import { srEventDisplayStatus } from "@/lib/sr-audit/pnl";
+import { srEventDisplayStatus, srEventOutcome } from "@/lib/sr-audit/pnl";
 import type { SrAuditSummary, SrZoneEvent } from "@/lib/sr-audit/types";
 import type { SuccessStoryCandidate } from "@/lib/videos/success-story";
 import { format } from "date-fns";
@@ -16,7 +16,6 @@ import {
   PlayCircle,
   RefreshCw,
   ShieldAlert,
-  Sparkles,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -84,8 +83,7 @@ export default function SrAuditAdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sideFilter, setSideFilter] = useState<"" | "support" | "resistance">("");
-  const [stateFilter, setStateFilter] = useState<"" | "open" | "resolved">("");
-  const [winnersOnly, setWinnersOnly] = useState(false);
+  const [outcomeFilter, setOutcomeFilter] = useState<"" | "win" | "loss" | "open">("");
   const [backfilling, setBackfilling] = useState(false);
   const [notice, setNotice] = useState("");
   const [replayOpen, setReplayOpen] = useState(false);
@@ -101,9 +99,7 @@ export default function SrAuditAdminPage() {
     try {
       const idToken = await user.getIdToken();
       const qs = new URLSearchParams();
-      if (sideFilter) qs.set("side", sideFilter);
-      if (stateFilter) qs.set("state", stateFilter);
-      qs.set("limit", "200");
+      qs.set("limit", "500");
       const res = await fetch(`/api/admin/sr-audit?${qs}`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
@@ -118,7 +114,7 @@ export default function SrAuditAdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, sideFilter, stateFilter]);
+  }, [user]);
 
   useEffect(() => {
     if (isAdmin) void fetchData();
@@ -235,13 +231,35 @@ export default function SrAuditAdminPage() {
     [fetchStory],
   );
 
-  const filtered = useMemo(
-    () =>
-      winnersOnly
-        ? events.filter((e) => srEventDisplayStatus(e).outcome === "win")
-        : events,
-    [events, winnersOnly],
-  );
+  const filterCounts = useMemo(() => {
+    const forSideCounts = outcomeFilter
+      ? events.filter((e) => srEventOutcome(e) === outcomeFilter)
+      : events;
+    const forOutcomeCounts = sideFilter
+      ? events.filter((e) => e.side === sideFilter)
+      : events;
+
+    return {
+      side: {
+        "": forSideCounts.length,
+        support: forSideCounts.filter((e) => e.side === "support").length,
+        resistance: forSideCounts.filter((e) => e.side === "resistance").length,
+      },
+      outcome: {
+        "": forOutcomeCounts.length,
+        win: forOutcomeCounts.filter((e) => srEventOutcome(e) === "win").length,
+        loss: forOutcomeCounts.filter((e) => srEventOutcome(e) === "loss").length,
+        open: forOutcomeCounts.filter((e) => srEventOutcome(e) === "open").length,
+      },
+    };
+  }, [events, sideFilter, outcomeFilter]);
+
+  const filtered = useMemo(() => {
+    let rows = events;
+    if (sideFilter) rows = rows.filter((e) => e.side === sideFilter);
+    if (outcomeFilter) rows = rows.filter((e) => srEventOutcome(e) === outcomeFilter);
+    return rows;
+  }, [events, sideFilter, outcomeFilter]);
 
   if (authLoading) {
     return (
@@ -342,46 +360,53 @@ export default function SrAuditAdminPage() {
         ) : null}
 
         <div className="flex flex-wrap gap-2 mb-4">
-          {(["", "support", "resistance"] as const).map((s) => (
+          {(
+            [
+              ["", "All sides"],
+              ["support", "Support"],
+              ["resistance", "Resistance"],
+            ] as const
+          ).map(([value, label]) => (
             <button
-              key={s || "all"}
+              key={value || "all-sides"}
               type="button"
-              onClick={() => setSideFilter(s)}
+              onClick={() => setSideFilter(value)}
               className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
-                sideFilter === s
+                sideFilter === value
                   ? "border-blue-400/50 bg-blue-500/15 text-blue-200"
                   : "border-white/10 text-slate-400"
               }`}
             >
-              {s === "" ? "All sides" : s}
+              {label} ({filterCounts.side[value]})
             </button>
           ))}
-          {(["", "open", "resolved"] as const).map((s) => (
+          {(
+            [
+              ["", "All"],
+              ["win", "Win"],
+              ["loss", "Loss"],
+              ["open", "Open"],
+            ] as const
+          ).map(([value, label]) => (
             <button
-              key={s || "all-state"}
+              key={value || "all-outcomes"}
               type="button"
-              onClick={() => setStateFilter(s)}
+              onClick={() => setOutcomeFilter(value)}
               className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
-                stateFilter === s
-                  ? "border-slate-300/40 bg-white/10 text-slate-200"
+                outcomeFilter === value
+                  ? value === "win"
+                    ? "border-amber-400/50 bg-amber-400/15 text-amber-200"
+                    : value === "loss"
+                      ? "border-red-400/40 bg-red-500/10 text-red-200"
+                      : value === "open"
+                        ? "border-slate-300/40 bg-white/10 text-slate-200"
+                        : "border-slate-300/40 bg-white/10 text-slate-200"
                   : "border-white/10 text-slate-400"
               }`}
             >
-              {s === "" ? "All states" : s}
+              {label} ({filterCounts.outcome[value]})
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => setWinnersOnly((v) => !v)}
-            className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide border inline-flex items-center gap-1 ${
-              winnersOnly
-                ? "border-amber-400/50 bg-amber-400/15 text-amber-200"
-                : "border-white/10 text-slate-400"
-            }`}
-          >
-            <Sparkles className="h-3 w-3" />
-            Success stories
-          </button>
         </div>
 
         <div
@@ -417,9 +442,13 @@ export default function SrAuditAdminPage() {
                 ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={13} className="px-3 py-8 text-center text-slate-500">
-                      {winnersOnly
-                        ? "No success stories yet — they appear once an event reaches max pain."
-                        : "No events yet — entries appear when stocks/indices newly enter in-zone support/resistance."}
+                      {outcomeFilter === "win"
+                        ? "No wins yet — they appear once an event reaches max pain or closes on zone flip."
+                        : outcomeFilter === "loss"
+                          ? "No losses in this view — losses close when the entry zone is invalidated."
+                          : outcomeFilter === "open"
+                            ? "No open events in this view — these are still tracking (neither win nor loss yet)."
+                            : "No events yet — entries appear when stocks/indices newly enter in-zone support/resistance."}
                     </td>
                   </tr>
                 ) : (

@@ -32,20 +32,31 @@ export function srCloseComment(
 
 export type SrDisplayOutcome = "win" | "loss" | "open";
 
+export function srEventOutcome(
+  event: Pick<SrZoneEvent, "state" | "reachedTarget" | "hitPoc" | "resolveReason">,
+): SrDisplayOutcome {
+  if (event.resolveReason === "zone_flip") return "win";
+  if (event.reachedTarget === true || event.hitPoc === true) return "win";
+  if (event.resolveReason === "invalidation") return "loss";
+  return "open";
+}
+
 /** Admin-table status: win (max pain / zone flip), loss (invalidated), open (tracking). */
 export function srEventDisplayStatus(
   event: Pick<SrZoneEvent, "state" | "reachedTarget" | "hitPoc" | "resolveReason">,
 ): { outcome: SrDisplayOutcome; title: string; subtitle: string } {
-  if (event.resolveReason === "zone_flip") {
-    return { outcome: "win", title: "Win", subtitle: "zone flip" };
+  const outcome = srEventOutcome(event);
+  if (outcome === "win") {
+    return {
+      outcome,
+      title: "Win",
+      subtitle: event.resolveReason === "zone_flip" ? "zone flip" : "max pain hit",
+    };
   }
-  if (event.reachedTarget === true || event.hitPoc === true) {
-    return { outcome: "win", title: "Win", subtitle: "max pain hit" };
+  if (outcome === "loss") {
+    return { outcome, title: "Loss", subtitle: "entry zone invalidated" };
   }
-  if (event.resolveReason === "invalidation") {
-    return { outcome: "loss", title: "Loss", subtitle: "entry zone invalidated" };
-  }
-  return { outcome: "open", title: "Open", subtitle: "" };
+  return { outcome, title: "Open", subtitle: "" };
 }
 
 /** Opposite zone reached — thesis resolved by flip, not neutral drift. */

@@ -48,6 +48,12 @@ const REEL_H = 1920;
 // Chart sub-region inside the reel.
 const CHART = { top: 330, left: 48, right: 232, bottom: 1500 };
 
+const FNO_LOGO_MARK = "#3b82f6";
+const FNO_LOGO_BG = "#080f1e";
+const FNO_TEXT = "#f0f4ff";
+const FNO_ACCENT = "#60a5fa";
+const FNO_MUTED = "#64748b";
+
 function compact(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return Intl.NumberFormat("en-IN", {
@@ -238,16 +244,8 @@ export function SrStoryReplay({
         ctx.fillText(v, fx + 18, fy + 80);
       });
 
-      // Branding strip.
-      const by = fy + 160;
-      ctx.textAlign = "right";
-      ctx.fillStyle = "#f8fafc";
-      ctx.font = "900 40px ui-sans-serif, system-ui";
-      ctx.fillText("FNONINJA", REEL_W - CHART.left, by - 8);
-      ctx.fillStyle = "#475569";
-      ctx.font = "700 24px ui-sans-serif, system-ui";
-      ctx.fillText("fnoninja.com", REEL_W - CHART.left, by + 30);
-      ctx.textAlign = "left";
+      // Brand watermark (logo + wordmark + url).
+      drawBrandWatermark(ctx, REEL_W - CHART.left, fy + 160);
     },
     [data],
   );
@@ -377,4 +375,64 @@ function roundRect(
   ctx.arcTo(x, y + h, x, y, rr);
   ctx.arcTo(x, y, x + w, y, rr);
   ctx.closePath();
+}
+
+/** FNONINJA shuriken mark — mirrors public/fnoninja/icon.svg. */
+function drawLogoMark(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 32;
+  ctx.save();
+  ctx.fillStyle = FNO_LOGO_MARK;
+  roundRect(ctx, x, y, size, size, 8 * s);
+  ctx.fill();
+
+  const side = 8.4 * s;
+  const origin = x + (size - side) / 2;
+  const cy = y + size / 2;
+  ctx.fillStyle = FNO_LOGO_BG;
+  ctx.save();
+  ctx.translate(origin + side / 2, cy);
+  ctx.rotate(Math.PI / 4);
+  roundRect(ctx, -side / 2, -side / 2, side, side, 0.56 * s);
+  ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+/** Footer brand watermark: logo mark + FNO/NINJA wordmark + fnoninja.com. */
+function drawBrandWatermark(ctx: CanvasRenderingContext2D, rightX: number, baselineY: number) {
+  const logoSize = 52;
+  const gap = 16;
+  const opacity = 0.92;
+
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
+
+  ctx.font = "900 40px ui-sans-serif, system-ui";
+  const fnoW = ctx.measureText("FNO").width;
+  ctx.font = "900 40px ui-sans-serif, system-ui";
+  const ninjaW = ctx.measureText("NINJA").width;
+  ctx.font = "700 24px ui-sans-serif, system-ui";
+  const urlW = ctx.measureText("fnoninja.com").width;
+
+  const textW = Math.max(fnoW + ninjaW, urlW);
+  const blockW = logoSize + gap + textW;
+  const blockLeft = rightX - blockW;
+  const logoY = baselineY - logoSize + 8;
+
+  drawLogoMark(ctx, blockLeft, logoY, logoSize);
+
+  const textX = blockLeft + logoSize + gap;
+  ctx.fillStyle = FNO_TEXT;
+  ctx.font = "900 40px ui-sans-serif, system-ui";
+  ctx.fillText("FNO", textX, baselineY - 4);
+  ctx.fillStyle = FNO_ACCENT;
+  ctx.fillText("NINJA", textX + fnoW, baselineY - 4);
+
+  ctx.fillStyle = FNO_MUTED;
+  ctx.font = "700 24px ui-sans-serif, system-ui";
+  ctx.fillText("fnoninja.com", textX, baselineY + 28);
+
+  ctx.restore();
 }

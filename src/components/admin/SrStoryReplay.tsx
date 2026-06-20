@@ -46,7 +46,7 @@ export interface StoryReplayData {
 const REEL_W = 1080;
 const REEL_H = 1920;
 // Chart sub-region inside the reel.
-const CHART = { top: 560, left: 48, right: 232, bottom: 1500 };
+const CHART = { top: 330, left: 48, right: 232, bottom: 1500 };
 
 function compact(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -121,29 +121,6 @@ export function SrStoryReplay({
       ctx.fillText("move to max pain", REEL_W - CHART.left, 250);
       ctx.textAlign = "left";
 
-      // Stat chips row.
-      const chips: [string, string][] = [
-        ["EXPIRY", data.zonesExpiry ?? "—"],
-        ["MAX PAIN", data.maxPain != null ? data.maxPain.toFixed(2) : "—"],
-        ["IV", data.atmIV != null ? `${data.atmIV.toFixed(1)}%` : "—"],
-        ["RR", data.entryRr != null ? `${data.entryRr.toFixed(1)}:1` : "—"],
-      ];
-      const chipW = (REEL_W - CHART.left * 2 - 24 * 3) / 4;
-      const chipY = 320;
-      const chipH = 120;
-      chips.forEach(([k, v], i) => {
-        const cx = CHART.left + i * (chipW + 24);
-        ctx.fillStyle = "rgba(255,255,255,0.05)";
-        roundRect(ctx, cx, chipY, chipW, chipH, 16);
-        ctx.fill();
-        ctx.fillStyle = "#64748b";
-        ctx.font = "800 22px ui-sans-serif, system-ui";
-        ctx.fillText(k, cx + 20, chipY + 42);
-        ctx.fillStyle = "#e2e8f0";
-        ctx.font = "800 38px ui-sans-serif, system-ui";
-        ctx.fillText(v, cx + 20, chipY + 90);
-      });
-
       // ----- Chart region -----
       const CL = CHART.left;
       const CT = CHART.top;
@@ -182,22 +159,6 @@ export function SrStoryReplay({
       const x = (i: number) => CL + 24 + (i / Math.max(1, bars.length - 1)) * (CW - 24);
       const y = (p: number) => CT + 24 + (1 - (p - min) / (max - min)) * (CH - 48);
 
-      const idxForTime = (iso: string | null): number | null => {
-        if (!iso) return null;
-        const ts = Math.floor(Date.parse(iso) / 1000);
-        if (!Number.isFinite(ts)) return null;
-        let best = 0;
-        let bd = Infinity;
-        for (let i = 0; i < bars.length; i++) {
-          const d = Math.abs(bars[i].t - ts);
-          if (d < bd) {
-            bd = d;
-            best = i;
-          }
-        }
-        return best;
-      };
-
       const bandFill = (lo: number | null, hi: number | null, fill: string) => {
         if (lo == null || hi == null) return;
         ctx.fillStyle = fill;
@@ -224,26 +185,6 @@ export function SrStoryReplay({
         ctx.fillStyle = color;
         ctx.font = "800 22px ui-sans-serif, system-ui";
         ctx.fillText(label, plotRight + 12, y(p) + 8);
-        ctx.restore();
-      };
-
-      const vmarker = (iso: string | null, color: string, label: string) => {
-        const i = idxForTime(iso);
-        if (i == null) return;
-        const px = x(i);
-        ctx.save();
-        ctx.strokeStyle = color;
-        ctx.setLineDash([5, 5]);
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(px, CT + 16);
-        ctx.lineTo(px, CT + CH - 16);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = color;
-        ctx.font = "800 20px ui-sans-serif, system-ui";
-        const tw = ctx.measureText(label).width;
-        ctx.fillText(label, Math.min(px + 8, plotRight - tw), CT + 36);
         ctx.restore();
       };
 
@@ -276,20 +217,14 @@ export function SrStoryReplay({
       hline(data.maxPain, "#fbbf24", "Max pain", [10, 6]);
       hline(data.invalidation, "#64748b", "Invalidation", [3, 6]);
 
-      // Date markers.
-      vmarker(data.eventAt, "#93c5fd", "ENTRY");
-      vmarker(data.pocHitAt, "#fbbf24", "MAX PAIN");
-      vmarker(data.resolvedAt, "#94a3b8", (data.resolveReason ?? "EXIT").toUpperCase());
-
       // ----- Footer -----
       const fmt = (iso: string | null) => (iso ? format(new Date(iso), "MMM d, HH:mm") : "—");
       const fy = CHART.bottom + 70;
       const footerCells: [string, string, string][] = [
         ["ENTERED", fmt(data.eventAt), "#93c5fd"],
         ["MAX PAIN HIT", fmt(data.pocHitAt), "#fbbf24"],
-        [(data.resolveReason ?? "EXIT").toUpperCase(), fmt(data.resolvedAt), "#94a3b8"],
       ];
-      const fcW = (REEL_W - CHART.left * 2 - 24 * 2) / 3;
+      const fcW = (REEL_W - CHART.left * 2 - 24) / 2;
       footerCells.forEach(([k, v, col], i) => {
         const fx = CHART.left + i * (fcW + 24);
         ctx.fillStyle = "rgba(255,255,255,0.05)";
@@ -303,17 +238,8 @@ export function SrStoryReplay({
         ctx.fillText(v, fx + 18, fy + 80);
       });
 
-      // Final PnL + branding strip.
+      // Branding strip.
       const by = fy + 160;
-      if (data.finalPnlPct != null) {
-        ctx.fillStyle = data.finalPnlPct >= 0 ? "#86efac" : "#fca5a5";
-        ctx.font = "900 44px ui-sans-serif, system-ui";
-        ctx.fillText(
-          `Final ${data.finalPnlPct >= 0 ? "+" : ""}${data.finalPnlPct.toFixed(1)}%`,
-          CHART.left,
-          by,
-        );
-      }
       ctx.textAlign = "right";
       ctx.fillStyle = "#f8fafc";
       ctx.font = "900 40px ui-sans-serif, system-ui";

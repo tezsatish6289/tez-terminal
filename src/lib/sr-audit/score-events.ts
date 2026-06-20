@@ -200,7 +200,7 @@ export async function scoreOpenSrZoneEvents(
         continue;
       }
 
-      if (isZoneFlipStatus(agg?.status, event.side)) {
+      if (stickyHitPoc && isZoneFlipStatus(agg?.status, event.side)) {
         const finalSpot = finalSpotForClose(event, "zone_flip", markSpot);
         const finalPnlPct =
           finalSpot != null ? srPnlPct(event.side, event.entrySpot, finalSpot) : null;

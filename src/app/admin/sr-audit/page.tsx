@@ -4,7 +4,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { SrStoryReplay, type StoryReplayData } from "@/components/admin/SrStoryReplay";
 import { useUser } from "@/firebase";
 import { isAdminEmail } from "@/lib/admin-emails-client";
-import { srCloseComment } from "@/lib/sr-audit/pnl";
+import { srEventDisplayStatus } from "@/lib/sr-audit/pnl";
 import type { SrAuditSummary, SrZoneEvent } from "@/lib/sr-audit/types";
 import type { SuccessStoryCandidate } from "@/lib/videos/success-story";
 import { format } from "date-fns";
@@ -236,7 +236,10 @@ export default function SrAuditAdminPage() {
   );
 
   const filtered = useMemo(
-    () => (winnersOnly ? events.filter((e) => e.reachedTarget === true) : events),
+    () =>
+      winnersOnly
+        ? events.filter((e) => srEventDisplayStatus(e).outcome === "win")
+        : events,
     [events, winnersOnly],
   );
 
@@ -415,14 +418,14 @@ export default function SrAuditAdminPage() {
                   <tr>
                     <td colSpan={13} className="px-3 py-8 text-center text-slate-500">
                       {winnersOnly
-                        ? "No success stories yet — they appear once an event reaches max pain with a ≥5% move."
+                        ? "No success stories yet — they appear once an event reaches max pain."
                         : "No events yet — entries appear when stocks/indices newly enter in-zone support/resistance."}
                     </td>
                   </tr>
                 ) : (
                   filtered.map((row) => {
-                    const isOpen = row.state === "open";
-                    const isWinner = row.reachedTarget === true;
+                    const status = srEventDisplayStatus(row);
+                    const isWinner = status.outcome === "win";
                     const isIndex = row.scope === "index";
 
                     return (
@@ -436,11 +439,6 @@ export default function SrAuditAdminPage() {
                           {isIndex ? (
                             <span className="ml-1.5 align-middle text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-sky-500/15 text-sky-300">
                               IDX
-                            </span>
-                          ) : null}
-                          {isWinner ? (
-                            <span className="ml-1.5 align-middle text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-amber-400/15 text-amber-300">
-                              Win
                             </span>
                           ) : null}
                         </td>
@@ -489,8 +487,25 @@ export default function SrAuditAdminPage() {
                         <td className="px-3 py-2 text-slate-400">
                           {row.hitPoc === true ? "Yes" : row.hitPoc === false ? "No" : "—"}
                         </td>
-                        <td className="px-3 py-2 text-slate-300 uppercase text-[10px] font-semibold whitespace-nowrap">
-                          {isOpen ? "open" : srCloseComment(row.resolveReason, row.closeComment)}
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <span
+                            className="text-[11px] font-bold uppercase"
+                            style={{
+                              color:
+                                status.outcome === "win"
+                                  ? "#fbbf24"
+                                  : status.outcome === "loss"
+                                    ? "#f87171"
+                                    : "#94a3b8",
+                            }}
+                          >
+                            {status.title}
+                          </span>
+                          {status.subtitle ? (
+                            <span className="block text-[10px] text-slate-500 normal-case font-medium">
+                              {status.subtitle}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="px-3 py-2 text-slate-500 uppercase text-[10px]">
                           {row.levelsSource ?? "—"}

@@ -1,4 +1,4 @@
-import type { SrResolveReason, SrZoneSide } from "@/lib/sr-audit/types";
+import type { SrResolveReason, SrZoneEvent, SrZoneSide } from "@/lib/sr-audit/types";
 
 /** Signed PnL % from entry spot (support = long, resistance = short). */
 export function srPnlPct(
@@ -28,6 +28,24 @@ export function srCloseComment(
     default:
       return "—";
   }
+}
+
+export type SrDisplayOutcome = "win" | "loss" | "open";
+
+/** Admin-table status: win (max pain / zone flip), loss (invalidated), open (tracking). */
+export function srEventDisplayStatus(
+  event: Pick<SrZoneEvent, "state" | "reachedTarget" | "hitPoc" | "resolveReason">,
+): { outcome: SrDisplayOutcome; title: string; subtitle: string } {
+  if (event.resolveReason === "zone_flip") {
+    return { outcome: "win", title: "Win", subtitle: "zone flip" };
+  }
+  if (event.reachedTarget === true || event.hitPoc === true) {
+    return { outcome: "win", title: "Win", subtitle: "max pain hit" };
+  }
+  if (event.resolveReason === "invalidation") {
+    return { outcome: "loss", title: "Loss", subtitle: "entry zone invalidated" };
+  }
+  return { outcome: "open", title: "Open", subtitle: "" };
 }
 
 /** Opposite zone reached — thesis resolved by flip, not neutral drift. */

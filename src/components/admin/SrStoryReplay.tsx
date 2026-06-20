@@ -41,13 +41,19 @@ export interface StoryReplayData {
   candles: StoryBar[];
 }
 
-const W = 980;
-const H = 500;
-const PAD = { top: 16, right: 132, bottom: 40, left: 12 };
+// 9:16 reel canvas (social / Remotion short). Everything is painted on the
+// canvas so this preview is a 1:1 of the eventual rendered video.
+const REEL_W = 1080;
+const REEL_H = 1920;
+// Chart sub-region inside the reel.
+const CHART = { top: 560, left: 48, right: 232, bottom: 1500 };
 
 function compact(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
-  return Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+  return Intl.NumberFormat("en-IN", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(n);
 }
 
 export function SrStoryReplay({
@@ -74,12 +80,80 @@ export function SrStoryReplay({
       if (!bars.length) return;
 
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = W * dpr;
-      canvas.height = H * dpr;
+      canvas.width = REEL_W * dpr;
+      canvas.height = REEL_H * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, W, H);
 
-      // Price range across bars + every level we draw (so nothing clips).
+      // ----- Background -----
+      const bg = ctx.createLinearGradient(0, 0, 0, REEL_H);
+      bg.addColorStop(0, "#0c1426");
+      bg.addColorStop(1, "#070b16");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, REEL_W, REEL_H);
+
+      const accent = data.side === "support" ? "#34d399" : "#f87171";
+
+      // ----- Header -----
+      ctx.textBaseline = "alphabetic";
+      ctx.fillStyle = accent;
+      ctx.font = "800 30px ui-sans-serif, system-ui";
+      ctx.fillText(
+        data.side === "support" ? "PUT-WALL BOUNCE" : "CALL-WALL REJECTION",
+        CHART.left,
+        110,
+      );
+
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "900 96px ui-sans-serif, system-ui";
+      ctx.fillText(data.label, CHART.left, 210);
+
+      ctx.fillStyle = "#64748b";
+      ctx.font = "700 30px ui-sans-serif, system-ui";
+      ctx.fillText(`${data.symbol} · ${data.scope.toUpperCase()}`, CHART.left, 256);
+
+      // Big move headline (right aligned).
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#86efac";
+      ctx.font = "900 92px ui-sans-serif, system-ui";
+      ctx.fillText(`+${data.movePct.toFixed(1)}%`, REEL_W - CHART.left, 210);
+      ctx.fillStyle = "#64748b";
+      ctx.font = "700 26px ui-sans-serif, system-ui";
+      ctx.fillText("move to max pain", REEL_W - CHART.left, 250);
+      ctx.textAlign = "left";
+
+      // Stat chips row.
+      const chips: [string, string][] = [
+        ["EXPIRY", data.zonesExpiry ?? "—"],
+        ["MAX PAIN", data.maxPain != null ? data.maxPain.toFixed(2) : "—"],
+        ["IV", data.atmIV != null ? `${data.atmIV.toFixed(1)}%` : "—"],
+        ["RR", data.entryRr != null ? `${data.entryRr.toFixed(1)}:1` : "—"],
+      ];
+      const chipW = (REEL_W - CHART.left * 2 - 24 * 3) / 4;
+      const chipY = 320;
+      const chipH = 120;
+      chips.forEach(([k, v], i) => {
+        const cx = CHART.left + i * (chipW + 24);
+        ctx.fillStyle = "rgba(255,255,255,0.05)";
+        roundRect(ctx, cx, chipY, chipW, chipH, 16);
+        ctx.fill();
+        ctx.fillStyle = "#64748b";
+        ctx.font = "800 22px ui-sans-serif, system-ui";
+        ctx.fillText(k, cx + 20, chipY + 42);
+        ctx.fillStyle = "#e2e8f0";
+        ctx.font = "800 38px ui-sans-serif, system-ui";
+        ctx.fillText(v, cx + 20, chipY + 90);
+      });
+
+      // ----- Chart region -----
+      const CL = CHART.left;
+      const CT = CHART.top;
+      const CW = REEL_W - CHART.left - CHART.right;
+      const CH = CHART.bottom - CHART.top;
+      ctx.fillStyle = "#050a14";
+      roundRect(ctx, CL, CT, REEL_W - CHART.left * 2, CH, 20);
+      ctx.fill();
+
+      // Price range over bars + every level.
       let min = Infinity;
       let max = -Infinity;
       for (const b of bars) {
@@ -100,14 +174,13 @@ export function SrStoryReplay({
           max = Math.max(max, v);
         }
       }
-      const range = max - min || 1;
-      min -= range * 0.05;
-      max += range * 0.05;
+      const span = max - min || 1;
+      min -= span * 0.06;
+      max += span * 0.06;
 
-      const plotW = W - PAD.left - PAD.right;
-      const plotH = H - PAD.top - PAD.bottom;
-      const x = (i: number) => PAD.left + (i / Math.max(1, bars.length - 1)) * plotW;
-      const y = (p: number) => PAD.top + (1 - (p - min) / (max - min)) * plotH;
+      const plotRight = CL + CW;
+      const x = (i: number) => CL + 24 + (i / Math.max(1, bars.length - 1)) * (CW - 24);
+      const y = (p: number) => CT + 24 + (1 - (p - min) / (max - min)) * (CH - 48);
 
       const idxForTime = (iso: string | null): number | null => {
         if (!iso) return null;
@@ -125,11 +198,11 @@ export function SrStoryReplay({
         return best;
       };
 
-      const band = (lo: number | null, hi: number | null, fill: string) => {
+      const bandFill = (lo: number | null, hi: number | null, fill: string) => {
         if (lo == null || hi == null) return;
         ctx.fillStyle = fill;
         const yTop = y(Math.max(lo, hi));
-        ctx.fillRect(PAD.left, yTop, plotW, Math.abs(y(lo) - y(hi)));
+        ctx.fillRect(CL + 24, yTop, CW - 24, Math.abs(y(lo) - y(hi)));
       };
 
       const hline = (
@@ -142,15 +215,15 @@ export function SrStoryReplay({
         ctx.save();
         ctx.strokeStyle = color;
         ctx.setLineDash(dash);
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(PAD.left, y(p));
-        ctx.lineTo(W - PAD.right, y(p));
+        ctx.moveTo(CL + 24, y(p));
+        ctx.lineTo(plotRight, y(p));
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = color;
-        ctx.font = "600 10px ui-sans-serif, system-ui";
-        ctx.fillText(label, W - PAD.right + 6, y(p) + 3);
+        ctx.font = "800 22px ui-sans-serif, system-ui";
+        ctx.fillText(label, plotRight + 12, y(p) + 8);
         ctx.restore();
       };
 
@@ -160,62 +233,95 @@ export function SrStoryReplay({
         const px = x(i);
         ctx.save();
         ctx.strokeStyle = color;
-        ctx.setLineDash([3, 3]);
-        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(px, PAD.top);
-        ctx.lineTo(px, H - PAD.bottom);
+        ctx.moveTo(px, CT + 16);
+        ctx.lineTo(px, CT + CH - 16);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = color;
-        ctx.font = "700 9px ui-sans-serif, system-ui";
-        ctx.fillText(label, Math.min(px + 4, W - PAD.right - 60), PAD.top + 10);
+        ctx.font = "800 20px ui-sans-serif, system-ui";
+        const tw = ctx.measureText(label).width;
+        ctx.fillText(label, Math.min(px + 8, plotRight - tw), CT + 36);
         ctx.restore();
       };
 
-      // Both zone bands (put = support/green, call = resistance/red).
-      band(data.bullZoneLow, data.bullZoneHigh, "rgba(52,211,153,0.10)");
-      band(data.bearZoneLow, data.bearZoneHigh, "rgba(248,113,113,0.10)");
+      // Zone bands (put = support/green, call = resistance/red).
+      bandFill(data.bullZoneLow, data.bullZoneHigh, "rgba(52,211,153,0.12)");
+      bandFill(data.bearZoneLow, data.bearZoneHigh, "rgba(248,113,113,0.12)");
 
-      // Candles (revealed progressively).
+      // Candles (progressive reveal).
       const reveal = Math.max(1, Math.min(bars.length, revealCount));
-      const cw = Math.max(1.5, (plotW / bars.length) * 0.62);
+      const cw = Math.max(3, ((CW - 24) / bars.length) * 0.62);
       for (let i = 0; i < reveal; i++) {
         const b = bars[i];
         const up = b.c >= b.o;
         ctx.strokeStyle = up ? "#10b981" : "#ef4444";
         ctx.fillStyle = up ? "#10b981" : "#ef4444";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(x(i), y(b.h));
         ctx.lineTo(x(i), y(b.l));
         ctx.stroke();
         const yo = y(b.o);
         const yc = y(b.c);
-        ctx.fillRect(x(i) - cw / 2, Math.min(yo, yc), cw, Math.max(1, Math.abs(yc - yo)));
+        ctx.fillRect(x(i) - cw / 2, Math.min(yo, yc), cw, Math.max(2, Math.abs(yc - yo)));
       }
 
-      // Level lines (incl. OI labels at the wall strikes).
-      hline(
-        data.putClusterStrike,
-        "#34d399",
-        `PUT ${compact(data.putClusterSize)}`,
-        [5, 3],
-      );
-      hline(
-        data.callClusterStrike,
-        "#f87171",
-        `CALL ${compact(data.callClusterSize)}`,
-        [5, 3],
-      );
-      hline(data.entrySpot, "#93c5fd", "Entry", [4, 3]);
-      hline(data.maxPain, "#fbbf24", "Max pain", [6, 4]);
-      hline(data.invalidation, "#64748b", "Invalidation", [2, 4]);
+      // Level lines.
+      hline(data.putClusterStrike, "#34d399", `PUT ${compact(data.putClusterSize)}`, [8, 5]);
+      hline(data.callClusterStrike, "#f87171", `CALL ${compact(data.callClusterSize)}`, [8, 5]);
+      hline(data.entrySpot, "#93c5fd", "Entry", [6, 5]);
+      hline(data.maxPain, "#fbbf24", "Max pain", [10, 6]);
+      hline(data.invalidation, "#64748b", "Invalidation", [3, 6]);
 
-      // Date markers along the move.
+      // Date markers.
       vmarker(data.eventAt, "#93c5fd", "ENTRY");
       vmarker(data.pocHitAt, "#fbbf24", "MAX PAIN");
       vmarker(data.resolvedAt, "#94a3b8", (data.resolveReason ?? "EXIT").toUpperCase());
+
+      // ----- Footer -----
+      const fmt = (iso: string | null) => (iso ? format(new Date(iso), "MMM d, HH:mm") : "—");
+      const fy = CHART.bottom + 70;
+      const footerCells: [string, string, string][] = [
+        ["ENTERED", fmt(data.eventAt), "#93c5fd"],
+        ["MAX PAIN HIT", fmt(data.pocHitAt), "#fbbf24"],
+        [(data.resolveReason ?? "EXIT").toUpperCase(), fmt(data.resolvedAt), "#94a3b8"],
+      ];
+      const fcW = (REEL_W - CHART.left * 2 - 24 * 2) / 3;
+      footerCells.forEach(([k, v, col], i) => {
+        const fx = CHART.left + i * (fcW + 24);
+        ctx.fillStyle = "rgba(255,255,255,0.05)";
+        roundRect(ctx, fx, fy, fcW, 110, 16);
+        ctx.fill();
+        ctx.fillStyle = col;
+        ctx.font = "800 20px ui-sans-serif, system-ui";
+        ctx.fillText(k, fx + 18, fy + 38);
+        ctx.fillStyle = "#e2e8f0";
+        ctx.font = "800 30px ui-sans-serif, system-ui";
+        ctx.fillText(v, fx + 18, fy + 80);
+      });
+
+      // Final PnL + branding strip.
+      const by = fy + 160;
+      if (data.finalPnlPct != null) {
+        ctx.fillStyle = data.finalPnlPct >= 0 ? "#86efac" : "#fca5a5";
+        ctx.font = "900 44px ui-sans-serif, system-ui";
+        ctx.fillText(
+          `Final ${data.finalPnlPct >= 0 ? "+" : ""}${data.finalPnlPct.toFixed(1)}%`,
+          CHART.left,
+          by,
+        );
+      }
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "900 40px ui-sans-serif, system-ui";
+      ctx.fillText("FNONINJA", REEL_W - CHART.left, by - 8);
+      ctx.fillStyle = "#475569";
+      ctx.font = "700 24px ui-sans-serif, system-ui";
+      ctx.fillText("fnoninja.com", REEL_W - CHART.left, by + 30);
+      ctx.textAlign = "left";
     },
     [data],
   );
@@ -224,7 +330,7 @@ export function SrStoryReplay({
     if (!data || !data.candles.length) return;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     const total = data.candles.length;
-    const durationMs = 4800;
+    const durationMs = 5200;
     const start = performance.now();
     const step = (now: number) => {
       const t = Math.min(1, (now - start) / durationMs);
@@ -243,58 +349,25 @@ export function SrStoryReplay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  const fmt = (iso: string | null) => (iso ? format(new Date(iso), "MMM d, HH:mm") : "—");
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(2,6,23,0.82)" }}
+      style={{ background: "rgba(2,6,23,0.88)" }}
       onClick={onClose}
     >
       <div
-        className="rounded-2xl border w-full max-w-5xl"
-        style={{ borderColor: "rgba(255,255,255,0.1)", background: "#0b1220" }}
+        className="rounded-2xl border flex flex-col"
+        style={{
+          borderColor: "rgba(255,255,255,0.1)",
+          background: "#0b1220",
+          maxHeight: "94vh",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between px-5 py-3 border-b border-white/10">
-          {data ? (
-            <div>
-              <p className="text-sm font-bold text-white">
-                {data.label}
-                <span className="ml-1.5 text-[10px] font-semibold uppercase text-slate-500">
-                  {data.symbol} · {data.scope}
-                </span>
-                <span
-                  className="ml-1.5 text-[11px] font-semibold uppercase"
-                  style={{ color: data.side === "support" ? "#34d399" : "#f87171" }}
-                >
-                  {data.side === "support" ? "Put-wall bounce" : "Call-wall rejection"}
-                </span>
-              </p>
-              <p className="text-[11px] text-slate-400 mt-0.5 flex flex-wrap gap-x-3">
-                <span>Expiry {data.zonesExpiry ?? "—"}</span>
-                <span>Max pain {data.maxPain != null ? data.maxPain.toFixed(2) : "—"}</span>
-                {data.atmIV != null ? <span>IV {data.atmIV.toFixed(1)}%</span> : null}
-                {data.entryRr != null ? <span>RR {data.entryRr.toFixed(1)}:1</span> : null}
-                <span className="font-bold text-emerald-400">+{data.movePct.toFixed(1)}% move</span>
-              </p>
-              <p className="text-[10px] text-slate-500 mt-0.5 flex flex-wrap gap-x-3">
-                <span>Entered {fmt(data.eventAt)}</span>
-                <span className="text-amber-300/80">Max pain hit {fmt(data.pocHitAt)}</span>
-                <span>
-                  {data.resolveReason ? `${data.resolveReason} ` : "Exit "}
-                  {fmt(data.resolvedAt)}
-                </span>
-                {data.finalPnlPct != null ? (
-                  <span style={{ color: data.finalPnlPct >= 0 ? "#86efac" : "#fca5a5" }}>
-                    Final {data.finalPnlPct.toFixed(1)}%
-                  </span>
-                ) : null}
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm font-semibold text-slate-300">Story replay</p>
-          )}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-300">
+            Story reel · 9:16
+          </p>
           <button
             type="button"
             onClick={onClose}
@@ -304,19 +377,28 @@ export function SrStoryReplay({
           </button>
         </div>
 
-        <div className="p-4">
+        <div className="p-4 flex items-center justify-center overflow-auto">
           {loading ? (
-            <div className="h-[500px] flex items-center justify-center text-slate-500">
+            <div
+              className="flex items-center justify-center text-slate-500"
+              style={{ width: 360, height: 640 }}
+            >
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : !data || !data.candles.length ? (
-            <div className="h-[500px] flex items-center justify-center text-center text-slate-500 text-sm px-8">
+            <div
+              className="flex items-center justify-center text-center text-slate-500 text-sm px-8"
+              style={{ width: 360, height: 640 }}
+            >
               No candle snapshot stored for this event yet. Snapshots are captured
               once an event reaches max pain (and while the move is still inside the
               30-day candle window).
             </div>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ background: "#060b16" }}>
+            <div
+              className="rounded-xl overflow-hidden shadow-2xl"
+              style={{ width: "min(420px, 86vw)" }}
+            >
               <canvas
                 ref={canvasRef}
                 style={{ width: "100%", height: "auto", display: "block" }}
@@ -351,4 +433,22 @@ export function SrStoryReplay({
       </div>
     </div>
   );
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
 }

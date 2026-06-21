@@ -12,6 +12,7 @@ import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
 import {
   FNO_ACCENT,
   FNO_CARD_BG,
+  FNO_GRADIENT_TEXT,
   FNO_LOGO_MARK,
   FNO_MUTED,
   FNO_TEXT,
@@ -65,17 +66,16 @@ const GRID_FEATURES: {
       "One screen. One flow. Dozens of symbols.",
     ],
   },
+  {
+    icon: MessageCircle,
+    title: "Community",
+    tagline: "Learn with serious traders.",
+    body: [
+      "Discuss market structure, share observations, and see how others interpret the same data.",
+      "Focused conversations. Zero noise.",
+    ],
+  },
 ];
-
-const COMMUNITY = {
-  icon: MessageCircle,
-  title: "Community",
-  tagline: "Learn with serious traders.",
-  body: [
-    "Discuss market structure, share observations, and see how others interpret the same data.",
-    "Focused conversations. Zero noise.",
-  ],
-};
 
 function FeatureIcon({ icon: Icon }: { icon: LucideIcon }) {
   return (
@@ -122,6 +122,100 @@ function FeatureCard({
   );
 }
 
+function AtlasFeaturedCard() {
+  return (
+    <div className="features-atlas-shell rounded-2xl">
+      <div
+        className="features-atlas-inner relative overflow-hidden rounded-[15px] p-6 sm:p-8 lg:p-9"
+        style={{ backgroundColor: FNO_CARD_BG }}
+      >
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-px"
+          aria-hidden
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, rgba(96,165,250,0.55) 25%, rgba(167,139,250,0.45) 50%, rgba(96,165,250,0.55) 75%, transparent)",
+          }}
+        />
+
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:gap-8">
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+            style={{
+              background: "linear-gradient(145deg, rgba(59,130,246,0.28), rgba(139,92,246,0.14))",
+              border: "1px solid rgba(96,165,250,0.4)",
+            }}
+          >
+            <Sparkles className="h-6 w-6 fynn-coach-sparkle" strokeWidth={2} />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">Atlas AI</h3>
+              <span
+                className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+                style={{
+                  color: "#bfdbfe",
+                  border: "1px solid rgba(96,165,250,0.4)",
+                  backgroundColor: "rgba(59,130,246,0.12)",
+                }}
+              >
+                New
+              </span>
+            </div>
+
+            <p
+              className="mt-2 text-base sm:text-lg font-bold tracking-tight"
+              style={{
+                background: FNO_GRADIENT_TEXT,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              Ask. Explore. Learn.
+            </p>
+
+            <p className="mt-3 max-w-2xl text-[13px] sm:text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
+              Your AI research companion for understanding market structure, option positioning,
+              and volatility conditions.
+            </p>
+
+            <p
+              className="mt-4 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em]"
+              style={{ color: FNO_ACCENT }}
+            >
+              <span
+                className="inline-block h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: FNO_ACCENT, boxShadow: "0 0 6px rgba(96,165,250,0.8)" }}
+              />
+              Education &amp; research only
+            </p>
+          </div>
+
+          <div
+            className="hidden lg:flex shrink-0 flex-col gap-2 rounded-xl px-4 py-3 text-right"
+            style={{
+              border: "1px solid rgba(96,165,250,0.2)",
+              backgroundColor: "rgba(59,130,246,0.06)",
+            }}
+          >
+            {["Zones", "OI walls", "IV regime"].map((label) => (
+              <span
+                key={label}
+                className="text-[11px] font-semibold uppercase tracking-wider"
+                style={{ color: "rgba(191,219,254,0.85)" }}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function FnoNinjaFeaturesSection() {
   return (
     <section id="features" className={`${FB_CONTENT_SHELL} relative py-16 sm:py-20 lg:py-28`}>
@@ -159,62 +253,13 @@ export function FnoNinjaFeaturesSection() {
       </div>
 
       <div className="relative mt-12 sm:mt-14 space-y-4 lg:space-y-5">
-        {/* Atlas AI — featured full-width card */}
-        <div
-          className="rounded-2xl p-6 sm:p-8 lg:p-9"
-          style={{
-            backgroundColor: FNO_CARD_BG,
-            border: "1px solid rgba(96,165,250,0.28)",
-          }}
-        >
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-6">
-            <div
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
-              style={{
-                backgroundColor: "rgba(59,130,246,0.2)",
-                border: "1px solid rgba(96,165,250,0.35)",
-              }}
-            >
-              <Sparkles className="h-5 w-5 fynn-coach-sparkle" strokeWidth={2} />
-            </div>
+        <AtlasFeaturedCard />
 
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">Atlas AI</h3>
-                <span
-                  className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest"
-                  style={{
-                    color: "#bfdbfe",
-                    border: "1px solid rgba(96,165,250,0.35)",
-                    backgroundColor: "rgba(59,130,246,0.12)",
-                  }}
-                >
-                  New
-                </span>
-              </div>
-              <p className="mt-2 text-sm sm:text-base font-semibold text-white/90">
-                Ask. Explore. Learn.
-              </p>
-              <p className="mt-3 text-[13px] sm:text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
-                Your AI research companion for understanding market structure, option positioning,
-                and volatility conditions.
-              </p>
-              <p className="mt-3 text-[12px] font-medium uppercase tracking-wide" style={{ color: FNO_ACCENT }}>
-                Education &amp; research only.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* 3-column feature grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
           {GRID_FEATURES.map((feature) => (
             <FeatureCard key={feature.title} {...feature} />
           ))}
         </div>
-
-        {/* Community — full-width bottom card */}
-        <FeatureCard {...COMMUNITY} />
       </div>
     </section>
   );

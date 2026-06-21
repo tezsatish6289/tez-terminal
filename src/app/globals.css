@@ -97,6 +97,21 @@
     drop-shadow(0 0 10px rgba(96, 165, 250, 0.75));
 }
 
+/** Atlas AI featured tile on home — gradient border, flat readable interior */
+.features-atlas-shell {
+  background: linear-gradient(
+    135deg,
+    rgba(96, 165, 250, 0.45),
+    rgba(139, 92, 246, 0.22),
+    rgba(59, 130, 246, 0.35)
+  );
+  padding: 1px;
+}
+
+.features-atlas-inner {
+  background: #0d1b2e;
+}
+
 /** Sparkle icons inside the Atlas AI coach drawer */
 .fynn-coach-sparkle {
   color: #93c5fd;

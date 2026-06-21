@@ -154,14 +154,14 @@ export function AskFynn({
       <Sheet open={open} onOpenChange={handleOpenChange}>
         <SheetContent
           side="right"
-          className="w-full sm:max-w-md overflow-y-auto border-l p-0"
+          className="w-full sm:max-w-md overflow-y-auto border-l p-0 z-[210] !top-14 sm:!top-16 !bottom-0 !h-[calc(100dvh-3.5rem)] sm:!h-[calc(100dvh-4rem)] max-h-none"
           style={{
             backgroundColor: "#070d1a",
             borderColor: "rgba(90,140,220,0.2)",
           }}
         >
-          <div className="p-5 sm:p-6">
-            <SheetHeader className="text-left">
+          <div className="p-5 sm:p-6 pr-12">
+            <SheetHeader className="text-left space-y-1.5">
               <SheetTitle
                 className="flex items-center gap-2 text-base"
                 style={{ color: FNO_TEXT }}

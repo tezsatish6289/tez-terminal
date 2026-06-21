@@ -54,7 +54,7 @@ export interface StrategyEconomics {
    * (e.g. a hedged long future toward resistance). Populated by the caller that
    * knows the zone levels — NOT a hard target, just a conditional scenario.
    */
-  scenario?: { label: string; pnl: number } | null;
+  scenario?: { label: string; pnl: number; rewardRisk?: number | null } | null;
 }
 
 const EPS = 1e-6;

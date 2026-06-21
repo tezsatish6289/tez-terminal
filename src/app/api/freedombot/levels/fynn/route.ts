@@ -156,8 +156,44 @@ function economicsForStrategy(
     });
   }
   const econ = computeStrategyEconomics(priced);
-  if (econ) econ.scenario = projectionFor(legs, priced, ctx, econ);
+  if (!econ) return null;
+
+  // Direction of any net futures exposure, and whether its favourable side is
+  // actually capped by a sold option (a collar) or runs open-ended.
+  const dir = futureDirection(legs);
+  const favourableCapped = dir != null && isFavourableCapped(legs, dir);
+  const directionalFutureOpen = dir != null && !favourableCapped;
+
+  econ.scenario = projectionFor(priced, ctx, econ, dir, directionalFutureOpen);
+
+  // A directional future has no real profit cap (a short is only "capped" by
+  // price hitting ₹0, which isn't a tradeable target). Present it as
+  // open-ended and let the scenario row carry the realistic reward, instead of
+  // a misleading price-to-zero max and a huge reward:risk.
+  if (directionalFutureOpen) {
+    econ.maxProfit = null;
+    econ.riskReward = null;
+  }
   return econ;
+}
+
+function futureDirection(
+  legs: FynnPlan["strategies"][number]["legs"],
+): "up" | "down" | null {
+  const f = legs.find((l) => l.instrument === "future");
+  if (!f) return null;
+  return f.action === "buy" ? "up" : "down";
+}
+
+/** Long future capped by a sold call, or short future capped by a sold put. */
+function isFavourableCapped(
+  legs: FynnPlan["strategies"][number]["legs"],
+  dir: "up" | "down",
+): boolean {
+  const wantType = dir === "up" ? "CE" : "PE";
+  return legs.some(
+    (l) => l.instrument !== "future" && l.action === "sell" && l.optionType === wantType,
+  );
 }
 
 function fmtScenarioLevel(ctx: FynnContext, n: number): string {
@@ -166,27 +202,30 @@ function fmtScenarioLevel(ctx: FynnContext, n: number): string {
 }
 
 /**
- * For open-ended structures (a directional future hedged with a protective
- * option), project the P&L if price travels to the nearest opposing zone:
- * resistance for longs, support for shorts. This is a conditional "what-if",
- * NOT a target — the true max stays open unless a short option caps it.
+ * Project the P&L if price travels to the nearest opposing zone: resistance for
+ * longs, support for shorts. This is a conditional "what-if", NOT a target. It
+ * applies to open-ended directional futures and to open-ended option positions
+ * (e.g. a long call), giving a realistic reward and reward:risk to anchor on.
  */
 function projectionFor(
-  legs: FynnPlan["strategies"][number]["legs"],
   priced: StrategyLeg[],
   ctx: FynnContext,
   econ: StrategyEconomics,
-): { label: string; pnl: number } | null {
+  futureDir: "up" | "down" | null,
+  directionalFutureOpen: boolean,
+): { label: string; pnl: number; rewardRisk: number | null } | null {
   if (ctx.spot == null) return null;
-  const future = legs.find((l) => l.instrument === "future");
-  // Only meaningful when the profit side is genuinely open-ended.
-  if (econ.maxProfit != null) return null;
 
-  let dir: "up" | "down" | null = null;
-  if (future) dir = future.action === "buy" ? "up" : "down";
-  else {
+  let dir: "up" | "down" | null = futureDir;
+  if (dir) {
+    // For a future, only project when the favourable side is genuinely open.
+    if (!directionalFutureOpen) return null;
+  } else {
+    // No future: only project for an open-ended option payoff (e.g. long call).
+    if (econ.maxProfit != null) return null;
     const upGain = strategyPayoffAt(priced, ctx.spot * 3) - strategyPayoffAt(priced, ctx.spot);
-    const downGain = strategyPayoffAt(priced, Math.max(1, ctx.spot * 0.5)) - strategyPayoffAt(priced, ctx.spot);
+    const downGain =
+      strategyPayoffAt(priced, Math.max(1, ctx.spot * 0.5)) - strategyPayoffAt(priced, ctx.spot);
     if (upGain > downGain && upGain > 0) dir = "up";
     else if (downGain > 0) dir = "down";
   }
@@ -200,10 +239,16 @@ function projectionFor(
   if (dir === "up" && target <= ctx.spot) return null;
   if (dir === "down" && target >= ctx.spot) return null;
 
+  const pnl = strategyPayoffAt(priced, target);
+  const rewardRisk =
+    econ.maxLoss != null && econ.maxLoss > 0 && pnl > 0
+      ? Math.round((pnl / econ.maxLoss) * 100) / 100
+      : null;
   const zone = dir === "up" ? "resistance" : "support";
   return {
     label: `If price reaches ${zone} ${fmtScenarioLevel(ctx, target)}`,
-    pnl: strategyPayoffAt(priced, target),
+    pnl,
+    rewardRisk,
   };
 }
 

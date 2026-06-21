@@ -19,7 +19,7 @@ interface StrategyEconomics {
   maxLoss: number | null;
   breakevens: number[];
   riskReward: number | null;
-  scenario?: { label: string; pnl: number } | null;
+  scenario?: { label: string; pnl: number; rewardRisk?: number | null } | null;
 }
 
 interface FynnStrategy {
@@ -430,6 +430,9 @@ function StrategyEconomicsRows({ econ }: { econ: StrategyEconomics }) {
             {econ.scenario.pnl >= 0 ? "+" : ""}
             {fmtMoney(econ.scenario.pnl)} / share
           </span>
+          {econ.scenario.rewardRisk != null ? (
+            <span>(~{econ.scenario.rewardRisk} : 1 vs risk)</span>
+          ) : null}
         </div>
       ) : null}
       {econ.breakevens.length > 0 ? (

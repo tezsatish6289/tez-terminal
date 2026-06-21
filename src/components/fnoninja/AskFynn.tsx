@@ -92,11 +92,12 @@ const STANCE_COLOR: Record<FynnStrategy["stance"], string> = {
   volatility: "#c084fc",
 };
 
+const ATLAS_LABEL = "Atlas AI coach";
+
 const CARD_STYLE = {
   backgroundColor: "rgba(13, 27, 46, 0.85)",
-  border: "1px solid rgba(129, 140, 248, 0.22)",
-  boxShadow:
-    "0 0 20px rgba(59,130,246,0.07), 0 0 32px rgba(139,92,246,0.05), inset 0 1px 0 rgba(255,255,255,0.04)",
+  border: "1px solid rgba(96,165,250,0.18)",
+  boxShadow: "0 0 20px rgba(59,130,246,0.06), inset 0 1px 0 rgba(255,255,255,0.04)",
 } as const;
 
 export function AskFynn({
@@ -202,19 +203,19 @@ export function AskFynn({
         style={{
           color: FNO_ACCENT,
           backgroundColor: "rgba(96,165,250,0.08)",
-          border: "1px solid rgba(129,140,248,0.45)",
+          border: "1px solid rgba(96,165,250,0.38)",
           boxShadow: open
-            ? "0 0 20px rgba(96,165,250,0.3), 0 0 28px rgba(139,92,246,0.18), inset 0 0 12px rgba(96,165,250,0.06)"
-            : "0 0 12px rgba(96,165,250,0.1), 0 0 18px rgba(139,92,246,0.08)",
+            ? "0 0 20px rgba(96,165,250,0.28), inset 0 0 12px rgba(96,165,250,0.06)"
+            : "0 0 12px rgba(96,165,250,0.1)",
         }}
-        aria-label={`Ask Fynn about ${symbol}`}
-        title="Ask Fynn — hedged strategy ideas for this symbol"
+        aria-label={`${ATLAS_LABEL} — ${symbol}`}
+        title={`${ATLAS_LABEL} — hedged strategy ideas for this symbol`}
       >
         <Sparkles
           className={`fynn-sparkle-glow ${iconOnly ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"}`}
           strokeWidth={2}
         />
-        {!iconOnly ? <span className="whitespace-nowrap">Ask Fynn</span> : null}
+        {!iconOnly ? <span className="whitespace-nowrap">{ATLAS_LABEL}</span> : null}
       </button>
 
       <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -222,28 +223,21 @@ export function AskFynn({
           side="right"
           className="fynn-ai-pane w-full sm:max-w-md overflow-y-auto border-l p-0 z-[210] !top-14 sm:!top-16 !bottom-0 !h-[calc(100dvh-3.5rem)] sm:!h-[calc(100dvh-4rem)] max-h-none"
         >
-          {/* Ambient blue + purple glow (no grid) */}
+          {/* Ambient blue glow (no grid, subtle purple accent only) */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
             <div
               className="absolute -top-28 -right-16 h-72 w-72 rounded-full blur-3xl fynn-glow-pulse"
-              style={{ background: "radial-gradient(circle, rgba(96,165,250,0.2) 0%, transparent 70%)" }}
+              style={{ background: "radial-gradient(circle, rgba(96,165,250,0.14) 0%, transparent 70%)" }}
             />
             <div
-              className="absolute top-[30%] -left-20 h-64 w-64 rounded-full blur-3xl fynn-glow-pulse"
-              style={{
-                background: "radial-gradient(circle, rgba(139,92,246,0.16) 0%, transparent 70%)",
-                animationDelay: "1.5s",
-              }}
-            />
-            <div
-              className="absolute bottom-0 left-1/3 h-48 w-48 rounded-full blur-3xl"
-              style={{ background: "radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%)" }}
+              className="absolute top-[35%] -left-20 h-56 w-56 rounded-full blur-3xl"
+              style={{ background: "radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)" }}
             />
             <div
               className="absolute top-0 left-0 right-0 h-px"
               style={{
                 background:
-                  "linear-gradient(90deg, transparent, rgba(96,165,250,0.55) 15%, rgba(167,139,250,0.7) 50%, rgba(96,165,250,0.55) 85%, transparent)",
+                  "linear-gradient(90deg, transparent, rgba(96,165,250,0.45) 20%, rgba(96,165,250,0.55) 50%, rgba(96,165,250,0.45) 80%, transparent)",
               }}
             />
           </div>
@@ -254,38 +248,24 @@ export function AskFynn({
                 <span
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest"
                   style={{
-                    color: "#ddd6fe",
-                    background:
-                      "linear-gradient(135deg, rgba(59,130,246,0.28), rgba(139,92,246,0.22))",
-                    border: "1px solid rgba(167,139,250,0.4)",
-                    boxShadow:
-                      "0 0 16px rgba(96,165,250,0.18), 0 0 24px rgba(139,92,246,0.14)",
+                    color: "#bfdbfe",
+                    background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(96,165,250,0.12))",
+                    border: "1px solid rgba(96,165,250,0.35)",
+                    boxShadow: "0 0 14px rgba(96,165,250,0.15)",
                   }}
                 >
                   <Sparkles className="h-3 w-3 fynn-coach-sparkle" />
-                  AI Coach
+                  {ATLAS_LABEL}
                 </span>
               </div>
               <SheetTitle
-                className="flex items-center gap-2 text-base"
+                className="text-base"
                 style={{
                   color: FNO_TEXT,
-                  textShadow: "0 0 24px rgba(96,165,250,0.12), 0 0 32px rgba(139,92,246,0.1)",
+                  textShadow: "0 0 20px rgba(96,165,250,0.1)",
                 }}
               >
-                <span
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgba(59,130,246,0.25), rgba(139,92,246,0.2))",
-                    border: "1px solid rgba(167,139,250,0.35)",
-                    boxShadow:
-                      "0 0 14px rgba(96,165,250,0.18), 0 0 20px rgba(139,92,246,0.12)",
-                  }}
-                >
-                  <Sparkles className="h-3.5 w-3.5 fynn-coach-sparkle" />
-                </span>
-                Fynn · {label || symbol}
+                {label || symbol}
               </SheetTitle>
               <SheetDescription style={{ color: FNO_MUTED }}>
                 Hedged strategy ideas from this symbol&apos;s zones, OI walls and IV regime.
@@ -304,13 +284,13 @@ export function AskFynn({
                     onClick={() => handleSelectMode(m.id)}
                     className="flex-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all"
                     style={{
-                      color: active ? "#e0e7ff" : FNO_MUTED,
+                      color: active ? "#e0f2fe" : FNO_MUTED,
                       background: active
-                        ? "linear-gradient(135deg, rgba(59,130,246,0.24), rgba(139,92,246,0.16))"
+                        ? "linear-gradient(135deg, rgba(59,130,246,0.2), rgba(96,165,250,0.1))"
                         : "transparent",
-                      border: `1px solid ${active ? "rgba(167,139,250,0.45)" : "rgba(90,140,220,0.2)"}`,
+                      border: `1px solid ${active ? "rgba(96,165,250,0.4)" : "rgba(90,140,220,0.2)"}`,
                       boxShadow: active
-                        ? "0 0 14px rgba(96,165,250,0.18), 0 0 22px rgba(139,92,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06)"
+                        ? "0 0 14px rgba(96,165,250,0.16), inset 0 1px 0 rgba(255,255,255,0.06)"
                         : undefined,
                     }}
                   >
@@ -326,27 +306,22 @@ export function AskFynn({
                   className="flex flex-col items-center justify-center gap-3 py-16 rounded-xl"
                   style={{
                     color: FNO_MUTED,
-                    border: "1px solid rgba(167,139,250,0.2)",
-                    background:
-                      "linear-gradient(135deg, rgba(59,130,246,0.06), rgba(139,92,246,0.05))",
-                    boxShadow:
-                      "inset 0 0 40px rgba(96,165,250,0.05), inset 0 0 60px rgba(139,92,246,0.04)",
+                    border: "1px solid rgba(96,165,250,0.15)",
+                    background: "rgba(96,165,250,0.04)",
+                    boxShadow: "inset 0 0 40px rgba(96,165,250,0.05)",
                   }}
                 >
                   <div className="relative">
                     <div
                       className="absolute inset-0 rounded-full blur-md fynn-glow-pulse"
-                      style={{
-                        background:
-                          "radial-gradient(circle, rgba(96,165,250,0.35) 0%, rgba(139,92,246,0.25) 60%, transparent 100%)",
-                      }}
+                      style={{ background: "rgba(96,165,250,0.35)" }}
                     />
                     <Loader2
                       className="relative h-7 w-7 animate-spin fynn-coach-sparkle"
-                      style={{ color: "#a5b4fc" }}
+                      style={{ color: FNO_ACCENT }}
                     />
                   </div>
-                  <p className="text-xs">Fynn is reading the option data…</p>
+                  <p className="text-xs">Atlas is reading the option data…</p>
                 </div>
               ) : error ? (
                 <div className="flex flex-col items-center gap-3 py-12 text-center">
@@ -460,7 +435,7 @@ function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => vo
               <div
                 className="mt-2 rounded-lg px-2.5 py-2 text-[11px] font-mono"
                 style={{
-                  background: "linear-gradient(135deg, rgba(59,130,246,0.1), rgba(139,92,246,0.06))",
+                  background: "rgba(96,165,250,0.08)",
                   color: "#bfdbfe",
                   border: "1px solid rgba(96,165,250,0.2)",
                   boxShadow: "0 0 16px rgba(96,165,250,0.08), inset 0 1px 0 rgba(255,255,255,0.04)",

@@ -34,6 +34,8 @@ export const FynnContextSchema = z.object({
   volRegimeReason: z.string().nullable(),
   daysToEarnings: z.number().nullable(),
   expiry: z.string().nullable(),
+  today: z.string().describe("Today's date, e.g. 21 Jun 2026 — the model must NOT assume the date"),
+  daysToExpiry: z.number().nullable().describe('Calendar days from today to the option expiry'),
 });
 export type FynnContext = z.infer<typeof FynnContextSchema>;
 
@@ -81,9 +83,10 @@ const fynnPrompt = ai.definePrompt({
 You help a trader think through option strategies for one symbol, grounded ONLY in the option-derived data below.
 You are an educator, not an advisor: explain scenarios, structures and risk — never tell the user to buy or sell, and never promise profit.
 
+TODAY: {{today}} — treat this as the current date. Do NOT rely on your own sense of "today".
 SYMBOL: {{label}} ({{symbol}}) — {{scope}}
 Currency: {{currency}}
-{{#if expiry}}Option expiry used for these levels: {{expiry}}{{/if}}
+{{#if expiry}}Option expiry used for these levels: {{expiry}}{{#if daysToExpiry}} (~{{daysToExpiry}} calendar days away){{/if}}{{/if}}
 
 PRICE & ZONES:
 {{#if spot}}Spot: {{currency}}{{spot}}{{/if}}
@@ -107,8 +110,12 @@ HOW TO REASON:
    - Calm / low IV → favour debit (buying) structures or directional spreads; premium selling pays little.
    - High / elevated IV → favour defined-risk credit structures (credit spreads, iron condor) to harvest premium.
    - Earnings/event near → flag the IV-crush risk; prefer defined-risk or staying flat over naked premium.
-4. Always prefer DEFINED-RISK structures (spreads) over naked options. State max risk, max reward and the invalidation level for each.
-5. Use max pain as a realistic target/magnet, not a guarantee.
+4. TIME HORIZON — reason from daysToExpiry, never from your own date assumption. Indian stock/index options are monthly, so the expiry above is almost always the NEAR month:
+   - <14 days = SHORT-DATED. Theta decay is fast and accelerating — this HELPS premium sellers and HURTS option buyers. Max pain pins hardest into expiry, but a large gap between spot and max pain is unlikely to fully close in the time left, so treat a far max pain as a soft directional bias, not a price target.
+   - 14-45 days = standard monthly horizon.
+   - Never describe a near-month expiry as "long-dated" or claim "theta decay is minimal". Judge whether the move implied by your bias is realistic in the days remaining.
+5. Always prefer DEFINED-RISK structures (spreads) over naked options. State max risk, max reward and the invalidation level for each.
+6. Use max pain as a magnet/soft bias scaled by time and distance, never a guarantee or a hard target.
 
 OUTPUT RULES:
 - Give 1-3 candidate strategies, ordered best-fit first. If the picture is genuinely unclear, it's fine to give one "wait / no clean setup" style note as the rationale and a single low-conviction idea.

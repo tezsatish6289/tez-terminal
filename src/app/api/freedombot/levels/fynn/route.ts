@@ -49,12 +49,33 @@ async function readDoc(path: string): Promise<Record<string, unknown> | null> {
   }
 }
 
+/** Parse a DD/MM/YYYY expiry to calendar days from now (null if unparseable). */
+function daysUntilExpiry(expiry: string | null): number | null {
+  if (!expiry) return null;
+  const m = expiry.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  const target = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  if (Number.isNaN(target.getTime())) return null;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffMs = target.getTime() - startOfToday.getTime();
+  return Math.round(diffMs / 86_400_000);
+}
+
 function buildContext(
   scope: "stock" | "index",
   symbol: string,
   raw: Record<string, unknown>,
 ): FynnContext {
   const label = (typeof raw.label === "string" && raw.label) || symbol;
+  const expiry = resolveZonesExpiryFromStored(raw);
+  const today = new Date().toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
   return {
     symbol,
     label,
@@ -75,7 +96,9 @@ function buildContext(
     volRegimeReason:
       typeof raw.volRegimeReason === "string" ? raw.volRegimeReason : null,
     daysToEarnings: num(raw.daysToEarnings),
-    expiry: resolveZonesExpiryFromStored(raw),
+    expiry,
+    today,
+    daysToExpiry: daysUntilExpiry(expiry),
   };
 }
 

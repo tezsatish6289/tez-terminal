@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * Fynn — the F&O strategy coach for fnoninja.com.
  *

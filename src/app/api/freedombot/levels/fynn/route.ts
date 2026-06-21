@@ -16,7 +16,13 @@ import { stockDocId } from "@/lib/equity-zones-store";
 import { normalizeStockSymbol } from "@/lib/equity-zones-on-demand";
 import { isValidFnoSymbolDb } from "@/lib/nse/fno-universe-runtime";
 import { resolveZonesExpiryFromStored } from "@/lib/levels/zones-expiry-label";
-import { generateFynnPlan, type FynnContext } from "@/ai/flows/fynn-strategy-flow";
+import { generateFynnPlan, type FynnContext, type FynnPlan } from "@/ai/flows/fynn-strategy-flow";
+import { blackScholesPrice } from "@/lib/options/black-scholes";
+import {
+  computeStrategyEconomics,
+  type StrategyEconomics,
+  type StrategyLeg,
+} from "@/lib/options/strategy-economics";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -99,7 +105,33 @@ function buildContext(
     expiry,
     today,
     daysToExpiry: daysUntilExpiry(expiry),
+    strikeStep: round(num(raw.strikeStep)),
   };
+}
+
+/**
+ * Estimate each leg's premium from ATM IV (Black-Scholes) and compute the
+ * strategy's expiry economics server-side. Returns null when we can't price
+ * (e.g. no ATM IV) so the UI falls back to Fynn's qualitative text.
+ */
+function economicsForStrategy(
+  legs: FynnPlan["strategies"][number]["legs"],
+  ctx: FynnContext,
+): StrategyEconomics | null {
+  if (ctx.spot == null || ctx.atmIV == null || ctx.daysToExpiry == null) return null;
+  const priced: StrategyLeg[] = [];
+  for (const leg of legs) {
+    const premium = blackScholesPrice(
+      leg.optionType,
+      ctx.spot,
+      leg.strike,
+      ctx.atmIV,
+      ctx.daysToExpiry,
+    );
+    if (premium == null) return null;
+    priced.push({ action: leg.action, optionType: leg.optionType, strike: leg.strike, premium });
+  }
+  return computeStrategyEconomics(priced);
 }
 
 export async function POST(request: NextRequest) {
@@ -148,8 +180,19 @@ export async function POST(request: NextRequest) {
 
   try {
     const plan = await generateFynnPlan(context);
+    const strategies = plan.strategies.map((s) => ({
+      ...s,
+      economics: economicsForStrategy(s.legs, context),
+    }));
+    const enriched = { ...plan, strategies };
     return NextResponse.json(
-      { symbol, label: context.label, plan, disclaimer: FYNN_DISCLAIMER },
+      {
+        symbol,
+        label: context.label,
+        plan: enriched,
+        pricing: context.atmIV != null ? "estimated" : "unavailable",
+        disclaimer: FYNN_DISCLAIMER,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

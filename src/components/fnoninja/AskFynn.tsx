@@ -12,6 +12,15 @@ import {
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { FNO_ACCENT, FNO_MUTED, FNO_TEXT, FNO_CARD_BG } from "@/lib/fnoninja/theme";
 
+interface StrategyEconomics {
+  netDebit: number;
+  kind: "debit" | "credit" | "flat";
+  maxProfit: number | null;
+  maxLoss: number | null;
+  breakevens: number[];
+  riskReward: number | null;
+}
+
 interface FynnStrategy {
   name: string;
   stance: "bullish" | "bearish" | "neutral" | "volatility";
@@ -20,6 +29,7 @@ interface FynnStrategy {
   maxRisk: string;
   maxReward: string;
   invalidation: string;
+  economics?: StrategyEconomics | null;
 }
 
 interface FynnPlan {
@@ -40,8 +50,17 @@ interface FynnPlan {
 interface FynnResponse {
   plan?: FynnPlan;
   label?: string;
+  pricing?: "estimated" | "unavailable";
   disclaimer?: string;
   error?: string;
+}
+
+function fmtMoney(n: number): string {
+  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtLevel(n: number): string {
+  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: n < 100 ? 2 : 0 })}`;
 }
 
 const BIAS_COLOR: Record<FynnPlan["bias"], string> = {
@@ -280,8 +299,14 @@ function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => vo
                 {s.structure}
               </div>
               <dl className="mt-2.5 space-y-1 text-[11px]">
-                <PlanRow label="Max risk" value={s.maxRisk} />
-                <PlanRow label="Max reward" value={s.maxReward} />
+                {s.economics ? (
+                  <StrategyEconomicsRows econ={s.economics} />
+                ) : (
+                  <>
+                    <PlanRow label="Max risk" value={s.maxRisk} />
+                    <PlanRow label="Max reward" value={s.maxReward} />
+                  </>
+                )}
                 <PlanRow label="Invalidation" value={s.invalidation} valueColor="#fca5a5" />
               </dl>
             </div>
@@ -304,6 +329,31 @@ function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => vo
           </ul>
         </div>
       ) : null}
+    </>
+  );
+}
+
+function StrategyEconomicsRows({ econ }: { econ: StrategyEconomics }) {
+  const risk = econ.maxLoss == null ? "Unbounded" : `${fmtMoney(econ.maxLoss)} / share`;
+  const reward = econ.maxProfit == null ? "Unbounded" : `${fmtMoney(econ.maxProfit)} / share`;
+  const net =
+    econ.kind === "flat"
+      ? null
+      : `${fmtMoney(Math.abs(econ.netDebit))} / share ${econ.kind}`;
+  return (
+    <>
+      {net ? <PlanRow label="Net" value={net} /> : null}
+      <PlanRow label="Max risk" value={risk} valueColor="#fca5a5" />
+      <PlanRow label="Max reward" value={reward} valueColor="#6ee7b7" />
+      {econ.breakevens.length > 0 ? (
+        <PlanRow label="Break-even" value={econ.breakevens.map(fmtLevel).join(" / ")} />
+      ) : null}
+      {econ.riskReward != null ? (
+        <PlanRow label="Reward:risk" value={`${econ.riskReward} : 1`} />
+      ) : null}
+      <p className="text-[9px] pt-0.5" style={{ color: FNO_MUTED }}>
+        Estimated from ATM IV (Black-Scholes), per share — multiply by lot size for total.
+      </p>
     </>
   );
 }

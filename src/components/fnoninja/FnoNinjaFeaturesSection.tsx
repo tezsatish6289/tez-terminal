@@ -1,172 +1,220 @@
 import {
   BarChart3,
   Clock,
-  Eye,
   Grid3X3,
-  LineChart,
+  Layers,
   MessageCircle,
   Presentation,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_ACCENT, FNO_LOGO_MARK, FNO_MUTED } from "@/lib/fnoninja/theme";
+import {
+  FNO_ACCENT,
+  FNO_CARD_BG,
+  FNO_LOGO_MARK,
+  FNO_MUTED,
+  FNO_TEXT,
+} from "@/lib/fnoninja/theme";
 
-const ATLAS_FEATURE = {
-  title: "Atlas AI Coach",
-  body: "Get hedged options and futures structures built from each symbol's zones, OI walls, and IV regime — with defined risk, invalidation levels, and estimated economics. Available on symbol charts and slideshow views. Education only, not investment advice.",
-};
+const CARD_BORDER = "1px solid rgba(90,140,220,0.14)";
 
-const FEATURES: {
+const GRID_FEATURES: {
   icon: LucideIcon;
   title: string;
-  body: string;
+  tagline: string;
+  body: string[];
 }[] = [
   {
     icon: Grid3X3,
     title: "Market Map",
-    body: "See the entire NSE F&O universe in one interactive view. Spot open interest clusters, price positioning, and major support/resistance zones instantly.",
+    tagline: "The entire F&O market. One screen.",
+    body: [
+      "Instantly spot where traders are building positions and where market attention is concentrated.",
+    ],
   },
   {
     icon: BarChart3,
     title: "Symbol Analytics",
-    body: "Deep-dive into any stock or index. Get clear derived support & resistance levels, open interest profiles, and key market structure metrics.",
+    tagline: "Everything that matters. Nothing that doesn't.",
+    body: [
+      "Open interest, volatility, key zones, and market structure—organized in one place.",
+    ],
   },
   {
-    icon: LineChart,
-    title: "Zone Dashboard",
-    body: "Understand exactly where the current price stands relative to option-derived zones — designed purely for your own research and interpretation.",
+    icon: Layers,
+    title: "Zone Overlay",
+    tagline: "No more drawing levels.",
+    body: [
+      "Important option-chain zones are automatically plotted on the chart.",
+      "See the levels. Focus on the market.",
+    ],
   },
   {
     icon: Clock,
-    title: "Live Data Refresh",
-    body: "Real-time updates during market hours with visible last-updated timestamps so you always know how fresh the insights are.",
+    title: "Live Data",
+    tagline: "Fresh data. Visible timestamps.",
+    body: ["Know exactly when the market structure changed."],
   },
   {
     icon: Presentation,
     title: "Slideshow Mode",
-    body: "Effortlessly cycle through multiple symbols with structured charts, zone views, and analytics — perfect for quick market scans.",
-  },
-  {
-    icon: Eye,
-    title: "Smart Filters",
-    body: "These filters allow you to sort and view symbols based on zone structure, open interest profiles, and volatility regimes — helping you explore the broader F&O market more efficiently.",
-  },
-  {
-    icon: MessageCircle,
-    title: "Community Chat",
-    body: "A subscriber-only, moderated room to discuss market structure with other traders. Tag symbols with $NIFTY to share the exact chart — observations only, not advice.",
+    tagline: "Stop opening chart after chart.",
+    body: [
+      "Sit back and let FNO Ninja walk you through the market.",
+      "One screen. One flow. Dozens of symbols.",
+    ],
   },
 ];
 
-const cardStyle = {
-  backgroundColor: "#131a28",
-  border: "1px solid rgba(90,140,220,0.12)",
+const COMMUNITY = {
+  icon: MessageCircle,
+  title: "Community",
+  tagline: "Learn with serious traders.",
+  body: [
+    "Discuss market structure, share observations, and see how others interpret the same data.",
+    "Focused conversations. Zero noise.",
+  ],
 };
+
+function FeatureIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <div
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+      style={{ backgroundColor: FNO_LOGO_MARK }}
+    >
+      <Icon className="h-[18px] w-[18px] text-white" strokeWidth={2.25} />
+    </div>
+  );
+}
+
+function FeatureCard({
+  icon,
+  title,
+  tagline,
+  body,
+  className = "",
+}: {
+  icon: LucideIcon;
+  title: string;
+  tagline: string;
+  body: string[];
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl p-6 sm:p-7 ${className}`}
+      style={{ backgroundColor: FNO_CARD_BG, border: CARD_BORDER }}
+    >
+      <FeatureIcon icon={icon} />
+      <h3 className="mt-5 text-base sm:text-[17px] font-bold leading-snug" style={{ color: FNO_TEXT }}>
+        {title}
+      </h3>
+      <p className="mt-2 text-[13px] sm:text-sm font-semibold leading-snug text-white/85">{tagline}</p>
+      <div className="mt-3 space-y-2">
+        {body.map((line) => (
+          <p key={line} className="text-[13px] sm:text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
+            {line}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function FnoNinjaFeaturesSection() {
   return (
-    <section id="features" className={`${FB_CONTENT_SHELL} py-16 sm:py-20 lg:py-24`}>
-      <div className="mb-10 sm:mb-12 max-w-2xl">
-        <p
-          className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] font-mono mb-4"
-          style={{ color: FNO_ACCENT }}
-        >
-          Features
-        </p>
-        <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
-          Engineered for clarity.
-        </h2>
-        <p className="mt-4 text-sm sm:text-base leading-relaxed" style={{ color: FNO_MUTED }}>
-          Data-driven views to navigate the F&amp;O universe with structure, not guesswork.
-        </p>
-      </div>
-
+    <section id="features" className={`${FB_CONTENT_SHELL} relative py-16 sm:py-20 lg:py-28`}>
       <div
-        className="relative mb-5 overflow-hidden rounded-2xl p-6 sm:p-8 lg:p-10"
-        style={{
-          background:
-            "linear-gradient(135deg, rgba(13,27,46,0.95) 0%, rgba(10,18,40,0.98) 100%)",
-          border: "1px solid rgba(96,165,250,0.35)",
-          boxShadow:
-            "0 0 40px rgba(59,130,246,0.12), 0 0 60px rgba(139,92,246,0.06), inset 0 1px 0 rgba(255,255,255,0.05)",
-        }}
+        className="pointer-events-none absolute inset-x-0 top-0 h-[420px] overflow-hidden"
+        aria-hidden
       >
         <div
-          className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full blur-3xl"
-          style={{ background: "radial-gradient(circle, rgba(96,165,250,0.18) 0%, transparent 70%)" }}
-          aria-hidden
+          className="absolute left-1/2 top-0 h-[360px] w-[min(900px,100%)] -translate-x-1/2 rounded-full blur-[100px]"
+          style={{ background: "radial-gradient(circle, rgba(37,99,235,0.1) 0%, transparent 70%)" }}
         />
-        <div
-          className="pointer-events-none absolute -bottom-20 -left-12 h-48 w-48 rounded-full blur-3xl"
-          style={{ background: "radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)" }}
-          aria-hidden
-        />
-
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
-          <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
-            style={{
-              background: "linear-gradient(135deg, rgba(59,130,246,0.35), rgba(139,92,246,0.2))",
-              border: "1px solid rgba(96,165,250,0.4)",
-              boxShadow: "0 0 20px rgba(96,165,250,0.2)",
-            }}
-          >
-            <Sparkles
-              className="h-5 w-5 text-white"
-              strokeWidth={2}
-              style={{
-                filter:
-                  "drop-shadow(0 0 4px rgba(96,165,250,0.8)) drop-shadow(0 0 10px rgba(167,139,250,0.4))",
-              }}
-            />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest"
-                style={{
-                  color: "#bfdbfe",
-                  background: "linear-gradient(135deg, rgba(59,130,246,0.25), rgba(96,165,250,0.12))",
-                  border: "1px solid rgba(96,165,250,0.35)",
-                }}
-              >
-                <Sparkles className="h-2.5 w-2.5" strokeWidth={2.5} />
-                New
-              </span>
-              <span
-                className="text-[10px] font-bold uppercase tracking-[0.15em]"
-                style={{ color: FNO_ACCENT }}
-              >
-                AI-powered
-              </span>
-            </div>
-            <h3 className="text-lg sm:text-xl font-black text-white leading-snug tracking-tight">
-              {ATLAS_FEATURE.title}
-            </h3>
-            <p className="mt-3 text-[13px] sm:text-sm leading-relaxed max-w-3xl" style={{ color: "#cbd5e1" }}>
-              {ATLAS_FEATURE.body}
-            </p>
-          </div>
-        </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
-        {FEATURES.map(({ icon: Icon, title, body }) => (
-          <div key={title} className="rounded-2xl p-6 sm:p-8" style={cardStyle}>
+      <div className="relative mx-auto max-w-3xl text-center">
+        <span
+          className="inline-flex items-center rounded-full px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]"
+          style={{
+            color: FNO_ACCENT,
+            border: "1px solid rgba(96,165,250,0.35)",
+            backgroundColor: "rgba(96,165,250,0.06)",
+          }}
+        >
+          Features
+        </span>
+        <h2 className="mt-6 text-3xl sm:text-4xl lg:text-[2.65rem] font-black text-white tracking-tight leading-[1.12]">
+          Built for Clarity in the Chaos of F&amp;O
+        </h2>
+        <p
+          className="mt-5 text-sm sm:text-base leading-relaxed max-w-2xl mx-auto"
+          style={{ color: FNO_MUTED }}
+        >
+          Data-driven visualizations that turn overwhelming option chain noise into structured,
+          actionable market structure — for your own research and interpretation
+        </p>
+      </div>
+
+      <div className="relative mt-12 sm:mt-14 space-y-4 lg:space-y-5">
+        {/* Atlas AI — featured full-width card */}
+        <div
+          className="rounded-2xl p-6 sm:p-8 lg:p-9"
+          style={{
+            backgroundColor: FNO_CARD_BG,
+            border: "1px solid rgba(96,165,250,0.28)",
+          }}
+        >
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-6">
             <div
-              className="flex h-9 w-9 items-center justify-center rounded-lg mb-5"
-              style={{ backgroundColor: FNO_LOGO_MARK }}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+              style={{
+                backgroundColor: "rgba(59,130,246,0.2)",
+                border: "1px solid rgba(96,165,250,0.35)",
+              }}
             >
-              <Icon className="h-4 w-4 text-white" strokeWidth={2.25} />
+              <Sparkles className="h-5 w-5 fynn-coach-sparkle" strokeWidth={2} />
             </div>
-            <h3 className="text-base font-bold text-white leading-snug">{title}</h3>
-            <p className="mt-2.5 text-[13px] sm:text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
-              {body}
-            </p>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">Atlas AI</h3>
+                <span
+                  className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+                  style={{
+                    color: "#bfdbfe",
+                    border: "1px solid rgba(96,165,250,0.35)",
+                    backgroundColor: "rgba(59,130,246,0.12)",
+                  }}
+                >
+                  New
+                </span>
+              </div>
+              <p className="mt-2 text-sm sm:text-base font-semibold text-white/90">
+                Ask. Explore. Learn.
+              </p>
+              <p className="mt-3 text-[13px] sm:text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
+                Your AI research companion for understanding market structure, option positioning,
+                and volatility conditions.
+              </p>
+              <p className="mt-3 text-[12px] font-medium uppercase tracking-wide" style={{ color: FNO_ACCENT }}>
+                Education &amp; research only.
+              </p>
+            </div>
           </div>
-        ))}
+        </div>
+
+        {/* 3-column feature grid */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
+          {GRID_FEATURES.map((feature) => (
+            <FeatureCard key={feature.title} {...feature} />
+          ))}
+        </div>
+
+        {/* Community — full-width bottom card */}
+        <FeatureCard {...COMMUNITY} />
       </div>
     </section>
   );

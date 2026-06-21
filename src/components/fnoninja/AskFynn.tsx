@@ -95,9 +95,8 @@ const STANCE_COLOR: Record<FynnStrategy["stance"], string> = {
 const ATLAS_LABEL = "Atlas AI coach";
 
 const CARD_STYLE = {
-  backgroundColor: "rgba(13, 27, 46, 0.85)",
-  border: "1px solid rgba(96,165,250,0.18)",
-  boxShadow: "0 0 20px rgba(59,130,246,0.06), inset 0 1px 0 rgba(255,255,255,0.04)",
+  backgroundColor: FNO_CARD_BG,
+  border: "1px solid rgba(96,165,250,0.2)",
 } as const;
 
 export function AskFynn({
@@ -202,11 +201,8 @@ export function AskFynn({
         }`}
         style={{
           color: FNO_ACCENT,
-          backgroundColor: "rgba(96,165,250,0.08)",
-          border: "1px solid rgba(96,165,250,0.38)",
-          boxShadow: open
-            ? "0 0 20px rgba(96,165,250,0.28), inset 0 0 12px rgba(96,165,250,0.06)"
-            : "0 0 12px rgba(96,165,250,0.1)",
+          backgroundColor: "rgba(96,165,250,0.06)",
+          border: "1px solid rgba(96,165,250,0.4)",
         }}
         aria-label={`${ATLAS_LABEL} — ${symbol}`}
         title={`${ATLAS_LABEL} — hedged strategy ideas for this symbol`}
@@ -223,25 +219,6 @@ export function AskFynn({
           side="right"
           className="fynn-ai-pane w-full sm:max-w-md overflow-y-auto border-l p-0 z-[210] !top-14 sm:!top-16 !bottom-0 !h-[calc(100dvh-3.5rem)] sm:!h-[calc(100dvh-4rem)] max-h-none"
         >
-          {/* Ambient blue glow (no grid, subtle purple accent only) */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-            <div
-              className="absolute -top-28 -right-16 h-72 w-72 rounded-full blur-3xl fynn-glow-pulse"
-              style={{ background: "radial-gradient(circle, rgba(96,165,250,0.14) 0%, transparent 70%)" }}
-            />
-            <div
-              className="absolute top-[35%] -left-20 h-56 w-56 rounded-full blur-3xl"
-              style={{ background: "radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)" }}
-            />
-            <div
-              className="absolute top-0 left-0 right-0 h-px"
-              style={{
-                background:
-                  "linear-gradient(90deg, transparent, rgba(96,165,250,0.45) 20%, rgba(96,165,250,0.55) 50%, rgba(96,165,250,0.45) 80%, transparent)",
-              }}
-            />
-          </div>
-
           <div className="relative p-5 sm:p-6 pr-12">
             <SheetHeader className="text-left space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
@@ -249,22 +226,15 @@ export function AskFynn({
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest"
                   style={{
                     color: "#bfdbfe",
-                    background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(96,165,250,0.12))",
-                    border: "1px solid rgba(96,165,250,0.35)",
-                    boxShadow: "0 0 14px rgba(96,165,250,0.15)",
+                    background: "rgba(59,130,246,0.12)",
+                    border: "1px solid rgba(96,165,250,0.4)",
                   }}
                 >
                   <Sparkles className="h-3 w-3 fynn-coach-sparkle" />
                   {ATLAS_LABEL}
                 </span>
               </div>
-              <SheetTitle
-                className="text-base"
-                style={{
-                  color: FNO_TEXT,
-                  textShadow: "0 0 20px rgba(96,165,250,0.1)",
-                }}
-              >
+              <SheetTitle className="text-base" style={{ color: FNO_TEXT }}>
                 {label || symbol}
               </SheetTitle>
               <SheetDescription style={{ color: FNO_MUTED }}>
@@ -285,13 +255,8 @@ export function AskFynn({
                     className="flex-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all"
                     style={{
                       color: active ? "#e0f2fe" : FNO_MUTED,
-                      background: active
-                        ? "linear-gradient(135deg, rgba(59,130,246,0.2), rgba(96,165,250,0.1))"
-                        : "transparent",
-                      border: `1px solid ${active ? "rgba(96,165,250,0.4)" : "rgba(90,140,220,0.2)"}`,
-                      boxShadow: active
-                        ? "0 0 14px rgba(96,165,250,0.16), inset 0 1px 0 rgba(255,255,255,0.06)"
-                        : undefined,
+                      background: active ? "rgba(59,130,246,0.12)" : "transparent",
+                      border: `1px solid ${active ? "rgba(96,165,250,0.45)" : "rgba(90,140,220,0.2)"}`,
                     }}
                   >
                     {m.label}
@@ -306,21 +271,14 @@ export function AskFynn({
                   className="flex flex-col items-center justify-center gap-3 py-16 rounded-xl"
                   style={{
                     color: FNO_MUTED,
-                    border: "1px solid rgba(96,165,250,0.15)",
-                    background: "rgba(96,165,250,0.04)",
-                    boxShadow: "inset 0 0 40px rgba(96,165,250,0.05)",
+                    border: "1px solid rgba(96,165,250,0.2)",
+                    background: FNO_CARD_BG,
                   }}
                 >
-                  <div className="relative">
-                    <div
-                      className="absolute inset-0 rounded-full blur-md fynn-glow-pulse"
-                      style={{ background: "rgba(96,165,250,0.35)" }}
-                    />
-                    <Loader2
-                      className="relative h-7 w-7 animate-spin fynn-coach-sparkle"
-                      style={{ color: FNO_ACCENT }}
-                    />
-                  </div>
+                  <Loader2
+                    className="h-7 w-7 animate-spin fynn-coach-sparkle"
+                    style={{ color: FNO_ACCENT }}
+                  />
                   <p className="text-xs">Atlas is reading the option data…</p>
                 </div>
               ) : error ? (
@@ -435,10 +393,9 @@ function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => vo
               <div
                 className="mt-2 rounded-lg px-2.5 py-2 text-[11px] font-mono"
                 style={{
-                  background: "rgba(96,165,250,0.08)",
+                  background: FNO_CARD_BG,
                   color: "#bfdbfe",
-                  border: "1px solid rgba(96,165,250,0.2)",
-                  boxShadow: "0 0 16px rgba(96,165,250,0.08), inset 0 1px 0 rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(96,165,250,0.25)",
                 }}
               >
                 {s.structure}

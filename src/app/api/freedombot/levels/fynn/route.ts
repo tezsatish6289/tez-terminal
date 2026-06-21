@@ -16,10 +16,16 @@ import { stockDocId } from "@/lib/equity-zones-store";
 import { normalizeStockSymbol } from "@/lib/equity-zones-on-demand";
 import { isValidFnoSymbolDb } from "@/lib/nse/fno-universe-runtime";
 import { resolveZonesExpiryFromStored } from "@/lib/levels/zones-expiry-label";
-import { generateFynnPlan, type FynnContext, type FynnPlan } from "@/ai/flows/fynn-strategy-flow";
+import {
+  type FynnContext,
+  type FynnMode,
+  type FynnPlan,
+} from "@/ai/flows/fynn-strategy-flow";
+import { getFynnPlan } from "@/lib/levels/fynn-plan-cache";
 import { blackScholesPrice } from "@/lib/options/black-scholes";
 import {
   computeStrategyEconomics,
+  strategyPayoffAt,
   type StrategyEconomics,
   type StrategyLeg,
 } from "@/lib/options/strategy-economics";
@@ -31,6 +37,9 @@ export const maxDuration = 45;
 
 export const FYNN_DISCLAIMER =
   "Fynn is an educational strategy assistant, not investment advice. Options carry risk of loss. Do your own research.";
+
+const FYNN_FUTURES_DISCLAIMER =
+  "Fynn is an educational strategy assistant, not investment advice. Futures use leverage and can lose more than the premium; the hedge only caps risk if held. Do your own research.";
 
 function num(raw: unknown): number | null {
   if (typeof raw === "number" && Number.isFinite(raw)) return raw;
@@ -72,6 +81,7 @@ function daysUntilExpiry(expiry: string | null): number | null {
 function buildContext(
   scope: "stock" | "index",
   symbol: string,
+  mode: FynnMode,
   raw: Record<string, unknown>,
 ): FynnContext {
   const label = (typeof raw.label === "string" && raw.label) || symbol;
@@ -106,6 +116,8 @@ function buildContext(
     today,
     daysToExpiry: daysUntilExpiry(expiry),
     strikeStep: round(num(raw.strikeStep)),
+    mode,
+    isFutures: mode === "futures",
   };
 }
 
@@ -121,6 +133,12 @@ function economicsForStrategy(
   if (ctx.spot == null || ctx.atmIV == null || ctx.daysToExpiry == null) return null;
   const priced: StrategyLeg[] = [];
   for (const leg of legs) {
+    if (leg.instrument === "future") {
+      // The future is entered at market (≈ spot); it carries no upfront premium.
+      priced.push({ kind: "future", action: leg.action, entry: ctx.spot });
+      continue;
+    }
+    if (leg.optionType == null || leg.strike == null) return null;
     const premium = blackScholesPrice(
       leg.optionType,
       ctx.spot,
@@ -129,13 +147,68 @@ function economicsForStrategy(
       ctx.daysToExpiry,
     );
     if (premium == null) return null;
-    priced.push({ action: leg.action, optionType: leg.optionType, strike: leg.strike, premium });
+    priced.push({
+      kind: "option",
+      action: leg.action,
+      optionType: leg.optionType,
+      strike: leg.strike,
+      premium,
+    });
   }
-  return computeStrategyEconomics(priced);
+  const econ = computeStrategyEconomics(priced);
+  if (econ) econ.scenario = projectionFor(legs, priced, ctx, econ);
+  return econ;
+}
+
+function fmtScenarioLevel(ctx: FynnContext, n: number): string {
+  const v = n >= 1000 ? Math.round(n).toLocaleString("en-IN") : n.toLocaleString("en-IN");
+  return `${ctx.currency}${v}`;
+}
+
+/**
+ * For open-ended structures (a directional future hedged with a protective
+ * option), project the P&L if price travels to the nearest opposing zone:
+ * resistance for longs, support for shorts. This is a conditional "what-if",
+ * NOT a target — the true max stays open unless a short option caps it.
+ */
+function projectionFor(
+  legs: FynnPlan["strategies"][number]["legs"],
+  priced: StrategyLeg[],
+  ctx: FynnContext,
+  econ: StrategyEconomics,
+): { label: string; pnl: number } | null {
+  if (ctx.spot == null) return null;
+  const future = legs.find((l) => l.instrument === "future");
+  // Only meaningful when the profit side is genuinely open-ended.
+  if (econ.maxProfit != null) return null;
+
+  let dir: "up" | "down" | null = null;
+  if (future) dir = future.action === "buy" ? "up" : "down";
+  else {
+    const upGain = strategyPayoffAt(priced, ctx.spot * 3) - strategyPayoffAt(priced, ctx.spot);
+    const downGain = strategyPayoffAt(priced, Math.max(1, ctx.spot * 0.5)) - strategyPayoffAt(priced, ctx.spot);
+    if (upGain > downGain && upGain > 0) dir = "up";
+    else if (downGain > 0) dir = "down";
+  }
+  if (!dir) return null;
+
+  const target =
+    dir === "up"
+      ? (ctx.resistanceLow ?? ctx.resistanceHigh ?? ctx.callWallStrike)
+      : (ctx.supportHigh ?? ctx.supportLow ?? ctx.putWallStrike);
+  if (target == null) return null;
+  if (dir === "up" && target <= ctx.spot) return null;
+  if (dir === "down" && target >= ctx.spot) return null;
+
+  const zone = dir === "up" ? "resistance" : "support";
+  return {
+    label: `If price reaches ${zone} ${fmtScenarioLevel(ctx, target)}`,
+    pnl: strategyPayoffAt(priced, target),
+  };
 }
 
 export async function POST(request: NextRequest) {
-  let body: { scope?: string; symbol?: string };
+  let body: { scope?: string; symbol?: string; mode?: string };
   try {
     body = await request.json();
   } catch {
@@ -143,6 +216,7 @@ export async function POST(request: NextRequest) {
   }
 
   const scope = body.scope === "index" ? "index" : body.scope === "stock" ? "stock" : null;
+  const mode: FynnMode = body.mode === "futures" ? "futures" : "options";
   const rawSymbol = (body.symbol ?? "").trim().toUpperCase();
   if (!scope || !rawSymbol) {
     return NextResponse.json({ error: "Missing scope or symbol" }, { status: 400 });
@@ -170,7 +244,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const context = buildContext(scope, symbol, raw);
+  const context = buildContext(scope, symbol, mode, raw);
   if (context.spot == null && context.maxPain == null) {
     return NextResponse.json(
       { error: "Levels are still being computed for this symbol. Try again shortly." },
@@ -179,7 +253,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const plan = await generateFynnPlan(context);
+    const { plan, label, cached, stale, source } = await getFynnPlan(context);
     const strategies = plan.strategies.map((s) => ({
       ...s,
       economics: economicsForStrategy(s.legs, context),
@@ -188,12 +262,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         symbol,
-        label: context.label,
+        label,
+        mode,
         plan: enriched,
         pricing: context.atmIV != null ? "estimated" : "unavailable",
-        disclaimer: FYNN_DISCLAIMER,
+        cached,
+        stale: stale ?? false,
+        source,
+        disclaimer: mode === "futures" ? FYNN_FUTURES_DISCLAIMER : FYNN_DISCLAIMER,
       },
-      { headers: { "Cache-Control": "no-store" } },
+      {
+        headers: {
+          "Cache-Control": cached ? "private, max-age=300" : "no-store",
+        },
+      },
     );
   } catch (error) {
     console.error("[Fynn]", error instanceof Error ? error.message : error);

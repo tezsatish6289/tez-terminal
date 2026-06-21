@@ -19,6 +19,7 @@ interface StrategyEconomics {
   maxLoss: number | null;
   breakevens: number[];
   riskReward: number | null;
+  scenario?: { label: string; pnl: number } | null;
 }
 
 interface FynnStrategy {
@@ -47,11 +48,24 @@ interface FynnPlan {
   caveats: string[];
 }
 
+type FynnMode = "options" | "futures";
+
+const FYNN_MODES: { id: FynnMode; label: string }[] = [
+  { id: "options", label: "Options · hedged" },
+  { id: "futures", label: "Futures · hedged" },
+];
+
 interface FynnResponse {
   plan?: FynnPlan;
   label?: string;
+  mode?: FynnMode;
   pricing?: "estimated" | "unavailable";
   disclaimer?: string;
+  error?: string;
+}
+
+interface ModeState {
+  data?: FynnResponse;
   error?: string;
 }
 
@@ -93,50 +107,76 @@ export function AskFynn({
   label?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<FynnResponse | null>(null);
+  const [mode, setMode] = useState<FynnMode>("options");
+  const [loadingMode, setLoadingMode] = useState<FynnMode | null>(null);
+  const [byMode, setByMode] = useState<Record<FynnMode, ModeState>>({
+    options: {},
+    futures: {},
+  });
 
-  /** Slideshow: discard cached plan when the active symbol changes. */
+  /** Slideshow: discard cached plans when the active symbol changes. */
   useEffect(() => {
-    setData(null);
-    setError(null);
+    setByMode({ options: {}, futures: {} });
+    setLoadingMode(null);
+    setMode("options");
     setOpen(false);
   }, [scope, symbol]);
 
-  const ask = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/freedombot/levels/fynn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scope, symbol }),
-        cache: "no-store",
-      });
-      const json = (await res.json()) as FynnResponse;
-      if (!res.ok || !json.plan) {
-        setError(json.error ?? "Fynn couldn't put together a plan right now.");
-        setData(null);
-        return;
+  const ask = useCallback(
+    async (target: FynnMode, force = false) => {
+      if (!force) {
+        if (byMode[target].data || loadingMode === target) return;
       }
-      setData(json);
-    } catch {
-      setError("Network error reaching Fynn. Please try again.");
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [scope, symbol]);
+      setLoadingMode(target);
+      setByMode((prev) => ({ ...prev, [target]: { ...prev[target], error: undefined } }));
+      try {
+        const res = await fetch("/api/freedombot/levels/fynn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scope, symbol, mode: target }),
+          cache: "no-store",
+        });
+        const json = (await res.json()) as FynnResponse;
+        if (!res.ok || !json.plan) {
+          setByMode((prev) => ({
+            ...prev,
+            [target]: { error: json.error ?? "Fynn couldn't put together a plan right now." },
+          }));
+          return;
+        }
+        setByMode((prev) => ({ ...prev, [target]: { data: json } }));
+      } catch {
+        setByMode((prev) => ({
+          ...prev,
+          [target]: { error: "Network error reaching Fynn. Please try again." },
+        }));
+      } finally {
+        setLoadingMode((curr) => (curr === target ? null : curr));
+      }
+    },
+    [scope, symbol, byMode, loadingMode],
+  );
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
       setOpen(next);
-      if (next && !data && !loading) void ask();
+      if (next && !byMode[mode].data && loadingMode !== mode) void ask(mode);
     },
-    [ask, data, loading],
+    [ask, byMode, mode, loadingMode],
   );
 
+  const handleSelectMode = useCallback(
+    (next: FynnMode) => {
+      setMode(next);
+      if (!byMode[next].data && loadingMode !== next) void ask(next);
+    },
+    [ask, byMode, loadingMode],
+  );
+
+  const current = byMode[mode];
+  const data = current.data ?? null;
+  const error = current.error ?? null;
+  const loading = loadingMode === mode;
   const plan = data?.plan;
 
   return (
@@ -177,11 +217,34 @@ export function AskFynn({
                 Fynn · {label || symbol}
               </SheetTitle>
               <SheetDescription style={{ color: FNO_MUTED }}>
-                Option strategy ideas from this symbol&apos;s zones, OI walls and IV regime.
+                Hedged strategy ideas from this symbol&apos;s zones, OI walls and IV regime.
               </SheetDescription>
             </SheetHeader>
 
-            <div className="mt-5 space-y-4">
+            <div className="mt-4 flex gap-1.5" role="tablist" aria-label="Strategy mode">
+              {FYNN_MODES.map((m) => {
+                const active = m.id === mode;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => handleSelectMode(m.id)}
+                    className="flex-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all"
+                    style={{
+                      color: active ? FNO_ACCENT : FNO_MUTED,
+                      backgroundColor: active ? "rgba(96,165,250,0.12)" : "transparent",
+                      border: `1px solid ${active ? "rgba(96,165,250,0.4)" : "rgba(90,140,220,0.2)"}`,
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 space-y-4">
               {loading ? (
                 <div
                   className="flex flex-col items-center justify-center gap-3 py-16"
@@ -198,7 +261,7 @@ export function AskFynn({
                   </p>
                   <button
                     type="button"
-                    onClick={() => void ask()}
+                    onClick={() => void ask(mode, true)}
                     className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-full text-[11px] font-semibold"
                     style={{
                       color: FNO_ACCENT,
@@ -209,7 +272,7 @@ export function AskFynn({
                   </button>
                 </div>
               ) : plan ? (
-                <FynnPlanView plan={plan} onRefresh={() => void ask()} />
+                <FynnPlanView plan={plan} onRefresh={() => void ask(mode, true)} />
               ) : null}
             </div>
 
@@ -342,7 +405,12 @@ function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => vo
 
 function StrategyEconomicsRows({ econ }: { econ: StrategyEconomics }) {
   const risk = econ.maxLoss == null ? "Unbounded" : `${fmtMoney(econ.maxLoss)} / share`;
-  const reward = econ.maxProfit == null ? "Unbounded" : `${fmtMoney(econ.maxProfit)} / share`;
+  const reward =
+    econ.maxProfit == null
+      ? econ.scenario
+        ? "Open-ended"
+        : "Unbounded"
+      : `${fmtMoney(econ.maxProfit)} / share`;
   const net =
     econ.kind === "flat"
       ? null
@@ -352,6 +420,18 @@ function StrategyEconomicsRows({ econ }: { econ: StrategyEconomics }) {
       {net ? <PlanRow label="Net" value={net} /> : null}
       <PlanRow label="Max risk" value={risk} valueColor="#fca5a5" />
       <PlanRow label="Max reward" value={reward} valueColor="#6ee7b7" />
+      {econ.scenario ? (
+        <div className="flex flex-wrap items-baseline gap-x-1.5" style={{ color: FNO_MUTED }}>
+          <span>{econ.scenario.label} →</span>
+          <span
+            className="font-semibold"
+            style={{ color: econ.scenario.pnl >= 0 ? "#6ee7b7" : "#fca5a5" }}
+          >
+            {econ.scenario.pnl >= 0 ? "+" : ""}
+            {fmtMoney(econ.scenario.pnl)} / share
+          </span>
+        </div>
+      ) : null}
       {econ.breakevens.length > 0 ? (
         <PlanRow label="Break-even" value={econ.breakevens.map(fmtLevel).join(" / ")} />
       ) : null}

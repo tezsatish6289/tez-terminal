@@ -13,12 +13,28 @@
 
 import type { OptionType } from "@/lib/options/black-scholes";
 
-export interface StrategyLeg {
+/** An option leg priced by premium (Black-Scholes estimate or live mark). */
+export interface OptionStrategyLeg {
+  kind?: "option";
   action: "buy" | "sell";
   optionType: OptionType;
   strike: number;
   /** Premium per share (estimated or live). */
   premium: number;
+}
+
+/** A linear futures / underlying leg. P&L = sign·(S − entry) per share. */
+export interface FutureStrategyLeg {
+  kind: "future";
+  action: "buy" | "sell";
+  /** Entry price per share (≈ spot for the future). */
+  entry: number;
+}
+
+export type StrategyLeg = OptionStrategyLeg | FutureStrategyLeg;
+
+function isFutureLeg(leg: StrategyLeg): leg is FutureStrategyLeg {
+  return leg.kind === "future";
 }
 
 export interface StrategyEconomics {
@@ -33,19 +49,33 @@ export interface StrategyEconomics {
   breakevens: number[];
   /** Reward : risk ratio (maxProfit / maxLoss), null when either side is unbounded/zero. */
   riskReward: number | null;
+  /**
+   * Optional "if price reaches level X" projection for open-ended structures
+   * (e.g. a hedged long future toward resistance). Populated by the caller that
+   * knows the zone levels — NOT a hard target, just a conditional scenario.
+   */
+  scenario?: { label: string; pnl: number } | null;
 }
 
 const EPS = 1e-6;
 
 function legPnlAt(leg: StrategyLeg, s: number): number {
+  const sign = leg.action === "buy" ? 1 : -1;
+  if (isFutureLeg(leg)) {
+    return sign * (s - leg.entry);
+  }
   const intrinsic =
     leg.optionType === "CE" ? Math.max(s - leg.strike, 0) : Math.max(leg.strike - s, 0);
-  const sign = leg.action === "buy" ? 1 : -1;
   return sign * (intrinsic - leg.premium);
 }
 
 function pnlAt(legs: StrategyLeg[], s: number): number {
   return legs.reduce((acc, leg) => acc + legPnlAt(leg, s), 0);
+}
+
+/** Per-share expiry P&L of the whole structure at underlying price `s`. */
+export function strategyPayoffAt(legs: StrategyLeg[], s: number): number {
+  return r2(pnlAt(legs, s));
 }
 
 /** Round to a sensible number of paise. */
@@ -54,19 +84,28 @@ function r2(n: number): number {
 }
 
 export function computeStrategyEconomics(legs: StrategyLeg[]): StrategyEconomics | null {
-  if (!legs.length || legs.some((l) => !(l.strike > 0) || !Number.isFinite(l.premium))) {
-    return null;
+  if (!legs.length) return null;
+  for (const leg of legs) {
+    if (isFutureLeg(leg)) {
+      if (!(leg.entry > 0)) return null;
+    } else if (!(leg.strike > 0) || !Number.isFinite(leg.premium)) {
+      return null;
+    }
   }
 
+  // Only option legs carry an upfront premium; a future is entered at market.
   const netDebit = legs.reduce(
-    (acc, l) => acc + (l.action === "buy" ? l.premium : -l.premium),
+    (acc, l) => (isFutureLeg(l) ? acc : acc + (l.action === "buy" ? l.premium : -l.premium)),
     0,
   );
 
-  const strikes = [...new Set(legs.map((l) => l.strike))].sort((a, b) => a - b);
+  // Kinks occur only at option strikes; a future is linear. Include future
+  // entries too so a break-even sitting near entry is still captured.
+  const pivots = legs.map((l) => (isFutureLeg(l) ? l.entry : l.strike));
+  const strikes = [...new Set(pivots)].sort((a, b) => a - b);
   const maxStrike = strikes[strikes.length - 1];
-  // Break-points span the full payoff: 0, every strike, and a far point to read
-  // the asymptotic direction beyond the outermost strike.
+  // Break-points span the full payoff: 0, every pivot, and a far point to read
+  // the asymptotic direction beyond the outermost pivot.
   const breakpoints = [0, ...strikes, maxStrike * 3 + 1];
 
   let maxProfit = -Infinity;
@@ -77,19 +116,14 @@ export function computeStrategyEconomics(legs: StrategyLeg[]): StrategyEconomics
     if (p < maxLoss) maxLoss = p;
   }
 
-  // Unbounded check: compare the slope at the far edge. If P&L is still rising
-  // (or falling) at the far point vs the last strike, that tail is unbounded.
+  // Only the UPPER tail (S→∞) can be genuinely unbounded. The lower side is
+  // bounded because the underlying can't go below 0 — that extreme is already
+  // captured by the S=0 break-point above. So we read the slope past the
+  // outermost strike: rising → profit open-ended, falling → loss open-ended.
   const farLow = pnlAt(legs, maxStrike * 3 + 1);
   const farHigh = pnlAt(legs, maxStrike * 3 + 1 + 1000);
-  const tailRising = farHigh - farLow > EPS;
-  const tailFalling = farHigh - farLow < -EPS;
-  // Net call/put exposure tells us about the lower tail (S→0) too.
-  const lowLow = pnlAt(legs, 1);
-  const lowHigh = pnlAt(legs, 0);
-  const lowTailRising = lowLow - lowHigh > EPS; // P&L increases as S falls toward 0
-
-  const profitUnbounded = tailRising || lowTailRising;
-  const lossUnbounded = tailFalling || lowLow - lowHigh < -EPS;
+  const profitUnbounded = farHigh - farLow > EPS;
+  const lossUnbounded = farHigh - farLow < -EPS;
 
   const breakevens: number[] = [];
   for (let i = 0; i < breakpoints.length - 1; i++) {

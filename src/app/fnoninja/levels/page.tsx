@@ -62,6 +62,7 @@ import {
 } from "@/lib/zones/zone-status";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
+import { AskFynn } from "@/components/fnoninja/AskFynn";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughBridge";
@@ -801,13 +802,20 @@ export default function LevelsPage() {
         }
         headerTrailing={
           isFnoNinjaHost && isSlideView && inZoneActive && activeTicker ? (
-            <FnoNinjaFavslideToggle
-              scope={inZoneActive.scope}
-              symbol={activeTicker}
-              enabled
-              removeOnly={viewMode === "favslide"}
-              api={favslideApi}
-            />
+            <div className="flex flex-wrap items-center gap-2 justify-end">
+              <AskFynn
+                scope={inZoneActive.scope}
+                symbol={activeTicker}
+                label={slideshowSubtitleLine ?? inZoneActive.label}
+              />
+              <FnoNinjaFavslideToggle
+                scope={inZoneActive.scope}
+                symbol={activeTicker}
+                enabled
+                removeOnly={viewMode === "favslide"}
+                api={favslideApi}
+              />
+            </div>
           ) : undefined
         }
       />

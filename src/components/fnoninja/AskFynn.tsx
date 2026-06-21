@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Loader2, Sparkles, ShieldAlert, RefreshCw } from "lucide-react";
 import {
   Sheet,
@@ -96,6 +96,13 @@ export function AskFynn({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<FynnResponse | null>(null);
+
+  /** Slideshow: discard cached plan when the active symbol changes. */
+  useEffect(() => {
+    setData(null);
+    setError(null);
+    setOpen(false);
+  }, [scope, symbol]);
 
   const ask = useCallback(async () => {
     setLoading(true);

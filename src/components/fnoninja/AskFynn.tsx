@@ -1,0 +1,328 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { Loader2, Sparkles, ShieldAlert, RefreshCw } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
+import { FNO_ACCENT, FNO_MUTED, FNO_TEXT, FNO_CARD_BG } from "@/lib/fnoninja/theme";
+
+interface FynnStrategy {
+  name: string;
+  stance: "bullish" | "bearish" | "neutral" | "volatility";
+  whyNow: string;
+  structure: string;
+  maxRisk: string;
+  maxReward: string;
+  invalidation: string;
+}
+
+interface FynnPlan {
+  bias: "bullish" | "lean-bullish" | "neutral" | "lean-bearish" | "bearish";
+  headline: string;
+  rationale: string;
+  keyLevels: {
+    support: string | null;
+    resistance: string | null;
+    maxPain: string | null;
+    putWall: string | null;
+    callWall: string | null;
+  };
+  strategies: FynnStrategy[];
+  caveats: string[];
+}
+
+interface FynnResponse {
+  plan?: FynnPlan;
+  label?: string;
+  disclaimer?: string;
+  error?: string;
+}
+
+const BIAS_COLOR: Record<FynnPlan["bias"], string> = {
+  bullish: "#34d399",
+  "lean-bullish": "#6ee7b7",
+  neutral: "#94a3b8",
+  "lean-bearish": "#fca5a5",
+  bearish: "#f87171",
+};
+
+const STANCE_COLOR: Record<FynnStrategy["stance"], string> = {
+  bullish: "#34d399",
+  bearish: "#f87171",
+  neutral: "#94a3b8",
+  volatility: "#c084fc",
+};
+
+const CARD_STYLE = {
+  backgroundColor: FNO_CARD_BG,
+  border: "1px solid rgba(90,140,220,0.2)",
+} as const;
+
+export function AskFynn({
+  scope,
+  symbol,
+  label,
+}: {
+  scope: LevelsTvScope;
+  symbol: string;
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<FynnResponse | null>(null);
+
+  const ask = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/freedombot/levels/fynn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope, symbol }),
+        cache: "no-store",
+      });
+      const json = (await res.json()) as FynnResponse;
+      if (!res.ok || !json.plan) {
+        setError(json.error ?? "Fynn couldn't put together a plan right now.");
+        setData(null);
+        return;
+      }
+      setData(json);
+    } catch {
+      setError("Network error reaching Fynn. Please try again.");
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [scope, symbol]);
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      setOpen(next);
+      if (next && !data && !loading) void ask();
+    },
+    [ask, data, loading],
+  );
+
+  const plan = data?.plan;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => handleOpenChange(true)}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] shrink-0"
+        style={{
+          color: FNO_ACCENT,
+          backgroundColor: "rgba(96,165,250,0.1)",
+          border: "1px solid rgba(96,165,250,0.4)",
+          boxShadow: "0 0 12px rgba(96,165,250,0.1)",
+        }}
+        aria-label={`Ask Fynn about ${symbol}`}
+        title="Ask Fynn — option strategy ideas for this symbol"
+      >
+        <Sparkles className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+        <span className="whitespace-nowrap">Ask Fynn</span>
+      </button>
+
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-md overflow-y-auto border-l p-0"
+          style={{
+            backgroundColor: "#070d1a",
+            borderColor: "rgba(90,140,220,0.2)",
+          }}
+        >
+          <div className="p-5 sm:p-6">
+            <SheetHeader className="text-left">
+              <SheetTitle
+                className="flex items-center gap-2 text-base"
+                style={{ color: FNO_TEXT }}
+              >
+                <Sparkles className="h-4 w-4" style={{ color: FNO_ACCENT }} />
+                Fynn · {label || symbol}
+              </SheetTitle>
+              <SheetDescription style={{ color: FNO_MUTED }}>
+                Option strategy ideas from this symbol&apos;s zones, OI walls and IV regime.
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="mt-5 space-y-4">
+              {loading ? (
+                <div
+                  className="flex flex-col items-center justify-center gap-3 py-16"
+                  style={{ color: FNO_MUTED }}
+                >
+                  <Loader2 className="h-7 w-7 animate-spin" style={{ color: FNO_ACCENT }} />
+                  <p className="text-xs">Fynn is reading the option data…</p>
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <ShieldAlert className="h-7 w-7" style={{ color: "#f87171" }} />
+                  <p className="text-xs" style={{ color: "#fca5a5" }}>
+                    {error}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void ask()}
+                    className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-full text-[11px] font-semibold"
+                    style={{
+                      color: FNO_ACCENT,
+                      border: "1px solid rgba(96,165,250,0.4)",
+                    }}
+                  >
+                    <RefreshCw className="h-3 w-3" /> Try again
+                  </button>
+                </div>
+              ) : plan ? (
+                <FynnPlanView plan={plan} onRefresh={() => void ask()} />
+              ) : null}
+            </div>
+
+            {data?.disclaimer ? (
+              <p
+                className="mt-6 text-[10px] leading-relaxed"
+                style={{ color: FNO_MUTED }}
+              >
+                {data.disclaimer}
+              </p>
+            ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => void }) {
+  const biasColor = BIAS_COLOR[plan.bias] ?? FNO_MUTED;
+  const levelRows: [string, string | null][] = [
+    ["Support", plan.keyLevels.support],
+    ["Resistance", plan.keyLevels.resistance],
+    ["Max pain", plan.keyLevels.maxPain],
+    ["Put OI wall", plan.keyLevels.putWall],
+    ["Call OI wall", plan.keyLevels.callWall],
+  ];
+
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide"
+          style={{ color: biasColor, border: `1px solid ${biasColor}55`, backgroundColor: `${biasColor}1a` }}
+        >
+          {plan.bias.replace("-", " ")}
+        </span>
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="inline-flex items-center gap-1 text-[10px]"
+          style={{ color: FNO_MUTED }}
+          title="Regenerate"
+        >
+          <RefreshCw className="h-3 w-3" /> Refresh
+        </button>
+      </div>
+
+      <p className="text-sm font-semibold" style={{ color: FNO_TEXT }}>
+        {plan.headline}
+      </p>
+      <p className="text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>
+        {plan.rationale}
+      </p>
+
+      <div className="grid grid-cols-2 gap-2">
+        {levelRows
+          .filter(([, v]) => v)
+          .map(([k, v]) => (
+            <div key={k} className="rounded-lg px-3 py-2" style={CARD_STYLE}>
+              <p className="text-[9px] uppercase tracking-wide" style={{ color: FNO_MUTED }}>
+                {k}
+              </p>
+              <p className="text-xs font-semibold" style={{ color: FNO_TEXT }}>
+                {v}
+              </p>
+            </div>
+          ))}
+      </div>
+
+      <div className="space-y-3">
+        {plan.strategies.map((s, i) => {
+          const stanceColor = STANCE_COLOR[s.stance] ?? FNO_MUTED;
+          return (
+            <div key={`${s.name}-${i}`} className="rounded-xl p-3.5" style={CARD_STYLE}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-bold" style={{ color: FNO_TEXT }}>
+                  {s.name}
+                </p>
+                <span
+                  className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                  style={{ color: stanceColor, backgroundColor: `${stanceColor}1a` }}
+                >
+                  {s.stance}
+                </span>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>
+                {s.whyNow}
+              </p>
+              <div
+                className="mt-2 rounded-lg px-2.5 py-2 text-[11px] font-mono"
+                style={{ backgroundColor: "rgba(96,165,250,0.08)", color: "#bfdbfe" }}
+              >
+                {s.structure}
+              </div>
+              <dl className="mt-2.5 space-y-1 text-[11px]">
+                <PlanRow label="Max risk" value={s.maxRisk} />
+                <PlanRow label="Max reward" value={s.maxReward} />
+                <PlanRow label="Invalidation" value={s.invalidation} valueColor="#fca5a5" />
+              </dl>
+            </div>
+          );
+        })}
+      </div>
+
+      {plan.caveats.length > 0 ? (
+        <div className="rounded-xl p-3.5" style={{ ...CARD_STYLE, borderColor: "rgba(251,191,36,0.3)" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "#fcd34d" }}>
+            Watch-outs
+          </p>
+          <ul className="space-y-1">
+            {plan.caveats.map((c, i) => (
+              <li key={i} className="text-[11px] leading-relaxed flex gap-1.5" style={{ color: "#cbd5e1" }}>
+                <span style={{ color: "#fcd34d" }}>•</span>
+                <span>{c}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function PlanRow({
+  label,
+  value,
+  valueColor = "#e2e8f0",
+}: {
+  label: string;
+  value: string;
+  valueColor?: string;
+}) {
+  return (
+    <div className="flex gap-2">
+      <dt className="shrink-0 w-20" style={{ color: FNO_MUTED }}>
+        {label}
+      </dt>
+      <dd style={{ color: valueColor }}>{value}</dd>
+    </div>
+  );
+}

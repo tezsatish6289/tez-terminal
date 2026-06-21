@@ -23,6 +23,7 @@ import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPi
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { FNO_LEVELS_MAIN, FNO_LEVELS_SHELL } from "@/lib/fnoninja/responsive";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
+import { AskFynn } from "@/components/fnoninja/AskFynn";
 import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
@@ -208,7 +209,10 @@ function ChartContent() {
           }
           symbolSearch={
             showFavslideToggle && scope ? (
-              <FnoNinjaFavslideToggle scope={scope} symbol={symbol} enabled />
+              <div className="flex items-center gap-2">
+                <AskFynn scope={scope} symbol={symbol} label={subtitleLine ?? label} />
+                <FnoNinjaFavslideToggle scope={scope} symbol={symbol} enabled />
+              </div>
             ) : undefined
           }
           expiryPicker={

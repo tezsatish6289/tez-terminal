@@ -193,11 +193,11 @@ export function AskFynn({
       <button
         type="button"
         onClick={() => handleOpenChange(true)}
-        className={
+        className={`fynn-sparkle-btn${open ? " fynn-sparkle-btn-open" : ""} ${
           iconOnly
             ? "inline-flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-[1.06] shrink-0"
             : "inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] shrink-0"
-        }
+        }`}
         style={{
           color: FNO_ACCENT,
           backgroundColor: "rgba(96,165,250,0.1)",
@@ -210,9 +210,8 @@ export function AskFynn({
         title="Ask Fynn — hedged strategy ideas for this symbol"
       >
         <Sparkles
-          className={iconOnly ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"}
+          className={`fynn-sparkle-glow ${iconOnly ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"}`}
           strokeWidth={2}
-          style={{ filter: open ? "drop-shadow(0 0 6px rgba(96,165,250,0.8))" : undefined }}
         />
         {!iconOnly ? <span className="whitespace-nowrap">Ask Fynn</span> : null}
       </button>

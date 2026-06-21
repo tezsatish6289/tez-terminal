@@ -30,9 +30,13 @@ export const FNO_GRADIENT_TEXT =
 export const FNO_CTA_GRADIENT = "linear-gradient(135deg, #1d4ed8, #3b82f6)";
 export const FNO_CTA_SHADOW = "0 6px 20px rgba(59,130,246,0.4)";
 
+/** Soft blue radial glow — no grid lines. */
+export const FNO_BG_GLOW =
+  "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(37,99,235,0.12), transparent)";
+
 /** Full-bleed levels / chart page: soft blue glow + faint grid. */
 export const FNO_BG_TEXTURE = `
-  radial-gradient(ellipse 80% 50% at 50% 0%, rgba(37,99,235,0.12), transparent),
+  ${FNO_BG_GLOW},
   linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
   linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)
 `;
@@ -53,11 +57,11 @@ export const FNO_HERO_TEXTURE = `
 `;
 export const FNO_HERO_TEXTURE_SIZE = "48px 48px, 48px 48px";
 
-/** Shared inline style for levels + chart full-viewport mains. */
+/** Shared inline style for levels + chart full-viewport mains (glow only, no grid). */
 export const FNO_APP_SURFACE_STYLE = {
   backgroundColor: FNO_BG_CANVAS,
-  backgroundImage: FNO_BG_TEXTURE,
-  backgroundSize: FNO_BG_TEXTURE_SIZE,
+  backgroundImage: FNO_BG_GLOW,
+  backgroundSize: "100% 100%",
 } as const;
 
 export const FNO_BUBBLE_MAP_SURFACE_STYLE = {

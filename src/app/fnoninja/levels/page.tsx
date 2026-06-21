@@ -185,6 +185,7 @@ export default function LevelsPage() {
   const [inZoneChartData, setInZoneChartData] = useState<PublicLevels | null>(null);
   const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
   const [slideshowPaused, setSlideshowPaused] = useState(false);
+  const [fynnDrawerOpen, setFynnDrawerOpen] = useState(false);
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
   const [slideshowFilter, setSlideshowFilter] = useState<SlideshowMapFilter>("all");
@@ -225,6 +226,10 @@ export default function LevelsPage() {
 
   const isSlideView = viewMode === "liveslide" || viewMode === "favslide";
   const slideSignInGate = isSlideView;
+
+  useEffect(() => {
+    if (!isSlideView) setFynnDrawerOpen(false);
+  }, [isSlideView]);
   const { user: slideAuthUser, isUserLoading: slideAuthLoading } = useUser();
 
   const load = useCallback(async () => {
@@ -544,19 +549,19 @@ export default function LevelsPage() {
   }, [inZoneCurrent, slideshowFilter, viewMode]);
 
   useEffect(() => {
-    if (slideshowPaused || !isSlideView || inZoneCount <= 1) return;
+    if (slideshowPaused || fynnDrawerOpen || !isSlideView || inZoneCount <= 1) return;
     const id = setInterval(() => {
       setSlideshowCountdown((c) => c - 1);
     }, 1000);
     return () => clearInterval(id);
-  }, [slideshowPaused, viewMode, inZoneCount, inZoneCurrent, slideshowFilter]);
+  }, [slideshowPaused, fynnDrawerOpen, viewMode, inZoneCount, inZoneCurrent, slideshowFilter]);
 
   useEffect(() => {
     if (slideshowCountdown > 0) return;
-    if (slideshowPaused || !isSlideView || inZoneCount <= 1) return;
+    if (slideshowPaused || fynnDrawerOpen || !isSlideView || inZoneCount <= 1) return;
     setInZoneSlide((s) => (s + 1) % inZoneCount);
     setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
-  }, [slideshowCountdown, slideshowPaused, viewMode, inZoneCount]);
+  }, [slideshowCountdown, slideshowPaused, fynnDrawerOpen, viewMode, inZoneCount]);
 
   useEffect(() => {
     if (inZoneCount === 0) setInZoneSlide(0);
@@ -802,16 +807,19 @@ export default function LevelsPage() {
         }
         headerTrailing={
           isFnoNinjaHost && isSlideView && inZoneActive && activeTicker ? (
-            <div className="flex flex-wrap items-center gap-2 justify-end">
+            <div className="flex flex-wrap items-center gap-1.5 justify-end">
               <AskFynn
                 scope={inZoneActive.scope}
                 symbol={activeTicker}
                 label={slideshowSubtitleLine ?? inZoneActive.label}
+                iconOnly
+                onOpenChange={setFynnDrawerOpen}
               />
               <FnoNinjaFavslideToggle
                 scope={inZoneActive.scope}
                 symbol={activeTicker}
                 enabled
+                iconOnly
                 removeOnly={viewMode === "favslide"}
                 api={favslideApi}
               />

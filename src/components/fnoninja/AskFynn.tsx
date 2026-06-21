@@ -1,7 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Sparkles, ShieldAlert, RefreshCw } from "lucide-react";
+import {
+  Activity,
+  ArrowLeft,
+  ChevronRight,
+  HelpCircle,
+  LineChart,
+  Loader2,
+  Plus,
+  Minus,
+  Sparkles,
+  ShieldAlert,
+  RefreshCw,
+  type LucideIcon,
+} from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -50,9 +63,66 @@ interface FynnPlan {
 
 type FynnMode = "options" | "futures";
 
+/** What the user explicitly asked for. "menu" fetches nothing. */
+type AtlasView = "menu" | "options" | "futures" | "faq";
+
 const FYNN_MODES: { id: FynnMode; label: string }[] = [
   { id: "options", label: "Options · hedged" },
   { id: "futures", label: "Futures · hedged" },
+];
+
+const ATLAS_INTENTS: {
+  id: AtlasView;
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+}[] = [
+  {
+    id: "options",
+    icon: LineChart,
+    title: "Build an option strategy",
+    subtitle: "Hedged, defined-risk option structures from this symbol's data.",
+  },
+  {
+    id: "futures",
+    icon: Activity,
+    title: "Build a futures strategy",
+    subtitle: "A futures view paired with a protective option to cap risk.",
+  },
+  {
+    id: "faq",
+    icon: HelpCircle,
+    title: "I have a different question",
+    subtitle: "Learn how to read the zones, OI walls and IV — no strategy generated.",
+  },
+];
+
+/** Static educational answers — NO AI call, so these cost nothing to serve. */
+const ATLAS_FAQ: { q: string; a: string }[] = [
+  {
+    q: "What does \u201cmax pain\u201d mean?",
+    a: "Max pain is the strike where the most options (calls + puts) would expire worthless \u2014 i.e. where option buyers collectively lose the most. It's often described as a mild magnet into expiry because option writers benefit if price drifts there. Treat it as a soft bias, never a target or a prediction.",
+  },
+  {
+    q: "How do I read the OI walls?",
+    a: "An open-interest (OI) wall is a strike with an unusually large number of open option contracts. A heavy put wall below price often behaves like a support floor; a heavy call wall above often behaves like a resistance cap. They show where positioning is concentrated \u2014 not where price must go.",
+  },
+  {
+    q: "What is the IV regime telling me?",
+    a: "Implied volatility (IV) regime describes whether options are currently cheap (calm) or expensive (elevated) versus normal. Calm IV favours buying / debit structures; elevated IV favours defined-risk premium-selling structures. It's a read on option pricing conditions, not a market call.",
+  },
+  {
+    q: "Why does Atlas only show hedged ideas?",
+    a: "Atlas is built for education and risk-awareness, not speculation. Every structure it lays out has defined or capped risk \u2014 a spread, or a futures leg paired with a protective option \u2014 so the worst case is always visible up front. It will never present a naked, unlimited-risk position.",
+  },
+  {
+    q: "How are the risk / reward numbers calculated?",
+    a: "The rupee figures are estimated from current at-the-money implied volatility using the Black-Scholes model, shown per share. Multiply by the lot size for the per-lot total. They describe the shape of the structure \u2014 they are estimates, not live tradeable quotes.",
+  },
+  {
+    q: "Is this financial advice?",
+    a: "No. Atlas is an educational research tool. It explains scenarios, structures and trade-offs grounded in the option data \u2014 it does not tell you to buy or sell, does not predict prices, and does not consider your personal circumstances. Always do your own research or consult a registered adviser.",
+  },
 ];
 
 interface FynnResponse {
@@ -115,18 +185,18 @@ export function AskFynn({
   onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<FynnMode>("options");
+  const [view, setView] = useState<AtlasView>("menu");
   const [loadingMode, setLoadingMode] = useState<FynnMode | null>(null);
   const [byMode, setByMode] = useState<Record<FynnMode, ModeState>>({
     options: {},
     futures: {},
   });
 
-  /** Slideshow: discard cached plans when the active symbol changes. */
+  /** Slideshow: reset to the request menu when the active symbol changes. */
   useEffect(() => {
     setByMode({ options: {}, futures: {} });
     setLoadingMode(null);
-    setMode("options");
+    setView("menu");
     setOpen(false);
     onOpenChange?.(false);
   }, [scope, symbol, onOpenChange]);
@@ -149,7 +219,7 @@ export function AskFynn({
         if (!res.ok || !json.plan) {
           setByMode((prev) => ({
             ...prev,
-            [target]: { error: json.error ?? "Fynn couldn't put together a plan right now." },
+            [target]: { error: json.error ?? "Atlas couldn't put together a plan right now." },
           }));
           return;
         }
@@ -157,7 +227,7 @@ export function AskFynn({
       } catch {
         setByMode((prev) => ({
           ...prev,
-          [target]: { error: "Network error reaching Fynn. Please try again." },
+          [target]: { error: "Network error reaching Atlas. Please try again." },
         }));
       } finally {
         setLoadingMode((curr) => (curr === target ? null : curr));
@@ -170,23 +240,29 @@ export function AskFynn({
     (next: boolean) => {
       setOpen(next);
       onOpenChange?.(next);
-      if (next && !byMode[mode].data && loadingMode !== mode) void ask(mode);
+      // Land on the request menu — fetch nothing until the user explicitly asks.
+      if (next) setView("menu");
     },
-    [ask, byMode, mode, loadingMode, onOpenChange],
+    [onOpenChange],
   );
 
-  const handleSelectMode = useCallback(
-    (next: FynnMode) => {
-      setMode(next);
-      if (!byMode[next].data && loadingMode !== next) void ask(next);
+  /** User picked an intent — only here do we (maybe) call the model. */
+  const handleSelectIntent = useCallback(
+    (intent: AtlasView) => {
+      setView(intent);
+      if (intent === "options" || intent === "futures") {
+        if (!byMode[intent].data && loadingMode !== intent) void ask(intent);
+      }
     },
     [ask, byMode, loadingMode],
   );
 
-  const current = byMode[mode];
-  const data = current.data ?? null;
-  const error = current.error ?? null;
-  const loading = loadingMode === mode;
+  const strategyMode: FynnMode | null =
+    view === "options" || view === "futures" ? view : null;
+  const current = strategyMode ? byMode[strategyMode] : undefined;
+  const data = current?.data ?? null;
+  const error = current?.error ?? null;
+  const loading = strategyMode != null && loadingMode === strategyMode;
   const plan = data?.plan;
 
   return (
@@ -238,84 +314,191 @@ export function AskFynn({
                 {label || symbol}
               </SheetTitle>
               <SheetDescription style={{ color: FNO_MUTED }}>
-                Hedged strategy ideas from this symbol&apos;s zones, OI walls and IV regime.
+                {view === "menu"
+                  ? "What would you like Atlas to help you explore for this symbol?"
+                  : view === "faq"
+                    ? "Educational answers about the data — no strategy is generated here."
+                    : "You asked Atlas to build this. It's an educational scenario, not advice."}
               </SheetDescription>
             </SheetHeader>
 
-            <div className="mt-4 flex gap-1.5" role="tablist" aria-label="Strategy mode">
-              {FYNN_MODES.map((m) => {
-                const active = m.id === mode;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => handleSelectMode(m.id)}
-                    className="flex-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all"
-                    style={{
-                      color: active ? "#e0f2fe" : FNO_MUTED,
-                      background: active ? "rgba(59,130,246,0.12)" : "transparent",
-                      border: `1px solid ${active ? "rgba(96,165,250,0.45)" : "rgba(90,140,220,0.2)"}`,
-                    }}
-                  >
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-4 space-y-4">
-              {loading ? (
-                <div
-                  className="flex flex-col items-center justify-center gap-3 py-16 rounded-xl"
-                  style={{
-                    color: FNO_MUTED,
-                    border: "1px solid rgba(96,165,250,0.2)",
-                    background: FNO_CARD_BG,
-                  }}
-                >
-                  <Loader2
-                    className="h-7 w-7 animate-spin fynn-coach-sparkle"
-                    style={{ color: FNO_ACCENT }}
-                  />
-                  <p className="text-xs">Atlas is reading the option data…</p>
-                </div>
-              ) : error ? (
-                <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <ShieldAlert className="h-7 w-7" style={{ color: "#f87171" }} />
-                  <p className="text-xs" style={{ color: "#fca5a5" }}>
-                    {error}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void ask(mode, true)}
-                    className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-full text-[11px] font-semibold"
-                    style={{
-                      color: FNO_ACCENT,
-                      border: "1px solid rgba(96,165,250,0.4)",
-                    }}
-                  >
-                    <RefreshCw className="h-3 w-3" /> Try again
-                  </button>
-                </div>
-              ) : plan ? (
-                <FynnPlanView plan={plan} onRefresh={() => void ask(mode, true)} />
-              ) : null}
-            </div>
-
-            {data?.disclaimer ? (
-              <p
-                className="mt-6 text-[10px] leading-relaxed"
-                style={{ color: FNO_MUTED }}
+            {view !== "menu" ? (
+              <button
+                type="button"
+                onClick={() => setView("menu")}
+                className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold"
+                style={{ color: FNO_ACCENT }}
               >
-                {data.disclaimer}
-              </p>
+                <ArrowLeft className="h-3.5 w-3.5" /> Back to requests
+              </button>
             ) : null}
+
+            {view === "menu" ? (
+              <div className="mt-4 space-y-2.5">
+                {ATLAS_INTENTS.map(({ id, icon: Icon, title, subtitle }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => handleSelectIntent(id)}
+                    className="group flex w-full items-center gap-3 rounded-xl p-3.5 text-left transition-all hover:scale-[1.01]"
+                    style={{
+                      backgroundColor: FNO_CARD_BG,
+                      border: "1px solid rgba(96,165,250,0.22)",
+                    }}
+                  >
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                      style={{
+                        backgroundColor: "rgba(59,130,246,0.14)",
+                        border: "1px solid rgba(96,165,250,0.3)",
+                      }}
+                    >
+                      <Icon className="h-4 w-4" style={{ color: FNO_ACCENT }} strokeWidth={2} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold" style={{ color: FNO_TEXT }}>
+                        {title}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
+                        {subtitle}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+                      style={{ color: FNO_MUTED }}
+                    />
+                  </button>
+                ))}
+                <p className="pt-1 text-[10px] leading-relaxed" style={{ color: FNO_MUTED }}>
+                  Atlas only runs when you pick a request above. It&apos;s an educational research
+                  assistant — not investment advice.
+                </p>
+              </div>
+            ) : view === "faq" ? (
+              <AtlasFaqView />
+            ) : (
+              <>
+                <div className="mt-4 flex gap-1.5" role="tablist" aria-label="Strategy mode">
+                  {FYNN_MODES.map((m) => {
+                    const active = m.id === strategyMode;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        onClick={() => handleSelectIntent(m.id)}
+                        className="flex-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all"
+                        style={{
+                          color: active ? "#e0f2fe" : FNO_MUTED,
+                          background: active ? "rgba(59,130,246,0.12)" : "transparent",
+                          border: `1px solid ${active ? "rgba(96,165,250,0.45)" : "rgba(90,140,220,0.2)"}`,
+                        }}
+                      >
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 space-y-4">
+                  {loading ? (
+                    <div
+                      className="flex flex-col items-center justify-center gap-3 py-16 rounded-xl"
+                      style={{
+                        color: FNO_MUTED,
+                        border: "1px solid rgba(96,165,250,0.2)",
+                        background: FNO_CARD_BG,
+                      }}
+                    >
+                      <Loader2
+                        className="h-7 w-7 animate-spin fynn-coach-sparkle"
+                        style={{ color: FNO_ACCENT }}
+                      />
+                      <p className="text-xs">Atlas is reading the option data…</p>
+                    </div>
+                  ) : error ? (
+                    <div className="flex flex-col items-center gap-3 py-12 text-center">
+                      <ShieldAlert className="h-7 w-7" style={{ color: "#f87171" }} />
+                      <p className="text-xs" style={{ color: "#fca5a5" }}>
+                        {error}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => strategyMode && void ask(strategyMode, true)}
+                        className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-full text-[11px] font-semibold"
+                        style={{
+                          color: FNO_ACCENT,
+                          border: "1px solid rgba(96,165,250,0.4)",
+                        }}
+                      >
+                        <RefreshCw className="h-3 w-3" /> Try again
+                      </button>
+                    </div>
+                  ) : plan ? (
+                    <FynnPlanView
+                      plan={plan}
+                      onRefresh={() => strategyMode && void ask(strategyMode, true)}
+                    />
+                  ) : null}
+                </div>
+
+                {data?.disclaimer ? (
+                  <p className="mt-6 text-[10px] leading-relaxed" style={{ color: FNO_MUTED }}>
+                    {data.disclaimer}
+                  </p>
+                ) : null}
+              </>
+            )}
           </div>
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+function AtlasFaqView() {
+  const [openIdx, setOpenIdx] = useState<number | null>(0);
+  return (
+    <div className="mt-4 space-y-2">
+      {ATLAS_FAQ.map(({ q, a }, i) => {
+        const isOpen = openIdx === i;
+        return (
+          <div
+            key={q}
+            className="rounded-xl overflow-hidden"
+            style={{ backgroundColor: FNO_CARD_BG, border: "1px solid rgba(96,165,250,0.2)" }}
+          >
+            <button
+              type="button"
+              onClick={() => setOpenIdx(isOpen ? null : i)}
+              className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left"
+              aria-expanded={isOpen}
+            >
+              <span className="text-[13px] font-semibold" style={{ color: FNO_TEXT }}>
+                {q}
+              </span>
+              {isOpen ? (
+                <Minus className="h-3.5 w-3.5 shrink-0" style={{ color: FNO_ACCENT }} />
+              ) : (
+                <Plus className="h-3.5 w-3.5 shrink-0" style={{ color: FNO_MUTED }} />
+              )}
+            </button>
+            {isOpen ? (
+              <p
+                className="px-3.5 pb-3.5 -mt-0.5 text-[12px] leading-relaxed"
+                style={{ color: "#cbd5e1" }}
+              >
+                {a}
+              </p>
+            ) : null}
+          </div>
+        );
+      })}
+      <p className="pt-1 text-[10px] leading-relaxed" style={{ color: FNO_MUTED }}>
+        These explainers are educational and do not constitute investment advice.
+      </p>
+    </div>
   );
 }
 

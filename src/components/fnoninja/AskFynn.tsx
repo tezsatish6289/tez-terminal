@@ -290,9 +290,10 @@ export function AskFynn({
         {!iconOnly ? <span className="whitespace-nowrap">{ATLAS_LABEL}</span> : null}
       </button>
 
-      <Sheet open={open} onOpenChange={handleOpenChange}>
+      <Sheet open={open} onOpenChange={handleOpenChange} modal={false}>
         <SheetContent
           side="right"
+          overlayClassName="bg-black/15 pointer-events-none"
           className="fynn-ai-pane w-full sm:max-w-md overflow-y-auto border-l p-0 z-[210] !top-14 sm:!top-16 !bottom-0 !h-[calc(100dvh-3.5rem)] sm:!h-[calc(100dvh-4rem)] max-h-none"
         >
           <div className="relative p-5 sm:p-6 pr-12">

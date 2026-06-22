@@ -1,17 +1,26 @@
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
 
-function levelsChartQuery(scope: LevelsTvScope, symbol: string): string {
+function levelsChartQuery(
+  scope: LevelsTvScope,
+  symbol: string,
+  expiryKey?: string | null,
+): string {
   const params = new URLSearchParams({
     scope,
     symbol: symbol.trim().toUpperCase(),
   });
+  if (expiryKey) params.set("expiry", expiryKey);
   return params.toString();
 }
 
 /** Opens in a new browser tab from the bubbles map (localhost dev paths). */
-export function levelsChartPagePath(scope: LevelsTvScope, symbol: string): string {
-  return `/fnoninja/levels/chart?${levelsChartQuery(scope, symbol)}`;
+export function levelsChartPagePath(
+  scope: LevelsTvScope,
+  symbol: string,
+  expiryKey?: string | null,
+): string {
+  return `/fnoninja/levels/chart?${levelsChartQuery(scope, symbol, expiryKey)}`;
 }
 
 const FNONINJA_LEVELS_HOSTS = new Set(["fnoninja.com", "www.fnoninja.com"]);
@@ -22,9 +31,10 @@ export function levelsChartPagePathForHost(
   hostname: string,
   scope: LevelsTvScope,
   symbol: string,
+  expiryKey?: string | null,
 ): string {
   const h = hostname.toLowerCase();
-  const q = levelsChartQuery(scope, symbol);
+  const q = levelsChartQuery(scope, symbol, expiryKey);
   if (FNONINJA_LEVELS_HOSTS.has(h)) {
     return `/levels/chart?${q}`;
   }

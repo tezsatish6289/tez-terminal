@@ -50,6 +50,7 @@ export function LevelsSlideshowToolbar({
   bubbleSearch = "",
   onBubbleSearchChange,
   stripTrailing,
+  shareTrailing,
 }: {
   zoneFilter?: PocDirectionFilter;
   onZoneFilterChange?: (filter: PocDirectionFilter) => void;
@@ -118,6 +119,8 @@ export function LevelsSlideshowToolbar({
   };
   /** Icon box(es) after view switcher on slideshow strip (e.g. favslide add). */
   stripTrailing?: ReactNode;
+  /** Bubbles map: share control beside view toggles. */
+  shareTrailing?: ReactNode;
 }) {
   const filterActions = useMemo(
     () =>
@@ -241,6 +244,7 @@ export function LevelsSlideshowToolbar({
         bubbleFilterCounts={bubbleFilterCounts}
         viewToggle={viewToggle}
         favslideToggle={favslideToggle}
+        shareTrailing={shareTrailing}
       />
     );
   }

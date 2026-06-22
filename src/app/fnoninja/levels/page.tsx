@@ -63,6 +63,8 @@ import {
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
+import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
+import { LevelsMarketMapShareButton } from "@/components/levels/LevelsMarketMapShareButton";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughBridge";
@@ -808,6 +810,17 @@ export default function LevelsPage() {
         headerTrailing={
           isFnoNinjaHost && isSlideView && inZoneActive && activeTicker ? (
             <div className="flex flex-wrap items-center gap-1.5 justify-end">
+              <LevelsSymbolShareButton
+                scope={inZoneActive.scope}
+                symbol={activeTicker}
+                label={slideshowSubtitleLine ?? inZoneActive.label}
+                levels={chartLevelsForView}
+                expiryKey={
+                  inZoneActive.scope === "index" ? selectedExpiryKey : null
+                }
+                nativeChartRef={nativeChartRef}
+                iconOnly
+              />
               <AskFynn
                 scope={inZoneActive.scope}
                 symbol={activeTicker}
@@ -1094,6 +1107,11 @@ export default function LevelsPage() {
         kbd: viewMode === "bubbles" ? "L" : "B",
         active: viewMode === "liveslide",
       }}
+      shareTrailing={
+        isFnoNinjaHost && viewMode === "bubbles" ? (
+          <LevelsMarketMapShareButton viewLabel="Market Bubbles" iconOnly />
+        ) : undefined
+      }
     />
   );
 

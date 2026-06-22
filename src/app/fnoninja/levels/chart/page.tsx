@@ -24,6 +24,7 @@ import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection
 import { FNO_LEVELS_MAIN, FNO_LEVELS_SHELL } from "@/lib/fnoninja/responsive";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
+import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
 import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
@@ -210,6 +211,15 @@ function ChartContent() {
           symbolSearch={
             showFavslideToggle && scope ? (
               <div className="flex items-center gap-2">
+                <LevelsSymbolShareButton
+                  scope={scope}
+                  symbol={symbol}
+                  label={subtitleLine ?? label}
+                  levels={chartLevels}
+                  expiryKey={scope === "index" ? selectedExpiryKey : null}
+                  nativeChartRef={nativeChartRef}
+                  iconOnly
+                />
                 <AskFynn scope={scope} symbol={symbol} label={subtitleLine ?? label} />
                 <FnoNinjaFavslideToggle scope={scope} symbol={symbol} enabled />
               </div>

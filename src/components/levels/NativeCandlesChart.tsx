@@ -33,7 +33,9 @@ import {
   type LevelVisualFocus,
   zoneSlAnchors,
 } from "@/components/levels/native-chart-level-overlays";
+import { LevelsChartBrandWatermark } from "@/components/levels/LevelsChartBrandWatermark";
 import { LevelsChartFocusGlow } from "@/components/levels/LevelsChartFocusGlow";
+import { compositeChartShareImage } from "@/lib/levels/chart-share-image";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { epochUtcToChartIstSeconds } from "@/lib/market-hours";
 
@@ -99,6 +101,11 @@ const BEAR_BAND_STYLE = {
  */
 export interface NativeCandlesChartHandle {
   toggleHistoryZoom: () => void;
+  captureShareImage: (opts: {
+    symbol: string;
+    subtitle?: string | null;
+    shareUrl: string;
+  }) => Promise<Blob | null>;
 }
 
 export const NativeCandlesChart = forwardRef<
@@ -118,6 +125,8 @@ export const NativeCandlesChart = forwardRef<
     hideShortcuts?: boolean;
     /** Slideshow: fit all loaded ~30d candles on first paint (and on symbol change). */
     defaultFullHistory?: boolean;
+    /** On-chart FNONINJA watermark (default true). */
+    showBrandWatermark?: boolean;
     onFullHistoryZoomChange?: (full: boolean) => void;
     /** Last candle close — keeps strip / header price in sync with the chart. */
     onLastCloseChange?: (close: number) => void;
@@ -140,6 +149,7 @@ export const NativeCandlesChart = forwardRef<
     onToggleSlideshowPause,
     hideShortcuts = false,
     defaultFullHistory = false,
+    showBrandWatermark = true,
     onFullHistoryZoomChange,
     onLastCloseChange,
     visualFocus = null,
@@ -149,6 +159,7 @@ export const NativeCandlesChart = forwardRef<
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const shareRootRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const bullBandRef = useRef<ISeriesApi<"Baseline"> | null>(null);
@@ -268,7 +279,22 @@ export const NativeCandlesChart = forwardRef<
     else applyFullHistoryZoom(n);
   }, [onFullHistoryZoomChange]);
 
-  useImperativeHandle(ref, () => ({ toggleHistoryZoom }), [toggleHistoryZoom]);
+  const captureShareImage = useCallback(
+    async (opts: { symbol: string; subtitle?: string | null; shareUrl: string }) => {
+      const root = shareRootRef.current;
+      if (!root) return null;
+      return compositeChartShareImage(root, {
+        ...opts,
+        levels: levelsRef.current,
+      });
+    },
+    [],
+  );
+
+  useImperativeHandle(ref, () => ({ toggleHistoryZoom, captureShareImage }), [
+    toggleHistoryZoom,
+    captureShareImage,
+  ]);
 
   function fitPriceScale() {
     const series = seriesRef.current;
@@ -663,7 +689,10 @@ export const NativeCandlesChart = forwardRef<
   }, [levels, showSlideshowControl]);
 
   return (
-    <div className="relative w-full h-full min-h-[180px] flex-1 max-md:touch-pan-y">
+    <div
+      ref={shareRootRef}
+      className="relative w-full h-full min-h-[180px] flex-1 max-md:touch-pan-y"
+    >
       <div
         ref={containerRef}
         className="absolute inset-0"
@@ -726,6 +755,7 @@ export const NativeCandlesChart = forwardRef<
           visible={chartReady}
         />
       ) : null}
+      {showBrandWatermark && chartReady ? <LevelsChartBrandWatermark /> : null}
     </div>
   );
 });

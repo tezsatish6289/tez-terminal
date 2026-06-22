@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { LevelsBubbleMapFilters } from "@/components/levels/LevelsBubbleMapFilters";
 import {
   LevelsSlideshowCta,
@@ -15,6 +16,7 @@ export function LevelsBubblesToolbar({
   bubbleFilterCounts,
   viewToggle,
   favslideToggle,
+  shareTrailing,
 }: {
   bubbleMapFilter: BubbleMapFilter;
   onBubbleMapFilterChange: (filter: BubbleMapFilter) => void;
@@ -37,6 +39,7 @@ export function LevelsBubblesToolbar({
     kbd: string;
     active?: boolean;
   };
+  shareTrailing?: ReactNode;
 }) {
   return (
     <div className={LEVELS_BUBBLE_TOOLBAR_SCROLL_CLASS}>
@@ -68,6 +71,8 @@ export function LevelsBubblesToolbar({
           kbd={viewToggle.kbd}
           active={viewToggle.active}
         />
+
+        {shareTrailing}
       </div>
     </div>
   );

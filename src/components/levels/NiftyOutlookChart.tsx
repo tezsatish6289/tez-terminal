@@ -16,9 +16,17 @@ function fmt(p: number): string {
   return Math.round(p).toLocaleString();
 }
 
+interface Slot {
+  cp: OutlookCheckpoint;
+  x0: number;
+  x1: number;
+}
+
 /**
- * Nifty Outlook — a forward "map" of where option positioning expects support,
- * resistance and the max-pain magnet to sit across the next few expiries.
+ * Nifty Outlook — a stepped "ladder" of where option positioning expects
+ * support, resistance and the max-pain magnet to sit across the next few
+ * expiries. Each expiry owns the time slot ending on its date and is drawn as a
+ * flat block (no diagonal interpolation — the levels are discrete, not a glide).
  * Confidence fades left → right: the nearest expiry is solid, far-dated bands
  * are thin/shifting and shown faded so the reliability drop-off is visible.
  */
@@ -63,11 +71,14 @@ export function NiftyOutlookChart({
     const yFor = (price: number) =>
       PAD.top + (1 - (price - priceMin) / span) * plotH;
 
-    const points: OutlookCheckpoint[] = series.today
-      ? [series.today, ...series.checkpoints]
-      : series.checkpoints;
+    const cps = series.checkpoints;
+    const slots: Slot[] = cps.map((cp, i) => ({
+      cp,
+      x0: i === 0 ? xFor(0) : xFor(cps[i - 1].daysFromToday),
+      x1: xFor(cp.daysFromToday),
+    }));
 
-    return { plotW, plotH, xFor, yFor, points };
+    return { plotW, plotH, xFor, yFor, slots };
   }, [series, size]);
 
   if (!series || !model) {
@@ -85,10 +96,11 @@ export function NiftyOutlookChart({
   }
 
   const { w, h } = size;
-  const { xFor, yFor, points } = model;
+  const { xFor, yFor, slots } = model;
   const bull = LEVELS_ZONE_CHART.bull;
   const bear = LEVELS_ZONE_CHART.bear;
   const maxPainColor = LEVELS_ZONE_CHART.maxPain.line;
+  const todayX = xFor(0);
 
   const yTicks = (() => {
     const ticks: number[] = [];
@@ -99,45 +111,32 @@ export function NiftyOutlookChart({
     return ticks;
   })();
 
-  const maxPainPath = points
-    .filter((p) => p.maxPain != null)
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(p.daysFromToday)} ${yFor(p.maxPain as number)}`)
-    .join(" ");
-
-  function bandSegments(
-    pick: (p: OutlookCheckpoint) => { low: number | null; high: number | null },
+  function bandRects(
+    pick: (cp: OutlookCheckpoint) => { low: number | null; high: number | null },
     color: string,
   ) {
-    const segs: React.ReactNode[] = [];
-    for (let i = 0; i < points.length - 1; i++) {
-      const a = points[i];
-      const b = points[i + 1];
-      const av = pick(a);
-      const bv = pick(b);
-      if (av.low == null || av.high == null || bv.low == null || bv.high == null) continue;
-      const x1 = xFor(a.daysFromToday);
-      const x2 = xFor(b.daysFromToday);
-      const poly = [
-        `${x1},${yFor(av.high)}`,
-        `${x2},${yFor(bv.high)}`,
-        `${x2},${yFor(bv.low)}`,
-        `${x1},${yFor(av.low)}`,
-      ].join(" ");
-      segs.push(
-        <polygon
+    return slots.map((s, i) => {
+      const v = pick(s.cp);
+      if (v.low == null || v.high == null) return null;
+      const yTop = yFor(v.high);
+      const height = Math.max(yFor(v.low) - yTop, 1);
+      return (
+        <rect
           key={`${color}-${i}`}
-          points={poly}
+          x={s.x0}
+          y={yTop}
+          width={Math.max(s.x1 - s.x0, 0)}
+          height={height}
           fill={color}
-          opacity={confidenceOpacity(b.confidence) * 0.4}
-        />,
+          opacity={confidenceOpacity(s.cp.confidence) * 0.4}
+        />
       );
-    }
-    return segs;
+    });
   }
 
   return (
     <div ref={containerRef} className={className} style={{ position: "relative" }}>
-      <svg width={w} height={h} role="img" aria-label="Nifty Outlook forward map">
+      <svg width={w} height={h} role="img" aria-label="Nifty Outlook ladder">
         <defs>
           <linearGradient id="outlook-fade" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#000" stopOpacity="0" />
@@ -170,57 +169,70 @@ export function NiftyOutlookChart({
           </g>
         ))}
 
-        {/* Vertical expiry checkpoints + date labels */}
-        {points.map((p, i) => {
-          const x = xFor(p.daysFromToday);
-          const isToday = p.expiryKey === "__today__";
-          return (
-            <g key={`x-${i}`}>
-              <line
-                x1={x}
-                x2={x}
-                y1={PAD.top}
-                y2={h - PAD.bottom}
-                stroke={isToday ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.06)"}
-                strokeWidth={1}
-                strokeDasharray={isToday ? undefined : "3 3"}
-              />
-              <text
-                x={x}
-                y={h - PAD.bottom + 15}
-                textAnchor="middle"
-                fontSize={10}
-                fontWeight={isToday ? 700 : 500}
-                fontFamily="ui-sans-serif, system-ui"
-                fill={isToday ? "#fcd34d" : "#94a3b8"}
-              >
-                {p.label}
-              </text>
-              {!isToday && (
-                <text
-                  x={x}
-                  y={h - PAD.bottom + 27}
-                  textAnchor="middle"
-                  fontSize={8}
-                  fontFamily="ui-sans-serif, system-ui"
-                  fill={
-                    p.confidence === "high"
-                      ? "#86efac"
-                      : p.confidence === "medium"
-                        ? "#fcd34d"
-                        : "#fca5a5"
-                  }
-                >
-                  {confidenceLabel(p.confidence)}
-                </text>
-              )}
-            </g>
-          );
-        })}
+        {/* Today marker + expiry boundary lines and labels */}
+        <line
+          x1={todayX}
+          x2={todayX}
+          y1={PAD.top}
+          y2={h - PAD.bottom}
+          stroke="rgba(251,191,36,0.25)"
+          strokeWidth={1}
+        />
+        <text
+          x={todayX}
+          y={h - PAD.bottom + 15}
+          textAnchor="middle"
+          fontSize={10}
+          fontWeight={700}
+          fontFamily="ui-sans-serif, system-ui"
+          fill="#fcd34d"
+        >
+          Today
+        </text>
+        {slots.map((s, i) => (
+          <g key={`x-${i}`}>
+            <line
+              x1={s.x1}
+              x2={s.x1}
+              y1={PAD.top}
+              y2={h - PAD.bottom}
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+            <text
+              x={s.x1}
+              y={h - PAD.bottom + 15}
+              textAnchor="middle"
+              fontSize={10}
+              fontWeight={500}
+              fontFamily="ui-sans-serif, system-ui"
+              fill="#94a3b8"
+            >
+              {s.cp.label}
+            </text>
+            <text
+              x={s.x1}
+              y={h - PAD.bottom + 27}
+              textAnchor="middle"
+              fontSize={8}
+              fontFamily="ui-sans-serif, system-ui"
+              fill={
+                s.cp.confidence === "high"
+                  ? "#86efac"
+                  : s.cp.confidence === "medium"
+                    ? "#fcd34d"
+                    : "#fca5a5"
+              }
+            >
+              {confidenceLabel(s.cp.confidence)}
+            </text>
+          </g>
+        ))}
 
-        {/* Resistance + support corridors */}
-        {bandSegments((p) => ({ low: p.resistanceLow, high: p.resistanceHigh }), bear.line)}
-        {bandSegments((p) => ({ low: p.supportLow, high: p.supportHigh }), bull.line)}
+        {/* Stepped resistance + support blocks */}
+        {bandRects((cp) => ({ low: cp.resistanceLow, high: cp.resistanceHigh }), bear.line)}
+        {bandRects((cp) => ({ low: cp.supportLow, high: cp.supportHigh }), bull.line)}
 
         {/* Confidence fade overlay (far-right = least reliable) */}
         <rect
@@ -258,40 +270,60 @@ export function NiftyOutlookChart({
           </g>
         )}
 
-        {/* Max-pain drift path */}
-        {maxPainPath && (
-          <path
-            d={maxPainPath}
-            fill="none"
-            stroke={maxPainColor}
-            strokeWidth={2}
-            strokeDasharray="5 4"
-          />
+        {/* Stepped max-pain ladder: flat per slot, vertical step at each boundary */}
+        {slots.map((s, i) =>
+          s.cp.maxPain != null ? (
+            <line
+              key={`mp-h-${i}`}
+              x1={s.x0}
+              x2={s.x1}
+              y1={yFor(s.cp.maxPain)}
+              y2={yFor(s.cp.maxPain)}
+              stroke={maxPainColor}
+              strokeWidth={2}
+              opacity={confidenceOpacity(s.cp.confidence)}
+            />
+          ) : null,
         )}
-        {points.map((p, i) =>
-          p.maxPain != null ? (
-            <g key={`mp-${i}`}>
+        {slots.slice(0, -1).map((s, i) => {
+          const next = slots[i + 1];
+          if (s.cp.maxPain == null || next.cp.maxPain == null) return null;
+          return (
+            <line
+              key={`mp-v-${i}`}
+              x1={s.x1}
+              x2={s.x1}
+              y1={yFor(s.cp.maxPain)}
+              y2={yFor(next.cp.maxPain)}
+              stroke={maxPainColor}
+              strokeWidth={1.5}
+              strokeDasharray="3 3"
+              opacity={confidenceOpacity(next.cp.confidence) * 0.7}
+            />
+          );
+        })}
+        {slots.map((s, i) =>
+          s.cp.maxPain != null ? (
+            <g key={`mp-dot-${i}`}>
               <circle
-                cx={xFor(p.daysFromToday)}
-                cy={yFor(p.maxPain)}
+                cx={s.x1}
+                cy={yFor(s.cp.maxPain)}
                 r={3.5}
                 fill={maxPainColor}
-                opacity={confidenceOpacity(p.confidence)}
+                opacity={confidenceOpacity(s.cp.confidence)}
               />
-              {p.expiryKey !== "__today__" && (
-                <text
-                  x={xFor(p.daysFromToday)}
-                  y={yFor(p.maxPain) - 7}
-                  textAnchor="middle"
-                  fontSize={9}
-                  fontWeight={700}
-                  fontFamily="ui-monospace, monospace"
-                  fill={maxPainColor}
-                  opacity={confidenceOpacity(p.confidence)}
-                >
-                  {fmt(p.maxPain)}
-                </text>
-              )}
+              <text
+                x={s.x1}
+                y={yFor(s.cp.maxPain) - 7}
+                textAnchor="middle"
+                fontSize={9}
+                fontWeight={700}
+                fontFamily="ui-monospace, monospace"
+                fill={maxPainColor}
+                opacity={confidenceOpacity(s.cp.confidence)}
+              >
+                {fmt(s.cp.maxPain)}
+              </text>
             </g>
           ) : null,
         )}

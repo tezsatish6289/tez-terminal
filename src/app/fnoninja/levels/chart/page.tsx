@@ -8,6 +8,7 @@ import { LevelsChartMetaFooter } from "@/components/levels/LevelsSplitLayout";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
+import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import {
@@ -47,6 +48,7 @@ function ChartContent() {
   const [label, setLabel] = useState("");
   const [loading, setLoading] = useState(true);
   const [chartFullHistory, setChartFullHistory] = useState(true);
+  const [viewMode, setViewMode] = useState<"chart" | "outlook">("chart");
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
   const [error, setError] = useState<string | null>(
     !scope || !symbol ? "Invalid chart link — open from the Market Bubbles map." : null,
@@ -144,7 +146,12 @@ function ChartContent() {
 
   useEffect(() => {
     setChartFullHistory(true);
+    setViewMode("chart");
   }, [config?.symbol, config?.exchange, config?.candlesScope]);
+
+  const outlookAvailable =
+    scope === "index" && (levels?.zonesByExpiry?.length ?? 0) > 1;
+  const showOutlook = outlookAvailable && viewMode === "outlook";
 
   const companyName = useMemo(() => {
     if (scope === "stock") {
@@ -246,18 +253,29 @@ function ChartContent() {
           className="mt-1.5 sm:mt-2"
           chart={
             <>
-              <LevelsTradingViewChart
-                className="flex-1 min-h-0 h-full"
-                config={config}
-                ticker={symbol}
-                levels={chartLevels}
-                loading={loading}
-                hideChartShortcuts
-                defaultFullHistory
-                showHeader={false}
-                nativeChartRef={nativeChartRef}
-                onFullHistoryZoomChange={setChartFullHistory}
-              />
+              {outlookAvailable && (
+                <OutlookViewToggle value={viewMode} onChange={setViewMode} />
+              )}
+              {showOutlook ? (
+                <NiftyOutlookChart
+                  className="flex-1 min-h-0 h-full w-full"
+                  levels={levels}
+                  spot={levels?.spot ?? null}
+                />
+              ) : (
+                <LevelsTradingViewChart
+                  className="flex-1 min-h-0 h-full"
+                  config={config}
+                  ticker={symbol}
+                  levels={chartLevels}
+                  loading={loading}
+                  hideChartShortcuts
+                  defaultFullHistory
+                  showHeader={false}
+                  nativeChartRef={nativeChartRef}
+                  onFullHistoryZoomChange={setChartFullHistory}
+                />
+              )}
               <LevelsChartMetaFooter
                 slideCount={1}
                 activeIndex={0}
@@ -273,6 +291,40 @@ function ChartContent() {
         </div>
       </div>
     </main>
+  );
+}
+
+function OutlookViewToggle({
+  value,
+  onChange,
+}: {
+  value: "chart" | "outlook";
+  onChange: (v: "chart" | "outlook") => void;
+}) {
+  const options: { id: "chart" | "outlook"; label: string }[] = [
+    { id: "chart", label: "Chart" },
+    { id: "outlook", label: "Outlook" },
+  ];
+  return (
+    <div className="mb-1.5 flex shrink-0 items-center gap-1 self-start rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
+      {options.map((o) => {
+        const active = value === o.id;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => onChange(o.id)}
+            className="rounded-md px-3 py-1 text-[11px] font-semibold transition-colors"
+            style={{
+              backgroundColor: active ? "rgba(96,165,250,0.18)" : "transparent",
+              color: active ? "#bfdbfe" : "#94a3b8",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

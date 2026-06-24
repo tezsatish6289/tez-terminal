@@ -89,8 +89,11 @@ const NSE_CONTRACT_INFO = "https://www.nseindia.com/api/option-chain-contract-in
 /** Minimum total OI (contracts) for the chosen expiry to be considered liquid. */
 const MIN_OI_THRESHOLD = 20_000;
 
-/** How many nearest expiries to derive full S/R bands for (default: nearest + next). */
-const INDEX_EXPIRY_SLICE_COUNT = () => envNum("INDEX_EXPIRY_SLICE_COUNT", 2);
+/**
+ * How many nearest expiries to derive full S/R bands for. Drives both the chart
+ * expiry picker and the Nifty Outlook forward map (today → ~4 expiries out).
+ */
+const INDEX_EXPIRY_SLICE_COUNT = () => envNum("INDEX_EXPIRY_SLICE_COUNT", 4);
 
 export interface IndexZonesComputeResult {
   /** Nearest expiry — persisted as top-level doc fields for backward compat. */

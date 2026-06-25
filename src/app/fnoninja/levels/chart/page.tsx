@@ -39,6 +39,10 @@ function stockLevelsUrl(symbol: string, slideshowPriority: boolean): string {
   return `/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}${q}`;
 }
 
+function indexLevelsUrl(symbol: string): string {
+  return `/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}&scope=index`;
+}
+
 function ChartContent() {
   const searchParams = useSearchParams();
   const scopeParam = searchParams.get("scope");
@@ -100,21 +104,20 @@ function ChartContent() {
           }
           return;
         }
-        const res = await fetch("/api/freedombot/levels", { cache: "no-store" });
+        const res = await fetch(indexLevelsUrl(symbol), { cache: "no-store" });
         const json = (await res.json()) as {
-          indices: { symbol?: string; label: string; data: PublicLevels | null }[];
+          label?: string;
+          data: PublicLevels | null;
+          error?: string;
         };
-        const hit = json.indices?.find(
-          (it) => (it.symbol ?? it.label).toUpperCase() === symbol,
-        );
-        if (!hit) {
-          setError("Index levels not found.");
-          setLevels(null);
+        if (!res.ok) {
           setLabel(symbol);
+          setLevels(null);
+          setError(json.error ?? "Could not load levels.");
           return;
         }
-        setLabel(hit.label);
-        setLevels(hit.data);
+        setLabel(json.label ?? symbol);
+        setLevels(json.data);
       } catch {
         if (!opts?.quiet) {
           setError("Could not load levels.");

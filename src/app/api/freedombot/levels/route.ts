@@ -9,6 +9,7 @@
  * Modes:
  *   • GET (no params)        → { indices, stocks (compact), inZone, updatedAt }
  *   • GET ?symbol=RELIANCE   → { symbol, label, data } single stock's full ladder payload
+ *   • GET ?symbol=NIFTY&scope=index → single index with on-demand multi-expiry refresh
  *
  * IMPORTANT: the stored docs carry the full derivation (strikes, OI, max-pain by
  * expiry, cluster shares, IV, source, …). We deliberately do NOT return them raw —
@@ -40,6 +41,13 @@ import { storedSourceToPublic } from "@/lib/levels/levels-source";
 import { loadFnoUniverse, isValidFnoSymbolDb } from "@/lib/nse/fno-universe-runtime";
 import { resolveZonesExpiryFromStored } from "@/lib/levels/zones-expiry-label";
 import { indexExpiryLevelsFromStored, applyExpiryToPublicLevels } from "@/lib/levels/index-expiry-levels";
+import { levelsNeedMultiExpiryRefresh } from "@/lib/levels/multi-expiry-levels";
+import {
+  computeIndexZonesOnDemand,
+  indexLevelsLabel,
+  normalizeIndexKey,
+} from "@/lib/index-zones-on-demand";
+import { indexDocId } from "@/lib/index-zones-store";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 
@@ -113,6 +121,64 @@ function sanitize(
     return applyExpiryToPublicLevels(base, expiryOptions[0]?.key) ?? base;
   }
   return base;
+}
+
+function withNseSource(data: PublicLevels | null): PublicLevels | null {
+  if (!data) return null;
+  if (data.levelsSource || (data.bullLow == null && data.bearLow == null)) return data;
+  return { ...data, levelsSource: "nse" };
+}
+
+/**
+ * Single-index ladder payload. Recomputes from NSE when multi-expiry slices are missing.
+ */
+async function getSingleIndex(symbol: string, forceRefresh: boolean) {
+  const key = normalizeIndexKey(symbol);
+  if (!key) {
+    return NextResponse.json({ error: "Unknown index symbol" }, { status: 400 });
+  }
+
+  let raw = await readDoc(indexDocId(key));
+  let data = withNseSource(sanitize(raw, { includeExpiries: true }));
+  const cachedBeforeRefresh = data;
+  const needsMultiExpiry = levelsNeedMultiExpiryRefresh(data);
+
+  if (forceRefresh || needsMultiExpiry) {
+    await computeIndexZonesOnDemand(key);
+    raw = await readDoc(indexDocId(key));
+    data = withNseSource(sanitize(raw, { includeExpiries: true }));
+    if (data && (data.bullLow != null || data.bearLow != null) && data.poc != null) {
+      return NextResponse.json(
+        {
+          symbol: key,
+          label: (typeof raw?.label === "string" && raw.label) || indexLevelsLabel(key),
+          data,
+          source: "live",
+          computed: true,
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (cachedBeforeRefresh && (cachedBeforeRefresh.bullLow != null || cachedBeforeRefresh.bearLow != null)) {
+      return NextResponse.json(
+        {
+          symbol: key,
+          label: indexLevelsLabel(key),
+          data: cachedBeforeRefresh,
+          source: "cache",
+          computed: false,
+          stale: true,
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
+
+  const label = (typeof raw?.label === "string" && raw.label) || indexLevelsLabel(key);
+  return NextResponse.json(
+    { symbol: key, label, data, source: "cache", computed: false },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 async function readDoc(path: string): Promise<Record<string, unknown> | null> {
@@ -216,6 +282,10 @@ export async function GET(request: NextRequest) {
   const symbol = params.get("symbol");
   if (symbol) {
     const forceRefresh = params.get("refresh") === "1" || params.get("compute") === "1";
+    const scope = params.get("scope");
+    if (scope === "index") {
+      return getSingleIndex(symbol, forceRefresh);
+    }
     const slideshowPriority = params.get("slideshow") === "1";
     return getSingleStock(symbol, forceRefresh, slideshowPriority);
   }

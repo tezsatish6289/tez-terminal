@@ -22,8 +22,12 @@ import { loadIvHistory, recordDailyAtmIv } from "@/lib/iv-history";
 import { isIndexZonesCronWindow } from "@/lib/market-hours";
 import { maybeRecordIndexSrZoneEvent } from "@/lib/sr-audit/record-event";
 
-function docId(symbol: IndexKey): string {
+export function indexDocId(symbol: IndexKey): string {
   return `config/suggested_index_zones_${symbol}`;
+}
+
+function docId(symbol: IndexKey): string {
+  return indexDocId(symbol);
 }
 
 /**
@@ -117,40 +121,63 @@ export async function refreshIndexZones(db: Firestore): Promise<IndexZonesRefres
       errors[key] = `NSE session bootstrap failed: ${cookieError}`;
       continue;
     }
-    try {
-      const ivHist = await loadIvHistory(db, key);
-      const { primary, byExpiry } = await computeIndexZones(key, cookies, {
-        ivHistory: ivHist.values,
-        vixPercentile: vix.percentile,
-      });
-      await recordDailyAtmIv(db, key, primary.atmIV, ivHist);
-      const hasBands = primary.bullZoneLow != null || primary.bearZoneLow != null;
-      if (!hasBands) {
-        // Don't overwrite last-good bands with an empty result.
-        results[key] = "error";
-        errors[key] = "No bull/bear bands derived (empty/illiquid chain)";
-        await db.doc(docId(key)).set(
-          { nseFetchError: errors[key], computedAt: primary.computedAt },
-          { merge: true },
-        );
-        continue;
-      }
-      await db.doc(docId(key)).set(serialize(primary, byExpiry));
-      await maybeRecordIndexSrZoneEvent(db, primary);
-      results[key] = "ok";
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      results[key] = "error";
-      errors[key] = msg;
-      // Preserve previous doc; only stamp the error.
-      await db.doc(docId(key)).set(
-        { nseFetchError: msg, computedAt: new Date().toISOString(), label: INDEX_SPECS[key].label },
-        { merge: true },
-      );
-    }
+    const outcome = await refreshSingleIndexZone(db, key, cookies, vix.percentile);
+    results[key] = outcome.status;
+    if (outcome.error) errors[key] = outcome.error;
   }
 
   return { results, errors };
+}
+
+/** Refresh one index from NSE and persist. Preserves last-good doc on failure. */
+export async function refreshSingleIndexZone(
+  db: Firestore,
+  key: IndexKey,
+  cookies?: string,
+  vixPercentile?: number | null,
+): Promise<{ status: "ok" | "error"; error?: string }> {
+  let sessionCookies = cookies ?? "";
+  if (!sessionCookies) {
+    try {
+      sessionCookies = await getNseCookies();
+    } catch (e) {
+      const msg = `NSE session bootstrap failed: ${e instanceof Error ? e.message : String(e)}`;
+      return { status: "error", error: msg };
+    }
+  }
+
+  const vix =
+    vixPercentile !== undefined
+      ? { percentile: vixPercentile }
+      : await loadIndiaVixState(db);
+
+  try {
+    const ivHist = await loadIvHistory(db, key);
+    const { primary, byExpiry } = await computeIndexZones(key, sessionCookies, {
+      ivHistory: ivHist.values,
+      vixPercentile: vix.percentile,
+    });
+    await recordDailyAtmIv(db, key, primary.atmIV, ivHist);
+    const hasBands = primary.bullZoneLow != null || primary.bearZoneLow != null;
+    if (!hasBands) {
+      const err = "No bull/bear bands derived (empty/illiquid chain)";
+      await db.doc(docId(key)).set(
+        { nseFetchError: err, computedAt: primary.computedAt },
+        { merge: true },
+      );
+      return { status: "error", error: err };
+    }
+    await db.doc(docId(key)).set(serialize(primary, byExpiry));
+    await maybeRecordIndexSrZoneEvent(db, primary);
+    return { status: "ok" };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await db.doc(docId(key)).set(
+      { nseFetchError: msg, computedAt: new Date().toISOString(), label: INDEX_SPECS[key].label },
+      { merge: true },
+    );
+    return { status: "error", error: msg };
+  }
 }
 
 /** "ok=3/5 errors=2" summary for logs/heartbeat. */

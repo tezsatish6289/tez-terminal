@@ -20,6 +20,7 @@ import { loadEarningsCalendar } from "@/lib/nse-earnings-calendar";
 import { daysUntil } from "@/lib/zones/vol-regime";
 import { loadIndiaVixState } from "@/lib/india-vix";
 import { loadIvHistory, recordDailyAtmIv } from "@/lib/iv-history";
+import { levelsNeedMultiExpiryRefresh } from "@/lib/levels/multi-expiry-levels";
 
 const STOCK_AGGREGATE_DOC = "config/zone_status_stocks";
 import { normalizeStockSymbol } from "@/lib/nse/fno-symbol";
@@ -45,9 +46,7 @@ export function stockLevelsLadderComplete(data: PublicLevels | null | undefined)
 export function stockLevelsNeedsMultiExpiryRefresh(
   data: PublicLevels | null | undefined,
 ): boolean {
-  if (!stockLevelsHasBands(data)) return false;
-  if (data!.levelsSource !== "nse") return false;
-  return (data!.zonesByExpiry?.length ?? 0) < 2;
+  return levelsNeedMultiExpiryRefresh(data);
 }
 
 /** Fresh enough to skip an on-demand round-trip (default 15 min). */

@@ -20,6 +20,7 @@ import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
 import { LevelsOutlookViewToggle } from "@/components/levels/LevelsOutlookViewToggle";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
+import { levelsNeedMultiExpiryRefresh } from "@/lib/levels/multi-expiry-levels";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
@@ -617,6 +618,10 @@ export default function LevelsPage() {
       isSlideView &&
       inZoneActive.scope === "stock" &&
       isSlideshowZoneStale(bundled?.computedAt);
+    const indexNeedsExpiryFetch =
+      isSlideView &&
+      inZoneActive.scope === "index" &&
+      levelsNeedMultiExpiryRefresh(bundled);
     /** Slideshow stocks need per-symbol API ladder (clusters + expiry), not compact list rows. */
     const slideshowStockNeedsApi =
       isSlideView && inZoneActive.scope === "stock";
@@ -625,13 +630,14 @@ export default function LevelsPage() {
       hasBands &&
       !stockNeedsFullFetch &&
       !slideshowStaleStock &&
-      !slideshowStockNeedsApi
+      !slideshowStockNeedsApi &&
+      !indexNeedsExpiryFetch
     ) {
       setInZoneChartData(bundled);
       setInZoneChartLoading(false);
       return;
     }
-    if (inZoneActive.scope !== "stock") {
+    if (inZoneActive.scope !== "stock" && !indexNeedsExpiryFetch) {
       setInZoneChartData(bundled);
       setInZoneChartLoading(false);
       return;
@@ -642,8 +648,9 @@ export default function LevelsPage() {
       setInZoneChartData(null);
     }
     const q = isSlideView ? "&slideshow=1" : "";
+    const scopeQ = inZoneActive.scope === "index" ? "&scope=index" : "";
     fetch(
-      `/api/freedombot/levels?symbol=${encodeURIComponent(inZoneActive.symbol)}${q}`,
+      `/api/freedombot/levels?symbol=${encodeURIComponent(inZoneActive.symbol)}${scopeQ}${q}`,
       { cache: "no-store" },
     )
       .then((res) => res.json())

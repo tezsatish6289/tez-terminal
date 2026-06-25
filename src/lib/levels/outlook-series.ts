@@ -24,6 +24,14 @@ export interface OutlookCheckpoint {
   resistanceLow: number | null;
   resistanceHigh: number | null;
   maxPain: number | null;
+  /** Dominant put-cluster open interest at support (contracts). */
+  supportOI: number | null;
+  /** Strike with the dominant put OI (support anchor). */
+  supportStrike: number | null;
+  /** Dominant call-cluster open interest at resistance (contracts). */
+  resistanceOI: number | null;
+  /** Strike with the dominant call OI (resistance anchor). */
+  resistanceStrike: number | null;
   confidence: OutlookConfidence;
 }
 
@@ -97,6 +105,10 @@ export function buildOutlookSeries(
       resistanceLow: slice.bearLow,
       resistanceHigh: slice.bearHigh,
       maxPain: slice.poc,
+      supportOI: slice.putClusterSize,
+      supportStrike: slice.putClusterStrike,
+      resistanceOI: slice.callClusterSize,
+      resistanceStrike: slice.callClusterStrike,
       confidence: confidenceForIndex(tierIndex),
     });
     tierIndex += 1;

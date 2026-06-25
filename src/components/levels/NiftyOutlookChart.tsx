@@ -9,6 +9,10 @@ import {
   confidenceOpacity,
   type OutlookCheckpoint,
 } from "@/lib/levels/outlook-series";
+import {
+  formatClusterContracts,
+  formatClusterStrike,
+} from "@/lib/levels/format-cluster-size";
 
 const PAD = { top: 18, right: 18, bottom: 40, left: 60 };
 
@@ -102,6 +106,12 @@ export function NiftyOutlookChart({
   const maxPainColor = LEVELS_ZONE_CHART.maxPain.line;
   const todayX = xFor(0);
 
+  // Relative wall strength: heaviest cluster (either side, any expiry) = 1.
+  const maxOI = Math.max(
+    1,
+    ...series.checkpoints.flatMap((cp) => [cp.supportOI ?? 0, cp.resistanceOI ?? 0]),
+  );
+
   const yTicks = (() => {
     const ticks: number[] = [];
     const steps = 5;
@@ -111,25 +121,68 @@ export function NiftyOutlookChart({
     return ticks;
   })();
 
-  function bandRects(
-    pick: (cp: OutlookCheckpoint) => { low: number | null; high: number | null },
+  function bandBlocks(
+    pick: (cp: OutlookCheckpoint) => {
+      low: number | null;
+      high: number | null;
+      oi: number | null;
+      strike: number | null;
+    },
     color: string,
+    labelColor: string,
   ) {
     return slots.map((s, i) => {
       const v = pick(s.cp);
       if (v.low == null || v.high == null) return null;
       const yTop = yFor(v.high);
       const height = Math.max(yFor(v.low) - yTop, 1);
+      const width = Math.max(s.x1 - s.x0, 0);
+      const conf = confidenceOpacity(s.cp.confidence);
+      // Wall strength → heavier fill + thicker border for bigger OI clusters.
+      const strength = v.oi != null && v.oi > 0 ? v.oi / maxOI : 0;
+      const sizeText = formatClusterContracts(v.oi);
+      const strikeText = formatClusterStrike(v.strike);
+      const label = sizeText
+        ? strikeText
+          ? `${sizeText} @ ${strikeText}`
+          : sizeText
+        : null;
       return (
-        <rect
-          key={`${color}-${i}`}
-          x={s.x0}
-          y={yTop}
-          width={Math.max(s.x1 - s.x0, 0)}
-          height={height}
-          fill={color}
-          opacity={confidenceOpacity(s.cp.confidence) * 0.4}
-        />
+        <g key={`${color}-${i}`}>
+          <rect
+            x={s.x0}
+            y={yTop}
+            width={width}
+            height={height}
+            fill={color}
+            opacity={conf * (0.22 + 0.3 * strength)}
+          />
+          <rect
+            x={s.x0}
+            y={yTop}
+            width={width}
+            height={height}
+            fill="none"
+            stroke={color}
+            strokeWidth={1 + 2.2 * strength}
+            opacity={conf * (0.35 + 0.55 * strength)}
+          />
+          {label && height >= 13 && width >= 52 && (
+            <text
+              x={s.x0 + width / 2}
+              y={yTop + height / 2}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={9}
+              fontWeight={700}
+              fontFamily="ui-monospace, monospace"
+              fill={labelColor}
+              opacity={Math.min(conf + 0.15, 1)}
+            >
+              {label}
+            </text>
+          )}
+        </g>
       );
     });
   }
@@ -230,9 +283,27 @@ export function NiftyOutlookChart({
           </g>
         ))}
 
-        {/* Stepped resistance + support blocks */}
-        {bandRects((cp) => ({ low: cp.resistanceLow, high: cp.resistanceHigh }), bear.line)}
-        {bandRects((cp) => ({ low: cp.supportLow, high: cp.supportHigh }), bull.line)}
+        {/* Stepped resistance + support blocks (intensity = wall OI strength) */}
+        {bandBlocks(
+          (cp) => ({
+            low: cp.resistanceLow,
+            high: cp.resistanceHigh,
+            oi: cp.resistanceOI,
+            strike: cp.resistanceStrike,
+          }),
+          bear.line,
+          bear.labelText,
+        )}
+        {bandBlocks(
+          (cp) => ({
+            low: cp.supportLow,
+            high: cp.supportHigh,
+            oi: cp.supportOI,
+            strike: cp.supportStrike,
+          }),
+          bull.line,
+          bull.labelText,
+        )}
 
         {/* Confidence fade overlay (far-right = least reliable) */}
         <rect

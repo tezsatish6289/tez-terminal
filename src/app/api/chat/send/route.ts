@@ -9,6 +9,7 @@ import {
   CHAT_MAX_ATTACHMENTS,
   CHAT_MAX_MESSAGE_LENGTH,
   CHAT_REPLY_SNIPPET_LENGTH,
+  canUserPostInRoom,
   isKnownRoom,
 } from "@/lib/chat/constants";
 import type { ChatAttachment, ChatReplyRef } from "@/lib/chat/types";
@@ -74,6 +75,13 @@ export async function POST(request: NextRequest) {
   if (!access.canChat) {
     return NextResponse.json(
       { error: "An active subscription or trial is required to chat." },
+      { status: 403 },
+    );
+  }
+
+  if (!canUserPostInRoom(roomId, auth.decoded.email)) {
+    return NextResponse.json(
+      { error: "Only admins can post in this channel." },
       { status: 403 },
     );
   }

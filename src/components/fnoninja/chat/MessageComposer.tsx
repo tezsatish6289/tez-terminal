@@ -64,6 +64,7 @@ interface MessageComposerProps {
   /** The message being replied to, or null. Shown as a bar above the input. */
   replyingTo?: ReplyingTo | null;
   onCancelReply?: () => void;
+  placeholder?: string;
 }
 
 let selectedIdSeq = 0;
@@ -106,6 +107,7 @@ export function MessageComposer({
   onRegisterAddFiles,
   replyingTo,
   onCancelReply,
+  placeholder = "Share an observation…",
 }: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -533,7 +535,7 @@ export function MessageComposer({
             onClick={(e) => refresh(text, e.currentTarget.selectionStart ?? text.length)}
             onBlur={() => window.setTimeout(closeSuggestions, 120)}
             rows={1}
-            placeholder="Share an observation…"
+            placeholder={placeholder}
             disabled={disabled || sending}
             className="max-h-32 min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[13px] leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-60"
           />

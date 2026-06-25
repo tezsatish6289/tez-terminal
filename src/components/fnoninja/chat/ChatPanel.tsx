@@ -15,10 +15,12 @@ import {
   sendChatMessage,
   uploadChatImage,
 } from "@/lib/chat/client";
-import { CHAT_REPLY_SNIPPET_LENGTH, CHAT_ROOMS } from "@/lib/chat/constants";
+import { CHAT_REPLY_SNIPPET_LENGTH, canUserPostInRoom, getChatRoom } from "@/lib/chat/constants";
+import { isAdminEmail } from "@/lib/admin-emails-client";
 import type { ChatAttachment, ChatMessage, ChatReplyRef } from "@/lib/chat/types";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
+import { ChatRoomSidebar } from "@/components/fnoninja/chat/ChatRoomSidebar";
 import { ChatDisclaimer } from "@/components/fnoninja/chat/ChatDisclaimer";
 import { ChatLockedState } from "@/components/fnoninja/chat/ChatLockedState";
 import { ChatTermsGate } from "@/components/fnoninja/chat/ChatTermsGate";
@@ -26,7 +28,7 @@ import { MessageComposer, type ChatParticipant } from "@/components/fnoninja/cha
 import { MessageList } from "@/components/fnoninja/chat/MessageList";
 
 export function ChatPanel() {
-  const { open, setOpen, roomId } = useChatPanel();
+  const { open, setOpen, roomId, setRoomId, unreadByRoom } = useChatPanel();
   const { user } = useUser();
   const profile = useMemo(
     () => ({ name: user?.displayName, email: user?.email, photo: user?.photoURL }),
@@ -63,7 +65,9 @@ export function ChatPanel() {
   const [dragOver, setDragOver] = useState(false);
   const dragDepth = useRef(0);
 
-  const room = CHAT_ROOMS.find((r) => r.id === roomId) ?? CHAT_ROOMS[0];
+  const room = getChatRoom(roomId);
+  const canPost = canUserPostInRoom(roomId, user?.email);
+  const isAdmin = isAdminEmail(user?.email);
 
   const allMessages = useMemo(() => {
     if (outgoing.length === 0) return messages;
@@ -180,13 +184,13 @@ export function ChatPanel() {
     Array.from(e.dataTransfer?.types ?? []).includes("Files");
 
   const onPanelDragEnter = (e: ReactDragEvent) => {
-    if (!ready || !hasDraggedFiles(e)) return;
+    if (!ready || !canPost || !hasDraggedFiles(e)) return;
     e.preventDefault();
     dragDepth.current += 1;
     setDragOver(true);
   };
   const onPanelDragOver = (e: ReactDragEvent) => {
-    if (!ready || !hasDraggedFiles(e)) return;
+    if (!ready || !canPost || !hasDraggedFiles(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
   };
@@ -196,7 +200,7 @@ export function ChatPanel() {
     if (dragDepth.current === 0) setDragOver(false);
   };
   const onPanelDrop = (e: ReactDragEvent) => {
-    if (!ready) return;
+    if (!ready || !canPost) return;
     e.preventDefault();
     dragDepth.current = 0;
     setDragOver(false);
@@ -250,7 +254,7 @@ export function ChatPanel() {
       />
 
       <aside
-        className="fixed right-0 top-14 z-[185] flex w-full flex-col shadow-2xl sm:top-16 md:w-[380px]"
+        className="fixed right-0 top-14 z-[185] flex w-full flex-col shadow-2xl sm:top-16 md:w-[480px]"
         style={{
           height: "calc(100% - 3.5rem)",
           backgroundColor: FNO_BG,
@@ -261,7 +265,7 @@ export function ChatPanel() {
         onDragLeave={onPanelDragLeave}
         onDrop={onPanelDrop}
       >
-        {dragOver && ready ? (
+        {dragOver && ready && canPost ? (
           <div
             className="pointer-events-none absolute inset-3 z-30 flex flex-col items-center justify-center gap-2 rounded-2xl text-center"
             style={{
@@ -280,10 +284,16 @@ export function ChatPanel() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 h-12 shrink-0" style={{ borderBottom: `1px solid ${FNO_NAV_BORDER}` }}>
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-white">#{room.name}</p>
+            <p className="truncate text-sm font-bold text-white">{room?.name ?? "Community chat"}</p>
             {ready ? (
-              <p className="flex items-center gap-1 text-[10px]" style={{ color: "#64748b" }}>
-                <Users className="h-2.5 w-2.5" /> {onlineCount} online
+              <p className="truncate text-[10px]" style={{ color: "#64748b" }}>
+                {room?.adminOnlyPost && !isAdmin ? (
+                  "Read-only · team announcements"
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    <Users className="h-2.5 w-2.5" /> {onlineCount} online
+                  </span>
+                )}
               </p>
             ) : null}
           </div>
@@ -312,41 +322,72 @@ export function ChatPanel() {
         ) : !acceptedTerms ? (
           <ChatTermsGate onAccepted={() => { /* member snapshot updates via onSnapshot */ }} />
         ) : (
-          <>
-            {error ? (
-              <div className="px-3 py-2 text-[11px] text-rose-400">{error}</div>
-            ) : null}
-            <MessageList
-              messages={allMessages}
-              currentUid={user.uid}
-              loading={loading}
-              hasMore={hasMore}
-              loadingOlder={loadingOlder}
-              loadOlder={loadOlder}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onReport={handleReport}
-              onRetry={handleRetry}
-              onDiscard={handleDiscard}
-              onReply={handleReply}
+          <div className="flex min-h-0 flex-1">
+            <ChatRoomSidebar
+              roomId={roomId}
+              onSelectRoom={setRoomId}
+              unreadByRoom={unreadByRoom}
             />
-            <ChatDisclaimer />
-            <MessageComposer
-              onSend={handleSend}
-              onRegisterAddFiles={registerAddFiles}
-              participants={participants}
-              replyingTo={
-                replyTarget
-                  ? {
-                      authorName: replyTarget.authorName,
-                      text: replyTarget.text,
-                      hasImage: !!replyTarget.attachments?.length,
+            <div className="flex min-w-0 flex-1 flex-col">
+              {room?.description ? (
+                <p
+                  className="shrink-0 px-3 py-2 text-[10px] leading-snug"
+                  style={{ color: "#64748b", borderBottom: `1px solid ${FNO_NAV_BORDER}` }}
+                >
+                  {room.description}
+                </p>
+              ) : null}
+              {error ? (
+                <div className="px-3 py-2 text-[11px] text-rose-400">{error}</div>
+              ) : null}
+              <MessageList
+                messages={allMessages}
+                currentUid={user.uid}
+                loading={loading}
+                hasMore={hasMore}
+                loadingOlder={loadingOlder}
+                loadOlder={loadOlder}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onReport={handleReport}
+                onRetry={handleRetry}
+                onDiscard={handleDiscard}
+                onReply={handleReply}
+              />
+              {canPost ? (
+                <>
+                  <ChatDisclaimer />
+                  <MessageComposer
+                    onSend={handleSend}
+                    onRegisterAddFiles={registerAddFiles}
+                    participants={participants}
+                    placeholder={room?.composerPlaceholder}
+                    replyingTo={
+                      replyTarget
+                        ? {
+                            authorName: replyTarget.authorName,
+                            text: replyTarget.text,
+                            hasImage: !!replyTarget.attachments?.length,
+                          }
+                        : null
                     }
-                  : null
-              }
-              onCancelReply={() => setReplyTarget(null)}
-            />
-          </>
+                    onCancelReply={() => setReplyTarget(null)}
+                  />
+                </>
+              ) : (
+                <div
+                  className="shrink-0 px-4 py-3 text-center text-[11px] leading-snug"
+                  style={{
+                    color: "#64748b",
+                    borderTop: `1px solid ${FNO_NAV_BORDER}`,
+                    paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))",
+                  }}
+                >
+                  Product updates from the FNONINJA team. Only admins can post here.
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </aside>
     </>

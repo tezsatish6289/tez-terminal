@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/chat/require-user";
 import { resolveChatAccess } from "@/lib/chat/access";
 import { checkAndRecordImageUpload } from "@/lib/chat/rate-limit";
 import { processAndUploadChatImage } from "@/lib/chat/image-upload";
-import { CHAT_IMAGE_MAX_BYTES, isKnownRoom } from "@/lib/chat/constants";
+import { CHAT_IMAGE_MAX_BYTES, canUserPostInRoom, isKnownRoom } from "@/lib/chat/constants";
 
 export const dynamic = "force-dynamic";
 // Image processing (sharp) requires the Node.js runtime, not the edge runtime.
@@ -67,6 +67,13 @@ async function handleUpload(request: NextRequest) {
   if (!access.canChat) {
     return NextResponse.json(
       { error: "An active subscription or trial is required to chat." },
+      { status: 403 },
+    );
+  }
+
+  if (!canUserPostInRoom(roomId, auth.decoded.email)) {
+    return NextResponse.json(
+      { error: "Only admins can post in this channel." },
       { status: 403 },
     );
   }

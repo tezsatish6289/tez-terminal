@@ -1,29 +1,81 @@
 /**
  * Community chat shared constants.
  *
- * v1 ships a single #general room. The data model (room id everywhere) is
- * designed so per-symbol rooms can be added on demand later without migration.
+ * Rooms are defined here; the data model (room id everywhere) supports adding
+ * more channels without migration. Users with chat access are auto-subscribed
+ * to every room with `autoSubscribe: true`.
  */
 
+import { isAdminEmail } from "@/lib/admin-emails-client";
+
+export const ANNOUNCEMENTS_ROOM_ID = "announcements";
 export const GENERAL_ROOM_ID = "general";
+export const PNL_SCREENSHOTS_ROOM_ID = "pnl-screenshots";
 
 export interface ChatRoom {
   id: string;
   name: string;
   description: string;
+  /** Short label for the in-panel channel rail. */
+  shortName: string;
+  /** When true, every chat-enabled user sees this room (no manual join). */
+  autoSubscribe: boolean;
+  /** When true, only admins may post. Everyone else can read. */
+  adminOnlyPost: boolean;
+  /** Placeholder shown in the composer for this room. */
+  composerPlaceholder?: string;
 }
 
 export const CHAT_ROOMS: ChatRoom[] = [
   {
+    id: ANNOUNCEMENTS_ROOM_ID,
+    name: "New feature announcements",
+    shortName: "Announce",
+    description: "Product updates and new features from the FNONINJA team.",
+    autoSubscribe: true,
+    adminOnlyPost: true,
+  },
+  {
     id: GENERAL_ROOM_ID,
     name: "General",
+    shortName: "General",
     description:
       "Open discussion on F&O market structure. Observations only — not investment advice.",
+    autoSubscribe: true,
+    adminOnlyPost: false,
+    composerPlaceholder: "Share an observation…",
+  },
+  {
+    id: PNL_SCREENSHOTS_ROOM_ID,
+    name: "PNL Screenshots",
+    shortName: "PNL",
+    description: "Share your P&L screenshots and trade outcomes with the community.",
+    autoSubscribe: true,
+    adminOnlyPost: false,
+    composerPlaceholder: "Drop a screenshot or caption…",
   },
 ];
 
+/** Rooms shown in the channel list for chat-enabled users. */
+export const SUBSCRIBED_CHAT_ROOMS = CHAT_ROOMS.filter((r) => r.autoSubscribe);
+
 export function isKnownRoom(roomId: string): boolean {
   return CHAT_ROOMS.some((r) => r.id === roomId);
+}
+
+export function getChatRoom(roomId: string): ChatRoom | undefined {
+  return CHAT_ROOMS.find((r) => r.id === roomId);
+}
+
+/** Whether the given user may post (text or images) in this room. */
+export function canUserPostInRoom(
+  roomId: string,
+  email: string | null | undefined,
+): boolean {
+  const room = getChatRoom(roomId);
+  if (!room) return false;
+  if (!room.adminOnlyPost) return true;
+  return isAdminEmail(email);
 }
 
 /** How many of the most recent messages the live RTDB listener subscribes to. */

@@ -18,7 +18,11 @@ import {
 } from "firebase/database";
 import { useDatabase, useUser } from "@/firebase";
 import { useChatMember } from "@/hooks/use-chat-member";
-import { CHAT_UNREAD_WINDOW, GENERAL_ROOM_ID } from "@/lib/chat/constants";
+import {
+  ANNOUNCEMENTS_ROOM_ID,
+  CHAT_UNREAD_WINDOW,
+  SUBSCRIBED_CHAT_ROOMS,
+} from "@/lib/chat/constants";
 
 const OPEN_STORAGE_KEY = "fnoninja-chat-open";
 const readKey = (uid: string, roomId: string) => `fnoninja-chat-read:${uid}:${roomId}`;
@@ -29,8 +33,10 @@ interface ChatPanelContextValue {
   toggle: () => void;
   roomId: string;
   setRoomId: (roomId: string) => void;
-  /** Count of messages from others since the user last read this room. */
+  /** Total unread across all subscribed channels (nav badge). */
   unreadCount: number;
+  /** Per-channel unread counts for the channel rail. */
+  unreadByRoom: Record<string, number>;
 }
 
 const ChatPanelContext = createContext<ChatPanelContextValue | undefined>(undefined);
@@ -42,32 +48,43 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
   const canChat = member?.canChat === true && member?.isBanned !== true;
 
   const [open, setOpenState] = useState(false);
-  const [roomId, setRoomId] = useState(GENERAL_ROOM_ID);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [roomId, setRoomIdState] = useState(ANNOUNCEMENTS_ROOM_ID);
+  const [unreadByRoom, setUnreadByRoom] = useState<Record<string, number>>({});
 
-  // Epoch-ms boundary: messages newer than this are "unread". Kept in a ref so
-  // the RTDB subscription can read the latest value without re-subscribing.
-  const lastReadRef = useRef<number>(Date.now());
+  const lastReadByRoomRef = useRef<Record<string, number>>({});
   const openRef = useRef(open);
+  const roomIdRef = useRef(roomId);
   openRef.current = open;
+  roomIdRef.current = roomId;
 
-  // Load the persisted read boundary whenever the user or room changes. Missing
-  // value → treat "now" as read so existing history doesn't show as unread.
+  const unreadCount = useMemo(
+    () => Object.values(unreadByRoom).reduce((sum, n) => sum + n, 0),
+    [unreadByRoom],
+  );
+
+  // Load persisted read boundaries whenever the user changes.
   useEffect(() => {
     if (typeof window === "undefined" || !user) return;
-    const stored = window.localStorage.getItem(readKey(user.uid, roomId));
-    lastReadRef.current = stored ? Number(stored) : Date.now();
-    setUnreadCount(0);
-  }, [user, roomId]);
-
-  const markRead = useCallback(() => {
-    const now = Date.now();
-    lastReadRef.current = now;
-    setUnreadCount(0);
-    if (typeof window !== "undefined" && user) {
-      window.localStorage.setItem(readKey(user.uid, roomId), String(now));
+    const next: Record<string, number> = {};
+    for (const room of SUBSCRIBED_CHAT_ROOMS) {
+      const stored = window.localStorage.getItem(readKey(user.uid, room.id));
+      next[room.id] = stored ? Number(stored) : Date.now();
     }
-  }, [user, roomId]);
+    lastReadByRoomRef.current = next;
+    setUnreadByRoom({});
+  }, [user]);
+
+  const markRoomRead = useCallback(
+    (targetRoomId: string) => {
+      const now = Date.now();
+      lastReadByRoomRef.current[targetRoomId] = now;
+      setUnreadByRoom((prev) => ({ ...prev, [targetRoomId]: 0 }));
+      if (typeof window !== "undefined" && user) {
+        window.localStorage.setItem(readKey(user.uid, targetRoomId), String(now));
+      }
+    },
+    [user],
+  );
 
   const setOpen = useCallback(
     (next: boolean) => {
@@ -75,9 +92,17 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
       if (typeof window !== "undefined") {
         window.localStorage.setItem(OPEN_STORAGE_KEY, next ? "1" : "0");
       }
-      if (next) markRead();
+      if (next) markRoomRead(roomIdRef.current);
     },
-    [markRead],
+    [markRoomRead],
+  );
+
+  const setRoomId = useCallback(
+    (nextRoomId: string) => {
+      setRoomIdState(nextRoomId);
+      if (openRef.current) markRoomRead(nextRoomId);
+    },
+    [markRoomRead],
   );
 
   const toggle = useCallback(() => setOpen(!open), [open, setOpen]);
@@ -89,58 +114,60 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
     if (window.localStorage.getItem(OPEN_STORAGE_KEY) === "1") setOpenState(true);
   }, []);
 
-  // Background unread tracker: a small live window we keep subscribed even when
-  // the panel is closed, so the nav badge stays current. While the panel is open
-  // we instead advance the read boundary so it never shows stale unreads.
+  // Background unread tracker: one small live window per subscribed channel.
   useEffect(() => {
     if (!user || !canChat) {
-      setUnreadCount(0);
+      setUnreadByRoom({});
       return;
     }
-    const q = rtdbQuery(
-      rtdbRef(db, `rooms/${roomId}/messages`),
-      limitToLast(CHAT_UNREAD_WINDOW),
-    );
-    const unsub = onValue(
-      q,
-      (snap) => {
-        let latest = lastReadRef.current;
-        let unread = 0;
-        snap.forEach((child) => {
-          const v = child.val() as {
-            createdAt?: number;
-            authorId?: string;
-            deleted?: boolean;
-          } | null;
-          if (!v || typeof v.createdAt !== "number") return;
-          if (v.createdAt > latest) latest = v.createdAt;
-          if (
-            v.createdAt > lastReadRef.current &&
-            v.authorId !== user.uid &&
-            !v.deleted
-          ) {
-            unread += 1;
-          }
-        });
 
-        if (openRef.current) {
-          lastReadRef.current = latest;
-          if (typeof window !== "undefined") {
-            window.localStorage.setItem(readKey(user.uid, roomId), String(latest));
+    const unsubs = SUBSCRIBED_CHAT_ROOMS.map((room) => {
+      const q = rtdbQuery(
+        rtdbRef(db, `rooms/${room.id}/messages`),
+        limitToLast(CHAT_UNREAD_WINDOW),
+      );
+      return onValue(
+        q,
+        (snap) => {
+          const activeRoomId = roomIdRef.current;
+          const panelOpen = openRef.current;
+          const lastRead = lastReadByRoomRef.current[room.id] ?? Date.now();
+          let latest = lastRead;
+          let unread = 0;
+
+          snap.forEach((child) => {
+            const v = child.val() as {
+              createdAt?: number;
+              authorId?: string;
+              deleted?: boolean;
+            } | null;
+            if (!v || typeof v.createdAt !== "number") return;
+            if (v.createdAt > latest) latest = v.createdAt;
+            if (v.createdAt > lastRead && v.authorId !== user.uid && !v.deleted) {
+              unread += 1;
+            }
+          });
+
+          if (panelOpen && room.id === activeRoomId) {
+            lastReadByRoomRef.current[room.id] = latest;
+            if (typeof window !== "undefined") {
+              window.localStorage.setItem(readKey(user.uid, room.id), String(latest));
+            }
+            setUnreadByRoom((prev) => ({ ...prev, [room.id]: 0 }));
+          } else {
+            setUnreadByRoom((prev) => ({ ...prev, [room.id]: unread }));
           }
-          setUnreadCount(0);
-        } else {
-          setUnreadCount(unread);
-        }
-      },
-      () => setUnreadCount(0),
-    );
-    return () => unsub();
-  }, [db, user, canChat, roomId]);
+        },
+        () => setUnreadByRoom((prev) => ({ ...prev, [room.id]: 0 })),
+      );
+    });
+
+    return () => unsubs.forEach((u) => u());
+  }, [db, user, canChat]);
 
   const value = useMemo(
-    () => ({ open, setOpen, toggle, roomId, setRoomId, unreadCount }),
-    [open, setOpen, toggle, roomId, unreadCount],
+    () => ({ open, setOpen, toggle, roomId, setRoomId, unreadCount, unreadByRoom }),
+    [open, setOpen, toggle, roomId, setRoomId, unreadCount, unreadByRoom],
   );
 
   return <ChatPanelContext.Provider value={value}>{children}</ChatPanelContext.Provider>;

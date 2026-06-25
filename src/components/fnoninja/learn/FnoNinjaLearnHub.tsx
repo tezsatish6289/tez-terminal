@@ -7,12 +7,13 @@ import { useState } from "react";
 import { Clock } from "lucide-react";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
 import type { LucideIcon } from "lucide-react";
-import { LEARN_ARTICLES } from "@/lib/fnoninja/learn-content";
+import { LEARN_ARTICLES, type LearnArticleMeta } from "@/lib/fnoninja/learn-content";
 import { fnoLearnHref } from "@/lib/fnoninja/paths";
 import { FnoNinjaLearnDisclaimer } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
+import { LearnOutlookCardThumbnail } from "@/components/fnoninja/learn/LearnOutlookCardThumbnail";
 import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER, FNO_MUTED } from "@/lib/fnoninja/theme";
 
-function LearnCardThumbnail({
+function LearnCardImageThumbnail({
   accent,
   src,
   icon: Icon,
@@ -31,7 +32,7 @@ function LearnCardThumbnail({
           alt=""
           fill
           className="object-cover"
-          sizes="(max-width: 768px) 100vw, 400px"
+          sizes="(max-width: 768px) 100vw, 50vw"
           onError={() => setImgFailed(true)}
         />
       ) : (
@@ -44,6 +45,16 @@ function LearnCardThumbnail({
         style={{ background: "linear-gradient(to top, rgba(8,15,30,0.85) 0%, transparent 55%)" }}
       />
     </div>
+  );
+}
+
+function LearnCardThumbnail({ article }: { article: LearnArticleMeta }) {
+  const Icon = article.icon;
+  if (article.thumbnailVariant === "outlook-live") {
+    return <LearnOutlookCardThumbnail accent={article.thumbnailAccent} />;
+  }
+  return (
+    <LearnCardImageThumbnail accent={article.thumbnailAccent} src={article.thumbnailSrc} icon={Icon} />
   );
 }
 
@@ -70,23 +81,22 @@ export function FnoNinjaLearnHub() {
 
       <FnoNinjaLearnDisclaimer className="mb-10 max-w-3xl" />
 
-      <div className="grid gap-5 lg:gap-6 max-w-xl">
+      <p className="text-sm font-semibold mb-4" style={{ color: "#64748b" }}>
+        {LEARN_ARTICLES.length} guides
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 lg:gap-6 max-w-5xl">
         {LEARN_ARTICLES.map((article) => {
-          const Icon = article.icon;
           const href = fnoLearnHref(pathname, article.slug);
 
           return (
             <Link
               key={article.slug}
               href={href}
-              className="group flex flex-col rounded-2xl overflow-hidden transition-transform hover:-translate-y-0.5"
+              className="group flex flex-col rounded-2xl overflow-hidden transition-transform hover:-translate-y-0.5 h-full"
               style={{ backgroundColor: FNO_CARD_BG, border: FNO_CARD_BORDER }}
             >
-              <LearnCardThumbnail
-                accent={article.thumbnailAccent}
-                src={article.thumbnailSrc}
-                icon={Icon}
-              />
+              <LearnCardThumbnail article={article} />
               <div className="flex flex-col flex-1 p-5 sm:p-6">
                 <span
                   className="text-[10px] font-bold uppercase tracking-widest mb-2"
@@ -105,7 +115,7 @@ export function FnoNinjaLearnHub() {
                   style={{ color: "#475569" }}
                 >
                   <Clock className="h-3.5 w-3.5" />
-                  {article.readMinutes} min read
+                  {article.readLabel ?? `${article.readMinutes} min read`}
                 </span>
               </div>
             </Link>

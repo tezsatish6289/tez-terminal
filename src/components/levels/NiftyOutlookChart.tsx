@@ -15,7 +15,8 @@ import {
   formatClusterStrike,
 } from "@/lib/levels/format-cluster-size";
 
-const PAD = { top: 18, right: 18, bottom: 40, left: 60 };
+const PAD_DEFAULT = { top: 18, right: 18, bottom: 40, left: 60 };
+const PAD_COMPACT = { top: 6, right: 6, bottom: 16, left: 28 };
 
 function fmt(p: number): string {
   return Math.round(p).toLocaleString();
@@ -39,13 +40,17 @@ export function NiftyOutlookChart({
   levels,
   spot,
   className,
+  compact = false,
 }: {
   levels: PublicLevels | null;
   spot: number | null;
   className?: string;
+  /** Smaller padding and fewer labels — for learn hub card previews. */
+  compact?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 420 });
+  const PAD = compact ? PAD_COMPACT : PAD_DEFAULT;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -84,7 +89,7 @@ export function NiftyOutlookChart({
     }));
 
     return { plotW, plotH, xFor, yFor, slots };
-  }, [series, size]);
+  }, [series, size, compact]);
 
   if (!series || !model) {
     return (
@@ -235,7 +240,7 @@ export function NiftyOutlookChart({
               y={yFor(t)}
               textAnchor="end"
               dominantBaseline="middle"
-              fontSize={10}
+              fontSize={compact ? 8 : 10}
               fontFamily="ui-monospace, monospace"
               fill="#64748b"
             >
@@ -255,9 +260,9 @@ export function NiftyOutlookChart({
         />
         <text
           x={todayX}
-          y={h - PAD.bottom + 15}
+          y={h - PAD.bottom + (compact ? 11 : 15)}
           textAnchor="middle"
-          fontSize={10}
+          fontSize={compact ? 8 : 10}
           fontWeight={700}
           fontFamily="ui-sans-serif, system-ui"
           fill="#fcd34d"
@@ -277,31 +282,33 @@ export function NiftyOutlookChart({
             />
             <text
               x={s.x1}
-              y={h - PAD.bottom + 15}
+              y={h - PAD.bottom + (compact ? 11 : 15)}
               textAnchor="middle"
-              fontSize={10}
+              fontSize={compact ? 7 : 10}
               fontWeight={500}
               fontFamily="ui-sans-serif, system-ui"
               fill="#94a3b8"
             >
               {s.cp.label}
             </text>
-            <text
-              x={s.x1}
-              y={h - PAD.bottom + 27}
-              textAnchor="middle"
-              fontSize={8}
-              fontFamily="ui-sans-serif, system-ui"
-              fill={
-                s.cp.confidence === "high"
-                  ? "#86efac"
-                  : s.cp.confidence === "medium"
-                    ? "#fcd34d"
-                    : "#fca5a5"
-              }
-            >
-              {confidenceLabel(s.cp.confidence)}
-            </text>
+            {!compact ? (
+              <text
+                x={s.x1}
+                y={h - PAD.bottom + 27}
+                textAnchor="middle"
+                fontSize={8}
+                fontFamily="ui-sans-serif, system-ui"
+                fill={
+                  s.cp.confidence === "high"
+                    ? "#86efac"
+                    : s.cp.confidence === "medium"
+                      ? "#fcd34d"
+                      : "#fca5a5"
+                }
+              >
+                {confidenceLabel(s.cp.confidence)}
+              </text>
+            ) : null}
           </g>
         ))}
 
@@ -352,16 +359,18 @@ export function NiftyOutlookChart({
               strokeDasharray="2 3"
               opacity={0.6}
             />
-            <text
-              x={PAD.left + 4}
-              y={yFor(series.spot) - 4}
-              fontSize={9}
-              fontWeight={700}
-              fontFamily="ui-sans-serif, system-ui"
-              fill="#fcd34d"
-            >
-              Spot {fmt(series.spot)}
-            </text>
+            {!compact ? (
+              <text
+                x={PAD.left + 4}
+                y={yFor(series.spot) - 4}
+                fontSize={9}
+                fontWeight={700}
+                fontFamily="ui-sans-serif, system-ui"
+                fill="#fcd34d"
+              >
+                Spot {fmt(series.spot)}
+              </text>
+            ) : null}
           </g>
         )}
 
@@ -403,37 +412,41 @@ export function NiftyOutlookChart({
               <circle
                 cx={s.x1}
                 cy={yFor(s.cp.maxPain)}
-                r={3.5}
+                r={compact ? 2.5 : 3.5}
                 fill={maxPainColor}
                 opacity={confidenceOpacity(s.cp.confidence)}
               />
-              <text
-                x={s.x1}
-                y={yFor(s.cp.maxPain) - 7}
-                textAnchor="middle"
-                fontSize={9}
-                fontWeight={700}
-                fontFamily="ui-monospace, monospace"
-                fill={maxPainColor}
-                opacity={confidenceOpacity(s.cp.confidence)}
-              >
-                {fmt(s.cp.maxPain)}
-              </text>
+              {!compact ? (
+                <text
+                  x={s.x1}
+                  y={yFor(s.cp.maxPain) - 7}
+                  textAnchor="middle"
+                  fontSize={9}
+                  fontWeight={700}
+                  fontFamily="ui-monospace, monospace"
+                  fill={maxPainColor}
+                  opacity={confidenceOpacity(s.cp.confidence)}
+                >
+                  {fmt(s.cp.maxPain)}
+                </text>
+              ) : null}
             </g>
           ) : null,
         )}
       </svg>
 
       {/* Legend */}
-      <div
-        className="absolute top-2 right-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px]"
-        style={{ color: "#94a3b8" }}
-      >
-        <LegendChip color={bull.line} label="Support" />
-        <LegendChip color={bear.line} label="Resistance" />
-        <LegendChip color={maxPainColor} label="Max pain" />
-        <span style={{ opacity: 0.7 }}>← confident · speculative →</span>
-      </div>
+      {!compact ? (
+        <div
+          className="absolute top-2 right-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px]"
+          style={{ color: "#94a3b8" }}
+        >
+          <LegendChip color={bull.line} label="Support" />
+          <LegendChip color={bear.line} label="Resistance" />
+          <LegendChip color={maxPainColor} label="Max pain" />
+          <span style={{ opacity: 0.7 }}>← confident · speculative →</span>
+        </div>
+      ) : null}
     </div>
   );
 }

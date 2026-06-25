@@ -3,6 +3,8 @@ import { ArrowUpDown, BookOpen, CalendarRange } from "lucide-react";
 
 export type LearnArticleSlug = "science" | "outlook" | "oi-delta";
 
+export type LearnThumbnailVariant = "default" | "outlook-live";
+
 export type LearnArticleMeta = {
   slug: LearnArticleSlug;
   title: string;
@@ -15,6 +17,8 @@ export type LearnArticleMeta = {
   /** Optional hero/thumbnail under public/fnoninja/learn/ */
   thumbnailSrc?: string;
   thumbnailAccent: string;
+  /** `outlook-live` renders a live NIFTY Outlook ladder in the card header. */
+  thumbnailVariant?: LearnThumbnailVariant;
 };
 
 export const LEARN_ARTICLES: LearnArticleMeta[] = [
@@ -40,6 +44,7 @@ export const LEARN_ARTICLES: LearnArticleMeta[] = [
     tag: "New feature",
     icon: CalendarRange,
     thumbnailAccent: "linear-gradient(135deg, rgba(59,130,246,0.35), rgba(34,197,94,0.2))",
+    thumbnailVariant: "outlook-live",
   },
   {
     slug: "oi-delta",

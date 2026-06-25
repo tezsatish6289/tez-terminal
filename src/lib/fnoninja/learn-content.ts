@@ -1,9 +1,9 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowUpDown, BookOpen, CalendarRange } from "lucide-react";
+import { ArrowUpDown, BookOpen, CalendarRange, Sparkles } from "lucide-react";
 
-export type LearnArticleSlug = "science" | "outlook" | "oi-delta";
+export type LearnArticleSlug = "science" | "outlook" | "oi-delta" | "atlas";
 
-export type LearnThumbnailVariant = "default" | "outlook-live" | "oi-delta-live";
+export type LearnThumbnailVariant = "default" | "outlook-live" | "oi-delta-live" | "atlas-live";
 
 export type LearnArticleMeta = {
   slug: LearnArticleSlug;
@@ -57,6 +57,18 @@ export const LEARN_ARTICLES: LearnArticleMeta[] = [
     icon: ArrowUpDown,
     thumbnailAccent: "linear-gradient(135deg, rgba(251,191,36,0.25), rgba(239,68,68,0.2))",
     thumbnailVariant: "oi-delta-live",
+  },
+  {
+    slug: "atlas",
+    title: "Atlas AI Coach: Hedged Ideas from the Chart You're Already On",
+    excerpt:
+      "Atlas turns zones, OI walls, and IV into defined-risk scenarios — or answers FAQ-only questions. Live NIFTY example, the three-request menu, and why strategies stay on the chart (not in this guide).",
+    readMinutes: 5,
+    readLabel: "5 min · live example",
+    tag: "New feature",
+    icon: Sparkles,
+    thumbnailAccent: "linear-gradient(135deg, rgba(59,130,246,0.35), rgba(139,92,246,0.2))",
+    thumbnailVariant: "atlas-live",
   },
 ];
 

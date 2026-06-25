@@ -10,6 +10,7 @@ import type { LucideIcon } from "lucide-react";
 import { LEARN_ARTICLES, type LearnArticleMeta } from "@/lib/fnoninja/learn-content";
 import { fnoLearnHref } from "@/lib/fnoninja/paths";
 import { FnoNinjaLearnDisclaimer } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
+import { LearnAtlasCardThumbnail } from "@/components/fnoninja/learn/LearnAtlasCardThumbnail";
 import { LearnOutlookCardThumbnail } from "@/components/fnoninja/learn/LearnOutlookCardThumbnail";
 import { LearnOiDeltaCardThumbnail } from "@/components/fnoninja/learn/LearnOiDeltaCardThumbnail";
 import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER, FNO_MUTED } from "@/lib/fnoninja/theme";
@@ -56,6 +57,9 @@ function LearnCardThumbnail({ article }: { article: LearnArticleMeta }) {
   }
   if (article.thumbnailVariant === "oi-delta-live") {
     return <LearnOiDeltaCardThumbnail accent={article.thumbnailAccent} />;
+  }
+  if (article.thumbnailVariant === "atlas-live") {
+    return <LearnAtlasCardThumbnail accent={article.thumbnailAccent} />;
   }
   return (
     <LearnCardImageThumbnail accent={article.thumbnailAccent} src={article.thumbnailSrc} icon={Icon} />

@@ -41,6 +41,15 @@ export function stockLevelsLadderComplete(data: PublicLevels | null | undefined)
   return stockLevelsHasBands(data) && data!.poc != null;
 }
 
+/** NSE stocks should expose 2+ expiry slices for the picker and Outlook. */
+export function stockLevelsNeedsMultiExpiryRefresh(
+  data: PublicLevels | null | undefined,
+): boolean {
+  if (!stockLevelsHasBands(data)) return false;
+  if (data!.levelsSource !== "nse") return false;
+  return (data!.zonesByExpiry?.length ?? 0) < 2;
+}
+
 /** Fresh enough to skip an on-demand round-trip (default 15 min). */
 export const STOCK_LEVELS_CACHE_TTL_MS = 15 * 60 * 1000;
 

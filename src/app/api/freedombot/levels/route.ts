@@ -32,6 +32,7 @@ import {
   stockLevelsCacheFreshSlideshow,
   stockLevelsHasBands,
   stockLevelsLadderComplete,
+  stockLevelsNeedsMultiExpiryRefresh,
   STOCK_LEVELS_PUBLIC_ERROR,
 } from "@/lib/equity-zones-on-demand";
 import { stockDocId } from "@/lib/equity-zones-store";
@@ -159,8 +160,9 @@ async function getSingleStock(symbol: string, forceRefresh: boolean, slideshowPr
   const cachedFresh = slideshowPriority
     ? stockLevelsCacheFreshSlideshow(data?.computedAt) && stockLevelsLadderComplete(data)
     : stockLevelsCacheFresh(data?.computedAt) && stockLevelsLadderComplete(data);
+  const needsMultiExpiry = stockLevelsNeedsMultiExpiryRefresh(data);
 
-  if (forceRefresh || !cachedFresh) {
+  if (forceRefresh || !cachedFresh || needsMultiExpiry) {
     const result = await computeStockZonesOnDemand(safe);
     raw = await readDoc(stockDocId(safe));
     data = sanitize(raw, { includeExpiries: true });

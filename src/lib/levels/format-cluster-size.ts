@@ -31,14 +31,21 @@ export function formatClusterStrike(strike: number | null | undefined): string |
       });
 }
 
-/** Chart label: "Put OI peak — 125k @ 24,000". */
+/** Chart label: "Put OI peak — 125k @ 24,000  ▲12k". */
 export function formatClusterPeakLabel(
   side: "Put" | "Call",
   contracts: number | null | undefined,
   strike: number | null | undefined,
+  change?: number | null,
 ): string | null {
   const size = formatClusterContracts(contracts);
   if (!size) return null;
   const strikeText = formatClusterStrike(strike);
-  return strikeText ? `${side} OI peak — ${size} @ ${strikeText}` : `${side} OI peak — ${size}`;
+  const base = strikeText
+    ? `${side} OI peak — ${size} @ ${strikeText}`
+    : `${side} OI peak — ${size}`;
+  const delta = formatClusterDelta(change);
+  if (!delta) return base;
+  const arrow = (change ?? 0) >= 0 ? "▲" : "▼";
+  return `${base}  ${arrow}${delta.replace(/^[+−]/, "")}`;
 }

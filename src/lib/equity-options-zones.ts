@@ -30,6 +30,9 @@ import {
 export interface EquityStrikeData {
   callOI: number;
   putOI: number;
+  /** Change in OI vs prev close (NSE only; Dhan fallback omits it). */
+  callOIChange?: number;
+  putOIChange?: number;
   callIV?: number | null;
   putIV?: number | null;
 }
@@ -101,12 +104,14 @@ export interface EquityOptionsZones {
   bullZoneHigh: number | null;
   bullExitAbove: number | null;
   bullOI: number | null;
+  bullOIChange: number | null;
 
   bearStrike: number | null;
   bearZoneLow: number | null;
   bearZoneHigh: number | null;
   bearExitBelow: number | null;
   bearOI: number | null;
+  bearOIChange: number | null;
 
   maxPain: number | null;
   expiryUsed: string | null;
@@ -126,8 +131,8 @@ export interface EquityOptionsZones {
 
 interface NseOptionEntry {
   strikePrice?: number;
-  CE?: { openInterest?: number; impliedVolatility?: number };
-  PE?: { openInterest?: number; impliedVolatility?: number };
+  CE?: { openInterest?: number; changeinOpenInterest?: number; impliedVolatility?: number };
+  PE?: { openInterest?: number; changeinOpenInterest?: number; impliedVolatility?: number };
 }
 
 interface NseOcResponse {
@@ -147,8 +152,8 @@ function emptyResult(symbol: string, spot = 0, expiryUsed: string | null = null)
   return {
     symbol,
     label: symbol,
-    bullStrike: null, bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null, bullOI: null,
-    bearStrike: null, bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null, bearOI: null,
+    bullStrike: null, bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null, bullOI: null, bullOIChange: null,
+    bearStrike: null, bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null, bearOI: null, bearOIChange: null,
     maxPain: null, expiryUsed, expiryOI: null,
     halfWidth: 0, strikeStep: null,
     insufficientGap: false, illiquid: true, status: "ILLIQUID",
@@ -205,15 +210,19 @@ export function buildEquityZonesFromStrikes(
 
   let bullStrike: number | null = null;
   let bullOI = 0;
+  let bullOIChange = 0;
   let bearStrike: number | null = null;
   let bearOI = 0;
-  for (const [strike, { putOI, callOI }] of strikes) {
+  let bearOIChange = 0;
+  for (const [strike, { putOI, callOI, putOIChange, callOIChange }] of strikes) {
     if (strike < spot && putOI > bullOI) {
       bullOI = putOI;
+      bullOIChange = putOIChange ?? 0;
       bullStrike = strike;
     }
     if (strike > spot && callOI > bearOI) {
       bearOI = callOI;
+      bearOIChange = callOIChange ?? 0;
       bearStrike = strike;
     }
   }
@@ -261,11 +270,13 @@ export function buildEquityZonesFromStrikes(
     bullZoneHigh,
     bullExitAbove: bullZoneHigh,
     bullOI: bullOI > 0 ? bullOI : null,
+    bullOIChange: bullStrike != null ? bullOIChange : null,
     bearStrike,
     bearZoneLow,
     bearZoneHigh,
     bearExitBelow: bearZoneLow,
     bearOI: bearOI > 0 ? bearOI : null,
+    bearOIChange: bearStrike != null ? bearOIChange : null,
     maxPain,
     expiryUsed,
     expiryOI: totalOI > 0 ? totalOI : null,
@@ -332,9 +343,11 @@ function rowsToStrikes(rows: NseOptionEntry[]): Map<number, EquityStrikeData> {
     const callOI = row.CE?.openInterest ?? 0;
     const putOI = row.PE?.openInterest ?? 0;
     if (callOI === 0 && putOI === 0) continue;
-    const s = strikes.get(row.strikePrice) ?? { callOI: 0, putOI: 0 };
+    const s = strikes.get(row.strikePrice) ?? { callOI: 0, putOI: 0, callOIChange: 0, putOIChange: 0 };
     s.callOI += callOI;
     s.putOI += putOI;
+    s.callOIChange = (s.callOIChange ?? 0) + (row.CE?.changeinOpenInterest ?? 0);
+    s.putOIChange = (s.putOIChange ?? 0) + (row.PE?.changeinOpenInterest ?? 0);
     if (typeof row.CE?.impliedVolatility === "number") s.callIV = row.CE.impliedVolatility;
     if (typeof row.PE?.impliedVolatility === "number") s.putIV = row.PE.impliedVolatility;
     strikes.set(row.strikePrice, s);

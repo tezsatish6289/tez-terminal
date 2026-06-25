@@ -46,6 +46,8 @@ function serialize(z: EquityOptionsZones, source: "nse_equity" | "dhan_equity" =
     bearExitBelow: z.bearExitBelow,
     bullOI: z.bullOI,
     bearOI: z.bearOI,
+    bullOIChange: z.bullOIChange,
+    bearOIChange: z.bearOIChange,
     maxPain: z.maxPain,
     maxPainByExpiry,
     halfWidthUsd: z.halfWidth,

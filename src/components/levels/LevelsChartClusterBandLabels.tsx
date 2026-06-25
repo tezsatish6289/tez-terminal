@@ -80,8 +80,18 @@ export function LevelsChartClusterBandLabels({
     const clamp = (y: number) => Math.min(Math.max(y, 14), height - 14);
     const next: LabelPos[] = [];
 
-    const putText = formatClusterPeakLabel("Put", levels.putClusterSize, levels.putClusterStrike);
-    const callText = formatClusterPeakLabel("Call", levels.callClusterSize, levels.callClusterStrike);
+    const putText = formatClusterPeakLabel(
+      "Put",
+      levels.putClusterSize,
+      levels.putClusterStrike,
+      levels.putClusterChange,
+    );
+    const callText = formatClusterPeakLabel(
+      "Call",
+      levels.callClusterSize,
+      levels.callClusterStrike,
+      levels.callClusterChange,
+    );
     const expirySuffix = levels.zonesExpiry ? ` · ${levels.zonesExpiry} Expiry` : "";
 
     const pocKey = levels.poc != null ? priceLevelKey(levels.poc) : null;

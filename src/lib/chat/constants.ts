@@ -16,8 +16,6 @@ export interface ChatRoom {
   id: string;
   name: string;
   description: string;
-  /** Short label for the in-panel channel rail. */
-  shortName: string;
   /** When true, every chat-enabled user sees this room (no manual join). */
   autoSubscribe: boolean;
   /** When true, only admins may post. Everyone else can read. */
@@ -28,17 +26,8 @@ export interface ChatRoom {
 
 export const CHAT_ROOMS: ChatRoom[] = [
   {
-    id: ANNOUNCEMENTS_ROOM_ID,
-    name: "New feature announcements",
-    shortName: "Announce",
-    description: "Product updates and new features from the FNONINJA team.",
-    autoSubscribe: true,
-    adminOnlyPost: true,
-  },
-  {
     id: GENERAL_ROOM_ID,
     name: "General",
-    shortName: "General",
     description:
       "Open discussion on F&O market structure. Observations only — not investment advice.",
     autoSubscribe: true,
@@ -48,11 +37,17 @@ export const CHAT_ROOMS: ChatRoom[] = [
   {
     id: PNL_SCREENSHOTS_ROOM_ID,
     name: "PNL Screenshots",
-    shortName: "PNL",
     description: "Share your P&L screenshots and trade outcomes with the community.",
     autoSubscribe: true,
     adminOnlyPost: false,
     composerPlaceholder: "Drop a screenshot or caption…",
+  },
+  {
+    id: ANNOUNCEMENTS_ROOM_ID,
+    name: "New feature announcements",
+    description: "Product updates and new features from the FNONINJA team.",
+    autoSubscribe: true,
+    adminOnlyPost: true,
   },
 ];
 

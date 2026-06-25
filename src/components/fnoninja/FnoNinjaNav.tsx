@@ -171,18 +171,20 @@ export function FnoNinjaNav() {
                   border: `1px solid ${chatOpen ? "rgba(96,165,250,0.35)" : "rgba(90,140,220,0.15)"}`,
                   backgroundColor: chatOpen ? "rgba(37,99,235,0.12)" : "rgba(37,99,235,0.06)",
                 }}
-                aria-label={chatUnread > 0 ? `Community chat, ${chatUnread} unread` : "Community chat"}
+                aria-label={chatUnread ? "Community chat, new messages" : "Community chat"}
                 aria-pressed={chatOpen}
                 title="Community chat"
               >
                 <MessageCircle className="h-4 w-4 sm:h-[1.125rem] sm:w-[1.125rem]" />
-                {!chatOpen && chatUnread > 0 ? (
+                {!chatOpen && chatUnread ? (
                   <span
-                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white"
-                    style={{ backgroundColor: "#ef4444", boxShadow: "0 0 0 2px rgba(8,15,30,0.95)" }}
-                  >
-                    {chatUnread > 9 ? "9+" : chatUnread}
-                  </span>
+                    className="absolute top-1 right-1 h-2 w-2 rounded-full"
+                    style={{
+                      backgroundColor: "#60a5fa",
+                      boxShadow: "0 0 0 2px rgba(8,15,30,0.95)",
+                    }}
+                    aria-hidden
+                  />
                 ) : null}
               </button>
             ) : null}

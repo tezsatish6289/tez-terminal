@@ -10,6 +10,8 @@ const ROOM_ICONS: Record<string, typeof Megaphone> = {
   "pnl-screenshots": ImageIcon,
 };
 
+const UNREAD_DOT_COLOR = "#60a5fa";
+
 interface ChatRoomSidebarProps {
   roomId: string;
   onSelectRoom: (roomId: string) => void;
@@ -24,45 +26,47 @@ function RoomIcon({ room }: { room: ChatRoom }) {
 export function ChatRoomSidebar({ roomId, onSelectRoom, unreadByRoom }: ChatRoomSidebarProps) {
   return (
     <nav
-      className="flex w-[108px] shrink-0 flex-col gap-0.5 overflow-y-auto px-2 py-2"
+      className="flex w-[128px] shrink-0 flex-col gap-1 overflow-y-auto px-2 py-2"
       style={{ borderRight: `1px solid ${FNO_NAV_BORDER}`, backgroundColor: "rgba(6,12,24,0.6)" }}
       aria-label="Chat channels"
     >
       {SUBSCRIBED_CHAT_ROOMS.map((room) => {
         const active = room.id === roomId;
-        const unread = unreadByRoom[room.id] ?? 0;
+        const hasUnread = (unreadByRoom[room.id] ?? 0) > 0;
         return (
           <button
             key={room.id}
             type="button"
             onClick={() => onSelectRoom(room.id)}
-            className="relative flex w-full flex-col items-start gap-0.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-white/5"
+            className="relative flex w-full flex-col items-start gap-1 rounded-lg px-2 py-2 text-left transition-colors hover:bg-white/5"
             style={{
               backgroundColor: active ? "rgba(37,99,235,0.14)" : "transparent",
               border: active ? "1px solid rgba(96,165,250,0.25)" : "1px solid transparent",
             }}
             aria-current={active ? "page" : undefined}
-            title={room.name}
+            aria-label={
+              hasUnread ? `${room.name}, new messages` : room.name
+            }
           >
-            <span className="flex w-full items-center gap-1.5">
-              <RoomIcon room={room} />
+            {hasUnread ? (
               <span
-                className="truncate text-[11px] font-semibold leading-tight"
-                style={{ color: active ? "#e2e8f0" : "#94a3b8" }}
-              >
-                {room.shortName}
-              </span>
-              {unread > 0 ? (
-                <span
-                  className="ml-auto flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white"
-                  style={{ backgroundColor: "#ef4444" }}
-                >
-                  {unread > 9 ? "9+" : unread}
-                </span>
-              ) : null}
+                className="absolute right-2 top-2 h-2 w-2 rounded-full"
+                style={{
+                  backgroundColor: UNREAD_DOT_COLOR,
+                  boxShadow: "0 0 0 2px rgba(6,12,24,0.9)",
+                }}
+                aria-hidden
+              />
+            ) : null}
+            <RoomIcon room={room} />
+            <span
+              className="w-full break-words text-[10px] font-semibold leading-snug"
+              style={{ color: active ? "#e2e8f0" : "#94a3b8" }}
+            >
+              {room.name}
             </span>
             {room.adminOnlyPost ? (
-              <span className="pl-5 text-[9px] leading-none" style={{ color: "#64748b" }}>
+              <span className="text-[9px] leading-none" style={{ color: "#64748b" }}>
                 Read-only
               </span>
             ) : null}

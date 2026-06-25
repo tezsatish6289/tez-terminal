@@ -19,8 +19,8 @@ import {
 import { useDatabase, useUser } from "@/firebase";
 import { useChatMember } from "@/hooks/use-chat-member";
 import {
-  ANNOUNCEMENTS_ROOM_ID,
   CHAT_UNREAD_WINDOW,
+  GENERAL_ROOM_ID,
   SUBSCRIBED_CHAT_ROOMS,
 } from "@/lib/chat/constants";
 
@@ -33,9 +33,9 @@ interface ChatPanelContextValue {
   toggle: () => void;
   roomId: string;
   setRoomId: (roomId: string) => void;
-  /** Total unread across all subscribed channels (nav badge). */
-  unreadCount: number;
-  /** Per-channel unread counts for the channel rail. */
+  /** True when any subscribed channel has unread messages (nav dot). */
+  unreadCount: boolean;
+  /** Per-channel unread counts — sidebar shows a dot when > 0. */
   unreadByRoom: Record<string, number>;
 }
 
@@ -48,7 +48,7 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
   const canChat = member?.canChat === true && member?.isBanned !== true;
 
   const [open, setOpenState] = useState(false);
-  const [roomId, setRoomIdState] = useState(ANNOUNCEMENTS_ROOM_ID);
+  const [roomId, setRoomIdState] = useState(GENERAL_ROOM_ID);
   const [unreadByRoom, setUnreadByRoom] = useState<Record<string, number>>({});
 
   const lastReadByRoomRef = useRef<Record<string, number>>({});
@@ -58,7 +58,7 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
   roomIdRef.current = roomId;
 
   const unreadCount = useMemo(
-    () => Object.values(unreadByRoom).reduce((sum, n) => sum + n, 0),
+    () => Object.values(unreadByRoom).some((n) => n > 0),
     [unreadByRoom],
   );
 

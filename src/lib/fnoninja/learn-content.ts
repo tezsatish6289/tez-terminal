@@ -3,7 +3,7 @@ import { ArrowUpDown, BookOpen, CalendarRange } from "lucide-react";
 
 export type LearnArticleSlug = "science" | "outlook" | "oi-delta";
 
-export type LearnThumbnailVariant = "default" | "outlook-live";
+export type LearnThumbnailVariant = "default" | "outlook-live" | "oi-delta-live";
 
 export type LearnArticleMeta = {
   slug: LearnArticleSlug;
@@ -50,11 +50,13 @@ export const LEARN_ARTICLES: LearnArticleMeta[] = [
     slug: "oi-delta",
     title: "Change in OI at the Wall: What ▲ and ▼ Mean on Your Chart",
     excerpt:
-      "A plain-English guide to open-interest change at put and call clusters — building vs unwinding, where to see it, and how to use it without over-reading the signal.",
+      "A plain-English guide to open-interest change at put and call clusters — with a live NIFTY chart example, where to see ▲/▼, and how to use it without over-reading the signal.",
     readMinutes: 4,
+    readLabel: "4 min · live example",
     tag: "New feature",
     icon: ArrowUpDown,
     thumbnailAccent: "linear-gradient(135deg, rgba(251,191,36,0.25), rgba(239,68,68,0.2))",
+    thumbnailVariant: "oi-delta-live",
   },
 ];
 

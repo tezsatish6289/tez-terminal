@@ -5,7 +5,7 @@ import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
 export const metadata: Metadata = {
   title: "Change in OI at the Wall: What ▲ and ▼ Mean on Your Chart",
   description:
-    "A plain-English guide to open-interest change at put and call clusters — building vs unwinding, where to see it, and how to use it without over-reading the signal.",
+    "A plain-English guide to open-interest change at put and call clusters — with a live NIFTY chart example, where to see ▲/▼, and how to use it without over-reading the signal.",
   alternates: { canonical: `${FNONINJA_SITE_URL}/learn/oi-delta` },
 };
 

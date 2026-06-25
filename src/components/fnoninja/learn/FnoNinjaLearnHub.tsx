@@ -11,6 +11,7 @@ import { LEARN_ARTICLES, type LearnArticleMeta } from "@/lib/fnoninja/learn-cont
 import { fnoLearnHref } from "@/lib/fnoninja/paths";
 import { FnoNinjaLearnDisclaimer } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
 import { LearnOutlookCardThumbnail } from "@/components/fnoninja/learn/LearnOutlookCardThumbnail";
+import { LearnOiDeltaCardThumbnail } from "@/components/fnoninja/learn/LearnOiDeltaCardThumbnail";
 import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 function LearnCardImageThumbnail({
@@ -52,6 +53,9 @@ function LearnCardThumbnail({ article }: { article: LearnArticleMeta }) {
   const Icon = article.icon;
   if (article.thumbnailVariant === "outlook-live") {
     return <LearnOutlookCardThumbnail accent={article.thumbnailAccent} />;
+  }
+  if (article.thumbnailVariant === "oi-delta-live") {
+    return <LearnOiDeltaCardThumbnail accent={article.thumbnailAccent} />;
   }
   return (
     <LearnCardImageThumbnail accent={article.thumbnailAccent} src={article.thumbnailSrc} icon={Icon} />

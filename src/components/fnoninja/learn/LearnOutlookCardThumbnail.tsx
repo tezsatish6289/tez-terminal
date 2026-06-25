@@ -3,38 +3,12 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
-import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { useLearnNiftyLiveData } from "@/lib/fnoninja/use-learn-nifty-live-data";
 import { FNO_ACCENT } from "@/lib/fnoninja/theme";
-
-const NIFTY = "NIFTY";
 
 /** Live NIFTY Outlook preview for the Learn hub card thumbnail. */
 export function LearnOutlookCardThumbnail({ accent }: { accent: string }) {
-  const [levels, setLevels] = useState<PublicLevels | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void fetch("/api/freedombot/levels", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((json: { indices?: { symbol?: string; data: PublicLevels | null }[] }) => {
-        if (cancelled) return;
-        const hit = json.indices?.find(
-          (it) => (it.symbol ?? "").toUpperCase() === NIFTY,
-        );
-        setLevels(hit?.data ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setLevels(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { levels, loading } = useLearnNiftyLiveData();
 
   return (
     <div

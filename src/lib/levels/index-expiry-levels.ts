@@ -22,6 +22,10 @@ export interface PublicLevelsExpirySlice {
   callClusterSize: number | null;
   putClusterStrike: number | null;
   callClusterStrike: number | null;
+  /** Change in put OI at support since prev close (+ = reinforcing). */
+  putClusterChange: number | null;
+  /** Change in call OI at resistance since prev close (+ = reinforcing). */
+  callClusterChange: number | null;
 }
 
 function num(raw: unknown): number | null {
@@ -56,6 +60,8 @@ function sliceFromStoredEntry(entry: Record<string, unknown>): PublicLevelsExpir
     callClusterSize: num(entry.bearOI),
     putClusterStrike: num(entry.bullStrike),
     callClusterStrike: num(entry.bearStrike),
+    putClusterChange: num(entry.bullOIChange),
+    callClusterChange: num(entry.bearOIChange),
   };
 }
 
@@ -108,6 +114,8 @@ export function indexExpiryLevelsFromStored(
         callClusterSize: num(raw.bearOI),
         putClusterStrike: num(raw.bullStrike),
         callClusterStrike: num(raw.bearStrike),
+        putClusterChange: num(raw.bullOIChange),
+        callClusterChange: num(raw.bearOIChange),
       });
     }
   }
@@ -144,6 +152,8 @@ export function applyExpiryToPublicLevels(
     callClusterSize: slice.callClusterSize,
     putClusterStrike: slice.putClusterStrike,
     callClusterStrike: slice.callClusterStrike,
+    putClusterChange: slice.putClusterChange,
+    callClusterChange: slice.callClusterChange,
   };
 }
 

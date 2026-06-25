@@ -11,6 +11,7 @@ import {
 } from "@/lib/levels/outlook-series";
 import {
   formatClusterContracts,
+  formatClusterDelta,
   formatClusterStrike,
 } from "@/lib/levels/format-cluster-size";
 
@@ -127,6 +128,7 @@ export function NiftyOutlookChart({
       high: number | null;
       oi: number | null;
       strike: number | null;
+      change: number | null;
     },
     color: string,
     labelColor: string,
@@ -147,6 +149,11 @@ export function NiftyOutlookChart({
           ? `${sizeText} @ ${strikeText}`
           : sizeText
         : null;
+      const deltaText = formatClusterDelta(v.change);
+      const deltaColor = (v.change ?? 0) >= 0 ? "#86efac" : "#fca5a5";
+      const cx = s.x0 + width / 2;
+      const cy = yTop + height / 2;
+      const showDelta = deltaText != null && height >= 26 && width >= 52;
       return (
         <g key={`${color}-${i}`}>
           <rect
@@ -169,8 +176,8 @@ export function NiftyOutlookChart({
           />
           {label && height >= 13 && width >= 52 && (
             <text
-              x={s.x0 + width / 2}
-              y={yTop + height / 2}
+              x={cx}
+              y={showDelta ? cy - 5 : cy}
               textAnchor="middle"
               dominantBaseline="middle"
               fontSize={9}
@@ -180,6 +187,21 @@ export function NiftyOutlookChart({
               opacity={Math.min(conf + 0.15, 1)}
             >
               {label}
+            </text>
+          )}
+          {showDelta && (
+            <text
+              x={cx}
+              y={cy + 7}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={8.5}
+              fontWeight={700}
+              fontFamily="ui-monospace, monospace"
+              fill={deltaColor}
+              opacity={Math.min(conf + 0.15, 1)}
+            >
+              {`${(v.change ?? 0) >= 0 ? "▲" : "▼"} ${deltaText.replace(/^[+−]/, "")} OI`}
             </text>
           )}
         </g>
@@ -290,6 +312,7 @@ export function NiftyOutlookChart({
             high: cp.resistanceHigh,
             oi: cp.resistanceOI,
             strike: cp.resistanceStrike,
+            change: cp.resistanceOIChange,
           }),
           bear.line,
           bear.labelText,
@@ -300,6 +323,7 @@ export function NiftyOutlookChart({
             high: cp.supportHigh,
             oi: cp.supportOI,
             strike: cp.supportStrike,
+            change: cp.supportOIChange,
           }),
           bull.line,
           bull.labelText,

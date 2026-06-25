@@ -20,6 +20,9 @@ import { filterActiveNseExpiries } from "@/lib/nse/expiry-dates";
 interface IndexStrikeData {
   callOI: number;
   putOI: number;
+  /** Change in OI vs previous close (NSE "Chng in OI"). */
+  callOIChange: number;
+  putOIChange: number;
   callIV?: number | null;
   putIV?: number | null;
 }
@@ -111,12 +114,16 @@ export interface IndexOptionsZones {
   bullZoneHigh:  number | null;
   bullExitAbove: number | null;
   bullOI:        number | null;
+  /** Change in put OI at the support cluster vs prev close (+ = reinforcing). */
+  bullOIChange:  number | null;
 
   bearStrike:    number | null;
   bearZoneLow:   number | null;
   bearZoneHigh:  number | null;
   bearExitBelow: number | null;
   bearOI:        number | null;
+  /** Change in call OI at the resistance cluster vs prev close (+ = reinforcing). */
+  bearOIChange:  number | null;
 
   maxPain:         number | null;
   expiryUsed:      string | null;
@@ -134,8 +141,8 @@ export function createEmptyIndexZones(key: IndexKey, spot = 0): IndexOptionsZone
   return {
     symbol: key,
     label: spec.label,
-    bullStrike: null, bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null, bullOI: null,
-    bearStrike: null, bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null, bearOI: null,
+    bullStrike: null, bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null, bullOI: null, bullOIChange: null,
+    bearStrike: null, bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null, bearOI: null, bearOIChange: null,
     maxPain: null, expiryUsed: null, expiryOI: null,
     halfWidthPts: spec.zoneHalfWidthPts,
     insufficientGap: false,
@@ -152,8 +159,8 @@ interface NseOptionEntry {
   strikePrice: number;
   expiryDates?: string;
   expiryDate?: string;
-  CE?: { openInterest: number; impliedVolatility?: number };
-  PE?: { openInterest: number; impliedVolatility?: number };
+  CE?: { openInterest: number; changeinOpenInterest?: number; impliedVolatility?: number };
+  PE?: { openInterest: number; changeinOpenInterest?: number; impliedVolatility?: number };
 }
 
 interface NseOcResponse {
@@ -234,9 +241,11 @@ function rowsToStrikes(rows: NseOptionEntry[]): { strikes: Map<number, IndexStri
     const putOI = row.PE?.openInterest ?? 0;
     if (callOI === 0 && putOI === 0) continue;
     totalOI += callOI + putOI;
-    const s = strikes.get(row.strikePrice) ?? { callOI: 0, putOI: 0 };
+    const s = strikes.get(row.strikePrice) ?? { callOI: 0, putOI: 0, callOIChange: 0, putOIChange: 0 };
     s.callOI += callOI;
     s.putOI += putOI;
+    s.callOIChange += row.CE?.changeinOpenInterest ?? 0;
+    s.putOIChange += row.PE?.changeinOpenInterest ?? 0;
     if (typeof row.CE?.impliedVolatility === "number") s.callIV = row.CE.impliedVolatility;
     if (typeof row.PE?.impliedVolatility === "number") s.putIV = row.PE.impliedVolatility;
     strikes.set(row.strikePrice, s);
@@ -283,15 +292,19 @@ function buildZonesFromRows(
 
   let bullStrike: number | null = null;
   let bullOI = 0;
+  let bullOIChange = 0;
   let bearStrike: number | null = null;
   let bearOI = 0;
-  for (const [strike, { putOI, callOI }] of strikes) {
+  let bearOIChange = 0;
+  for (const [strike, { putOI, callOI, putOIChange, callOIChange }] of strikes) {
     if (strike < spot && putOI > bullOI) {
       bullOI = putOI;
+      bullOIChange = putOIChange;
       bullStrike = strike;
     }
     if (strike > spot && callOI > bearOI) {
       bearOI = callOI;
+      bearOIChange = callOIChange;
       bearStrike = strike;
     }
   }
@@ -331,12 +344,14 @@ function buildZonesFromRows(
     bullZoneHigh: bullStrike !== null ? bullStrike + halfWidth : null,
     bullExitAbove: bullStrike !== null ? bullStrike + halfWidth : null,
     bullOI: bullOI > 0 ? bullOI : null,
+    bullOIChange: bullStrike !== null ? bullOIChange : null,
 
     bearStrike,
     bearZoneLow: bearStrike !== null ? bearStrike - halfWidth : null,
     bearZoneHigh: bearStrike !== null ? bearStrike + halfWidth : null,
     bearExitBelow: bearStrike !== null ? bearStrike - halfWidth : null,
     bearOI: bearOI > 0 ? bearOI : null,
+    bearOIChange: bearStrike !== null ? bearOIChange : null,
 
     maxPain,
     expiryUsed,

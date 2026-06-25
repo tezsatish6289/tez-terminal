@@ -48,6 +48,8 @@ function serializeSlice(z: IndexOptionsZones, dayIndex: number) {
     halfWidthUsd: z.halfWidthPts,
     bullOI: z.bullOI,
     bearOI: z.bearOI,
+    bullOIChange: z.bullOIChange,
+    bearOIChange: z.bearOIChange,
   };
 }
 
@@ -67,6 +69,8 @@ function serialize(primary: IndexOptionsZones, byExpiry: IndexOptionsZones[]) {
     bearExitBelow: primary.bearExitBelow,
     bullOI: primary.bullOI,
     bearOI: primary.bearOI,
+    bullOIChange: primary.bullOIChange,
+    bearOIChange: primary.bearOIChange,
     maxPain: primary.maxPain,
     maxPainByExpiry,
     halfWidthUsd: primary.halfWidthPts,

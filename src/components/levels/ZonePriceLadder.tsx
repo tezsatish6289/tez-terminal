@@ -49,6 +49,10 @@ export interface PublicLevels {
   putClusterStrike?: number | null;
   /** Strike with highest call OI above spot (resistance cluster anchor). */
   callClusterStrike?: number | null;
+  /** Change in support put OI since prev close (+ = reinforcing, − = unwinding). */
+  putClusterChange?: number | null;
+  /** Change in resistance call OI since prev close (+ = reinforcing, − = unwinding). */
+  callClusterChange?: number | null;
   /** NSE indices: nearest-first expiry choices for the chart picker. */
   expiryOptions?: PublicLevelsExpiryOption[];
   /** NSE indices: full band payload per expiry (client-side expiry switch). */

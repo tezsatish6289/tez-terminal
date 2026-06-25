@@ -100,6 +100,8 @@ function sanitize(raw: Record<string, unknown> | null, opts?: { includeIndexExpi
     callClusterSize: num(raw.bearOI),
     putClusterStrike: num(raw.bullStrike),
     callClusterStrike: num(raw.bearStrike),
+    putClusterChange: num(raw.bullOIChange),
+    callClusterChange: num(raw.bearOIChange),
     ...(expiryOptions.length > 0 ? { expiryOptions, zonesByExpiry } : {}),
   };
   if (zonesByExpiry.length > 0) {

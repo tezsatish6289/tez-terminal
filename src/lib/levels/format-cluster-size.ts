@@ -9,6 +9,17 @@ export function formatClusterContracts(contracts: number | null | undefined): st
   return contracts.toLocaleString("en-IN");
 }
 
+/** Signed compact OI change for cluster deltas (e.g. +12k, −4k). Null when ~flat. */
+export function formatClusterDelta(
+  change: number | null | undefined,
+  minAbs = 1,
+): string | null {
+  if (change == null || !Number.isFinite(change) || Math.abs(change) < minAbs) return null;
+  const sign = change > 0 ? "+" : "−";
+  const mag = formatClusterContracts(Math.abs(change));
+  return mag ? `${sign}${mag}` : null;
+}
+
 /** Strike price for cluster peak labels (e.g. 24,500). */
 export function formatClusterStrike(strike: number | null | undefined): string | null {
   if (strike == null || !Number.isFinite(strike)) return null;

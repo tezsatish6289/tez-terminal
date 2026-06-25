@@ -32,6 +32,10 @@ export interface OutlookCheckpoint {
   resistanceOI: number | null;
   /** Strike with the dominant call OI (resistance anchor). */
   resistanceStrike: number | null;
+  /** Change in support OI since prev close (+ reinforcing, − unwinding). */
+  supportOIChange: number | null;
+  /** Change in resistance OI since prev close (+ reinforcing, − unwinding). */
+  resistanceOIChange: number | null;
   confidence: OutlookConfidence;
 }
 
@@ -109,6 +113,8 @@ export function buildOutlookSeries(
       supportStrike: slice.putClusterStrike,
       resistanceOI: slice.callClusterSize,
       resistanceStrike: slice.callClusterStrike,
+      supportOIChange: slice.putClusterChange,
+      resistanceOIChange: slice.callClusterChange,
       confidence: confidenceForIndex(tierIndex),
     });
     tierIndex += 1;

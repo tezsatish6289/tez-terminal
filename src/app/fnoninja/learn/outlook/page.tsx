@@ -3,9 +3,9 @@ import { FnoNinjaOutlookLearnArticle } from "@/components/fnoninja/learn/FnoNinj
 import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
 
 export const metadata: Metadata = {
-  title: "Nifty Outlook: A Beginner's Guide to the Forward Levels Ladder",
+  title: "Index Outlook: A Beginner's Guide to the Forward Levels Ladder",
   description:
-    "Learn how Outlook maps support, resistance, and max pain across upcoming expiries — what the ladder shows, how to read it, and what it does not predict.",
+    "Outlook maps support, resistance, and max pain across upcoming expiries for every NSE index — with a live NIFTY example, how to read the ladder, and what it does not predict.",
   alternates: { canonical: `${FNONINJA_SITE_URL}/learn/outlook` },
 };
 

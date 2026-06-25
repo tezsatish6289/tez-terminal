@@ -32,10 +32,11 @@ export const LEARN_ARTICLES: LearnArticleMeta[] = [
   },
   {
     slug: "outlook",
-    title: "Nifty Outlook: A Beginner's Guide to the Forward Levels Ladder",
+    title: "Index Outlook: A Beginner's Guide to the Forward Levels Ladder",
     excerpt:
-      "Learn how Outlook maps support, resistance, and max pain across upcoming expiries — what the ladder shows, how to read it, and what it does not predict.",
-    readMinutes: 4,
+      "Outlook maps support, resistance, and max pain across upcoming expiries for every NSE index — with a live NIFTY example, how to read the ladder, and what it does not predict.",
+    readMinutes: 5,
+    readLabel: "5 min · live example",
     tag: "New feature",
     icon: CalendarRange,
     thumbnailAccent: "linear-gradient(135deg, rgba(59,130,246,0.35), rgba(34,197,94,0.2))",

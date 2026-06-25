@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { BookOpen } from "lucide-react";
+import { ArrowUpDown, BookOpen, CalendarRange } from "lucide-react";
 
-export type LearnArticleSlug = "science";
+export type LearnArticleSlug = "science" | "outlook" | "oi-delta";
 
 export type LearnArticleMeta = {
   slug: LearnArticleSlug;
@@ -29,6 +29,26 @@ export const LEARN_ARTICLES: LearnArticleMeta[] = [
     icon: BookOpen,
     thumbnailSrc: "/fnoninja/learn/science-thumb.png",
     thumbnailAccent: "linear-gradient(135deg, rgba(34,197,94,0.35), rgba(251,191,36,0.2))",
+  },
+  {
+    slug: "outlook",
+    title: "Nifty Outlook: A Beginner's Guide to the Forward Levels Ladder",
+    excerpt:
+      "Learn how Outlook maps support, resistance, and max pain across upcoming expiries — what the ladder shows, how to read it, and what it does not predict.",
+    readMinutes: 4,
+    tag: "New feature",
+    icon: CalendarRange,
+    thumbnailAccent: "linear-gradient(135deg, rgba(59,130,246,0.35), rgba(34,197,94,0.2))",
+  },
+  {
+    slug: "oi-delta",
+    title: "Change in OI at the Wall: What ▲ and ▼ Mean on Your Chart",
+    excerpt:
+      "A plain-English guide to open-interest change at put and call clusters — building vs unwinding, where to see it, and how to use it without over-reading the signal.",
+    readMinutes: 4,
+    tag: "New feature",
+    icon: ArrowUpDown,
+    thumbnailAccent: "linear-gradient(135deg, rgba(251,191,36,0.25), rgba(239,68,68,0.2))",
   },
 ];
 

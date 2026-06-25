@@ -34,14 +34,7 @@ import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 /** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
 const CHART_PAGE_SHELL = "w-full max-w-none flex flex-col flex-1 min-h-0";
 
-function stockLevelsUrl(symbol: string, slideshowPriority: boolean): string {
-  const q = slideshowPriority ? "&slideshow=1" : "";
-  return `/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}${q}`;
-}
-
-function indexLevelsUrl(symbol: string): string {
-  return `/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}&scope=index`;
-}
+import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
 
 function ChartContent() {
   const searchParams = useSearchParams();
@@ -84,33 +77,9 @@ function ChartContent() {
         setError(null);
       }
       try {
-        if (scope === "stock") {
-          const res = await fetch(stockLevelsUrl(symbol, true), { cache: "no-store" });
-          const json = (await res.json()) as {
-            label?: string;
-            data: PublicLevels | null;
-            error?: string;
-          };
-          if (!res.ok) {
-            setLabel(symbol);
-            setLevels(null);
-            setError(json.error ?? "Could not load levels.");
-            return;
-          }
-          setLabel(json.label ?? symbol);
-          setLevels(json.data);
-          if (json.error && !(json.data?.bullLow != null || json.data?.bearLow != null)) {
-            setError(json.error);
-          }
-          return;
-        }
-        const res = await fetch(indexLevelsUrl(symbol), { cache: "no-store" });
-        const json = (await res.json()) as {
-          label?: string;
-          data: PublicLevels | null;
-          error?: string;
-        };
-        if (!res.ok) {
+        if (scope !== "index" && scope !== "stock") return;
+        const json = await fetchSymbolLevels(scope, symbol, { slideshow: scope === "stock" });
+        if (!json.data && json.error) {
           setLabel(symbol);
           setLevels(null);
           setError(json.error ?? "Could not load levels.");
@@ -118,6 +87,9 @@ function ChartContent() {
         }
         setLabel(json.label ?? symbol);
         setLevels(json.data);
+        if (json.error && !(json.data?.bullLow != null || json.data?.bearLow != null)) {
+          setError(json.error);
+        }
       } catch {
         if (!opts?.quiet) {
           setError("Could not load levels.");
@@ -138,9 +110,9 @@ function ChartContent() {
     void loadLevels();
   }, [scope, symbol, loadLevels]);
 
-  /** While this tab is open, refresh zones when older than 5m (same cadence as slideshow). */
+  /** While this tab is open, refresh zones when older than 5m (indices + stocks). */
   useEffect(() => {
-    if (scope !== "stock" || !symbol) return;
+    if ((scope !== "stock" && scope !== "index") || !symbol) return;
     const id = setInterval(() => {
       if (isSlideshowZoneStale(levels?.computedAt)) {
         void loadLevels({ quiet: true });

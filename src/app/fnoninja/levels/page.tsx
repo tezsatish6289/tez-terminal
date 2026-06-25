@@ -20,7 +20,7 @@ import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
 import { LevelsOutlookViewToggle } from "@/components/levels/LevelsOutlookViewToggle";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
-import { levelsNeedMultiExpiryRefresh } from "@/lib/levels/multi-expiry-levels";
+import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
@@ -531,7 +531,7 @@ export default function LevelsPage() {
   const chartLevelsLoading =
     isSlideView &&
     inZoneChartLoading &&
-    inZoneActive?.scope === "stock" &&
+    (inZoneActive?.scope === "stock" || inZoneActive?.scope === "index") &&
     !levelsHaveBands(inZoneChartData);
 
   const slideshowChartShortcuts =
@@ -581,14 +581,14 @@ export default function LevelsPage() {
     else if (inZoneSlide >= inZoneCount) setInZoneSlide(0);
   }, [inZoneCount, inZoneSlide]);
 
-  const refreshOneSlideshowStockZone = useCallback(
-    async (symbol: string, updateActiveChart: boolean) => {
+  const refreshOneSlideshowSymbolZone = useCallback(
+    async (
+      scope: "index" | "stock",
+      symbol: string,
+      updateActiveChart: boolean,
+    ) => {
       try {
-        const res = await fetch(
-          `/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}&slideshow=1`,
-          { cache: "no-store" },
-        );
-        const json = (await res.json()) as { data: PublicLevels | null };
+        const json = await fetchSymbolLevels(scope, symbol, { slideshow: true });
         if (updateActiveChart && json.data) {
           setInZoneChartData(json.data);
         }
@@ -612,32 +612,17 @@ export default function LevelsPage() {
 
     const bundled = inZoneActive.data;
     const hasBands = bundled != null && (bundled.bullLow != null || bundled.bearLow != null);
-    const stockNeedsFullFetch =
-      inZoneActive.scope === "stock" && hasBands && bundled!.poc == null;
-    const slideshowStaleStock =
+    /** Liveslide/favslide: per-symbol API for full expiry slices (picker + Outlook). */
+    const slideshowSymbolNeedsApi =
       isSlideView &&
-      inZoneActive.scope === "stock" &&
-      isSlideshowZoneStale(bundled?.computedAt);
-    const indexNeedsExpiryFetch =
-      isSlideView &&
-      inZoneActive.scope === "index" &&
-      levelsNeedMultiExpiryRefresh(bundled);
-    /** Slideshow stocks need per-symbol API ladder (clusters + expiry), not compact list rows. */
-    const slideshowStockNeedsApi =
-      isSlideView && inZoneActive.scope === "stock";
+      (inZoneActive.scope === "stock" || inZoneActive.scope === "index");
 
-    if (
-      hasBands &&
-      !stockNeedsFullFetch &&
-      !slideshowStaleStock &&
-      !slideshowStockNeedsApi &&
-      !indexNeedsExpiryFetch
-    ) {
+    if (hasBands && !slideshowSymbolNeedsApi) {
       setInZoneChartData(bundled);
       setInZoneChartLoading(false);
       return;
     }
-    if (inZoneActive.scope !== "stock" && !indexNeedsExpiryFetch) {
+    if (!slideshowSymbolNeedsApi) {
       setInZoneChartData(bundled);
       setInZoneChartLoading(false);
       return;
@@ -647,14 +632,8 @@ export default function LevelsPage() {
     if (symbolChanged) {
       setInZoneChartData(null);
     }
-    const q = isSlideView ? "&slideshow=1" : "";
-    const scopeQ = inZoneActive.scope === "index" ? "&scope=index" : "";
-    fetch(
-      `/api/freedombot/levels?symbol=${encodeURIComponent(inZoneActive.symbol)}${scopeQ}${q}`,
-      { cache: "no-store" },
-    )
-      .then((res) => res.json())
-      .then((json: { data: PublicLevels | null }) => {
+    void fetchSymbolLevels(inZoneActive.scope, inZoneActive.symbol, { slideshow: true })
+      .then((json) => {
         if (!cancelled) setInZoneChartData(json.data);
       })
       .catch(() => {
@@ -668,7 +647,7 @@ export default function LevelsPage() {
     };
   }, [inZoneActive?.scope, inZoneActive?.symbol, inZoneActive?.data, inZoneCurrent, viewMode]);
 
-  /** Keep in-zone slideshow stocks on a ≤5m zone refresh cadence (one symbol per tick). */
+  /** Keep slideshow symbols on a ≤5m zone refresh cadence (one symbol per tick). */
   useEffect(() => {
     if (!isSlideView) return;
 
@@ -676,26 +655,31 @@ export default function LevelsPage() {
     let roundRobin = 0;
 
     const tick = async () => {
-      const stocks = slideListFiltered.filter((it) => it.scope === "stock");
-      if (stocks.length === 0 || cancelled) return;
+      const symbols = slideListFiltered.filter(
+        (it) => it.scope === "stock" || it.scope === "index",
+      );
+      if (symbols.length === 0 || cancelled) return;
 
-      const activeSym =
-        inZoneActive?.scope === "stock" ? inZoneActive.symbol : null;
-      const stale = stocks.filter((it) => isSlideshowZoneStale(it.data?.computedAt));
+      const activeKey =
+        inZoneActive?.scope === "stock" || inZoneActive?.scope === "index"
+          ? inZoneActive.symbol
+          : null;
+      const stale = symbols.filter((it) => isSlideshowZoneStale(it.data?.computedAt));
       if (stale.length === 0) return;
 
       const ordered = [...stale].sort((a, b) => {
-        if (a.symbol === activeSym) return -1;
-        if (b.symbol === activeSym) return 1;
+        if (a.symbol === activeKey) return -1;
+        if (b.symbol === activeKey) return 1;
         return 0;
       });
       const pick = ordered[roundRobin % ordered.length];
       roundRobin += 1;
       if (!pick || cancelled) return;
 
-      await refreshOneSlideshowStockZone(
+      await refreshOneSlideshowSymbolZone(
+        pick.scope,
         pick.symbol,
-        pick.symbol === activeSym,
+        pick.symbol === activeKey,
       );
     };
 
@@ -710,7 +694,7 @@ export default function LevelsPage() {
     slideListFiltered,
     inZoneActive?.scope,
     inZoneActive?.symbol,
-    refreshOneSlideshowStockZone,
+    refreshOneSlideshowSymbolZone,
   ]);
 
   const openBubbleChart = useCallback((item: { scope: "index" | "stock"; symbol: string }) => {

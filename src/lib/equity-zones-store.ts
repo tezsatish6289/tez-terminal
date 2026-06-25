@@ -27,44 +27,67 @@ export function stockDocId(symbol: string): string {
   return `config/suggested_stock_zones_${symbol}`;
 }
 
-/** Serialize to the shared "suggested zones" shape (mirrors index-zones-store). */
-function serialize(z: EquityOptionsZones, source: "nse_equity" | "dhan_equity" = "nse_equity") {
-  const maxPainByExpiry =
-    z.maxPain != null && z.expiryUsed
-      ? [{ expiry: z.expiryUsed, maxPain: z.maxPain, totalOI: z.expiryOI ?? 0, dayIndex: 0 }]
-      : [];
+/** Serialize one expiry slice into maxPainByExpiry row shape. */
+function serializeSlice(z: EquityOptionsZones, dayIndex: number) {
   return {
-    symbol: z.symbol,
-    label: z.label,
-    bullStrike: z.bullStrike,
-    bearStrike: z.bearStrike,
+    expiry: z.expiryUsed,
+    maxPain: z.maxPain,
+    totalOI: z.expiryOI ?? 0,
+    dayIndex,
     bullZoneLow: z.bullZoneLow,
     bullZoneHigh: z.bullZoneHigh,
-    bullExitAbove: z.bullExitAbove,
     bearZoneLow: z.bearZoneLow,
     bearZoneHigh: z.bearZoneHigh,
-    bearExitBelow: z.bearExitBelow,
+    bullStrike: z.bullStrike,
+    bearStrike: z.bearStrike,
+    halfWidthUsd: z.halfWidth,
     bullOI: z.bullOI,
     bearOI: z.bearOI,
     bullOIChange: z.bullOIChange,
     bearOIChange: z.bearOIChange,
-    maxPain: z.maxPain,
+  };
+}
+
+/** Serialize to the shared "suggested zones" shape (mirrors index-zones-store). */
+function serialize(
+  primary: EquityOptionsZones,
+  byExpiry: EquityOptionsZones[],
+  source: "nse_equity" | "dhan_equity" = "nse_equity",
+) {
+  const slices = (byExpiry.length ? byExpiry : [primary]).filter((z) => z.expiryUsed);
+  const maxPainByExpiry = slices.map((z, i) => serializeSlice(z, i));
+  return {
+    symbol: primary.symbol,
+    label: primary.label,
+    bullStrike: primary.bullStrike,
+    bearStrike: primary.bearStrike,
+    bullZoneLow: primary.bullZoneLow,
+    bullZoneHigh: primary.bullZoneHigh,
+    bullExitAbove: primary.bullExitAbove,
+    bearZoneLow: primary.bearZoneLow,
+    bearZoneHigh: primary.bearZoneHigh,
+    bearExitBelow: primary.bearExitBelow,
+    bullOI: primary.bullOI,
+    bearOI: primary.bearOI,
+    bullOIChange: primary.bullOIChange,
+    bearOIChange: primary.bearOIChange,
+    maxPain: primary.maxPain,
     maxPainByExpiry,
-    halfWidthUsd: z.halfWidth,
-    expiryUsed: z.expiryUsed,
-    expiryOI: z.expiryOI,
-    insufficientGap: z.insufficientGap,
-    illiquid: z.illiquid,
-    status: z.status,
-    atmIV: z.atmIV,
-    volRegimeFlag: z.volRegime.flag,
-    volRegimeReason: z.volRegime.reason,
-    daysToEarnings: z.volRegime.daysToEarnings,
-    btcPrice: z.spot, // ladder reads deribitIndexPrice ?? btcPrice for the spot line
+    halfWidthUsd: primary.halfWidth,
+    expiryUsed: primary.expiryUsed,
+    expiryOI: primary.expiryOI,
+    insufficientGap: primary.insufficientGap,
+    illiquid: primary.illiquid,
+    status: primary.status,
+    atmIV: primary.atmIV,
+    volRegimeFlag: primary.volRegime.flag,
+    volRegimeReason: primary.volRegime.reason,
+    daysToEarnings: primary.volRegime.daysToEarnings,
+    btcPrice: primary.spot, // ladder reads deribitIndexPrice ?? btcPrice for the spot line
     deribitIndexPrice: null,
     source,
     nseFetchError: null,
-    computedAt: z.computedAt,
+    computedAt: primary.computedAt,
   };
 }
 
@@ -118,25 +141,26 @@ export function aggregateEntry(
  */
 export async function persistEquityZonesDoc(
   db: Firestore,
-  z: EquityOptionsZones,
+  primary: EquityOptionsZones,
   source: "nse_equity" | "dhan_equity" = "nse_equity",
+  byExpiry: EquityOptionsZones[] = [],
 ): Promise<boolean> {
-  const hasBands = z.bullZoneLow != null || z.bearZoneLow != null;
+  const hasBands = primary.bullZoneLow != null || primary.bearZoneLow != null;
   if (!hasBands) {
-    await db.doc(stockDocId(z.symbol)).set(
+    await db.doc(stockDocId(primary.symbol)).set(
       {
-        symbol: z.symbol,
-        label: z.label,
-        illiquid: z.illiquid,
-        status: z.status,
-        nseFetchError: z.illiquid ? "Illiquid / empty option chain" : "No bands derived",
-        computedAt: z.computedAt,
+        symbol: primary.symbol,
+        label: primary.label,
+        illiquid: primary.illiquid,
+        status: primary.status,
+        nseFetchError: primary.illiquid ? "Illiquid / empty option chain" : "No bands derived",
+        computedAt: primary.computedAt,
       },
       { merge: true },
     );
     return false;
   }
-  await db.doc(stockDocId(z.symbol)).set(serialize(z, source));
+  await db.doc(stockDocId(primary.symbol)).set(serialize(primary, byExpiry, source));
   return true;
 }
 

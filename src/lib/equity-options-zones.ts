@@ -15,6 +15,7 @@
  */
 
 import type { NseSession } from "@/lib/nse/client";
+import { filterActiveNseExpiries } from "@/lib/nse/expiry-dates";
 import { deriveZoneStatus, type ZoneStatus } from "@/lib/zones/zone-status";
 import {
   classifyVolRegime,
@@ -94,6 +95,19 @@ const HALF_WIDTH_PCT = () => envNum("STOCK_ZONE_HALF_WIDTH_PCT", 0.0075);
 const MIN_GAP_PCT = () => envNum("STOCK_ZONE_MIN_GAP_PCT", 0.02);
 /** Minimum total OI (contracts) for the chosen expiry to be considered liquid. */
 const MIN_OI = () => envNum("STOCK_ZONE_MIN_OI", 1_000);
+
+/**
+ * How many nearest expiries to derive full S/R bands for. Drives the stock
+ * expiry picker and Outlook forward ladder (same as indices).
+ */
+const EQUITY_EXPIRY_SLICE_COUNT = () => envNum("EQUITY_EXPIRY_SLICE_COUNT", 4);
+
+export interface EquityZonesComputeResult {
+  /** Nearest expiry — persisted as top-level doc fields for backward compat. */
+  primary: EquityOptionsZones;
+  /** Nearest-first full zone rows (length ≤ EQUITY_EXPIRY_SLICE_COUNT). */
+  byExpiry: EquityOptionsZones[];
+}
 
 export interface EquityOptionsZones {
   symbol: string;
@@ -315,7 +329,9 @@ async function fetchExpiries(symbol: string, session: NseSession): Promise<strin
   const json = await session.fetchJson<NseContractInfoResponse>(url);
   const list = json.expiryDates ?? json.records?.expiryDates ?? [];
   if (!list.length) throw new Error(`No expiries for ${symbol}`);
-  return list;
+  const active = filterActiveNseExpiries(list);
+  if (!active.length) throw new Error(`No active expiries for ${symbol}`);
+  return active;
 }
 
 async function fetchOptionChain(
@@ -355,36 +371,66 @@ function rowsToStrikes(rows: NseOptionEntry[]): Map<number, EquityStrikeData> {
   return strikes;
 }
 
+async function computeEquityZonesForExpiry(
+  symbol: string,
+  expiry: string,
+  session: NseSession,
+  spotHint: number,
+  regimeInputs: EquityRegimeInputs,
+): Promise<EquityOptionsZones> {
+  const oc = await fetchOptionChain(symbol, expiry, session);
+  const spot = oc.records?.underlyingValue ?? spotHint;
+  const rows = oc.records?.data ?? [];
+  if (spot <= 0 || !rows.length) return emptyResult(symbol, spot, expiry);
+  const strikes = rowsToStrikes(rows);
+  return buildEquityZonesFromStrikes(symbol, spot, strikes, expiry, regimeInputs);
+}
+
+/**
+ * Compute bull/bear zones for nearest + next expiries. Throws (via the session)
+ * on a block; individual illiquid expiries return empty slice rows.
+ */
 export async function computeEquityZones(
   symbol: string,
   session: NseSession,
   regimeInputs: EquityRegimeInputs = {},
-): Promise<EquityOptionsZones> {
+): Promise<EquityZonesComputeResult> {
   const expiries = await fetchExpiries(symbol, session);
-  const expiryUsed = expiries[0];
-  const oc = await fetchOptionChain(symbol, expiryUsed, session);
+  const count = Math.min(EQUITY_EXPIRY_SLICE_COUNT(), expiries.length);
+  const byExpiry: EquityOptionsZones[] = [];
+  let spot = 0;
 
-  const spot = oc.records?.underlyingValue ?? 0;
-  const rows = oc.records?.data ?? [];
-  if (spot <= 0 || !rows.length) return emptyResult(symbol, spot, expiryUsed);
+  for (let i = 0; i < count; i++) {
+    const z = await computeEquityZonesForExpiry(
+      symbol,
+      expiries[i]!,
+      session,
+      spot,
+      regimeInputs,
+    );
+    byExpiry.push(z);
+    if (z.spot > 0) spot = z.spot;
+  }
 
-  const strikes = rowsToStrikes(rows);
-
-  // Optional term structure: read the next expiry's ATM IV (env-gated — extra
-  // NSE call). Best-effort: a failure just leaves term structure unknown.
-  let nextAtmIv = regimeInputs.nextAtmIv ?? null;
-  if (nextAtmIv == null && TERM_STRUCTURE_ENABLED() && expiries[1]) {
-    try {
-      const ocNext = await fetchOptionChain(symbol, expiries[1], session);
-      const nextStrikes = rowsToStrikes(ocNext.records?.data ?? []);
-      nextAtmIv = computeAtmIv(nextStrikes, spot);
-    } catch {
-      /* term structure stays unknown */
+  const primary = byExpiry[0] ?? emptyResult(symbol);
+  if (byExpiry.length > 1 && primary.expiryUsed) {
+    const nextAtmIv =
+      regimeInputs.nextAtmIv ??
+      (TERM_STRUCTURE_ENABLED() ? byExpiry[1]?.atmIV ?? null : null);
+    if (nextAtmIv != null && primary.atmIV != null) {
+      primary.volRegime = classifyVolRegime({
+        atmIv: primary.atmIV,
+        illiquid: primary.illiquid,
+        daysToEarnings: regimeInputs.daysToEarnings,
+        ivPercentile:
+          regimeInputs.ivPercentile ??
+          ivPercentile(regimeInputs.ivHistory ?? [], primary.atmIV) ??
+          crossSectionalPercentile(regimeInputs.crossSectionalIvs ?? [], primary.atmIV),
+        termRatio: termStructureRatio(primary.atmIV, nextAtmIv),
+        vixPercentile: regimeInputs.vixPercentile,
+      });
     }
   }
 
-  return buildEquityZonesFromStrikes(symbol, spot, strikes, expiryUsed, {
-    ...regimeInputs,
-    nextAtmIv,
-  });
+  return { primary, byExpiry };
 }

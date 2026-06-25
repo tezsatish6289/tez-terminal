@@ -7,7 +7,9 @@ import {
   defaultIndexExpiryKey,
 } from "@/lib/levels/index-expiry-levels";
 
-/** Index chart: pick nearest expiry by default; reset when symbol changes. */
+const EXPIRY_SCOPES = new Set<"index" | "stock">(["index", "stock"]);
+
+/** Index/stock chart: pick nearest expiry by default; reset when symbol changes. */
 export function useIndexExpirySelection(
   levels: PublicLevels | null | undefined,
   scope: "index" | "stock" | null,
@@ -18,12 +20,13 @@ export function useIndexExpirySelection(
   displayLevels: PublicLevels | null;
   expiryOptions: PublicLevels["expiryOptions"];
 } {
-  const expiryOptions = scope === "index" ? levels?.expiryOptions : undefined;
+  const expiryEnabled = scope != null && EXPIRY_SCOPES.has(scope);
+  const expiryOptions = expiryEnabled ? levels?.expiryOptions : undefined;
   const defaultKey = useMemo(() => defaultIndexExpiryKey(levels ?? null), [levels]);
   const [selectedExpiryKey, setSelectedExpiryKey] = useState<string | null>(null);
 
   useEffect(() => {
-    if (scope !== "index") {
+    if (!expiryEnabled) {
       setSelectedExpiryKey(null);
       return;
     }
@@ -32,12 +35,12 @@ export function useIndexExpirySelection(
       return;
     }
     setSelectedExpiryKey(defaultKey);
-  }, [scope, defaultKey, urlExpiryKey, expiryOptions]);
+  }, [expiryEnabled, defaultKey, urlExpiryKey, expiryOptions]);
 
   const displayLevels = useMemo(() => {
-    if (!levels || scope !== "index") return levels ?? null;
+    if (!levels || !expiryEnabled) return levels ?? null;
     return applyExpiryToPublicLevels(levels, selectedExpiryKey ?? defaultKey);
-  }, [levels, scope, selectedExpiryKey, defaultKey]);
+  }, [levels, expiryEnabled, selectedExpiryKey, defaultKey]);
 
   return {
     selectedExpiryKey: selectedExpiryKey ?? defaultKey,

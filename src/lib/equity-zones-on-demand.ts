@@ -88,19 +88,19 @@ export async function computeStockZonesOnDemand(symbol: string): Promise<{
     const daysToEarnings = daysUntil(earningsCalendar[safe], Date.now());
     const vix = await loadIndiaVixState(db);
     const ivHist = await loadIvHistory(db, safe);
-    const { zones, source } = await computeStockZonesWithFallback(safe, session, {
+    const { primary, byExpiry, source } = await computeStockZonesWithFallback(safe, session, {
       daysToEarnings,
       ivHistory: ivHist.values,
       crossSectionalIvs: cohortIvs,
       vixPercentile: vix.percentile,
     });
-    await persistEquityZonesDoc(db, zones, source);
-    await recordDailyAtmIv(db, safe, zones.atmIV, ivHist);
-    await maybeRecordSrZoneEvent(db, zones, source, prevEntry);
-    if (zones.bullZoneLow != null || zones.bearZoneLow != null) {
-      await writeStockZoneAggregate(db, [aggregateEntry(zones, source)]);
+    await persistEquityZonesDoc(db, primary, source, byExpiry);
+    await recordDailyAtmIv(db, safe, primary.atmIV, ivHist);
+    await maybeRecordSrZoneEvent(db, primary, source, prevEntry);
+    if (primary.bullZoneLow != null || primary.bearZoneLow != null) {
+      await writeStockZoneAggregate(db, [aggregateEntry(primary, source)]);
     }
-    return { ok: zones.bullZoneLow != null || zones.bearZoneLow != null };
+    return { ok: primary.bullZoneLow != null || primary.bearZoneLow != null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn(`[stock-zones-on-demand] ${safe}: ${msg}`);

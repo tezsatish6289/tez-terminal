@@ -129,7 +129,7 @@ export function indexExpiryLevelsFromStored(
   return { expiryOptions, zonesByExpiry: active };
 }
 
-/** Apply a selected expiry slice onto a PublicLevels payload (indices only). */
+/** Apply a selected expiry slice onto a PublicLevels payload (indices + stocks). */
 export function applyExpiryToPublicLevels(
   levels: PublicLevels | null,
   expiryKey: string | null | undefined,

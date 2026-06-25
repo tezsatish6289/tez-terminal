@@ -71,9 +71,13 @@ function bool(raw: unknown): boolean | null {
 }
 
 /** Strip the stored doc down to the neutral fields the public ladder renders. */
-function sanitize(raw: Record<string, unknown> | null, opts?: { includeIndexExpiries?: boolean }): PublicLevels | null {
+function sanitize(
+  raw: Record<string, unknown> | null,
+  opts?: { includeExpiries?: boolean; includeIndexExpiries?: boolean },
+): PublicLevels | null {
   if (!raw || typeof raw !== "object") return null;
-  const { expiryOptions, zonesByExpiry } = opts?.includeIndexExpiries
+  const includeExpiries = opts?.includeExpiries ?? opts?.includeIndexExpiries ?? false;
+  const { expiryOptions, zonesByExpiry } = includeExpiries
     ? indexExpiryLevelsFromStored(raw)
     : { expiryOptions: [], zonesByExpiry: [] };
   const base: PublicLevels = {
@@ -150,7 +154,7 @@ async function getSingleStock(symbol: string, forceRefresh: boolean, slideshowPr
   }
 
   let raw = await readDoc(stockDocId(safe));
-  let data = sanitize(raw);
+  let data = sanitize(raw, { includeExpiries: true });
   const cachedBeforeRefresh = data;
   const cachedFresh = slideshowPriority
     ? stockLevelsCacheFreshSlideshow(data?.computedAt) && stockLevelsLadderComplete(data)
@@ -159,7 +163,7 @@ async function getSingleStock(symbol: string, forceRefresh: boolean, slideshowPr
   if (forceRefresh || !cachedFresh) {
     const result = await computeStockZonesOnDemand(safe);
     raw = await readDoc(stockDocId(safe));
-    data = sanitize(raw);
+    data = sanitize(raw, { includeExpiries: true });
     if (stockLevelsLadderComplete(data)) {
       return NextResponse.json(
         {
@@ -221,7 +225,7 @@ export async function GET(request: NextRequest) {
   ]);
 
   const indices = INDEX_KEYS.map((k, i) => {
-    const data = sanitize(indexDocs[i], { includeIndexExpiries: true });
+    const data = sanitize(indexDocs[i], { includeExpiries: true });
     const withSource =
       data && !data.levelsSource && (data.bullLow != null || data.bearLow != null)
         ? { ...data, levelsSource: "nse" as const }

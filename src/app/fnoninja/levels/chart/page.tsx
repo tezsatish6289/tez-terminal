@@ -68,7 +68,8 @@ function ChartContent() {
     expiryOptions,
   } = useIndexExpirySelection(levels, scope, urlExpiryKey);
 
-  const chartLevels = scope === "index" ? displayLevels : levels;
+  const chartLevels =
+    scope === "index" || scope === "stock" ? displayLevels : levels;
 
   const loadLevels = useCallback(
     async (opts?: { quiet?: boolean }) => {
@@ -149,9 +150,9 @@ function ChartContent() {
     setViewMode("chart");
   }, [config?.symbol, config?.exchange, config?.candlesScope]);
 
-  const outlookAvailable =
-    scope === "index" && (levels?.zonesByExpiry?.length ?? 0) > 1;
+  const outlookAvailable = (levels?.zonesByExpiry?.length ?? 0) > 1;
   const showOutlook = outlookAvailable && viewMode === "outlook";
+  const expiryPickerEnabled = expiryOptions && expiryOptions.length > 1;
 
   const companyName = useMemo(() => {
     if (scope === "stock") {
@@ -223,7 +224,7 @@ function ChartContent() {
                   symbol={symbol}
                   label={subtitleLine ?? label}
                   levels={chartLevels}
-                  expiryKey={scope === "index" ? selectedExpiryKey : null}
+                  expiryKey={selectedExpiryKey}
                   nativeChartRef={nativeChartRef}
                   iconOnly
                 />
@@ -233,7 +234,7 @@ function ChartContent() {
             ) : undefined
           }
           expiryPicker={
-            scope === "index" && expiryOptions && expiryOptions.length > 1 ? (
+            expiryPickerEnabled ? (
               <LevelsChartExpiryPicker
                 options={expiryOptions}
                 value={selectedExpiryKey}

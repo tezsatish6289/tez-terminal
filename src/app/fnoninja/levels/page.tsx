@@ -482,16 +482,19 @@ export default function LevelsPage() {
     return inZoneChartData;
   }, [viewMode, inZoneActive, inZoneChartData]);
 
-  const indexExpiryScope = inZoneActive?.scope === "index" ? "index" : null;
+  const expiryScope =
+    inZoneActive?.scope === "index" || inZoneActive?.scope === "stock"
+      ? inZoneActive.scope
+      : null;
   const {
     selectedExpiryKey,
     setSelectedExpiryKey,
-    displayLevels: indexDisplayLevels,
+    displayLevels: expiryDisplayLevels,
     expiryOptions,
-  } = useIndexExpirySelection(activeChartLevels, indexExpiryScope);
+  } = useIndexExpirySelection(activeChartLevels, expiryScope);
 
-  const chartLevelsForView =
-    inZoneActive?.scope === "index" ? indexDisplayLevels : activeChartLevels;
+  const chartLevelsForView = expiryScope ? expiryDisplayLevels : activeChartLevels;
+  const expiryPickerEnabled = expiryOptions && expiryOptions.length > 1;
 
   /** Chart + news rail — stable for all native-candle slideshow symbols (not gated on levels load). */
   const slideshowNativeLayout = Boolean(
@@ -799,7 +802,7 @@ export default function LevelsPage() {
           />
         }
         expiryPicker={
-          inZoneActive?.scope === "index" && expiryOptions && expiryOptions.length > 1 ? (
+          expiryPickerEnabled ? (
             <LevelsChartExpiryPicker
               options={expiryOptions}
               value={selectedExpiryKey}
@@ -815,9 +818,7 @@ export default function LevelsPage() {
                 symbol={activeTicker}
                 label={slideshowSubtitleLine ?? inZoneActive.label}
                 levels={chartLevelsForView}
-                expiryKey={
-                  inZoneActive.scope === "index" ? selectedExpiryKey : null
-                }
+                expiryKey={expiryScope ? selectedExpiryKey : null}
                 nativeChartRef={nativeChartRef}
                 iconOnly
               />

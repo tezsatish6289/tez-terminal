@@ -316,7 +316,7 @@ export async function runStockZonesBatch(
   const fetchOne = async (symbol: string, useSession: NseSession | null) => {
     const daysToEarnings = daysUntil(earningsCalendar[symbol], Date.now());
     const ivHist = await loadIvHistory(db, symbol);
-    const { zones, source } = await Promise.race([
+    const { primary, byExpiry, source } = await Promise.race([
       computeStockZonesWithFallback(symbol, useSession, {
         daysToEarnings,
         ivHistory: ivHist.values,
@@ -327,10 +327,10 @@ export async function runStockZonesBatch(
         throw new Error(`symbol_timeout_${symbolTimeoutMs}ms`);
       }),
     ]);
-    await persistEquityZonesDoc(db, zones, source);
-    await recordDailyAtmIv(db, symbol, zones.atmIV, ivHist);
-    const row = aggregateEntry(zones, source);
-    await maybeRecordSrZoneEvent(db, zones, source, prevEntries[symbol]);
+    await persistEquityZonesDoc(db, primary, source, byExpiry);
+    await recordDailyAtmIv(db, symbol, primary.atmIV, ivHist);
+    const row = aggregateEntry(primary, source);
+    await maybeRecordSrZoneEvent(db, primary, source, prevEntries[symbol]);
     entries.push(row);
     okCount++;
     processed++;

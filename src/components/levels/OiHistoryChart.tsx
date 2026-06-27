@@ -44,6 +44,7 @@ interface Row {
 }
 
 const PAD = { top: 16, right: 16, bottom: 28, left: 56 };
+const CANDLE_COLOR = "#3b82f6";
 
 export type OiHistoryRange = "1M" | "3M" | "6M";
 
@@ -290,25 +291,6 @@ export function OiHistoryChart({
           </g>
         ))}
 
-        {/* daily candles — neutral so colored wall lines stand out */}
-        {displayRows.map((r, i) => {
-          const c = r.candle;
-          if (!c) return null;
-          const x = xFor(i);
-          const up = c.close >= c.open;
-          const color = up ? "#64748b" : "#475569";
-          const yO = yFor(c.open);
-          const yC = yFor(c.close);
-          const top = Math.min(yO, yC);
-          const bh = Math.max(Math.abs(yC - yO), 1);
-          return (
-            <g key={`c-${i}`}>
-              <line x1={x} x2={x} y1={yFor(c.high)} y2={yFor(c.low)} stroke={color} strokeWidth={1} />
-              <rect x={x - colW / 2} y={top} width={colW} height={bh} fill={color} opacity={0.9} />
-            </g>
-          );
-        })}
-
         {/* max pain (yellow dashed) */}
         <polyline points={poly(mpPts)} fill="none" stroke={mp} strokeWidth={1.5} strokeDasharray="4 3" opacity={0.85} />
         {/* put / call walls — segment stroke width tracks cumulative OI momentum */}
@@ -330,6 +312,23 @@ export function OiHistoryChart({
           widths={callWidths}
           color={bear.line}
         />
+
+        {/* daily candles — solid blue, always above wall lines */}
+        {displayRows.map((r, i) => {
+          const c = r.candle;
+          if (!c) return null;
+          const x = xFor(i);
+          const yO = yFor(c.open);
+          const yC = yFor(c.close);
+          const top = Math.min(yO, yC);
+          const bh = Math.max(Math.abs(yC - yO), 1);
+          return (
+            <g key={`c-${i}`}>
+              <line x1={x} x2={x} y1={yFor(c.high)} y2={yFor(c.low)} stroke={CANDLE_COLOR} strokeWidth={1} />
+              <rect x={x - colW / 2} y={top} width={colW} height={bh} fill={CANDLE_COLOR} />
+            </g>
+          );
+        })}
 
         {/* end-of-series value labels */}
         {last.oi?.callStrike != null && (

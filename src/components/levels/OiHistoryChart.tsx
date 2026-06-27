@@ -257,7 +257,6 @@ export function OiHistoryChart({
   const poly = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(" ");
 
   const hover = hoverIdx != null && hoverIdx >= 0 && hoverIdx < displayRows.length ? displayRows[hoverIdx] : null;
-  const last = displayRows[displayRows.length - 1]!;
 
   function onMove(e: React.PointerEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -329,14 +328,6 @@ export function OiHistoryChart({
             </g>
           );
         })}
-
-        {/* end-of-series value labels */}
-        {last.oi?.callStrike != null && (
-          <EndLabel x={xFor(displayRows.length - 1)} y={yFor(last.oi.callStrike)} color={bear.labelText} text={labelFor(last.oi.callOI, last.oi.callStrike)} w={w} />
-        )}
-        {last.oi?.putStrike != null && (
-          <EndLabel x={xFor(displayRows.length - 1)} y={yFor(last.oi.putStrike)} color={bull.labelText} text={labelFor(last.oi.putOI, last.oi.putStrike)} w={w} />
-        )}
 
         {/* hover crosshair */}
         {hover && (
@@ -512,35 +503,11 @@ function WallLineSegments({
   return <g>{segs}</g>;
 }
 
-function labelFor(oi: number | null | undefined, strike: number | null | undefined): string {
-  const s = formatClusterContracts(oi);
-  const k = formatClusterStrike(strike);
-  return s ? (k ? `${s} @ ${k}` : s) : k ?? "";
-}
-
 function tooltipVal(oi: number | null | undefined, strike: number | null | undefined): string {
   const k = formatClusterStrike(strike);
   const s = formatClusterContracts(oi);
   if (!k) return "—";
   return s ? `${k} · ${s}` : k;
-}
-
-function EndLabel({ x, y, color, text, w }: { x: number; y: number; color: string; text: string; w: number }) {
-  if (!text) return null;
-  const right = x > w - 90;
-  return (
-    <text
-      x={right ? x - 6 : x + 6}
-      y={y - 4}
-      textAnchor={right ? "end" : "start"}
-      fontSize={9}
-      fontWeight={700}
-      fontFamily="ui-monospace, monospace"
-      fill={color}
-    >
-      {text}
-    </text>
-  );
 }
 
 function HistoryChartGuide({

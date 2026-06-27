@@ -277,7 +277,6 @@ export function OiHistoryChart({
         onPointerLeave={() => setHoverIdx(null)}
         style={{ touchAction: "none" }}
       >
-        <OiWallGlowFilterDefs bullColor={bull.line} bearColor={bear.line} />
         {/* price grid */}
         {yTicks.map((t, i) => (
           <g key={`y-${i}`}>
@@ -431,34 +430,6 @@ function HistoryRangeToggle({
   );
 }
 
-function OiWallGlowFilterDefs({ bullColor, bearColor }: { bullColor: string; bearColor: string }) {
-  const mk = (id: string, color: string) => (
-    <filter
-      key={id}
-      id={id}
-      x="-100%"
-      y="-100%"
-      width="300%"
-      height="300%"
-      colorInterpolationFilters="sRGB"
-    >
-      <feMorphology operator="dilate" radius="2" in="SourceGraphic" result="wide" />
-      <feGaussianBlur in="wide" stdDeviation="6" result="blur" />
-      <feFlood floodColor={color} floodOpacity="1" result="flood" />
-      <feComposite in="flood" in2="blur" operator="in" result="glow" />
-      <feMerge>
-        <feMergeNode in="glow" />
-      </feMerge>
-    </filter>
-  );
-  return (
-    <defs>
-      {mk("oi-wall-halo-put", bullColor)}
-      {mk("oi-wall-halo-call", bearColor)}
-    </defs>
-  );
-}
-
 function WallLineSegments({
   side,
   rows,
@@ -477,7 +448,6 @@ function WallLineSegments({
   color: string;
 }) {
   const segs: React.ReactNode[] = [];
-  const haloFilter = side === "put" ? "url(#oi-wall-halo-put)" : "url(#oi-wall-halo-call)";
 
   for (let i = 1; i < rows.length; i++) {
     const prev = pickStrike(rows[i - 1]!);
@@ -496,7 +466,23 @@ function WallLineSegments({
     const x2 = xFor(i);
     const y2 = yFor(cur);
 
+    // Sharp halo: wider under-strokes (no blur — blur smears on vertical wall moves).
     if (strength > 0) {
+      if (strength > 0.45) {
+        segs.push(
+          <line
+            key={`${side}-halo-outer-${i}`}
+            x1={x1}
+            y1={y1}
+            x2={x2}
+            y2={y2}
+            stroke={color}
+            strokeWidth={w + 5 + strength * 6}
+            strokeLinecap="round"
+            opacity={0.08 + strength * 0.12}
+          />,
+        );
+      }
       segs.push(
         <line
           key={`${side}-halo-${i}`}
@@ -505,10 +491,9 @@ function WallLineSegments({
           x2={x2}
           y2={y2}
           stroke={color}
-          strokeWidth={w + 6 + strength * 18}
+          strokeWidth={w + 2 + strength * 4}
           strokeLinecap="round"
-          opacity={0.35 + strength * 0.55}
-          filter={haloFilter}
+          opacity={0.18 + strength * 0.32}
         />,
       );
     }

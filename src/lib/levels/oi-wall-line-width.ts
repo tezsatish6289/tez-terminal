@@ -16,7 +16,14 @@ export const OI_WALL_LINE_MAX = 7;
 export const OI_WALL_WIDTH_PER_M = 0.45;
 
 /** % gap below which neither side glows (roughly balanced). */
-export const OI_WALL_GLOW_MIN_PCT = 5;
+export const OI_WALL_GLOW_MIN_PCT = 2;
+
+/** Maps dominance % → glow strength 0–1 (continuous, scale-invariant). */
+export function oiWallGlowStrength(pct: number): number {
+  if (pct < OI_WALL_GLOW_MIN_PCT) return 0;
+  // 2% → ~0.2, 25% → ~0.65, 50%+ → 1
+  return Math.min(1, 0.2 + ((pct - OI_WALL_GLOW_MIN_PCT) / 48) * 0.8);
+}
 
 function clamp(w: number): number {
   return Math.max(OI_WALL_LINE_MIN, Math.min(OI_WALL_LINE_MAX, w));
@@ -72,16 +79,10 @@ export function oiWallDominantSide(
 
 /** Glow tiers 0–4 from % dominance gap (0 = no glow). */
 export function oiWallGlowTier(pct: number): number {
-  if (pct < OI_WALL_GLOW_MIN_PCT) return 0;
-  if (pct < 15) return 1;
-  if (pct < 30) return 2;
-  if (pct < 45) return 3;
+  const s = oiWallGlowStrength(pct);
+  if (s <= 0) return 0;
+  if (s < 0.35) return 1;
+  if (s < 0.55) return 2;
+  if (s < 0.75) return 3;
   return 4;
-}
-
-/** SVG filter id for a wall side + glow tier (tier 0 → no filter). */
-export function oiWallGlowFilterId(side: OiWallSide, tier: number): string | undefined {
-  if (tier <= 0) return undefined;
-  const t = Math.min(4, Math.max(1, tier));
-  return `oi-glow-${side}-${t}`;
 }

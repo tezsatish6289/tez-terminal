@@ -12,8 +12,7 @@ import {
   buildOiWallSegmentWidths,
   oiWallDominancePct,
   oiWallDominantSide,
-  oiWallGlowFilterId,
-  oiWallGlowTier,
+  oiWallGlowStrength,
   type OiWallSide,
 } from "@/lib/levels/oi-wall-line-width";
 
@@ -278,7 +277,7 @@ export function OiHistoryChart({
         onPointerLeave={() => setHoverIdx(null)}
         style={{ touchAction: "none" }}
       >
-        <OiWallGlowFilterDefs />
+        <OiWallGlowFilterDefs bullColor={bull.line} bearColor={bear.line} />
         {/* price grid */}
         {yTicks.map((t, i) => (
           <g key={`y-${i}`}>
@@ -432,37 +431,30 @@ function HistoryRangeToggle({
   );
 }
 
-function OiWallGlowFilterDefs() {
-  const tiers = [
-    { t: 1, blur: 2, extra: 0.35 },
-    { t: 2, blur: 3.5, extra: 0.55 },
-    { t: 3, blur: 5, extra: 0.75 },
-    { t: 4, blur: 7, extra: 0.95 },
-  ] as const;
+function OiWallGlowFilterDefs({ bullColor, bearColor }: { bullColor: string; bearColor: string }) {
+  const mk = (id: string, color: string) => (
+    <filter
+      key={id}
+      id={id}
+      x="-100%"
+      y="-100%"
+      width="300%"
+      height="300%"
+      colorInterpolationFilters="sRGB"
+    >
+      <feMorphology operator="dilate" radius="2" in="SourceGraphic" result="wide" />
+      <feGaussianBlur in="wide" stdDeviation="6" result="blur" />
+      <feFlood floodColor={color} floodOpacity="1" result="flood" />
+      <feComposite in="flood" in2="blur" operator="in" result="glow" />
+      <feMerge>
+        <feMergeNode in="glow" />
+      </feMerge>
+    </filter>
+  );
   return (
     <defs>
-      {tiers.flatMap(({ t, blur, extra }) => [
-        <filter key={`put-${t}`} id={`oi-glow-put-${t}`} x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation={blur} result="blur" />
-          <feComponentTransfer in="blur" result="glow">
-            <feFuncA type="linear" slope={extra} />
-          </feComponentTransfer>
-          <feMerge>
-            <feMergeNode in="glow" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>,
-        <filter key={`call-${t}`} id={`oi-glow-call-${t}`} x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation={blur} result="blur" />
-          <feComponentTransfer in="blur" result="glow">
-            <feFuncA type="linear" slope={extra} />
-          </feComponentTransfer>
-          <feMerge>
-            <feMergeNode in="glow" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>,
-      ])}
+      {mk("oi-wall-halo-put", bullColor)}
+      {mk("oi-wall-halo-call", bearColor)}
     </defs>
   );
 }
@@ -485,6 +477,8 @@ function WallLineSegments({
   color: string;
 }) {
   const segs: React.ReactNode[] = [];
+  const haloFilter = side === "put" ? "url(#oi-wall-halo-put)" : "url(#oi-wall-halo-call)";
+
   for (let i = 1; i < rows.length; i++) {
     const prev = pickStrike(rows[i - 1]!);
     const cur = pickStrike(rows[i]!);
@@ -494,21 +488,43 @@ function WallLineSegments({
     const callOI = rows[i]!.oi?.callOI;
     const pct = oiWallDominancePct(putOI, callOI);
     const dominant = oiWallDominantSide(putOI, callOI);
-    const tier = dominant === side ? oiWallGlowTier(pct) : 0;
-    const filterId = oiWallGlowFilterId(side, tier);
+    const strength = dominant === side ? oiWallGlowStrength(pct) : 0;
+    const lineOpacity = 0.55 + (w / 7) * 0.45;
+
+    const x1 = xFor(i - 1);
+    const y1 = yFor(prev);
+    const x2 = xFor(i);
+    const y2 = yFor(cur);
+
+    if (strength > 0) {
+      segs.push(
+        <line
+          key={`${side}-halo-${i}`}
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={color}
+          strokeWidth={w + 6 + strength * 18}
+          strokeLinecap="round"
+          opacity={0.35 + strength * 0.55}
+          filter={haloFilter}
+        />,
+      );
+    }
+
     segs.push(
       <line
         key={`${side}-${i}`}
-        x1={xFor(i - 1)}
-        y1={yFor(prev)}
-        x2={xFor(i)}
-        y2={yFor(cur)}
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
         stroke={color}
         strokeWidth={w}
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity={0.55 + (w / 7) * 0.45}
-        filter={filterId ? `url(#${filterId})` : undefined}
+        opacity={lineOpacity}
       />,
     );
   }

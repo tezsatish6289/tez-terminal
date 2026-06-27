@@ -8,6 +8,7 @@ import {
   formatClusterContracts,
   formatClusterStrike,
 } from "@/lib/levels/format-cluster-size";
+import { buildOiWallSegmentWidths } from "@/lib/levels/oi-wall-line-width";
 
 /** Daily candle from /api/freedombot/levels/candles?interval=D. */
 interface DailyCandle {
@@ -167,6 +168,9 @@ export function OiHistoryChart({
       return pts;
     };
 
+    const putWidths = buildOiWallSegmentWidths(rows.map((r) => r.oi?.putOI));
+    const callWidths = buildOiWallSegmentWidths(rows.map((r) => r.oi?.callOI));
+
     return {
       plotW,
       plotH,
@@ -176,8 +180,8 @@ export function OiHistoryChart({
       yTicks,
       lo,
       hi,
-      putPts: line((r) => r.oi?.putStrike ?? null),
-      callPts: line((r) => r.oi?.callStrike ?? null),
+      putWidths,
+      callWidths,
       mpPts: line((r) => r.oi?.maxPain ?? null),
     };
   }, [rows, size]);
@@ -206,7 +210,7 @@ export function OiHistoryChart({
   }
 
   const { w, h } = size;
-  const { xFor, yFor, colW, yTicks, putPts, callPts, mpPts } = model;
+  const { xFor, yFor, colW, yTicks, putWidths, callWidths, mpPts } = model;
   const poly = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(" ");
 
   const hover = hoverIdx != null && hoverIdx >= 0 && hoverIdx < rows.length ? rows[hoverIdx] : null;
@@ -263,10 +267,23 @@ export function OiHistoryChart({
 
         {/* max pain (yellow dashed) */}
         <polyline points={poly(mpPts)} fill="none" stroke={mp} strokeWidth={1.5} strokeDasharray="4 3" opacity={0.85} />
-        {/* put wall (support / green) */}
-        <polyline points={poly(putPts)} fill="none" stroke={bull.line} strokeWidth={2} />
-        {/* call wall (resistance / red) */}
-        <polyline points={poly(callPts)} fill="none" stroke={bear.line} strokeWidth={2} />
+        {/* put / call walls — segment stroke width tracks cumulative OI momentum */}
+        <WallLineSegments
+          rows={rows}
+          xFor={xFor}
+          yFor={yFor}
+          pickStrike={(r) => r.oi?.putStrike ?? null}
+          widths={putWidths}
+          color={bull.line}
+        />
+        <WallLineSegments
+          rows={rows}
+          xFor={xFor}
+          yFor={yFor}
+          pickStrike={(r) => r.oi?.callStrike ?? null}
+          widths={callWidths}
+          color={bear.line}
+        />
 
         {/* end-of-series value labels */}
         {last.oi?.callStrike != null && (
@@ -302,8 +319,8 @@ export function OiHistoryChart({
 
       {/* legend */}
       <div className="absolute top-2 right-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px]" style={{ color: "#94a3b8" }}>
-        <LegendChip color={bull.line} label="Put wall" />
-        <LegendChip color={bear.line} label="Call wall" />
+        <LegendChip color={bull.line} label="Put wall" hint="thicker = OI building" />
+        <LegendChip color={bear.line} label="Call wall" hint="thicker = OI building" />
         <LegendChip color={mp} label="Max pain" dashed />
       </div>
 
@@ -329,6 +346,45 @@ export function OiHistoryChart({
       )}
     </div>
   );
+}
+
+function WallLineSegments({
+  rows,
+  xFor,
+  yFor,
+  pickStrike,
+  widths,
+  color,
+}: {
+  rows: Row[];
+  xFor: (i: number) => number;
+  yFor: (price: number) => number;
+  pickStrike: (r: Row) => number | null;
+  widths: number[];
+  color: string;
+}) {
+  const segs: React.ReactNode[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const prev = pickStrike(rows[i - 1]!);
+    const cur = pickStrike(rows[i]!);
+    if (prev == null || cur == null) continue;
+    const w = widths[i - 1] ?? 2;
+    segs.push(
+      <line
+        key={`${color}-${i}`}
+        x1={xFor(i - 1)}
+        y1={yFor(prev)}
+        x2={xFor(i)}
+        y2={yFor(cur)}
+        stroke={color}
+        strokeWidth={w}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.55 + (w / 7) * 0.45}
+      />,
+    );
+  }
+  return <g>{segs}</g>;
 }
 
 function labelFor(oi: number | null | undefined, strike: number | null | undefined): string {
@@ -362,9 +418,19 @@ function EndLabel({ x, y, color, text, w }: { x: number; y: number; color: strin
   );
 }
 
-function LegendChip({ color, label, dashed }: { color: string; label: string; dashed?: boolean }) {
+function LegendChip({
+  color,
+  label,
+  dashed,
+  hint,
+}: {
+  color: string;
+  label: string;
+  dashed?: boolean;
+  hint?: string;
+}) {
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex items-center gap-1" title={hint}>
       <span className="inline-block" style={{ width: 12, height: 0, borderTop: `2px ${dashed ? "dashed" : "solid"} ${color}` }} />
       {label}
     </span>

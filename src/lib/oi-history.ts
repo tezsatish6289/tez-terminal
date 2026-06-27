@@ -7,7 +7,7 @@
  * 23900) is captured as the strike label changing on its own continuous line —
  * never a gap. Mirrors the `iv-history` store: one doc per symbol
  * (`config/oi_history_{SYMBOL}`) so each read/write touches only its own series
- * (no 1 MB aggregate-doc risk), deduped by date key and capped to ~1.5y.
+ * (no 1 MB aggregate-doc risk), deduped by date key and capped to ~6 months.
  *
  * Backfilled from NSE F&O bhavcopy archives (EOD OI per strike) so a fresh symbol
  * has real history immediately; the live cron appends today's point going forward.
@@ -37,8 +37,8 @@ export interface OiHistoryEntry {
   expiry: string | null;
 }
 
-/** ~1.5 trading years of daily points (well under Firestore's 1 MB doc cap). */
-export const OI_HISTORY_CAP = 400;
+/** ~6 calendar months of trading days (~120 sessions). Oldest row drops when a 121st is appended. */
+export const OI_HISTORY_CAP = 120;
 
 export function oiHistoryDocId(symbol: string): string {
   return `config/oi_history_${symbol.toUpperCase()}`;

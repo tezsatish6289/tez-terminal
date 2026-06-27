@@ -51,8 +51,8 @@ function classifyCandleError(e: unknown): CandleErrorCode {
 /** Dhan intraday supports 1, 5, 15, 25, 60 minute candles. */
 const ALLOWED_INTERVALS = new Set(["1", "5", "15", "25", "60"]);
 
-/** Calendar days of daily history requested for the levels "History mode" chart. */
-export const DAILY_LOOKBACK_DAYS = 220;
+/** Calendar days of daily history for History mode (~120 trading days + weekends/holidays). */
+export const DAILY_LOOKBACK_DAYS = 130;
 /** Daily bars change once per session — cache far longer than intraday. */
 const DAILY_CACHE_TTL_MS = 30 * 60 * 1000;
 

@@ -569,8 +569,8 @@ function HistoryChartGuide({
         <GuideEncoding label="Thickness" sample={<ThicknessSample color={bullLine} />}>
           Line gets thicker when that wall&apos;s OI builds day over day, thinner when it decays.
         </GuideEncoding>
-        <GuideEncoding label="Glow" sample={<GlowSample color={bearLine} />}>
-          Only the heavier side glows — strength tracks the % gap between put and call wall OI.
+        <GuideEncoding label="Glow" sample={<GlowDualSample putColor={bullLine} callColor={bearLine} />}>
+          Only the heavier side glows — green for puts, red for calls; strength tracks the % gap between wall OI.
         </GuideEncoding>
         <p className="text-[9px] leading-snug self-center" style={{ color: "#64748b" }}>
           Hover any day for strikes, OI, and dominance.
@@ -620,7 +620,7 @@ function GuideEncoding({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-2 min-w-[140px] max-w-xs">
+    <div className="flex items-start gap-2 min-w-[140px] max-w-sm">
       {sample}
       <div className="min-w-0">
         <div className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "#94a3b8" }}>
@@ -643,12 +643,43 @@ function ThicknessSample({ color }: { color: string }) {
   );
 }
 
-function GlowSample({ color }: { color: string }) {
+function GlowDualSample({ putColor, callColor }: { putColor: string; callColor: string }) {
   return (
-    <svg width={44} height={18} aria-hidden className="shrink-0">
-      <line x1={2} y1={9} x2={42} y2={9} stroke={color} strokeWidth={9} opacity={0.22} strokeLinecap="round" />
-      <line x1={2} y1={9} x2={42} y2={9} stroke={color} strokeWidth={2} opacity={0.95} strokeLinecap="round" />
+    <svg width={56} height={30} aria-hidden className="shrink-0">
+      <GlowLineSample y={8} color={putColor} />
+      <GlowLineSample y={22} color={callColor} />
     </svg>
+  );
+}
+
+/** Matches chart halo layers at high dominance — boosted slightly for the legend. */
+function GlowLineSample({ y, color }: { y: number; color: string }) {
+  const w = 2;
+  const strength = 1;
+  return (
+    <g>
+      <line
+        x1={2}
+        y1={y}
+        x2={54}
+        y2={y}
+        stroke={color}
+        strokeWidth={w + 6 + strength * 7}
+        strokeLinecap="round"
+        opacity={0.28}
+      />
+      <line
+        x1={2}
+        y1={y}
+        x2={54}
+        y2={y}
+        stroke={color}
+        strokeWidth={w + 3 + strength * 5}
+        strokeLinecap="round"
+        opacity={0.55}
+      />
+      <line x1={2} y1={y} x2={54} y2={y} stroke={color} strokeWidth={w} strokeLinecap="round" opacity={1} />
+    </g>
   );
 }
 

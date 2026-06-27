@@ -8,7 +8,14 @@ import {
   formatClusterContracts,
   formatClusterStrike,
 } from "@/lib/levels/format-cluster-size";
-import { buildOiWallSegmentWidths } from "@/lib/levels/oi-wall-line-width";
+import {
+  buildOiWallSegmentWidths,
+  oiWallDominancePct,
+  oiWallDominantSide,
+  oiWallGlowFilterId,
+  oiWallGlowTier,
+  type OiWallSide,
+} from "@/lib/levels/oi-wall-line-width";
 
 /** Daily candle from /api/freedombot/levels/candles?interval=D. */
 interface DailyCandle {
@@ -271,6 +278,7 @@ export function OiHistoryChart({
         onPointerLeave={() => setHoverIdx(null)}
         style={{ touchAction: "none" }}
       >
+        <OiWallGlowFilterDefs />
         {/* price grid */}
         {yTicks.map((t, i) => (
           <g key={`y-${i}`}>
@@ -304,6 +312,7 @@ export function OiHistoryChart({
         <polyline points={poly(mpPts)} fill="none" stroke={mp} strokeWidth={1.5} strokeDasharray="4 3" opacity={0.85} />
         {/* put / call walls — segment stroke width tracks cumulative OI momentum */}
         <WallLineSegments
+          side="put"
           rows={displayRows}
           xFor={xFor}
           yFor={yFor}
@@ -312,6 +321,7 @@ export function OiHistoryChart({
           color={bull.line}
         />
         <WallLineSegments
+          side="call"
           rows={displayRows}
           xFor={xFor}
           yFor={yFor}
@@ -354,8 +364,8 @@ export function OiHistoryChart({
 
       {/* legend */}
       <div className="absolute top-2 right-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px]" style={{ color: "#94a3b8" }}>
-        <LegendChip color={bull.line} label="Put wall" hint="thicker = OI building" />
-        <LegendChip color={bear.line} label="Call wall" hint="thicker = OI building" />
+        <LegendChip color={bull.line} label="Put wall" hint="thickness = OI momentum · glow = heavier side (% gap)" />
+        <LegendChip color={bear.line} label="Call wall" hint="thickness = OI momentum · glow = heavier side (% gap)" />
         <LegendChip color={mp} label="Max pain" dashed />
       </div>
 
@@ -377,6 +387,13 @@ export function OiHistoryChart({
           <Stat label="Call" value={tooltipVal(hover.oi?.callOI, hover.oi?.callStrike)} color={bear.labelText} />
           <Stat label="Put" value={tooltipVal(hover.oi?.putOI, hover.oi?.putStrike)} color={bull.labelText} />
           <Stat label="Max pain" value={hover.oi?.maxPain != null ? fmtPrice(hover.oi.maxPain) : "—"} color={mp} />
+          {hover.oi?.putOI != null && hover.oi?.callOI != null && (
+            <Stat
+              label="OI edge"
+              value={`${oiWallDominancePct(hover.oi.putOI, hover.oi.callOI).toFixed(0)}% ${oiWallDominantSide(hover.oi.putOI, hover.oi.callOI) === "put" ? "puts" : oiWallDominantSide(hover.oi.putOI, hover.oi.callOI) === "call" ? "calls" : "even"}`}
+              color="#94a3b8"
+            />
+          )}
         </div>
       )}
       </div>
@@ -415,7 +432,43 @@ function HistoryRangeToggle({
   );
 }
 
+function OiWallGlowFilterDefs() {
+  const tiers = [
+    { t: 1, blur: 2, extra: 0.35 },
+    { t: 2, blur: 3.5, extra: 0.55 },
+    { t: 3, blur: 5, extra: 0.75 },
+    { t: 4, blur: 7, extra: 0.95 },
+  ] as const;
+  return (
+    <defs>
+      {tiers.flatMap(({ t, blur, extra }) => [
+        <filter key={`put-${t}`} id={`oi-glow-put-${t}`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation={blur} result="blur" />
+          <feComponentTransfer in="blur" result="glow">
+            <feFuncA type="linear" slope={extra} />
+          </feComponentTransfer>
+          <feMerge>
+            <feMergeNode in="glow" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>,
+        <filter key={`call-${t}`} id={`oi-glow-call-${t}`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation={blur} result="blur" />
+          <feComponentTransfer in="blur" result="glow">
+            <feFuncA type="linear" slope={extra} />
+          </feComponentTransfer>
+          <feMerge>
+            <feMergeNode in="glow" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>,
+      ])}
+    </defs>
+  );
+}
+
 function WallLineSegments({
+  side,
   rows,
   xFor,
   yFor,
@@ -423,6 +476,7 @@ function WallLineSegments({
   widths,
   color,
 }: {
+  side: OiWallSide;
   rows: Row[];
   xFor: (i: number) => number;
   yFor: (price: number) => number;
@@ -436,9 +490,15 @@ function WallLineSegments({
     const cur = pickStrike(rows[i]!);
     if (prev == null || cur == null) continue;
     const w = widths[i - 1] ?? 2;
+    const putOI = rows[i]!.oi?.putOI;
+    const callOI = rows[i]!.oi?.callOI;
+    const pct = oiWallDominancePct(putOI, callOI);
+    const dominant = oiWallDominantSide(putOI, callOI);
+    const tier = dominant === side ? oiWallGlowTier(pct) : 0;
+    const filterId = oiWallGlowFilterId(side, tier);
     segs.push(
       <line
-        key={`${color}-${i}`}
+        key={`${side}-${i}`}
         x1={xFor(i - 1)}
         y1={yFor(prev)}
         x2={xFor(i)}
@@ -448,6 +508,7 @@ function WallLineSegments({
         strokeLinecap="round"
         strokeLinejoin="round"
         opacity={0.55 + (w / 7) * 0.45}
+        filter={filterId ? `url(#${filterId})` : undefined}
       />,
     );
   }

@@ -18,7 +18,7 @@
 
 export {}; // module scope (avoids global `main` collision with other scripts)
 
-const CHUNK = 40; // trading days per request — keep each call under the cron timeout
+const CHUNK = 15; // trading days per request — ~4s/day via the India proxy, keep under the 120s function limit
 
 async function main(): Promise<void> {
   const base = (process.env.APP_BASE_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "");

@@ -51,6 +51,11 @@ function classifyCandleError(e: unknown): CandleErrorCode {
 /** Dhan intraday supports 1, 5, 15, 25, 60 minute candles. */
 const ALLOWED_INTERVALS = new Set(["1", "5", "15", "25", "60"]);
 
+/** Calendar days of daily history requested for the levels "History mode" chart. */
+export const DAILY_LOOKBACK_DAYS = 220;
+/** Daily bars change once per session — cache far longer than intraday. */
+const DAILY_CACHE_TTL_MS = 30 * 60 * 1000;
+
 /** Refresh window — all viewers share one fetch per symbol+interval. */
 const CACHE_TTL_MS = 60 * 1000;
 /** Keep last-good candles this long to survive transient Dhan errors. */
@@ -226,6 +231,119 @@ async function fetchDhanIntraday(
   return candles;
 }
 
+// ── Dhan daily (historical) fetch ───────────────────────────────────
+
+/** Parse Dhan's parallel-array OHLC response into sorted candles. */
+function parseDhanOhlc(data: DhanIntradayResponse): Candle[] {
+  const ts = data.timestamp ?? [];
+  const open = data.open ?? [];
+  const high = data.high ?? [];
+  const low = data.low ?? [];
+  const close = data.close ?? [];
+  const volume = data.volume ?? [];
+  const candles: Candle[] = [];
+  for (let i = 0; i < ts.length; i++) {
+    const t = Number(ts[i]);
+    const o = Number(open[i]);
+    const h = Number(high[i]);
+    const l = Number(low[i]);
+    const c = Number(close[i]);
+    if (![t, o, h, l, c].every(Number.isFinite)) continue;
+    candles.push({ time: t, open: o, high: h, low: l, close: c, volume: Number(volume[i]) || 0 });
+  }
+  candles.sort((a, b) => a.time - b.time);
+  return candles;
+}
+
+async function fetchDhanDaily(
+  securityId: number,
+  segment: DhanCandleSegment,
+  days: number,
+): Promise<Candle[]> {
+  const creds = await ensureValidToken();
+  if (!creds) throw new Error("Dhan token unavailable");
+
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+  const body = JSON.stringify({
+    securityId: String(securityId),
+    exchangeSegment: segment.exchangeSegment,
+    instrument: segment.instrument,
+    expiryCode: 0,
+    oi: false,
+    fromDate: fmtDate(from),
+    toDate: fmtDate(to),
+  });
+
+  let res: Response | null = null;
+  let lastErr = "";
+  for (let attempt = 0; attempt < INTRADAY_MAX_ATTEMPTS; attempt++) {
+    await throttleIntraday();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DHAN_TIMEOUT_MS);
+    try {
+      res = await fetch(`${DHAN_BASE_URL}/charts/historical`, {
+        method: "POST",
+        headers: {
+          "access-token": creds.apiKey,
+          "client-id": creds.apiSecret,
+          "Content-Type": "application/json",
+        },
+        body,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (res.ok) break;
+    const transient = res.status === 429 || res.status >= 500;
+    lastErr = `Dhan historical ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`;
+    if (transient && attempt < INTRADAY_MAX_ATTEMPTS - 1) {
+      await sleep(600 * (attempt + 1) + Math.round(Math.random() * 200));
+      continue;
+    }
+    throw new Error(lastErr);
+  }
+
+  if (!res || !res.ok) throw new Error(lastErr || "Dhan historical failed");
+  return parseDhanOhlc((await res.json()) as DhanIntradayResponse);
+}
+
+async function getDailyCandlesCached(
+  cacheKey: string,
+  resolveSecurityId: () => Promise<number | null>,
+  segment: DhanCandleSegment,
+  days = DAILY_LOOKBACK_DAYS,
+): Promise<CandleResult> {
+  const key = `${cacheKey}:D`;
+  const cached = candleCache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < DAILY_CACHE_TTL_MS) {
+    return { ok: true, candles: cached.candles };
+  }
+
+  let promise = inflight.get(key);
+  if (!promise) {
+    promise = (async () => {
+      const securityId = await resolveSecurityId();
+      if (securityId == null) throw new Error(`No Dhan securityId for ${cacheKey}`);
+      const candles = await fetchDhanDaily(securityId, segment, days);
+      candleCache.set(key, { candles, fetchedAt: Date.now() });
+      return candles;
+    })();
+    inflight.set(key, promise);
+    promise.finally(() => inflight.delete(key));
+  }
+
+  try {
+    return { ok: true, candles: await promise };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (cached) return { ok: true, candles: cached.candles, stale: true };
+    return { ok: false, candles: [], error: msg, code: classifyCandleError(e) };
+  }
+}
+
 // ── Public API ──────────────────────────────────────────────────────
 
 async function getCandlesCached(
@@ -289,5 +407,27 @@ export async function getIndexCandles(symbol: string, interval = "5"): Promise<C
     async () => dhanIndexSecurityId(upper),
     { exchangeSegment: "IDX_I", instrument: "INDEX" },
     interval,
+  );
+}
+
+/** Daily OHLC for an F&O stock — feeds the levels "History mode" chart. */
+export async function getStockDailyCandles(symbol: string, days = DAILY_LOOKBACK_DAYS): Promise<CandleResult> {
+  const upper = symbol.toUpperCase();
+  return getDailyCandlesCached(
+    `EQ:${upper}`,
+    () => resolveDhanEquitySecurityId(upper),
+    { exchangeSegment: "NSE_EQ", instrument: "EQUITY" },
+    days,
+  );
+}
+
+/** Daily OHLC for an NSE index — feeds the levels "History mode" chart. */
+export async function getIndexDailyCandles(symbol: string, days = DAILY_LOOKBACK_DAYS): Promise<CandleResult> {
+  const upper = symbol.toUpperCase();
+  return getDailyCandlesCached(
+    `IDX:${upper}`,
+    async () => dhanIndexSecurityId(upper),
+    { exchangeSegment: "IDX_I", instrument: "INDEX" },
+    days,
   );
 }

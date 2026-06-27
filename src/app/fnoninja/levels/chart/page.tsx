@@ -21,7 +21,12 @@ import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { LevelsChartNewsSplit } from "@/components/levels/LevelsChartNewsSplit";
 import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
-import { LevelsOutlookViewToggle } from "@/components/levels/LevelsOutlookViewToggle";
+import {
+  LevelsOutlookViewToggle,
+  type LevelsViewMode,
+} from "@/components/levels/LevelsOutlookViewToggle";
+import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
+import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook-keyboard";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { FNO_LEVELS_MAIN, FNO_LEVELS_SHELL } from "@/lib/fnoninja/responsive";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
@@ -46,7 +51,7 @@ function ChartContent() {
   const [label, setLabel] = useState("");
   const [loading, setLoading] = useState(true);
   const [chartFullHistory, setChartFullHistory] = useState(true);
-  const [viewMode, setViewMode] = useState<"chart" | "outlook">("chart");
+  const [viewMode, setViewMode] = useState<LevelsViewMode>("chart");
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
   const [error, setError] = useState<string | null>(
     !scope || !symbol ? "Invalid chart link — open from the Market Bubbles map." : null,
@@ -127,8 +132,18 @@ function ChartContent() {
   }, [config?.symbol, config?.exchange, config?.candlesScope]);
 
   const outlookAvailable = (levels?.zonesByExpiry?.length ?? 0) > 1;
+  const historyAvailable = scope === "index" || scope === "stock";
   const showOutlook = outlookAvailable && viewMode === "outlook";
+  const showHistory = historyAvailable && viewMode === "history";
   const expiryPickerEnabled = expiryOptions && expiryOptions.length > 1;
+
+  useChartOutlookKeyboardShortcuts(
+    outlookAvailable,
+    () => setViewMode("chart"),
+    () => setViewMode("outlook"),
+    Boolean(scope && symbol),
+    { historyAvailable, onHistory: () => setViewMode("history") },
+  );
 
   const companyName = useMemo(() => {
     if (scope === "stock") {
@@ -230,10 +245,21 @@ function ChartContent() {
           className="mt-1.5 sm:mt-2"
           chart={
             <>
-              {outlookAvailable && (
-                <LevelsOutlookViewToggle value={viewMode} onChange={setViewMode} />
+              {(outlookAvailable || historyAvailable) && (
+                <LevelsOutlookViewToggle
+                  value={viewMode}
+                  onChange={setViewMode}
+                  outlookAvailable={outlookAvailable}
+                  historyAvailable={historyAvailable}
+                />
               )}
-              {showOutlook ? (
+              {showHistory && scope ? (
+                <OiHistoryChart
+                  className="flex-1 min-h-0 h-full w-full"
+                  scope={scope}
+                  symbol={symbol}
+                />
+              ) : showOutlook ? (
                 <NiftyOutlookChart
                   className="flex-1 min-h-0 h-full w-full"
                   levels={levels}

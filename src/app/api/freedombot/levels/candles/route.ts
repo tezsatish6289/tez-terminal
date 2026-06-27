@@ -8,7 +8,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getIndexCandles,
+  getIndexDailyCandles,
   getStockCandles,
+  getStockDailyCandles,
   type CandleErrorCode,
   type CandleResult,
 } from "@/lib/dhan-candles";
@@ -53,7 +55,10 @@ export async function GET(req: NextRequest) {
       );
     }
     try {
-      const result = await getIndexCandles(indexKey, interval);
+      const daily = interval.toUpperCase() === "D";
+      const result = daily
+        ? await getIndexDailyCandles(indexKey)
+        : await getIndexCandles(indexKey, interval);
       if (!result.ok) return candleErrorResponse(indexKey, result);
       return NextResponse.json(
         {
@@ -86,7 +91,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const result = await getStockCandles(symbol, interval);
+    const daily = interval.toUpperCase() === "D";
+    const result = daily
+      ? await getStockDailyCandles(symbol)
+      : await getStockCandles(symbol, interval);
     if (!result.ok) return candleErrorResponse(symbol, result);
     return NextResponse.json(
       {

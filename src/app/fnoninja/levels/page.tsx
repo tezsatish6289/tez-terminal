@@ -21,6 +21,7 @@ import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPi
 import { LevelsOutlookViewToggle } from "@/components/levels/LevelsOutlookViewToggle";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
+import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook-keyboard";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
@@ -195,7 +196,8 @@ export default function LevelsPage() {
   const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
   const [slideshowFilter, setSlideshowFilter] = useState<SlideshowMapFilter>("all");
   const [chartFullHistory, setChartFullHistory] = useState(false);
-  const [slideshowChartViewMode, setSlideshowChartViewMode] = useState<"chart" | "outlook">("chart");
+  const [slideshowChartViewMode, setSlideshowChartViewMode] =
+    useState<"chart" | "outlook" | "history">("chart");
   /** Last candle close per symbol — strip tiles match native chart price. */
   const [liveStripSpot, setLiveStripSpot] = useState<Record<string, number>>({});
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
@@ -503,6 +505,13 @@ export default function LevelsPage() {
   const showSlideshowOutlook =
     isSlideView && outlookAvailable && slideshowChartViewMode === "outlook";
 
+  useChartOutlookKeyboardShortcuts(
+    outlookAvailable,
+    () => setSlideshowChartViewMode("chart"),
+    () => setSlideshowChartViewMode("outlook"),
+    isSlideView && !fynnDrawerOpen,
+  );
+
   /** Chart + news rail — stable for all native-candle slideshow symbols (not gated on levels load). */
   const slideshowNativeLayout = Boolean(
     isSlideView && activeTv?.nativeCandles && inZoneActive != null,
@@ -734,6 +743,7 @@ export default function LevelsPage() {
           <LevelsOutlookViewToggle
             value={slideshowChartViewMode}
             onChange={setSlideshowChartViewMode}
+            outlookAvailable={outlookAvailable}
           />
         ) : null}
         {showSlideshowOutlook ? (

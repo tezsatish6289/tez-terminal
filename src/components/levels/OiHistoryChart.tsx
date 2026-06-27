@@ -39,6 +39,24 @@ interface Row {
 
 const PAD = { top: 16, right: 16, bottom: 28, left: 56 };
 
+export type OiHistoryRange = "1M" | "3M" | "6M";
+
+/** Calendar lookback from the latest stored day (6M matches our ~120-day store cap). */
+const RANGE_CALENDAR_DAYS: Record<OiHistoryRange, number> = {
+  "1M": 31,
+  "3M": 92,
+  "6M": 183,
+};
+
+function filterRowsByRange(rows: Row[], range: OiHistoryRange): Row[] {
+  if (!rows.length) return rows;
+  const last = rows[rows.length - 1]!.date;
+  const lastMs = Date.parse(`${last}T00:00:00Z`);
+  if (!Number.isFinite(lastMs)) return rows;
+  const cutoff = new Date(lastMs - RANGE_CALENDAR_DAYS[range] * 86_400_000).toISOString().slice(0, 10);
+  return rows.filter((r) => r.date >= cutoff);
+}
+
 function istDateKey(epochSec: number): string {
   return new Date(epochSec * 1000 + 5.5 * 3600_000).toISOString().slice(0, 10);
 }
@@ -69,6 +87,12 @@ export function OiHistoryChart({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [range, setRange] = useState<OiHistoryRange>("3M");
+
+  useEffect(() => {
+    setRange("3M");
+    setHoverIdx(null);
+  }, [scope, symbol]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -122,15 +146,17 @@ export function OiHistoryChart({
       .map((p) => ({ date: p.date, oi: p, candle: candleByDate.get(p.date) ?? null }));
   }, [candles, oi]);
 
+  const displayRows = useMemo(() => filterRowsByRange(rows, range), [rows, range]);
+
   const model = useMemo(() => {
-    if (!rows.length) return null;
+    if (!displayRows.length) return null;
     const { w, h } = size;
     const plotW = Math.max(w - PAD.left - PAD.right, 10);
     const plotH = Math.max(h - PAD.top - PAD.bottom, 10);
 
     let lo = Infinity;
     let hi = -Infinity;
-    for (const r of rows) {
+    for (const r of displayRows) {
       for (const v of [
         r.candle?.low,
         r.candle?.high,
@@ -151,7 +177,7 @@ export function OiHistoryChart({
     hi += pad;
     const span = Math.max(hi - lo, 1);
 
-    const n = rows.length;
+    const n = displayRows.length;
     const xFor = (i: number) => PAD.left + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
     const yFor = (price: number) => PAD.top + (1 - (price - lo) / span) * plotH;
     const colW = Math.max(1.5, Math.min(10, (plotW / Math.max(n, 1)) * 0.6));
@@ -161,15 +187,15 @@ export function OiHistoryChart({
 
     const line = (pick: (r: Row) => number | null) => {
       const pts: { x: number; y: number; i: number }[] = [];
-      rows.forEach((r, i) => {
+      displayRows.forEach((r, i) => {
         const v = pick(r);
         if (v != null && Number.isFinite(v)) pts.push({ x: xFor(i), y: yFor(v), i });
       });
       return pts;
     };
 
-    const putWidths = buildOiWallSegmentWidths(rows.map((r) => r.oi?.putOI));
-    const callWidths = buildOiWallSegmentWidths(rows.map((r) => r.oi?.callOI));
+    const putWidths = buildOiWallSegmentWidths(displayRows.map((r) => r.oi?.putOI));
+    const callWidths = buildOiWallSegmentWidths(displayRows.map((r) => r.oi?.callOI));
 
     return {
       plotW,
@@ -184,7 +210,7 @@ export function OiHistoryChart({
       callWidths,
       mpPts: line((r) => r.oi?.maxPain ?? null),
     };
-  }, [rows, size]);
+  }, [displayRows, size]);
 
   const bull = LEVELS_ZONE_CHART.bull;
   const bear = LEVELS_ZONE_CHART.bear;
@@ -192,19 +218,26 @@ export function OiHistoryChart({
 
   if (loading) {
     return (
-      <div ref={containerRef} className={className} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+      <div className={className} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div ref={containerRef} className="flex-1 min-h-0 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+        </div>
       </div>
     );
   }
 
-  if (error || !rows.length || !model) {
+  if (error || !rows.length || !displayRows.length || !model) {
     return (
-      <div ref={containerRef} className={className} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
-          {error ??
-            "No OI history yet for this symbol. It builds once the daily snapshot runs (or after a one-time backfill)."}
-        </p>
+      <div className={className} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+        {!loading && rows.length > 0 ? (
+          <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
+        ) : null}
+        <div ref={containerRef} className="flex-1 min-h-0 flex items-center justify-center">
+          <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
+            {error ??
+              "No OI history yet for this symbol. It builds once the daily snapshot runs (or after a one-time backfill)."}
+          </p>
+        </div>
       </div>
     );
   }
@@ -213,20 +246,22 @@ export function OiHistoryChart({
   const { xFor, yFor, colW, yTicks, putWidths, callWidths, mpPts } = model;
   const poly = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(" ");
 
-  const hover = hoverIdx != null && hoverIdx >= 0 && hoverIdx < rows.length ? rows[hoverIdx] : null;
-  const last = rows[rows.length - 1];
+  const hover = hoverIdx != null && hoverIdx >= 0 && hoverIdx < displayRows.length ? displayRows[hoverIdx] : null;
+  const last = displayRows[displayRows.length - 1]!;
 
   function onMove(e: React.PointerEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const n = rows.length;
+    const n = displayRows.length;
     const t = (x - PAD.left) / Math.max(w - PAD.left - PAD.right, 1);
     const idx = Math.round(t * (n - 1));
     setHoverIdx(Math.max(0, Math.min(n - 1, idx)));
   }
 
   return (
-    <div ref={containerRef} className={className} style={{ position: "relative" }}>
+    <div className={className} style={{ display: "flex", flexDirection: "column", minHeight: 0, position: "relative" }}>
+      <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
+      <div ref={containerRef} className="flex-1 min-h-0 relative">
       <svg
         width={w}
         height={h}
@@ -247,7 +282,7 @@ export function OiHistoryChart({
         ))}
 
         {/* daily candles — neutral so colored wall lines stand out */}
-        {rows.map((r, i) => {
+        {displayRows.map((r, i) => {
           const c = r.candle;
           if (!c) return null;
           const x = xFor(i);
@@ -269,7 +304,7 @@ export function OiHistoryChart({
         <polyline points={poly(mpPts)} fill="none" stroke={mp} strokeWidth={1.5} strokeDasharray="4 3" opacity={0.85} />
         {/* put / call walls — segment stroke width tracks cumulative OI momentum */}
         <WallLineSegments
-          rows={rows}
+          rows={displayRows}
           xFor={xFor}
           yFor={yFor}
           pickStrike={(r) => r.oi?.putStrike ?? null}
@@ -277,7 +312,7 @@ export function OiHistoryChart({
           color={bull.line}
         />
         <WallLineSegments
-          rows={rows}
+          rows={displayRows}
           xFor={xFor}
           yFor={yFor}
           pickStrike={(r) => r.oi?.callStrike ?? null}
@@ -287,10 +322,10 @@ export function OiHistoryChart({
 
         {/* end-of-series value labels */}
         {last.oi?.callStrike != null && (
-          <EndLabel x={xFor(rows.length - 1)} y={yFor(last.oi.callStrike)} color={bear.labelText} text={labelFor(last.oi.callOI, last.oi.callStrike)} w={w} />
+          <EndLabel x={xFor(displayRows.length - 1)} y={yFor(last.oi.callStrike)} color={bear.labelText} text={labelFor(last.oi.callOI, last.oi.callStrike)} w={w} />
         )}
         {last.oi?.putStrike != null && (
-          <EndLabel x={xFor(rows.length - 1)} y={yFor(last.oi.putStrike)} color={bull.labelText} text={labelFor(last.oi.putOI, last.oi.putStrike)} w={w} />
+          <EndLabel x={xFor(displayRows.length - 1)} y={yFor(last.oi.putStrike)} color={bull.labelText} text={labelFor(last.oi.putOI, last.oi.putStrike)} w={w} />
         )}
 
         {/* hover crosshair */}
@@ -306,9 +341,9 @@ export function OiHistoryChart({
         )}
 
         {/* x date labels (sparse) */}
-        {rows.map((r, i) => {
-          const everyN = Math.ceil(rows.length / 7);
-          if (i % everyN !== 0 && i !== rows.length - 1) return null;
+        {displayRows.map((r, i) => {
+          const everyN = Math.ceil(displayRows.length / 7);
+          if (i % everyN !== 0 && i !== displayRows.length - 1) return null;
           return (
             <text key={`x-${i}`} x={xFor(i)} y={h - PAD.bottom + 14} textAnchor="middle" fontSize={9} fontFamily="ui-sans-serif, system-ui" fill="#64748b">
               {fmtDateLabel(r.date)}
@@ -344,6 +379,38 @@ export function OiHistoryChart({
           <Stat label="Max pain" value={hover.oi?.maxPain != null ? fmtPrice(hover.oi.maxPain) : "—"} color={mp} />
         </div>
       )}
+      </div>
+    </div>
+  );
+}
+
+function HistoryRangeToggle({
+  value,
+  onChange,
+}: {
+  value: OiHistoryRange;
+  onChange: (v: OiHistoryRange) => void;
+}) {
+  const options: OiHistoryRange[] = ["1M", "3M", "6M"];
+  return (
+    <div className="mb-1.5 flex shrink-0 items-center gap-1 self-start rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
+      {options.map((o) => {
+        const active = value === o;
+        return (
+          <button
+            key={o}
+            type="button"
+            onClick={() => onChange(o)}
+            className="rounded-md px-3 py-1 text-[11px] font-semibold transition-colors"
+            style={{
+              backgroundColor: active ? "rgba(96,165,250,0.18)" : "transparent",
+              color: active ? "#bfdbfe" : "#94a3b8",
+            }}
+          >
+            {o}
+          </button>
+        );
+      })}
     </div>
   );
 }

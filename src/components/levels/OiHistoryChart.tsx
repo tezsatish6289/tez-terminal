@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
@@ -232,6 +232,8 @@ export function OiHistoryChart({
     );
   }
 
+  const guide = <HistoryChartGuide bullLine={bull.line} bearLine={bear.line} maxPainColor={mp} />;
+
   if (error || !rows.length || !displayRows.length || !model) {
     return (
       <div className={className} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
@@ -244,6 +246,7 @@ export function OiHistoryChart({
               "No OI history yet for this symbol. It builds once the daily snapshot runs (or after a one-time backfill)."}
           </p>
         </div>
+        {guide}
       </div>
     );
   }
@@ -360,13 +363,6 @@ export function OiHistoryChart({
         })}
       </svg>
 
-      {/* legend */}
-      <div className="absolute top-2 right-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px]" style={{ color: "#94a3b8" }}>
-        <LegendChip color={bull.line} label="Put wall" hint="thickness = OI momentum · glow = heavier side (% gap)" />
-        <LegendChip color={bear.line} label="Call wall" hint="thickness = OI momentum · glow = heavier side (% gap)" />
-        <LegendChip color={mp} label="Max pain" dashed />
-      </div>
-
       {/* hover tooltip */}
       {hover && (
         <div
@@ -395,6 +391,7 @@ export function OiHistoryChart({
         </div>
       )}
       </div>
+      {guide}
     </div>
   );
 }
@@ -547,22 +544,112 @@ function EndLabel({ x, y, color, text, w }: { x: number; y: number; color: strin
   );
 }
 
-function LegendChip({
+function HistoryChartGuide({
+  bullLine,
+  bearLine,
+  maxPainColor,
+}: {
+  bullLine: string;
+  bearLine: string;
+  maxPainColor: string;
+}) {
+  return (
+    <div
+      className="shrink-0 border-t border-white/10 px-0.5 py-2.5 space-y-2"
+      aria-label="How to read this chart"
+    >
+      <div className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
+        <GuideSeries color={bullLine} label="Put wall" desc="Highest put OI strike below spot — support." />
+        <GuideSeries color={bearLine} label="Call wall" desc="Highest call OI strike above spot — resistance." />
+        <GuideSeries color={maxPainColor} label="Max pain" desc="Strike where total option payout is lowest." dashed />
+      </div>
+      <div
+        className="flex flex-wrap items-start gap-x-5 gap-y-2 border-t border-white/[0.06] pt-2"
+        style={{ color: "#94a3b8" }}
+      >
+        <GuideEncoding label="Thickness" sample={<ThicknessSample color={bullLine} />}>
+          Line gets thicker when that wall&apos;s OI builds day over day, thinner when it decays.
+        </GuideEncoding>
+        <GuideEncoding label="Glow" sample={<GlowSample color={bearLine} />}>
+          Only the heavier side glows — strength tracks the % gap between put and call wall OI.
+        </GuideEncoding>
+        <p className="text-[9px] leading-snug self-center" style={{ color: "#64748b" }}>
+          Hover any day for strikes, OI, and dominance.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function GuideSeries({
   color,
   label,
+  desc,
   dashed,
-  hint,
 }: {
   color: string;
   label: string;
+  desc: string;
   dashed?: boolean;
-  hint?: string;
 }) {
   return (
-    <span className="flex items-center gap-1" title={hint}>
-      <span className="inline-block" style={{ width: 12, height: 0, borderTop: `2px ${dashed ? "dashed" : "solid"} ${color}` }} />
-      {label}
-    </span>
+    <div className="flex gap-2 min-w-0">
+      <span
+        className="mt-1.5 shrink-0 inline-block"
+        style={{ width: 14, height: 0, borderTop: `2px ${dashed ? "dashed" : "solid"} ${color}` }}
+        aria-hidden
+      />
+      <div className="min-w-0">
+        <div className="text-[10px] font-semibold leading-tight" style={{ color: "#cbd5e1" }}>
+          {label}
+        </div>
+        <p className="text-[9px] leading-snug mt-0.5" style={{ color: "#64748b" }}>
+          {desc}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function GuideEncoding({
+  label,
+  sample,
+  children,
+}: {
+  label: string;
+  sample: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-2 min-w-[140px] max-w-xs">
+      {sample}
+      <div className="min-w-0">
+        <div className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "#94a3b8" }}>
+          {label}
+        </div>
+        <p className="text-[9px] leading-snug mt-0.5" style={{ color: "#64748b" }}>
+          {children}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ThicknessSample({ color }: { color: string }) {
+  return (
+    <svg width={44} height={18} aria-hidden className="shrink-0">
+      <line x1={2} y1={13} x2={42} y2={13} stroke={color} strokeWidth={1.5} opacity={0.45} strokeLinecap="round" />
+      <line x1={2} y1={5} x2={42} y2={5} stroke={color} strokeWidth={4.5} opacity={0.9} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function GlowSample({ color }: { color: string }) {
+  return (
+    <svg width={44} height={18} aria-hidden className="shrink-0">
+      <line x1={2} y1={9} x2={42} y2={9} stroke={color} strokeWidth={9} opacity={0.22} strokeLinecap="round" />
+      <line x1={2} y1={9} x2={42} y2={9} stroke={color} strokeWidth={2} opacity={0.95} strokeLinecap="round" />
+    </svg>
   );
 }
 

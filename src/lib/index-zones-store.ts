@@ -21,9 +21,19 @@ import { loadIndiaVixState } from "@/lib/india-vix";
 import { loadIvHistory, recordDailyAtmIv } from "@/lib/iv-history";
 import { isIndexZonesCronWindow } from "@/lib/market-hours";
 import { maybeRecordIndexSrZoneEvent } from "@/lib/sr-audit/record-event";
+import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 
 export function indexDocId(symbol: IndexKey): string {
   return `config/suggested_index_zones_${symbol}`;
+}
+
+/** Best-effort read of a stored OI-wall momentum signal off a zone doc. */
+function oiSignalFromDoc(data: Record<string, unknown> | undefined): OiWallMomentum | null {
+  const raw = data?.oi;
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.asOf !== "string" || typeof o.dominancePct !== "number") return null;
+  return o as unknown as OiWallMomentum;
 }
 
 function docId(symbol: IndexKey): string {
@@ -167,8 +177,12 @@ export async function refreshSingleIndexZone(
       );
       return { status: "error", error: err };
     }
+    // Capture the OI-wall momentum signal before the full set overwrites it
+    // (the momentum pass re-merges it each cycle). The audit gate mirrors the
+    // live screen, which needs this signal.
+    const prevOi = oiSignalFromDoc((await db.doc(docId(key)).get()).data());
     await db.doc(docId(key)).set(serialize(primary, byExpiry));
-    await maybeRecordIndexSrZoneEvent(db, primary);
+    await maybeRecordIndexSrZoneEvent(db, primary, prevOi);
     return { status: "ok" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

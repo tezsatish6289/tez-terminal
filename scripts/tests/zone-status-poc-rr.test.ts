@@ -7,13 +7,33 @@ import {
   pocRiskRewardRatio,
   type ZoneBands,
 } from "../../src/lib/zones/zone-status";
+import type { OiWallMomentum } from "../../src/lib/zones/oi-momentum-signal";
 
 function bands(input: ZoneBands & { halfWidth: number }) {
   const { halfWidth, ...b } = input;
   return { bands: b, halfWidth };
 }
 
-// IDEA — bear zone, POC too close vs Bear Inv (~1:2, not 1:3)
+// Confirming OI signals (wall building + that side dominant) — the live screen
+// gate. Setups now require this; RR is no longer a gate.
+const oiBull: OiWallMomentum = {
+  asOf: "2026-06-25",
+  prevDate: "2026-06-24",
+  putDeltaPct: 5,
+  callDeltaPct: -1,
+  dominancePct: 10,
+  dominantSide: "put",
+};
+const oiBear: OiWallMomentum = {
+  asOf: "2026-06-25",
+  prevDate: "2026-06-24",
+  putDeltaPct: -1,
+  callDeltaPct: 5,
+  dominancePct: 10,
+  dominantSide: "call",
+};
+
+// pocRiskRewardRatio still computes (used for display) even though RR no longer gates.
 {
   const { bands: b, halfWidth } = bands({
     spot: 14.99,
@@ -25,10 +45,11 @@ function bands(input: ZoneBands & { halfWidth: number }) {
   });
   const rr = pocRiskRewardRatio(b, 13, halfWidth, "bear");
   assert.ok(rr != null && rr < 2);
-  assert.equal(matchesDirectionalSetup(b, 13, "bear", halfWidth), false);
+  // spot is NEAR (not IN) the bear band → directional setup is false on geometry.
+  assert.equal(matchesDirectionalSetup(b, 13, "bear", halfWidth, oiBear), false);
 }
 
-// Synthetic bull — 2:1 from zone center (100) to POC vs Bull Inv
+// Bull — spot inside bull band, POC above, OI confirming. Passes WITHOUT any RR gate.
 {
   const { bands: b, halfWidth } = bands({
     spot: 108,
@@ -40,10 +61,44 @@ function bands(input: ZoneBands & { halfWidth: number }) {
   });
   const rr = pocRiskRewardRatio(b, 130, halfWidth, "bull");
   assert.ok(rr != null && rr >= 2);
-  assert.equal(matchesDirectionalSetup(b, 130, "bull", halfWidth), true);
+  assert.equal(matchesDirectionalSetup(b, 130, "bull", halfWidth, oiBull), true);
 }
 
-// Near support — geographic near + POC above + 2:1 from band center
+// Low-RR bull still qualifies now that RR is not a gate (POC above spot but
+// only ~0.5:1 to POC from the band center).
+{
+  const { bands: b, halfWidth } = bands({
+    spot: 101,
+    bullLow: 90,
+    bullHigh: 110,
+    bearLow: 130,
+    bearHigh: 150,
+    halfWidth: 5,
+  });
+  const rr = pocRiskRewardRatio(b, 108, halfWidth, "bull");
+  assert.ok(rr != null && rr < 2);
+  assert.equal(matchesDirectionalSetup(b, 108, "bull", halfWidth, oiBull), true);
+}
+
+// OI gate: same bull geometry but the put wall NOT building / not dominant → fails.
+{
+  const { bands: b, halfWidth } = bands({
+    spot: 108,
+    bullLow: 90,
+    bullHigh: 110,
+    bearLow: 130,
+    bearHigh: 150,
+    halfWidth: 5,
+  });
+  const notBuilding: OiWallMomentum = { ...oiBull, putDeltaPct: -3 };
+  const wrongSide: OiWallMomentum = { ...oiBull, dominantSide: "call" };
+  assert.equal(matchesDirectionalSetup(b, 130, "bull", halfWidth, notBuilding), false);
+  assert.equal(matchesDirectionalSetup(b, 130, "bull", halfWidth, wrongSide), false);
+  // Strict fail-closed: no signal → no qualify.
+  assert.equal(matchesDirectionalSetup(b, 130, "bull", halfWidth, null), false);
+}
+
+// Near support — geographic near + POC above + confirming OI.
 {
   const { bands: b, halfWidth } = bands({
     spot: 99.6,
@@ -53,12 +108,13 @@ function bands(input: ZoneBands & { halfWidth: number }) {
     bearHigh: 150,
     halfWidth: 5,
   });
-  assert.equal(matchesNearBullSetup(b, 130, halfWidth), true);
-  assert.equal(matchesSlideshowSetup(b, 130, "near_bull", halfWidth), true);
-  assert.equal(matchesNearBullSetup(b, 95, halfWidth), false);
+  assert.equal(matchesNearBullSetup(b, 130, halfWidth, oiBull), true);
+  assert.equal(matchesSlideshowSetup(b, 130, "near_bull", halfWidth, oiBull), true);
+  // POC on wrong side fails regardless of OI.
+  assert.equal(matchesNearBullSetup(b, 95, halfWidth, oiBull), false);
 }
 
-// Near resistance — POC on wrong side fails
+// Near resistance — POC must be below spot; confirming call OI required.
 {
   const { bands: b, halfWidth } = bands({
     spot: 129.6,
@@ -68,8 +124,8 @@ function bands(input: ZoneBands & { halfWidth: number }) {
     bearHigh: 140,
     halfWidth: 5,
   });
-  assert.equal(matchesNearBearSetup(b, 135, halfWidth), false);
-  assert.equal(matchesNearBearSetup(b, 110, halfWidth), true);
+  assert.equal(matchesNearBearSetup(b, 135, halfWidth, oiBear), false);
+  assert.equal(matchesNearBearSetup(b, 110, halfWidth, oiBear), true);
 }
 
 console.log("zone-status-poc-rr.test.ts ok");

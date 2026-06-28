@@ -10,7 +10,7 @@ import {
 import { analyzeCandlesForEvent } from "@/lib/sr-audit/score-logic";
 import type { SrZoneEvent } from "@/lib/sr-audit/types";
 import { SR_ZONE_EVENT_CANDLES_COLLECTION } from "@/lib/sr-audit/constants";
-import { matchesDirectionalSetup } from "@/lib/zones/zone-status";
+import { deriveZoneStatus } from "@/lib/zones/zone-status";
 
 export interface SrBackfillSummary {
   scanned: number;
@@ -25,23 +25,28 @@ export interface SrBackfillSummary {
 }
 
 /**
- * Re-derive the actionable/tradeable gate from a stored event's own anchors
- * (entry-time bands + max pain) — the same rule the recorder now enforces.
+ * Purge gate for legacy rows. Uses ONLY criteria derivable from a stored event's
+ * own anchors: spot inside the band on its side + max pain pulling toward target.
+ *
+ * Deliberately omits the OI-wall gate the live recorder now enforces — the
+ * day-over-day OI signal at entry time was never stored on the event, so it
+ * can't be re-derived. Applying it here would purge the entire history. New
+ * events are OI-gated at record time; old events are kept on geometry alone.
  */
 function wasTradeable(event: SrZoneEvent): boolean {
-  if (!Number.isFinite(event.entrySpot) || event.entrySpot <= 0) return false;
-  return matchesDirectionalSetup(
-    {
-      spot: event.entrySpot,
-      bullLow: event.bullZoneLow,
-      bullHigh: event.bullZoneHigh,
-      bearLow: event.bearZoneLow,
-      bearHigh: event.bearZoneHigh,
-    },
-    event.maxPain,
-    event.side === "support" ? "bull" : "bear",
-    event.halfWidth ?? null,
-  );
+  const spot = event.entrySpot;
+  if (!Number.isFinite(spot) || spot <= 0) return false;
+  const mp = event.maxPain;
+  if (mp == null || !Number.isFinite(mp)) return false;
+  const status = deriveZoneStatus({
+    spot,
+    bullLow: event.bullZoneLow,
+    bullHigh: event.bullZoneHigh,
+    bearLow: event.bearZoneLow,
+    bearHigh: event.bearZoneHigh,
+  });
+  if (event.side === "support") return status === "IN_BULL" && mp > spot;
+  return status === "IN_BEAR" && mp < spot;
 }
 
 /**

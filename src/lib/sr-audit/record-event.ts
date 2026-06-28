@@ -11,6 +11,7 @@ import {
   matchesDirectionalSetup,
   pocRiskRewardRatio,
 } from "@/lib/zones/zone-status";
+import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 import {
   SR_EVENT_DEBOUNCE_MS,
   SR_ZONE_EVENTS_COLLECTION,
@@ -88,8 +89,9 @@ export async function maybeRecordSrZoneEvent(
   const spot = zones.spot;
   if (!Number.isFinite(spot) || spot <= 0) return;
 
-  // Only record tradeable setups — same gate as the actionable/slideshow list:
-  // max pain on the pull side AND ≥ min POC reward:risk. Non-RR entries are noise.
+  // Mirror the live screen exactly: max pain on the pull side AND the relevant
+  // OI wall building + dominant (History gate). RR is no longer a gate. The OI
+  // signal comes from the prior aggregate entry (day-over-day, so same-day fresh).
   const tradeable = matchesDirectionalSetup(
     {
       spot,
@@ -101,6 +103,7 @@ export async function maybeRecordSrZoneEvent(
     zones.maxPain,
     side === "support" ? "bull" : "bear",
     zones.halfWidth > 0 ? zones.halfWidth : null,
+    prev?.oi ?? null,
   );
   if (!tradeable) return;
 
@@ -175,6 +178,7 @@ export async function maybeRecordSrZoneEvent(
 export async function maybeRecordIndexSrZoneEvent(
   db: Firestore,
   zones: IndexOptionsZones,
+  oi: OiWallMomentum | null = null,
 ): Promise<void> {
   const spot = zones.spot;
   if (!Number.isFinite(spot) || spot <= 0) return;
@@ -192,7 +196,9 @@ export async function maybeRecordIndexSrZoneEvent(
   const symbol = zones.symbol.toUpperCase();
   const halfWidth = zones.halfWidthPts > 0 ? zones.halfWidthPts : null;
 
-  // Only record tradeable setups (max pain on the pull side + ≥ min POC RR).
+  // Mirror the live screen exactly: max pain on the pull side AND the relevant
+  // OI wall building + dominant (History gate). RR is no longer a gate. The OI
+  // signal is captured from the doc before this refresh overwrites it.
   const tradeable = matchesDirectionalSetup(
     {
       spot,
@@ -204,6 +210,7 @@ export async function maybeRecordIndexSrZoneEvent(
     zones.maxPain,
     side === "support" ? "bull" : "bear",
     halfWidth,
+    oi,
   );
   if (!tradeable) return;
 

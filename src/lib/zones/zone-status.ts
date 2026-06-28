@@ -139,9 +139,11 @@ export const OI_MOMENTUM_MIN_BUILD_PCT = 0;
 export const OI_MOMENTUM_MIN_DOMINANCE_PCT = 2;
 /**
  * When a symbol has no materialized OI signal yet, pass (don't block) so a cold
- * start never empties the map. Flip to `false` for strict fail-closed.
+ * start never empties the map. Now that signal coverage is ~complete, we run
+ * strict (fail-closed): an unconfirmed wall never surfaces. Flip to `true` to
+ * restore the lenient cold-start behavior.
  */
-export const OI_MOMENTUM_PASS_WHEN_MISSING = true;
+export const OI_MOMENTUM_PASS_WHEN_MISSING = false;
 
 /**
  * Does the OI-wall momentum signal qualify a support ("bull") or resistance
@@ -317,8 +319,12 @@ export function meetsMinPocRiskReward(
 
 /**
  * Actionable setup: spot inside the band on that side, max pain on the pull side,
- * and at least {@link MIN_POC_RISK_REWARD}:1 reward to POC from spot vs invalidation.
+ * and the relevant OI wall building + dominant (History-chart gate).
  * Re-derives zone status from bands + spot (ignores stale stored status).
+ *
+ * NOTE: the spot→POC reward:risk threshold is deliberately NOT a gate here — it
+ * was filtering the surfaced list down to too few names. The OI-momentum gate is
+ * now the quality bar; RR is still computed elsewhere for display.
  */
 export function matchesDirectionalSetup(
   bands: ZoneBands,
@@ -332,19 +338,13 @@ export function matchesDirectionalSetup(
     return false;
   }
   const status = deriveZoneStatus(bands);
-  const bullRr = pocRiskRewardRatio(bands, poc, bandOffset, "bull");
-  const bearRr = pocRiskRewardRatio(bands, poc, bandOffset, "bear");
   const bullOk =
     status === "IN_BULL" &&
     poc > spot &&
-    bullRr != null &&
-    bullRr >= MIN_POC_RISK_REWARD &&
     oiMomentumPassesForSide(oi, "bull");
   const bearOk =
     status === "IN_BEAR" &&
     poc < spot &&
-    bearRr != null &&
-    bearRr >= MIN_POC_RISK_REWARD &&
     oiMomentumPassesForSide(oi, "bear");
   if (filter === "all") return bullOk || bearOk;
   if (filter === "bull") return bullOk;
@@ -353,8 +353,8 @@ export function matchesDirectionalSetup(
 }
 
 /**
- * Near support: within tolerance of bull band, max pain above spot,
- * and at least {@link MIN_POC_RISK_REWARD}:1 to POC from band center vs invalidation.
+ * Near support: within tolerance of bull band, max pain above spot, and the put
+ * wall building + dominant. RR is no longer a gate (see matchesDirectionalSetup).
  */
 export function matchesNearBullSetup(
   bands: ZoneBands,
@@ -367,13 +367,12 @@ export function matchesNearBullSetup(
     return false;
   }
   if (!isNearSupport(bands)) return false;
-  const rr = pocRiskRewardRatio(bands, poc, bandOffset, "bull");
-  return poc > spot && rr != null && rr >= MIN_POC_RISK_REWARD && oiMomentumPassesForSide(oi, "bull");
+  return poc > spot && oiMomentumPassesForSide(oi, "bull");
 }
 
 /**
- * Near resistance: within tolerance of bear band, max pain below spot,
- * and at least {@link MIN_POC_RISK_REWARD}:1 to POC from band center vs invalidation.
+ * Near resistance: within tolerance of bear band, max pain below spot, and the
+ * call wall building + dominant. RR is no longer a gate (see matchesDirectionalSetup).
  */
 export function matchesNearBearSetup(
   bands: ZoneBands,
@@ -386,8 +385,7 @@ export function matchesNearBearSetup(
     return false;
   }
   if (!isNearResistance(bands)) return false;
-  const rr = pocRiskRewardRatio(bands, poc, bandOffset, "bear");
-  return poc < spot && rr != null && rr >= MIN_POC_RISK_REWARD && oiMomentumPassesForSide(oi, "bear");
+  return poc < spot && oiMomentumPassesForSide(oi, "bear");
 }
 
 /** Whether a bubble map tone passes min POC reward:risk for its geographic side. */

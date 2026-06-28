@@ -54,6 +54,7 @@ async function main(): Promise<void> {
       added?: number;
       alreadyCached?: number;
       holidaysSkipped?: number;
+      failed?: number;
       earliestDate?: string | null;
       error?: string;
     };
@@ -65,13 +66,15 @@ async function main(): Promise<void> {
 
     const added = json.added ?? 0;
     const already = json.alreadyCached ?? 0;
+    const failed = json.failed ?? 0;
+    // Real progress consumes the target; failed days keep us paging (retried next run).
     const advanced = added + already;
     total += added;
     console.log(
-      `  +${added} new (${already} already, ${json.holidaysSkipped ?? 0} holidays), earliest ${json.earliestDate ?? "?"}`,
+      `  +${added} new (${already} already, ${json.holidaysSkipped ?? 0} holidays, ${failed} failed), earliest ${json.earliestDate ?? "?"}`,
     );
 
-    if (advanced === 0 || !json.earliestDate) {
+    if ((advanced + failed) === 0 || !json.earliestDate) {
       console.log("Reached start of available archives — stopping.");
       break;
     }

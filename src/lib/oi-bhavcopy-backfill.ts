@@ -46,6 +46,8 @@ export interface CacheBhavcopyRangeResult {
   added: number;
   alreadyCached: number;
   holidaysSkipped: number;
+  /** Days that errored (network) after retries — left uncached, retried next run. */
+  failed: number;
   scannedFrom: string;
   scannedTo: string;
   /** Earliest date reached — pass as `before` next call to page deeper. */
@@ -70,6 +72,7 @@ export async function cacheBhavcopyRange(
   let added = 0;
   let alreadyCached = 0;
   let holidaysSkipped = 0;
+  let failed = 0;
   let scanned = 0;
   let earliest: Date | null = null;
 
@@ -78,11 +81,19 @@ export async function cacheBhavcopyRange(
     earliest = new Date(day);
     scanned++;
     if (!isWeekendDate(day)) {
-      const res = await ensureBhavcopyCached(keyOf(day), cookies);
-      if (res.alreadyHad) alreadyCached++;
-      else if (res.cached) added++;
-      else holidaysSkipped++; // 404 → non-trading day
-      if (!res.alreadyHad) await sleep(delayMs);
+      try {
+        const res = await ensureBhavcopyCached(keyOf(day), cookies);
+        if (res.alreadyHad) alreadyCached++;
+        else if (res.cached) added++;
+        else holidaysSkipped++; // 404 → non-trading day
+        if (!res.alreadyHad) await sleep(delayMs);
+      } catch {
+        // Persistent network failure for this day — leave it uncached and keep
+        // going; a later run re-attempts it (it won't be marked cached). Don't
+        // count toward maxTradingDays so the chunk still makes real progress.
+        failed++;
+        await sleep(delayMs);
+      }
     }
     day.setUTCDate(day.getUTCDate() - 1);
   }
@@ -91,6 +102,7 @@ export async function cacheBhavcopyRange(
     added,
     alreadyCached,
     holidaysSkipped,
+    failed,
     scannedFrom: earliest ? keyOf(earliest) : scannedTo,
     scannedTo,
     earliestDate: earliest ? keyOf(earliest) : null,

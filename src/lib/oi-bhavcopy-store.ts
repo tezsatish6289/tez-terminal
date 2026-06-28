@@ -112,6 +112,8 @@ export interface GetDailySnapshotOptions {
   allowNse?: boolean;
   /** Reused NSE cookies for batched NSE fetches. */
   cookies?: string;
+  /** NSE fetch attempts before throwing on persistent network failure (default 4). */
+  fetchAttempts?: number;
 }
 
 /**
@@ -141,7 +143,22 @@ export async function getDailySnapshot(
   // Layer 3 — opt-in live fetch (rare backstop / one-time backfill).
   if (opts.allowNse) {
     const cookies = opts.cookies ?? (await getNseCookies().catch(() => ""));
-    const zip = await fetchFoBhavcopyZip(utcDateFromKey(dateKey), cookies);
+    // NSE archive egress is flaky (intermittent "fetch failed"). Retry a few
+    // times with backoff before giving up so a single hiccup doesn't drop a day.
+    const attempts = Math.max(1, opts.fetchAttempts ?? 4);
+    let zip: Uint8Array | null = null;
+    let lastErr: unknown = null;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        zip = await fetchFoBhavcopyZip(utcDateFromKey(dateKey), cookies);
+        lastErr = null;
+        break; // success (zip or a clean null=404)
+      } catch (e) {
+        lastErr = e;
+        if (i < attempts - 1) await new Promise((r) => setTimeout(r, 600 * (i + 1)));
+      }
+    }
+    if (lastErr) throw lastErr; // network failure persisted — let caller decide
     if (!zip) return null; // 404 → non-trading day
     await writeBhavcopyZip(dateKey, zip);
     try {

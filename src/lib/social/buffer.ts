@@ -105,6 +105,12 @@ export type BufferShareMode = "customScheduled" | "shareNow" | "addToQueue";
 
 export interface CreateBufferPostInput {
   channelId: string;
+  /**
+   * Buffer network key (= our platform id: twitter | facebook | linkedin |
+   * instagram | youtube). Drives the per-network `metadata` Buffer requires:
+   * Facebook/Instagram need a post `type`; YouTube needs a `title` + category.
+   */
+  network: string;
   text: string;
   /** Public, stable (non-expiring) URL ending in .mp4 — Buffer fetches it at publish time. */
   videoUrl: string;
@@ -112,6 +118,34 @@ export interface CreateBufferPostInput {
   /** Required for customScheduled — ISO-8601 UTC (e.g. 2026-06-29T03:42:00Z). */
   dueAt?: string;
   mode?: BufferShareMode;
+  /** YouTube only — Buffer requires a title (≤100 chars, no newlines). */
+  youtubeTitle?: string;
+  /** YouTube only — numeric YouTube category id as a string (default "22" People & Blogs). */
+  youtubeCategoryId?: string;
+}
+
+/**
+ * Per-network `metadata` block. Buffer rejects Facebook/Instagram posts without
+ * a `type` and YouTube without a title + category; X and LinkedIn need nothing.
+ * Enum values (reel/post/public) are bare GraphQL tokens — never quoted.
+ */
+function networkMetadata(input: CreateBufferPostInput): string | null {
+  switch (input.network.trim().toLowerCase()) {
+    case "instagram":
+      // A single video on IG publishes as a Reel; also surface it in the feed.
+      return `metadata: { instagram: { type: reel, shouldShareToFeed: true } }`;
+    case "facebook":
+      return `metadata: { facebook: { type: post } }`;
+    case "youtube": {
+      const title = (input.youtubeTitle?.trim() || input.text.trim())
+        .replace(/\s+/g, " ")
+        .slice(0, 95);
+      const categoryId = input.youtubeCategoryId?.trim() || "22";
+      return `metadata: { youtube: { title: ${JSON.stringify(title)}, categoryId: ${JSON.stringify(categoryId)}, privacy: public, madeForKids: false } }`;
+    }
+    default:
+      return null;
+  }
 }
 
 /**
@@ -133,6 +167,7 @@ export async function createBufferPost(input: CreateBufferPostInput): Promise<{ 
     input.dueAt ? `dueAt: ${JSON.stringify(input.dueAt)}` : null,
     `saveToDraft: false`,
     `assets: [${videoAsset}]`,
+    networkMetadata(input),
   ]
     .filter(Boolean)
     .join("\n        ");

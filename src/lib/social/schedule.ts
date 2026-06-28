@@ -20,6 +20,9 @@ import {
 
 export const SOCIAL_POSTS_COLLECTION = "social_posts";
 
+/** YouTube category id Buffer requires (default "22" People & Blogs). */
+const YOUTUBE_CATEGORY_ID = process.env.BUFFER_YOUTUBE_CATEGORY_ID?.trim() || "22";
+
 export type ScheduleTiming =
   | { mode: "now" }
   | { mode: "scheduled"; baseIso: string; jitterMinutes: number };
@@ -96,7 +99,21 @@ export async function scheduleToBuffer(input: ScheduleInput): Promise<ScheduleRe
       continue;
     }
 
-    const text = clampCaption(normalizeCaption(raw), def.postBudget);
+    const normalized = normalizeCaption(raw);
+    let text = clampCaption(normalized, def.postBudget);
+    let youtubeTitle: string | undefined;
+    let youtubeCategoryId: string | undefined;
+    if (platform === "youtube") {
+      // The youtube caption arrives as "Title\n\nDescription" — Buffer needs an
+      // explicit title, and the post text becomes the video description.
+      const blocks = normalized.split(/\n{2,}/);
+      const first = (blocks[0] ?? "").trim();
+      const rest = blocks.slice(1).join("\n\n").trim();
+      youtubeTitle = (first || normalized).replace(/\s+/g, " ").slice(0, 95);
+      text = clampCaption(rest || normalized, def.postBudget);
+      youtubeCategoryId = YOUTUBE_CATEGORY_ID;
+    }
+
     const dueAt =
       input.timing.mode === "scheduled"
         ? jitteredDueAt(input.timing.baseIso, input.timing.jitterMinutes)
@@ -105,10 +122,13 @@ export async function scheduleToBuffer(input: ScheduleInput): Promise<ScheduleRe
     try {
       const { postId } = await createBufferPost({
         channelId,
+        network: platform,
         text,
         videoUrl: input.videoUrl,
         dueAt,
         mode: input.timing.mode === "scheduled" ? "customScheduled" : "shareNow",
+        youtubeTitle,
+        youtubeCategoryId,
       });
       results.push({
         platform,

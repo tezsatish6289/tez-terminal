@@ -7,22 +7,24 @@
  * datacenter IPs (uses the same NSE_HTTPS_PROXY egress as the live fetch).
  *
  * Modes (GET):
- *   • ?append=1
- *       → after EOD bhavcopy publish, append missing trading days for all five
- *         index symbols (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY, NIFTYNXT50).
- *         Schedule on cron-job.org Mon–Fri ~17:00 IST:
- *         `/api/cron/oi-history?append=1&key=CRON_SECRET`
- *   • ?backfill=1&symbol=NIFTY&days=60&before=YYYY-MM-DD
- *       → walk bhavcopy archives back from `before` (default today), add up to
- *         `days` trading days, merge into config/oi_history_NIFTY. Returns
- *         `earliestDate` so the caller can page deeper.
+ *   • ?cacheDaily=1
+ *       → the scalable daily cron: cache the latest completed session's bhavcopy
+ *         (zip + compact all-symbol snapshot) into GCS in the background. Returns
+ *         202 immediately so cron-job.org's 30s cap never trips. Per-symbol docs
+ *         materialize lazily when a chart opens (`ensureOiHistory`).
+ *         Schedule Mon–Fri ~17:30 IST: `/api/cron/oi-history?cacheDaily=1&key=…`
+ *   • ?cache=1&days=15&before=YYYY-MM-DD
+ *       → one-time GCS backfill: page trading days backward, cache each day for
+ *         ALL symbols. Returns `earliestDate` to page deeper (drive from
+ *         scripts/cache-bhavcopy.ts).
+ *   • ?append=1  (legacy index path — kept until the GCS path is proven)
+ *       → append missing trading days for the five index symbols.
+ *   • ?backfill=1&symbol=NIFTY&days=60&before=YYYY-MM-DD  (legacy per-symbol)
  *   • ?verify=1&symbol=NIFTY&date=YYYY-MM-DD
- *       → fetch one day's bhavcopy and return the computed snapshot + counts.
- *   • (default)&symbol=NIFTY
- *       → report what's currently stored (point count + last few rows).
+ *   • (default)&symbol=NIFTY → stored-series status.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { INDEX_KEYS } from "@/lib/index-specs";
 import { getNseCookies } from "@/lib/nse-session";
@@ -32,6 +34,7 @@ import {
   parseFoBhavcopyCsv,
 } from "@/lib/nse/fo-bhavcopy";
 import { backfillOiHistory } from "@/lib/oi-history-backfill";
+import { cacheBhavcopyRange, cacheRecentBhavcopy } from "@/lib/oi-bhavcopy-backfill";
 import { appendDailyOiHistory } from "@/lib/oi-history-daily";
 import { loadOiHistory } from "@/lib/oi-history";
 
@@ -50,6 +53,30 @@ export async function GET(request: NextRequest) {
   const db = getAdminFirestore();
 
   try {
+    if (params.get("cacheDaily") === "1") {
+      // 202 fast; cache work continues in the background (cron-job.org 30s cap).
+      const maxDays = Number(params.get("days") ?? 5) || 5;
+      after(async () => {
+        try {
+          const res = await cacheRecentBhavcopy(maxDays);
+          console.log(
+            `[oi-history] cacheDaily cached=${res.cached.join(",") || "-"} ` +
+              `already=${res.alreadyCached.join(",") || "-"} missing=${res.missing.join(",") || "-"}`,
+          );
+        } catch (e) {
+          console.error("[oi-history] cacheDaily background failed:", e instanceof Error ? e.message : String(e));
+        }
+      });
+      return NextResponse.json({ success: true, mode: "cacheDaily", accepted: true });
+    }
+
+    if (params.get("cache") === "1") {
+      const days = Number(params.get("days") ?? 15) || 15;
+      const before = params.get("before");
+      const result = await cacheBhavcopyRange({ before, maxTradingDays: days });
+      return NextResponse.json({ success: true, mode: "cache", ...result });
+    }
+
     if (params.get("verify") === "1") {
       const dateStr = params.get("date");
       const date = dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)

@@ -90,18 +90,30 @@ export function mergeOiSnapshots(
 export interface LoadedOiHistory {
   entries: OiHistoryEntry[];
   lastDate: string | null;
+  /**
+   * Latest trading session we've already reconciled against (even if it was a
+   * holiday with no data). Lets the event-driven `ensureOiHistory` skip work when
+   * the series is current without re-scanning storage. `null` when never set.
+   */
+  checkedThrough: string | null;
 }
 
 /** Load a symbol's OI-wall series; returns empty on any failure. */
 export async function loadOiHistory(db: Firestore, symbol: string): Promise<LoadedOiHistory> {
   try {
     const snap = await db.doc(oiHistoryDocId(symbol)).get();
-    const raw = snap.data()?.history;
+    const data = snap.data();
+    const raw = data?.history;
     const entries: OiHistoryEntry[] = Array.isArray(raw) ? raw.filter(isValidEntry) : [];
     entries.sort((a, b) => a.date.localeCompare(b.date));
-    return { entries, lastDate: entries.length ? entries[entries.length - 1].date : null };
+    const checkedThrough = typeof data?.checkedThrough === "string" ? data.checkedThrough : null;
+    return {
+      entries,
+      lastDate: entries.length ? entries[entries.length - 1].date : null,
+      checkedThrough,
+    };
   } catch {
-    return { entries: [], lastDate: null };
+    return { entries: [], lastDate: null, checkedThrough: null };
   }
 }
 
@@ -110,13 +122,35 @@ export async function saveOiHistory(
   db: Firestore,
   symbol: string,
   entries: readonly OiHistoryEntry[],
+  opts?: { checkedThrough?: string | null },
 ): Promise<void> {
   try {
-    await db.doc(oiHistoryDocId(symbol)).set({
+    const doc: Record<string, unknown> = {
       symbol: symbol.toUpperCase(),
       history: entries,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    if (opts && "checkedThrough" in opts && opts.checkedThrough != null) {
+      doc.checkedThrough = opts.checkedThrough;
+    }
+    // merge so an entries-only save never wipes an existing checkedThrough marker.
+    await db.doc(oiHistoryDocId(symbol)).set(doc, { merge: true });
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Update only the reconciliation marker (used when the series is already fresh). */
+export async function markOiHistoryCheckedThrough(
+  db: Firestore,
+  symbol: string,
+  checkedThrough: string,
+): Promise<void> {
+  try {
+    await db.doc(oiHistoryDocId(symbol)).set(
+      { checkedThrough, updatedAt: new Date().toISOString() },
+      { merge: true },
+    );
   } catch {
     /* best-effort */
   }

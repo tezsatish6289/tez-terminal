@@ -122,7 +122,7 @@ export function OiHistoryChart({
             `/api/freedombot/levels/candles?scope=${scope}&symbol=${encodeURIComponent(symbol)}&interval=D`,
           ),
           fetch(
-            `/api/freedombot/oi-history?scope=${scope}&symbol=${encodeURIComponent(symbol)}`,
+            `/api/freedombot/oi-history?scope=${scope}&symbol=${encodeURIComponent(symbol)}&ensure=1`,
           ),
         ]);
         const cJson = (await cRes.json()) as { ok?: boolean; candles?: DailyCandle[] };

@@ -1,19 +1,21 @@
 /**
  * Cumulative stroke width for History-mode put/call wall lines.
  *
- * Each trading day adjusts width by how much that side's wall OI changed vs the
- * prior day — builds get thicker, decays get thinner (clamped). Progressive
- * multi-day OI builds therefore produce a visibly heavier line.
+ * Each trading day adjusts width by the **percent** change in that side's wall OI
+ * vs the prior day — builds get thicker, decays get thinner (clamped). Using a
+ * relative (% ) step instead of absolute contracts makes thickness behave the
+ * same for index OI (millions) and single-stock OI (thousands).
  *
- * Dominance glow uses **percent gap** between put vs call wall OI (works for
- * index millions and stock thousands alike).
+ * Dominance glow likewise uses the **percent gap** between put vs call wall OI.
  */
 
 export const OI_WALL_LINE_BASE = 2;
 export const OI_WALL_LINE_MIN = 0.75;
 export const OI_WALL_LINE_MAX = 7;
-/** Width change per 1M contracts of day-over-day OI delta. */
-export const OI_WALL_WIDTH_PER_M = 0.45;
+/** Width change per 1% of day-over-day OI change (10% build → +0.3 width). */
+export const OI_WALL_WIDTH_PER_PCT = 0.03;
+/** Per-day width step cap — guards against low-base % noise on illiquid strikes. */
+export const OI_WALL_MAX_STEP = 1.5;
 
 /** % gap below which neither side glows (roughly balanced). */
 export const OI_WALL_GLOW_MIN_PCT = 2;
@@ -29,10 +31,16 @@ function clamp(w: number): number {
   return Math.max(OI_WALL_LINE_MIN, Math.min(OI_WALL_LINE_MAX, w));
 }
 
-/** Day-over-day OI delta → width step (pure). */
+/**
+ * Day-over-day OI **percent** change → width step (pure, scale-invariant).
+ * Returns 0 when the prior value is missing or non-positive (can't form a ratio).
+ */
 export function oiWallWidthStep(prev: number | null | undefined, cur: number | null | undefined): number {
   if (prev == null || cur == null || !Number.isFinite(prev) || !Number.isFinite(cur)) return 0;
-  return ((cur - prev) / 1_000_000) * OI_WALL_WIDTH_PER_M;
+  if (prev <= 0) return 0;
+  const pctChange = ((cur - prev) / prev) * 100;
+  const raw = pctChange * OI_WALL_WIDTH_PER_PCT;
+  return Math.max(-OI_WALL_MAX_STEP, Math.min(OI_WALL_MAX_STEP, raw));
 }
 
 /**

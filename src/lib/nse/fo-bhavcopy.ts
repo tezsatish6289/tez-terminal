@@ -155,16 +155,14 @@ export function pickFrontExpiry(expiries: readonly string[], tradeDate: string):
 }
 
 /**
- * Reduce one day's bhavcopy rows to a single OI-wall snapshot for `symbol`,
- * reading the front-month chain. Returns null when the symbol/chain is absent.
+ * Core reducer: turn the already-filtered rows for ONE symbol into an OI-wall
+ * snapshot (front expiry put/call walls + max pain). Returns null when the chain
+ * is empty. Pure.
  */
-export function computeOiSnapshot(
-  rows: readonly FoOptionRow[],
-  symbol: string,
+function snapshotFromSymbolRows(
+  symRows: readonly FoOptionRow[],
   tradeDate: string,
 ): OiHistoryEntry | null {
-  const sym = symbol.toUpperCase();
-  const symRows = rows.filter((r) => r.symbol === sym);
   if (!symRows.length) return null;
 
   const expiry = pickFrontExpiry(symRows.map((r) => r.expiry), tradeDate);
@@ -208,13 +206,61 @@ export function computeOiSnapshot(
 }
 
 /**
- * Download + unzip one day's F&O bhavcopy. Returns the CSV text, or null when the
- * file doesn't exist (weekend / holiday → 404). Throws only on unexpected errors.
+ * Reduce one day's bhavcopy rows to a single OI-wall snapshot for `symbol`,
+ * reading the front-month chain. Returns null when the symbol/chain is absent.
  */
-export async function fetchFoBhavcopyCsv(
+export function computeOiSnapshot(
+  rows: readonly FoOptionRow[],
+  symbol: string,
+  tradeDate: string,
+): OiHistoryEntry | null {
+  const sym = symbol.toUpperCase();
+  return snapshotFromSymbolRows(rows.filter((r) => r.symbol === sym), tradeDate);
+}
+
+/**
+ * Reduce one day's bhavcopy into OI-wall snapshots for EVERY symbol in one pass
+ * (group by symbol once, then reduce). This is the scalable path: parse a single
+ * market-wide file → compact per-symbol snapshots for all ~250 F&O names. Pure.
+ */
+export function computeAllOiSnapshots(
+  rows: readonly FoOptionRow[],
+  tradeDate: string,
+): Record<string, OiHistoryEntry> {
+  const bySymbol = new Map<string, FoOptionRow[]>();
+  for (const r of rows) {
+    const arr = bySymbol.get(r.symbol);
+    if (arr) arr.push(r);
+    else bySymbol.set(r.symbol, [r]);
+  }
+  const out: Record<string, OiHistoryEntry> = {};
+  for (const [symbol, symRows] of bySymbol) {
+    const snap = snapshotFromSymbolRows(symRows, tradeDate);
+    if (snap) out[symbol] = snap;
+  }
+  return out;
+}
+
+/** Unzip raw bhavcopy zip bytes → CSV text. Reused for NSE downloads and GCS-cached zips. */
+export function unzipBhavcopyCsv(buf: Uint8Array, label = "bhavcopy"): string {
+  if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) {
+    // Not a ZIP (PK header) — usually an NSE bot-challenge HTML page.
+    throw new Error(`${label} not a zip (got ${buf.length}b)`);
+  }
+  const files = unzipSync(buf);
+  const name = Object.keys(files).find((n) => n.toLowerCase().endsWith(".csv"));
+  if (!name) throw new Error(`${label} has no csv`);
+  return strFromU8(files[name]);
+}
+
+/**
+ * Download one day's F&O bhavcopy zip bytes from NSE. Returns null when the file
+ * doesn't exist (weekend / holiday → 404). Throws only on unexpected errors.
+ */
+export async function fetchFoBhavcopyZip(
   date: Date,
   cookies: string = "",
-): Promise<string | null> {
+): Promise<Uint8Array | null> {
   const url = foBhavcopyUrl(date);
   const res = await nseFetch(url, {
     headers: {
@@ -227,14 +273,18 @@ export async function fetchFoBhavcopyCsv(
   });
   if (res.status === 404) return null; // non-trading day
   if (!res.ok) throw new Error(`bhavcopy ${yyyymmdd(date)} HTTP ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
 
-  const buf = new Uint8Array(await res.arrayBuffer());
-  if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) {
-    // Not a ZIP (PK header) — usually an NSE bot-challenge HTML page.
-    throw new Error(`bhavcopy ${yyyymmdd(date)} not a zip (got ${buf.length}b)`);
-  }
-  const files = unzipSync(buf);
-  const name = Object.keys(files).find((n) => n.toLowerCase().endsWith(".csv"));
-  if (!name) throw new Error(`bhavcopy ${yyyymmdd(date)} has no csv`);
-  return strFromU8(files[name]);
+/**
+ * Download + unzip one day's F&O bhavcopy. Returns the CSV text, or null when the
+ * file doesn't exist (weekend / holiday → 404). Throws only on unexpected errors.
+ */
+export async function fetchFoBhavcopyCsv(
+  date: Date,
+  cookies: string = "",
+): Promise<string | null> {
+  const buf = await fetchFoBhavcopyZip(date, cookies);
+  if (!buf) return null;
+  return unzipBhavcopyCsv(buf, `bhavcopy ${yyyymmdd(date)}`);
 }

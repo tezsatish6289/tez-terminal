@@ -7,6 +7,7 @@
  */
 
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
+import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 
 export type ZoneStatus =
   | "IN_BULL"   // spot inside the bull (support) band
@@ -118,6 +119,52 @@ export function isNearResistance(bands: ZoneBands): boolean {
 
 /** Minimum reward:risk from spot → POC vs band invalidation (Bull/Bear Inv.). */
 export const MIN_POC_RISK_REWARD = 2;
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * OI-wall momentum gate (History-chart signal applied to At/Near setups)
+ *
+ * Two extra conditions, mirroring the History chart's encodings:
+ *   1. the relevant wall's OI is BUILDING day over day (line thickening), and
+ *   2. that side DOMINATES (the glow): put-vs-call gap is wide enough.
+ *
+ * Thresholds are intentionally tunable placeholders (see chat — exact numbers
+ * TBD). Adjust here only.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/** Master switch for the OI-momentum gate (flip to disable without unwiring). */
+export const OI_MOMENTUM_GATE_ENABLED = true;
+/** Day-over-day % the relevant wall's OI must exceed to count as "building". */
+export const OI_MOMENTUM_MIN_BUILD_PCT = 0;
+/** Min put↔call dominance gap (%) for the side to count as "glowing". Matches the History glow floor. */
+export const OI_MOMENTUM_MIN_DOMINANCE_PCT = 2;
+/**
+ * When a symbol has no materialized OI signal yet, pass (don't block) so a cold
+ * start never empties the map. Flip to `false` for strict fail-closed.
+ */
+export const OI_MOMENTUM_PASS_WHEN_MISSING = true;
+
+/**
+ * Does the OI-wall momentum signal qualify a support ("bull") or resistance
+ * ("bear") setup? Pure. Missing signal honors {@link OI_MOMENTUM_PASS_WHEN_MISSING}.
+ */
+export function oiMomentumPassesForSide(
+  oi: OiWallMomentum | null | undefined,
+  side: "bull" | "bear",
+): boolean {
+  if (!OI_MOMENTUM_GATE_ENABLED) return true;
+  if (!oi) return OI_MOMENTUM_PASS_WHEN_MISSING;
+
+  if (side === "bull") {
+    const building = oi.putDeltaPct != null && oi.putDeltaPct > OI_MOMENTUM_MIN_BUILD_PCT;
+    const dominant =
+      oi.dominantSide === "put" && oi.dominancePct >= OI_MOMENTUM_MIN_DOMINANCE_PCT;
+    return building && dominant;
+  }
+  const building = oi.callDeltaPct != null && oi.callDeltaPct > OI_MOMENTUM_MIN_BUILD_PCT;
+  const dominant =
+    oi.dominantSide === "call" && oi.dominancePct >= OI_MOMENTUM_MIN_DOMINANCE_PCT;
+  return building && dominant;
+}
 
 /** Reward:risk from entry → reward target vs computed SL. */
 function entryRiskRewardRatio(
@@ -278,6 +325,7 @@ export function matchesDirectionalSetup(
   poc: number | null | undefined,
   filter: PocDirectionFilter,
   bandOffset?: number | null,
+  oi?: OiWallMomentum | null,
 ): boolean {
   const spot = bands.spot;
   if (spot == null || poc == null || !Number.isFinite(spot) || !Number.isFinite(poc) || spot <= 0) {
@@ -290,12 +338,14 @@ export function matchesDirectionalSetup(
     status === "IN_BULL" &&
     poc > spot &&
     bullRr != null &&
-    bullRr >= MIN_POC_RISK_REWARD;
+    bullRr >= MIN_POC_RISK_REWARD &&
+    oiMomentumPassesForSide(oi, "bull");
   const bearOk =
     status === "IN_BEAR" &&
     poc < spot &&
     bearRr != null &&
-    bearRr >= MIN_POC_RISK_REWARD;
+    bearRr >= MIN_POC_RISK_REWARD &&
+    oiMomentumPassesForSide(oi, "bear");
   if (filter === "all") return bullOk || bearOk;
   if (filter === "bull") return bullOk;
   if (filter === "bear") return bearOk;
@@ -310,6 +360,7 @@ export function matchesNearBullSetup(
   bands: ZoneBands,
   poc: number | null | undefined,
   bandOffset?: number | null,
+  oi?: OiWallMomentum | null,
 ): boolean {
   const spot = bands.spot;
   if (spot == null || poc == null || !Number.isFinite(spot) || !Number.isFinite(poc) || spot <= 0) {
@@ -317,7 +368,7 @@ export function matchesNearBullSetup(
   }
   if (!isNearSupport(bands)) return false;
   const rr = pocRiskRewardRatio(bands, poc, bandOffset, "bull");
-  return poc > spot && rr != null && rr >= MIN_POC_RISK_REWARD;
+  return poc > spot && rr != null && rr >= MIN_POC_RISK_REWARD && oiMomentumPassesForSide(oi, "bull");
 }
 
 /**
@@ -328,6 +379,7 @@ export function matchesNearBearSetup(
   bands: ZoneBands,
   poc: number | null | undefined,
   bandOffset?: number | null,
+  oi?: OiWallMomentum | null,
 ): boolean {
   const spot = bands.spot;
   if (spot == null || poc == null || !Number.isFinite(spot) || !Number.isFinite(poc) || spot <= 0) {
@@ -335,7 +387,7 @@ export function matchesNearBearSetup(
   }
   if (!isNearResistance(bands)) return false;
   const rr = pocRiskRewardRatio(bands, poc, bandOffset, "bear");
-  return poc < spot && rr != null && rr >= MIN_POC_RISK_REWARD;
+  return poc < spot && rr != null && rr >= MIN_POC_RISK_REWARD && oiMomentumPassesForSide(oi, "bear");
 }
 
 /** Whether a bubble map tone passes min POC reward:risk for its geographic side. */
@@ -344,16 +396,17 @@ export function bubbleTonePassesMinRR(
   bands: ZoneBands,
   poc: number | null | undefined,
   bandOffset?: number | null,
+  oi?: OiWallMomentum | null,
 ): boolean {
   switch (tone) {
     case "IN_BULL":
-      return matchesDirectionalSetup(bands, poc, "bull", bandOffset);
+      return matchesDirectionalSetup(bands, poc, "bull", bandOffset, oi);
     case "IN_BEAR":
-      return matchesDirectionalSetup(bands, poc, "bear", bandOffset);
+      return matchesDirectionalSetup(bands, poc, "bear", bandOffset, oi);
     case "NEAR_BULL":
-      return matchesNearBullSetup(bands, poc, bandOffset);
+      return matchesNearBullSetup(bands, poc, bandOffset, oi);
     case "NEAR_BEAR":
-      return matchesNearBearSetup(bands, poc, bandOffset);
+      return matchesNearBearSetup(bands, poc, bandOffset, oi);
   }
 }
 
@@ -363,11 +416,12 @@ export function matchesSlideshowSetup(
   poc: number | null | undefined,
   filter: PocDirectionFilter,
   bandOffset?: number | null,
+  oi?: OiWallMomentum | null,
 ): boolean {
-  const bullOk = matchesDirectionalSetup(bands, poc, "bull", bandOffset);
-  const bearOk = matchesDirectionalSetup(bands, poc, "bear", bandOffset);
-  const nearBullOk = matchesNearBullSetup(bands, poc, bandOffset);
-  const nearBearOk = matchesNearBearSetup(bands, poc, bandOffset);
+  const bullOk = matchesDirectionalSetup(bands, poc, "bull", bandOffset, oi);
+  const bearOk = matchesDirectionalSetup(bands, poc, "bear", bandOffset, oi);
+  const nearBullOk = matchesNearBullSetup(bands, poc, bandOffset, oi);
+  const nearBearOk = matchesNearBearSetup(bands, poc, bandOffset, oi);
 
   switch (filter) {
     case "all":

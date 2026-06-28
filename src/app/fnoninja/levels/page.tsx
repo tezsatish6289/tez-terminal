@@ -99,6 +99,7 @@ interface StockListItem {
   halfWidth?: number | null;
   computedAt?: string | null;
   levelsSource?: PublicLevels["levelsSource"];
+  oi?: PublicLevels["oi"];
 }
 
 type InZoneItem = LevelsActionableItem;

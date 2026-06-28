@@ -20,6 +20,7 @@ import {
 } from "@/lib/levels/levels-source";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
+import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 
 const AGGREGATE_DOC = "config/zone_status_stocks";
 
@@ -109,6 +110,8 @@ export interface StockZoneAggregateEntry {
   daysToEarnings: number | null;
   computedAt: string;
   levelsSource: PublicLevelsSource | null;
+  /** Day-over-day OI-wall momentum signal (written by the OI-momentum pass, not the zone batch). */
+  oi?: OiWallMomentum | null;
 }
 
 export function aggregateEntry(

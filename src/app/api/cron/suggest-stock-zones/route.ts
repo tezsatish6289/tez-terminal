@@ -28,6 +28,7 @@ import {
   summarizeIndexZones,
   type IndexZonesRefreshResult,
 } from "@/lib/index-zones-store";
+import { refreshOiMomentumSignals } from "@/lib/zones/oi-momentum-store";
 
 export const dynamic = "force-dynamic";
 /** Background batch after() may run up to platform limit (apphosting timeoutSeconds). */
@@ -51,6 +52,27 @@ function indexZonesSummarySuffix(
   if (!ix) return "";
   if ("skipped" in ix) return ` indices=${ix.skipped}`;
   return ` ${summarizeIndexZones(ix)}`;
+}
+
+/** OI-wall momentum signal onto zone docs — GCS-only, isolated so it never breaks the batch. */
+async function refreshOiMomentumIsolated(
+  db: ReturnType<typeof getAdminFirestore>,
+): Promise<void> {
+  try {
+    const res = await refreshOiMomentumSignals(db);
+    if (!res.ok) {
+      console.warn(`[SuggestStockZones] OI momentum skipped: ${res.reason ?? "unknown"}`);
+    } else {
+      console.log(
+        `[SuggestStockZones] OI momentum asOf=${res.asOf} stocks=${res.stocksPatched} indices=${res.indicesPatched}`,
+      );
+    }
+  } catch (e) {
+    console.error(
+      "[SuggestStockZones] OI momentum pass failed (isolated):",
+      e instanceof Error ? e.message : String(e),
+    );
+  }
 }
 
 /** NSE index zones — runs before stock batch when stale (market-hours rules apply). */
@@ -93,6 +115,7 @@ export async function GET(request: NextRequest) {
     try {
       const indexZones = await refreshIndexZonesIfNeeded(db);
       const summary = await runStockZonesBatch(db);
+      await refreshOiMomentumIsolated(db);
       const base = stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt);
       await recordStockZonesHeartbeat({
         ...base,
@@ -136,6 +159,7 @@ export async function GET(request: NextRequest) {
     try {
       const indexZones = await refreshIndexZonesIfNeeded(db);
       const summary = await runStockZonesBatch(db);
+      await refreshOiMomentumIsolated(db);
       console.log("[SuggestStockZones] background batch done", JSON.stringify(summary));
       const base = stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt);
       await recordStockZonesHeartbeat({
@@ -181,6 +205,7 @@ export async function POST(request: NextRequest) {
     }
     const indexZones = await refreshIndexZonesIfNeeded(db, { force: true });
     const summary = await runStockZonesBatch(db, { symbolsOverride });
+    await refreshOiMomentumIsolated(db);
     const base = stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt);
     await recordStockZonesHeartbeat({
       ...base,

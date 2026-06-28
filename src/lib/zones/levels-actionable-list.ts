@@ -11,6 +11,7 @@ import {
   type ZoneBands,
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
+import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 
 /** Optional volatility-regime fields a stock row may carry (display only). */
 export interface StockRowVolRegime {
@@ -18,6 +19,8 @@ export interface StockRowVolRegime {
   volRegime?: VolRegimeFlag | null;
   volRegimeReason?: string | null;
   daysToEarnings?: number | null;
+  /** Day-over-day OI-wall momentum signal (At/Near filter input). */
+  oi?: OiWallMomentum | null;
 }
 
 export interface LevelsActionableItem {
@@ -85,6 +88,7 @@ export function levelsFromStockRow(row: {
     volRegimeReason: row.volRegimeReason ?? null,
     atmIV: row.atmIV ?? null,
     daysToEarnings: row.daysToEarnings ?? null,
+    oi: row.oi ?? null,
   };
 }
 
@@ -172,7 +176,7 @@ export function buildLevelsActionableList(input: {
     const symbol = (it.symbol ?? it.label).toUpperCase();
     const data = it.data;
     const bands = bandsFromLevels(data);
-    if (!matchesSlideshowSetup(bands, data?.poc ?? null, filter, data?.bandOffset ?? null)) {
+    if (!matchesSlideshowSetup(bands, data?.poc ?? null, filter, data?.bandOffset ?? null, data?.oi ?? null)) {
       continue;
     }
     out.push({
@@ -190,7 +194,7 @@ export function buildLevelsActionableList(input: {
     const data = levelsFromStockRow(row);
     if (!data) continue;
     const bands = bandsFromLevels(data, row.spot);
-    if (!matchesSlideshowSetup(bands, data.poc, filter, data.bandOffset)) continue;
+    if (!matchesSlideshowSetup(bands, data.poc, filter, data.bandOffset, data.oi)) continue;
     out.push({
       scope: "stock",
       symbol: row.symbol,

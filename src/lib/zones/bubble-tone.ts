@@ -5,6 +5,7 @@ import {
   nearestBandKind,
   type ZoneBands,
 } from "@/lib/zones/zone-status";
+import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 
 /** Visual tone for the levels bubble map (splits generic NEAR by closest band). */
 export type BubbleTone =
@@ -139,6 +140,7 @@ export function deriveBubbleDisplayTone(
   _meetsActionableSetup?: boolean,
   poc?: number | null,
   bandOffset?: number | null,
+  oi?: OiWallMomentum | null,
 ): BubbleTone {
   const geo = deriveBubbleTone(bands, scanned);
   if (
@@ -147,7 +149,7 @@ export function deriveBubbleDisplayTone(
     geo === "NEAR_BULL" ||
     geo === "NEAR_BEAR"
   ) {
-    if (!bubbleTonePassesMinRR(geo, bands, poc, bandOffset)) return "NEUTRAL";
+    if (!bubbleTonePassesMinRR(geo, bands, poc, bandOffset, oi)) return "NEUTRAL";
   }
   return geo;
 }

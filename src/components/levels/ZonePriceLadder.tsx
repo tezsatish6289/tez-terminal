@@ -9,6 +9,7 @@ import type {
 } from "@/lib/levels/index-expiry-levels";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
+import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 
 /**
@@ -57,6 +58,8 @@ export interface PublicLevels {
   expiryOptions?: PublicLevelsExpiryOption[];
   /** NSE indices: full band payload per expiry (client-side expiry switch). */
   zonesByExpiry?: PublicLevelsExpirySlice[];
+  /** Day-over-day OI-wall momentum (thickness + dominance) for the At/Near filter. */
+  oi?: OiWallMomentum | null;
 }
 
 export type { PublicLevelsExpiryOption, PublicLevelsExpirySlice };

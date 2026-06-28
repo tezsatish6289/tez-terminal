@@ -50,8 +50,17 @@ import {
 import { indexDocId } from "@/lib/index-zones-store";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
+import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 
 const VOL_REGIME_FLAGS: readonly VolRegimeFlag[] = ["CALM", "ELEVATED", "EARNINGS", "UNKNOWN"];
+
+/** Pass through a stored OI-wall momentum signal (best-effort shape check). */
+function oiSignal(raw: unknown): OiWallMomentum | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.asOf !== "string" || typeof o.dominancePct !== "number") return null;
+  return o as unknown as OiWallMomentum;
+}
 
 function volRegimeFlag(raw: unknown): VolRegimeFlag | null {
   return typeof raw === "string" && (VOL_REGIME_FLAGS as readonly string[]).includes(raw)
@@ -115,6 +124,7 @@ function sanitize(
     callClusterStrike: num(raw.bearStrike),
     putClusterChange: num(raw.bullOIChange),
     callClusterChange: num(raw.bearOIChange),
+    oi: oiSignal(raw.oi),
     ...(expiryOptions.length > 0 ? { expiryOptions, zonesByExpiry } : {}),
   };
   if (zonesByExpiry.length > 0) {
@@ -207,6 +217,7 @@ interface StockAggregateEntry {
   daysToEarnings?: number | null;
   computedAt?: string;
   levelsSource?: string | null;
+  oi?: OiWallMomentum | null;
 }
 
 /**
@@ -332,6 +343,7 @@ export async function GET(request: NextRequest) {
       levelsSource: storedSourceToPublic(
         typeof e.levelsSource === "string" ? e.levelsSource : null,
       ),
+      oi: oiSignal(e.oi),
     }))
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 

@@ -22,6 +22,7 @@ import {
 } from "@/lib/zones/bubble-map-filter";
 import { levelsFromStockRow } from "@/lib/zones/levels-actionable-list";
 import { matchesSlideshowSetup, type ZoneBands } from "@/lib/zones/zone-status";
+import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 import { FNO_BUBBLE_MAP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 
 export interface LevelsBubbleItem {
@@ -341,6 +342,7 @@ export type StockBubbleSource = {
   bearZoneHigh: number | null;
   halfWidth?: number | null;
   computedAt?: string | null;
+  oi?: OiWallMomentum | null;
 };
 
 /** Full map: indices + F&O universe (tones gated by 2:1 POC RR). */
@@ -364,13 +366,14 @@ export function buildLevelsBubbleItems(
     };
     const poc = it.data?.poc ?? null;
     const bandOffset = it.data?.bandOffset ?? null;
-    const actionable = matchesSlideshowSetup(bands, poc, "all", bandOffset);
+    const oi = it.data?.oi ?? null;
+    const actionable = matchesSlideshowSetup(bands, poc, "all", bandOffset, oi);
     out.push({
       id,
       symbol,
       label: it.label,
       scope: "index",
-      tone: deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset),
+      tone: deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset, oi),
       spot: bands.spot,
       poc,
       bands,
@@ -393,14 +396,15 @@ export function buildLevelsBubbleItems(
     const stockLevels = st ? levelsFromStockRow(st) : null;
     const poc = stockLevels?.poc ?? null;
     const bandOffset = stockLevels?.bandOffset ?? null;
+    const oi = st?.oi ?? null;
     const actionable =
-      scanned && matchesSlideshowSetup(bands, poc, "all", bandOffset);
+      scanned && matchesSlideshowSetup(bands, poc, "all", bandOffset, oi);
     out.push({
       id,
       symbol: sym,
       label: fnoCompanyName(sym) ?? st?.label ?? sym,
       scope: "stock",
-      tone: deriveBubbleDisplayTone(bands, scanned, actionable, poc, bandOffset),
+      tone: deriveBubbleDisplayTone(bands, scanned, actionable, poc, bandOffset, oi),
       spot: bands.spot,
       poc,
       bands,
@@ -429,13 +433,14 @@ export function inZoneItemToBubbleItem(it: {
   };
   const poc = it.data?.poc ?? null;
   const bandOffset = it.data?.bandOffset ?? null;
-  const actionable = matchesSlideshowSetup(bands, poc, "all", bandOffset);
+  const oi = it.data?.oi ?? null;
+  const actionable = matchesSlideshowSetup(bands, poc, "all", bandOffset, oi);
   return {
     id: `${it.scope}-${it.symbol}`,
     symbol: it.symbol,
     label: it.label,
     scope: it.scope,
-    tone: deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset),
+    tone: deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset, oi),
     spot: bands.spot,
     poc: it.data?.poc ?? null,
     bands,

@@ -10,9 +10,9 @@
  *
  * Usage:
  *   APP_BASE_URL=https://tezterminal.com CRON_SECRET=xxx \
- *     npx tsx scripts/backfill-oi-history.ts [SYMBOL] [tradingDays]
+ *     npx tsx scripts/backfill-oi-history.ts [SYMBOL|ALL] [tradingDays]
  *
- *   SYMBOL       optional (default NIFTY)
+ *   SYMBOL       optional (default NIFTY); ALL = all five index symbols
  *   tradingDays  optional (default 120)
  */
 
@@ -20,22 +20,10 @@ export {}; // module scope (avoids global `main` collision with other scripts)
 
 const CHUNK = 15; // trading days per request — ~4s/day via the India proxy, keep under the 120s function limit
 
-async function main(): Promise<void> {
-  const base = (process.env.APP_BASE_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
-  const key = process.env.CRON_SECRET;
-  const symbol = (process.argv[2] ?? "NIFTY").toUpperCase();
-  const targetDays = Number(process.argv[3] ?? 120) || 120;
+const INDEX_SYMBOLS = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50"] as const;
 
-  if (!base) {
-    console.error("Set APP_BASE_URL (e.g. https://tezterminal.com).");
-    process.exit(1);
-  }
-  if (!key) {
-    console.error("Set CRON_SECRET (matches the deployed env).");
-    process.exit(1);
-  }
-
-  console.log(`Backfilling ${symbol} OI history (~${targetDays} trading days) on ${base} …`);
+async function backfillSymbol(base: string, key: string, symbol: string, targetDays: number): Promise<void> {
+  console.log(`\n=== ${symbol} (~${targetDays} trading days) ===`);
 
   let remaining = targetDays;
   let before: string | null = null;
@@ -60,8 +48,7 @@ async function main(): Promise<void> {
     };
 
     if (!res.ok || json.success === false) {
-      console.error(`Chunk failed (HTTP ${res.status}): ${json.error ?? "unknown"}`);
-      process.exit(1);
+      throw new Error(`${symbol} chunk failed (HTTP ${res.status}): ${json.error ?? "unknown"}`);
     }
 
     const added = json.added ?? 0;
@@ -71,18 +58,42 @@ async function main(): Promise<void> {
     );
 
     if (added === 0 || !json.earliestDate) {
-      console.log("Reached start of available archives — stopping.");
+      console.log("  Reached start of available archives — stopping.");
       break;
     }
 
-    // Page strictly before the earliest date reached.
     const prev = new Date(`${json.earliestDate}T00:00:00Z`);
     prev.setUTCDate(prev.getUTCDate() - 1);
     before = prev.toISOString().slice(0, 10);
     remaining -= added;
   }
 
-  console.log(`Done. Added ~${total} trading days for ${symbol}.`);
+  console.log(`  Done. Added ~${total} trading days for ${symbol}.`);
+}
+
+async function main(): Promise<void> {
+  const base = (process.env.APP_BASE_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
+  const key = process.env.CRON_SECRET;
+  const rawSymbol = (process.argv[2] ?? "NIFTY").toUpperCase();
+  const targetDays = Number(process.argv[3] ?? 120) || 120;
+
+  if (!base) {
+    console.error("Set APP_BASE_URL (e.g. https://tezterminal.com).");
+    process.exit(1);
+  }
+  if (!key) {
+    console.error("Set CRON_SECRET (matches the deployed env).");
+    process.exit(1);
+  }
+
+  const symbols = rawSymbol === "ALL" ? [...INDEX_SYMBOLS] : [rawSymbol];
+  console.log(`Backfilling OI history on ${base} for: ${symbols.join(", ")}`);
+
+  for (const symbol of symbols) {
+    await backfillSymbol(base, key, symbol, targetDays);
+  }
+
+  console.log("\nAll backfills finished.");
 }
 
 main().catch((e) => {

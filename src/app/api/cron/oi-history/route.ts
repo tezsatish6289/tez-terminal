@@ -1,5 +1,5 @@
 /**
- * /api/cron/oi-history — backfill + verify the OI-wall history series.
+ * /api/cron/oi-history — backfill, daily append, and verify the OI-wall history series.
  *
  * Key-gated (CRON_SECRET), like the other cron/maintenance routes, so it's
  * triggerable from `scripts/backfill-oi-history.ts` or cron-job.org without an
@@ -7,6 +7,11 @@
  * datacenter IPs (uses the same NSE_HTTPS_PROXY egress as the live fetch).
  *
  * Modes (GET):
+ *   • ?append=1
+ *       → after EOD bhavcopy publish, append missing trading days for all five
+ *         index symbols (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY, NIFTYNXT50).
+ *         Schedule on cron-job.org Mon–Fri ~17:00 IST:
+ *         `/api/cron/oi-history?append=1&key=CRON_SECRET`
  *   • ?backfill=1&symbol=NIFTY&days=60&before=YYYY-MM-DD
  *       → walk bhavcopy archives back from `before` (default today), add up to
  *         `days` trading days, merge into config/oi_history_NIFTY. Returns
@@ -19,6 +24,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
+import { INDEX_KEYS } from "@/lib/index-specs";
 import { getNseCookies } from "@/lib/nse-session";
 import {
   computeOiSnapshot,
@@ -26,6 +32,7 @@ import {
   parseFoBhavcopyCsv,
 } from "@/lib/nse/fo-bhavcopy";
 import { backfillOiHistory } from "@/lib/oi-history-backfill";
+import { appendDailyOiHistory } from "@/lib/oi-history-daily";
 import { loadOiHistory } from "@/lib/oi-history";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +84,16 @@ export async function GET(request: NextRequest) {
         maxTradingDays: days,
       });
       return NextResponse.json({ success: true, mode: "backfill", ...result });
+    }
+
+    if (params.get("append") === "1") {
+      const result = await appendDailyOiHistory(db);
+      return NextResponse.json({
+        success: true,
+        mode: "append",
+        indices: INDEX_KEYS,
+        ...result,
+      });
     }
 
     const loaded = await loadOiHistory(db, symbol);

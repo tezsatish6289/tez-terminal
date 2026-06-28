@@ -6,6 +6,7 @@ import type {
 } from "./video-caption-types";
 import { captionsForUi, type VideoCaptionsForUi } from "./video-caption-types";
 import type { TopicStockSummary } from "./build-topic-summary";
+import { normalizeCaption } from "@/lib/social/platforms";
 
 export { captionsForUi, type VideoCaptionsForUi };
 
@@ -179,7 +180,7 @@ function promptIntro(payload: CaptionPayload): string {
 INPUT (keep symbols, prices, date, time EXACT):
 ${dataJson}
 
-Rules: informational only (no buy/sell advice). Use **bold** for Heavy/Moderate/Mild ${w}. CTA → ${payload.website}. Say "${payload.wallType}" not "put/call wall". Date line: "${payload.date} | ${payload.time}".
+Rules: informational only (no buy/sell advice). Refer to wall strength as Heavy/Moderate/Mild ${w} in PLAIN TEXT — no markdown, no asterisks (social networks show ** literally). CTA → ${payload.website}. Say "${payload.wallType}" not "put/call wall". Date line: "${payload.date} | ${payload.time}".
 
 Return valid JSON only. Use \\n for line breaks inside string values (never raw unescaped newlines).`;
 }
@@ -346,5 +347,15 @@ export async function generateCaptionsFromSummary(summary: {
 }): Promise<VideoCaptionsForUi> {
   const payload = buildCaptionPayload(summary);
   const output = await generateVideoCaptions(payload);
-  return captionsForUi(output);
+  // Strip markdown / fix stray price line-breaks so captions are clean on every
+  // network (none render markdown) — covers both AI and template fallback output.
+  const cleaned: VideoCaptionOutput = {
+    twitter: normalizeCaption(output.twitter),
+    facebook: normalizeCaption(output.facebook),
+    linkedin: normalizeCaption(output.linkedin),
+    instagram: normalizeCaption(output.instagram),
+    youtubeTitle: normalizeCaption(output.youtubeTitle),
+    youtubeDescription: normalizeCaption(output.youtubeDescription),
+  };
+  return captionsForUi(cleaned);
 }

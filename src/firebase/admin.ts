@@ -59,7 +59,17 @@ function getAdminApp(): App {
 export function getAdminFirestore(): Firestore {
   if (!_db) {
     _db = getFirestore(getAdminApp());
-    _db.settings({ ignoreUndefinedProperties: true });
+    // `.settings()` may only be called once, before the Firestore object is
+    // used. Our module-level `_db` cache can be reset (dev HMR / multiple
+    // Turbopack bundles) while firebase-admin keeps reusing the same underlying
+    // Firestore — so a second pass would call settings() on an already-used
+    // instance and throw. The first successful call already applied the flag to
+    // that shared instance, so it's safe to ignore the "already initialized" error.
+    try {
+      _db.settings({ ignoreUndefinedProperties: true });
+    } catch {
+      /* settings already applied on this (reused) Firestore instance — fine. */
+    }
   }
   return _db;
 }

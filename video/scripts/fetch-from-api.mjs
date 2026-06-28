@@ -17,7 +17,7 @@
  * Writes out/put.json + out/call.json.
  *
  * Usage:
- *   BASE_URL=https://freedombot.ai node scripts/fetch-from-api.mjs
+ *   BASE_URL=https://fnoninja.com node scripts/fetch-from-api.mjs
  *   # or BASE_URL=http://localhost:9002 against a local dev server
  */
 
@@ -25,7 +25,7 @@ import { writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const BASE = process.env.BASE_URL ?? "https://freedombot.ai";
+const BASE = process.env.BASE_URL ?? "https://fnoninja.com";
 const TOP_N = Number(process.env.TOP_N ?? 5);
 const INTERVAL = process.env.INTERVAL ?? "15";
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "out");

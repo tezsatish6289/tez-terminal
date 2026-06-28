@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { format } from "date-fns";
+import { ScheduleToBufferPanel } from "@/components/admin/ScheduleToBufferPanel";
 
 const ADMIN_EMAILS = new Set(["hello@tezterminal.com"]);
 
@@ -712,6 +713,19 @@ export default function VideosAdminPage() {
                 </div>
               )}
             </section>
+          </div>
+        )}
+
+        {selected && (
+          <div className="mt-5">
+            <ScheduleToBufferPanel
+              authedFetch={authedFetch}
+              source="videos"
+              contentId={selected.id}
+              contentLabel={selected.label}
+              captions={captions}
+              videoUrl={videoUrl}
+            />
           </div>
         )}
       </main>

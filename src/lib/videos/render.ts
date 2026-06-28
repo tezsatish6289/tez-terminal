@@ -3,9 +3,14 @@ import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { VideoTopic } from "./topics";
 
-/** Where the fetch step pulls live levels data from. */
+/**
+ * Where the fetch step pulls live levels data from. Defaults to fnoninja.com —
+ * the public host for the F&O levels (same app/Firestore behind every domain,
+ * so the `/api/freedombot/levels` route returns identical data). Override with
+ * VIDEO_FETCH_BASE_URL (e.g. http://localhost:9002 for local dev data).
+ */
 export function fetchBaseUrl(): string {
-  return process.env.VIDEO_FETCH_BASE_URL ?? "https://freedombot.ai";
+  return process.env.VIDEO_FETCH_BASE_URL ?? "https://fnoninja.com";
 }
 
 /**

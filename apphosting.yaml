@@ -104,6 +104,13 @@ env:
     value: "28000"
     availability:
       - RUNTIME
+  # Buffer publishing — personal API key from publish.buffer.com/settings/api.
+  # Powers /admin/videos → "Schedule to Buffer" (multi-channel video posting).
+  #   firebase apphosting:secrets:set BUFFER_API_KEY
+  - variable: BUFFER_API_KEY
+    secret: BUFFER_API_KEY
+    availability:
+      - RUNTIME
   - variable: GOOGLE_OAUTH_CLIENT_ID
     secret: GOOGLE_OAUTH_CLIENT_ID
   - variable: GOOGLE_OAUTH_CLIENT_SECRET

@@ -223,28 +223,36 @@ export function OiHistoryChart({
   const bear = LEVELS_ZONE_CHART.bear;
   const mp = LEVELS_ZONE_CHART.maxPain.line;
 
-  if (loading) {
+  const guide = <HistoryChartGuide bullLine={bull.line} bearLine={bear.line} maxPainColor={mp} />;
+
+  const historyLoading = loading || (!error && !rows.length);
+
+  if (historyLoading) {
     return (
       <div className={className} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
-        <div ref={containerRef} className="flex-1 min-h-0 flex items-center justify-center">
+        <div
+          ref={containerRef}
+          className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2.5"
+        >
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+          <p className="text-sm" style={{ color: "#94a3b8" }}>
+            Loading History ....
+          </p>
         </div>
+        {guide}
       </div>
     );
   }
 
-  const guide = <HistoryChartGuide bullLine={bull.line} bearLine={bear.line} maxPainColor={mp} />;
-
-  if (error || !rows.length || !displayRows.length || !model) {
+  if (error || !displayRows.length || !model) {
     return (
       <div className={className} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
-        {!loading && rows.length > 0 ? (
+        {rows.length > 0 ? (
           <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
         ) : null}
         <div ref={containerRef} className="flex-1 min-h-0 flex items-center justify-center">
           <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
-            {error ??
-              "No OI history yet for this symbol. It builds once the daily snapshot runs (or after a one-time backfill)."}
+            {error ?? "Could not load OI history for this symbol."}
           </p>
         </div>
         {guide}

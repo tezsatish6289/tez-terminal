@@ -18,8 +18,12 @@ import {
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
-import { LevelsOutlookViewToggle } from "@/components/levels/LevelsOutlookViewToggle";
+import {
+  LevelsOutlookViewToggle,
+  type LevelsViewMode as ChartPanelViewMode,
+} from "@/components/levels/LevelsOutlookViewToggle";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
+import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
 import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
 import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook-keyboard";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
@@ -196,8 +200,7 @@ export default function LevelsPage() {
   const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
   const [slideshowFilter, setSlideshowFilter] = useState<SlideshowMapFilter>("all");
   const [chartFullHistory, setChartFullHistory] = useState(false);
-  const [slideshowChartViewMode, setSlideshowChartViewMode] =
-    useState<"chart" | "outlook" | "history">("chart");
+  const [slideshowChartViewMode, setSlideshowChartViewMode] = useState<ChartPanelViewMode>("chart");
   /** Last candle close per symbol — strip tiles match native chart price. */
   const [liveStripSpot, setLiveStripSpot] = useState<Record<string, number>>({});
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
@@ -501,15 +504,18 @@ export default function LevelsPage() {
 
   const chartLevelsForView = expiryScope ? expiryDisplayLevels : activeChartLevels;
   const expiryPickerEnabled = expiryOptions && expiryOptions.length > 1;
-  const outlookAvailable = (activeChartLevels?.zonesByExpiry?.length ?? 0) > 1;
-  const showSlideshowOutlook =
-    isSlideView && outlookAvailable && slideshowChartViewMode === "outlook";
+  const showSlideshowOutlook = isSlideView && slideshowChartViewMode === "outlook";
+  const showSlideshowHistory =
+    isSlideView &&
+    slideshowChartViewMode === "history" &&
+    (inZoneActive?.scope === "index" || inZoneActive?.scope === "stock");
 
   useChartOutlookKeyboardShortcuts(
-    outlookAvailable,
+    true,
     () => setSlideshowChartViewMode("chart"),
     () => setSlideshowChartViewMode("outlook"),
     isSlideView && !fynnDrawerOpen,
+    { historyAvailable: true, onHistory: () => setSlideshowChartViewMode("history") },
   );
 
   /** Chart + news rail — stable for all native-candle slideshow symbols (not gated on levels load). */
@@ -739,14 +745,19 @@ export default function LevelsPage() {
         data-favslide-tour="chart"
         className="flex flex-1 min-h-0 h-full w-full flex-col max-md:touch-pan-y"
       >
-        {isSlideView && outlookAvailable ? (
+        {isSlideView ? (
           <LevelsOutlookViewToggle
             value={slideshowChartViewMode}
             onChange={setSlideshowChartViewMode}
-            outlookAvailable={outlookAvailable}
           />
         ) : null}
-        {showSlideshowOutlook ? (
+        {showSlideshowHistory && inZoneActive ? (
+          <OiHistoryChart
+            className="flex-1 min-h-0 h-full w-full"
+            scope={inZoneActive.scope}
+            symbol={inZoneActive.symbol}
+          />
+        ) : showSlideshowOutlook ? (
           <NiftyOutlookChart
             className="flex-1 min-h-0 h-full w-full"
             levels={activeChartLevels}

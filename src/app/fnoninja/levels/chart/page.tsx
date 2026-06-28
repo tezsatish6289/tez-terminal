@@ -134,18 +134,16 @@ function ChartContent() {
     setViewMode(wantsHistory ? "history" : "chart");
   }, [config?.symbol, config?.exchange, config?.candlesScope, urlView, scope]);
 
-  const outlookAvailable = (levels?.zonesByExpiry?.length ?? 0) > 1;
-  const historyAvailable = scope === "index" || scope === "stock";
-  const showOutlook = outlookAvailable && viewMode === "outlook";
-  const showHistory = historyAvailable && viewMode === "history";
+  const showOutlook = viewMode === "outlook";
+  const showHistory = viewMode === "history";
   const expiryPickerEnabled = expiryOptions && expiryOptions.length > 1;
 
   useChartOutlookKeyboardShortcuts(
-    outlookAvailable,
+    true,
     () => setViewMode("chart"),
     () => setViewMode("outlook"),
     Boolean(scope && symbol),
-    { historyAvailable, onHistory: () => setViewMode("history") },
+    { historyAvailable: true, onHistory: () => setViewMode("history") },
   );
 
   const companyName = useMemo(() => {
@@ -248,14 +246,7 @@ function ChartContent() {
           className="mt-1.5 sm:mt-2"
           chart={
             <>
-              {(outlookAvailable || historyAvailable) && (
-                <LevelsOutlookViewToggle
-                  value={viewMode}
-                  onChange={setViewMode}
-                  outlookAvailable={outlookAvailable}
-                  historyAvailable={historyAvailable}
-                />
-              )}
+              <LevelsOutlookViewToggle value={viewMode} onChange={setViewMode} />
               {showHistory && scope ? (
                 <OiHistoryChart
                   className="flex-1 min-h-0 h-full w-full"

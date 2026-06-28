@@ -5,20 +5,14 @@ export type LevelsViewMode = "chart" | "outlook" | "history";
 export function LevelsOutlookViewToggle({
   value,
   onChange,
-  outlookAvailable = true,
-  historyAvailable = false,
 }: {
   value: LevelsViewMode;
   onChange: (v: LevelsViewMode) => void;
-  /** When false, hide Outlook tab (single expiry). */
-  outlookAvailable?: boolean;
-  /** When true, show History tab (daily OI-wall + max-pain timeline). */
-  historyAvailable?: boolean;
 }) {
   const options: { id: LevelsViewMode; label: string; kbd?: string }[] = [
     { id: "chart", label: "Chart", kbd: "C" },
-    ...(outlookAvailable ? [{ id: "outlook" as const, label: "Outlook", kbd: "O" }] : []),
-    ...(historyAvailable ? [{ id: "history" as const, label: "History", kbd: "H" }] : []),
+    { id: "outlook", label: "Outlook", kbd: "O" },
+    { id: "history", label: "History", kbd: "H" },
   ];
   return (
     <div className="mb-1.5 flex shrink-0 items-center gap-1 self-start rounded-lg border border-white/10 bg-white/[0.03] p-0.5">

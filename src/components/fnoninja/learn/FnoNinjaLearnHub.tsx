@@ -10,6 +10,7 @@ import type { LucideIcon } from "lucide-react";
 import { LEARN_ARTICLES, type LearnArticleMeta } from "@/lib/fnoninja/learn-content";
 import { fnoLearnHref } from "@/lib/fnoninja/paths";
 import { FnoNinjaLearnDisclaimer } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
+import { LearnHistoryCardThumbnail } from "@/components/fnoninja/learn/LearnHistoryCardThumbnail";
 import { LearnAtlasCardThumbnail } from "@/components/fnoninja/learn/LearnAtlasCardThumbnail";
 import { LearnOutlookCardThumbnail } from "@/components/fnoninja/learn/LearnOutlookCardThumbnail";
 import { LearnOiDeltaCardThumbnail } from "@/components/fnoninja/learn/LearnOiDeltaCardThumbnail";
@@ -60,6 +61,9 @@ function LearnCardThumbnail({ article }: { article: LearnArticleMeta }) {
   }
   if (article.thumbnailVariant === "atlas-live") {
     return <LearnAtlasCardThumbnail accent={article.thumbnailAccent} />;
+  }
+  if (article.thumbnailVariant === "history-live") {
+    return <LearnHistoryCardThumbnail accent={article.thumbnailAccent} />;
   }
   return (
     <LearnCardImageThumbnail accent={article.thumbnailAccent} src={article.thumbnailSrc} icon={Icon} />

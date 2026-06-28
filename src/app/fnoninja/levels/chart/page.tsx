@@ -63,6 +63,7 @@ function ChartContent() {
   );
 
   const urlExpiryKey = searchParams.get("expiry");
+  const urlView = searchParams.get("view");
 
   const {
     selectedExpiryKey,
@@ -128,8 +129,10 @@ function ChartContent() {
 
   useEffect(() => {
     setChartFullHistory(true);
-    setViewMode("chart");
-  }, [config?.symbol, config?.exchange, config?.candlesScope]);
+    const wantsHistory =
+      urlView === "history" && (scope === "index" || scope === "stock");
+    setViewMode(wantsHistory ? "history" : "chart");
+  }, [config?.symbol, config?.exchange, config?.candlesScope, urlView, scope]);
 
   const outlookAvailable = (levels?.zonesByExpiry?.length ?? 0) > 1;
   const historyAvailable = scope === "index" || scope === "stock";

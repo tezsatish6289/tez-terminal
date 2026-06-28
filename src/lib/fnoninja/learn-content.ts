@@ -1,9 +1,14 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowUpDown, BookOpen, CalendarRange, Sparkles } from "lucide-react";
+import { ArrowUpDown, BookOpen, CalendarRange, LineChart, Sparkles } from "lucide-react";
 
-export type LearnArticleSlug = "science" | "outlook" | "oi-delta" | "atlas";
+export type LearnArticleSlug = "science" | "outlook" | "oi-delta" | "atlas" | "history";
 
-export type LearnThumbnailVariant = "default" | "outlook-live" | "oi-delta-live" | "atlas-live";
+export type LearnThumbnailVariant =
+  | "default"
+  | "outlook-live"
+  | "oi-delta-live"
+  | "atlas-live"
+  | "history-live";
 
 export type LearnArticleMeta = {
   slug: LearnArticleSlug;
@@ -22,6 +27,18 @@ export type LearnArticleMeta = {
 };
 
 export const LEARN_ARTICLES: LearnArticleMeta[] = [
+  {
+    slug: "history",
+    title: "Index History: Validate Max Pain, OI Momentum & Dominance Over Time",
+    excerpt:
+      "Six months of daily put walls, call walls, and max pain on every NSE index — with line thickness for OI momentum, glow for put-vs-call dominance, and links to verify every pattern yourself on the History tab.",
+    readMinutes: 6,
+    readLabel: "6 min · live example",
+    tag: "New feature",
+    icon: LineChart,
+    thumbnailAccent: "linear-gradient(135deg, rgba(34,197,94,0.28), rgba(59,130,246,0.25))",
+    thumbnailVariant: "history-live",
+  },
   {
     slug: "science",
     title: "Mastering Option Zones: The Science Behind Put/Call Clusters, Max Pain & Expiry",

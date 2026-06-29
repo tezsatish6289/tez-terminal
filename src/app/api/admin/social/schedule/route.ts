@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { uploadPublicMp4 } from "@/lib/social/video-storage";
+import { uploadPublicMp4, uploadPublicPng } from "@/lib/social/video-storage";
 import { scheduleToBuffer, type ScheduleTiming } from "@/lib/social/schedule";
 import type { SocialPlatformId } from "@/lib/social/platforms";
 import { SOCIAL_PLATFORMS } from "@/lib/social/platforms";
@@ -20,6 +20,8 @@ interface SchedulePayload {
   timing: ScheduleTiming;
   /** Use an already-public URL instead of uploading a file. */
   videoUrl?: string;
+  /** Already-public image URL for image posts. */
+  imageUrl?: string;
 }
 
 /**
@@ -79,8 +81,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Could not host the video: ${msg}` }, { status: 500 });
     }
   }
-  if (!videoUrl) {
-    return NextResponse.json({ error: "No video provided — attach an MP4 file or a public videoUrl" }, { status: 400 });
+
+  // Resolve the public image URL — upload a file, or trust a supplied URL.
+  let imageUrl = payload.imageUrl?.trim();
+  const imageFile = form.get("image");
+  if (imageFile && typeof imageFile !== "string") {
+    try {
+      const bytes = Buffer.from(await imageFile.arrayBuffer());
+      const uploaded = await uploadPublicPng(bytes, { source: payload.source, id: payload.contentId });
+      imageUrl = uploaded.url;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Image upload failed";
+      return NextResponse.json({ error: `Could not host the image: ${msg}` }, { status: 500 });
+    }
+  }
+
+  if (!videoUrl && !imageUrl) {
+    return NextResponse.json(
+      { error: "No media provided — attach a video/image file or pass a public videoUrl/imageUrl" },
+      { status: 400 },
+    );
   }
 
   try {
@@ -89,12 +109,13 @@ export async function POST(request: NextRequest) {
       contentId: payload.contentId,
       contentLabel: payload.contentLabel ?? payload.contentId,
       videoUrl,
+      imageUrl,
       captions: payload.captions ?? {},
       platforms,
       timing: payload.timing,
       createdBy: auth.decoded.email ?? auth.decoded.uid,
     });
-    return NextResponse.json({ ...result, videoUrl });
+    return NextResponse.json({ ...result, videoUrl, imageUrl });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Scheduling failed";
     console.error("[admin/social/schedule]", msg);

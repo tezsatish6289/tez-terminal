@@ -67,15 +67,22 @@ export function ScheduleToBufferPanel({
   contentLabel,
   captions,
   videoUrl,
+  imageUrl = null,
 }: {
   authedFetch: AuthedFetch;
   source: string;
   contentId: string;
   contentLabel: string;
   captions: CaptionsLike | null;
-  /** Blob/object URL we fetch the MP4 bytes from at submit time. */
-  videoUrl: string | null;
+  /** Blob/object/public URL for an MP4 video post. */
+  videoUrl?: string | null;
+  /** Blob/object/public URL for an image post (YouTube is excluded for images). */
+  imageUrl?: string | null;
 }) {
+  // Image posts use the image asset; otherwise video. Buffer publishes YouTube
+  // as Shorts (video only), so an image post can't include YouTube.
+  const isImage = !!imageUrl && !videoUrl;
+  const mediaUrl = isImage ? imageUrl : videoUrl ?? null;
   const [platforms, setPlatforms] = useState<ChannelInfo[]>([]);
   const [configured, setConfigured] = useState(true);
   const [loadingChannels, setLoadingChannels] = useState(false);
@@ -131,13 +138,20 @@ export function ScheduleToBufferPanel({
     });
 
   const chosen = useMemo(
-    () => platforms.filter((p) => p.connected && selected.has(p.id) && captionFor(p.id)),
-    [platforms, selected, captionFor],
+    () =>
+      platforms.filter(
+        (p) =>
+          p.connected &&
+          selected.has(p.id) &&
+          captionFor(p.id) &&
+          !(isImage && p.id === "youtube"),
+      ),
+    [platforms, selected, captionFor, isImage],
   );
 
   const submit = useCallback(async () => {
-    if (!videoUrl) {
-      setError("Load or generate the video first — Buffer needs the MP4.");
+    if (!mediaUrl) {
+      setError(isImage ? "Generate the image first — Buffer needs it." : "Load or generate the video first — Buffer needs the MP4.");
       return;
     }
     if (chosen.length === 0) {
@@ -148,11 +162,10 @@ export function ScheduleToBufferPanel({
     setError("");
     setResults(null);
     try {
-      // A cloud render is already hosted at a public URL — hand that straight to
-      // the API (no re-download/upload, and avoids CORS on the storage URL). A
-      // local blob: preview still needs its bytes uploaded.
-      const isPublicUrl = /^https?:\/\//i.test(videoUrl);
-      const blob = isPublicUrl ? null : await (await fetch(videoUrl)).blob();
+      // An already-hosted public URL is handed straight to the API (no
+      // re-download/upload); a local blob: preview needs its bytes uploaded.
+      const isPublicUrl = /^https?:\/\//i.test(mediaUrl);
+      const blob = isPublicUrl ? null : await (await fetch(mediaUrl)).blob();
       const timing =
         mode === "now"
           ? { mode: "now" as const }
@@ -162,7 +175,7 @@ export function ScheduleToBufferPanel({
       for (const p of chosen) captionsPayload[p.id] = captionFor(p.id);
 
       const fd = new FormData();
-      if (blob) fd.append("video", blob, `${contentId}.mp4`);
+      if (blob) fd.append(isImage ? "image" : "video", blob, `${contentId}.${isImage ? "png" : "mp4"}`);
       fd.append(
         "payload",
         JSON.stringify({
@@ -172,7 +185,7 @@ export function ScheduleToBufferPanel({
           captions: captionsPayload,
           platforms: chosen.map((p) => p.id),
           timing,
-          ...(isPublicUrl ? { videoUrl } : {}),
+          ...(isPublicUrl ? (isImage ? { imageUrl: mediaUrl } : { videoUrl: mediaUrl }) : {}),
         }),
       );
 
@@ -185,7 +198,7 @@ export function ScheduleToBufferPanel({
     } finally {
       setBusy(false);
     }
-  }, [videoUrl, chosen, mode, whenLocal, jitter, captionFor, source, contentId, contentLabel, authedFetch]);
+  }, [mediaUrl, isImage, chosen, mode, whenLocal, jitter, captionFor, source, contentId, contentLabel, authedFetch]);
 
   return (
     <section className="rounded-xl border border-violet-500/30 bg-violet-500/[0.06] p-4">
@@ -220,7 +233,8 @@ export function ScheduleToBufferPanel({
           const normalized = normalizeCaption(raw);
           const effective = clampCaption(normalized, p.postBudget);
           const trimmed = effective.length < normalized.length;
-          const disabled = !p.connected || !raw;
+          const ytImageBlock = isImage && p.id === "youtube";
+          const disabled = !p.connected || !raw || ytImageBlock;
           return (
             <button
               key={p.id}
@@ -228,7 +242,9 @@ export function ScheduleToBufferPanel({
               disabled={disabled}
               onClick={() => toggle(p.id)}
               title={
-                !p.connected
+                ytImageBlock
+                  ? "YouTube only accepts video (Shorts) — not available for image posts"
+                  : !p.connected
                   ? "Not connected in Buffer"
                   : !raw
                   ? "No caption for this platform"
@@ -314,7 +330,7 @@ export function ScheduleToBufferPanel({
       <button
         type="button"
         onClick={() => void submit()}
-        disabled={busy || !configured || chosen.length === 0 || !videoUrl}
+        disabled={busy || !configured || chosen.length === 0 || !mediaUrl}
         className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-50"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -324,8 +340,10 @@ export function ScheduleToBufferPanel({
           ? `Post now to ${chosen.length} channel${chosen.length === 1 ? "" : "s"}`
           : `Schedule ${chosen.length} channel${chosen.length === 1 ? "" : "s"}`}
       </button>
-      {!videoUrl && (
-        <p className="text-[10px] text-amber-300/70 mt-2">Load or generate the video above first.</p>
+      {!mediaUrl && (
+        <p className="text-[10px] text-amber-300/70 mt-2">
+          {isImage ? "Generate the image above first." : "Load or generate the video above first."}
+        </p>
       )}
 
       {results && (

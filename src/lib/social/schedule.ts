@@ -32,8 +32,10 @@ export interface ScheduleInput {
   source: string;
   contentId: string;
   contentLabel: string;
-  /** Public, stable .mp4 URL Buffer can fetch at publish time. */
-  videoUrl: string;
+  /** Public, stable media URL Buffer fetches at publish time — an .mp4 (video) or .png (image). */
+  videoUrl?: string;
+  /** Public, stable image URL for image posts (provide this OR videoUrl). */
+  imageUrl?: string;
   /** Caption text per platform (already AI-generated; we clamp before posting). */
   captions: Partial<Record<SocialPlatformId, string>>;
   platforms: SocialPlatformId[];
@@ -78,6 +80,9 @@ function jitteredDueAt(baseIso: string, jitterMinutes: number): string {
 }
 
 export async function scheduleToBuffer(input: ScheduleInput): Promise<ScheduleResult> {
+  if (!input.videoUrl && !input.imageUrl) {
+    throw new Error("scheduleToBuffer requires a videoUrl or imageUrl.");
+  }
   const channelMap = await resolveChannelMap();
   const results: ChannelResult[] = [];
 
@@ -128,6 +133,7 @@ export async function scheduleToBuffer(input: ScheduleInput): Promise<ScheduleRe
         network: platform,
         text,
         videoUrl: input.videoUrl,
+        imageUrl: input.imageUrl,
         dueAt,
         mode: input.timing.mode === "scheduled" ? "customScheduled" : "shareNow",
         youtubeTitle,
@@ -165,7 +171,8 @@ export async function scheduleToBuffer(input: ScheduleInput): Promise<ScheduleRe
       source: input.source,
       contentId: input.contentId,
       contentLabel: input.contentLabel,
-      videoUrl: input.videoUrl,
+      videoUrl: input.videoUrl ?? null,
+      imageUrl: input.imageUrl ?? null,
       timing: input.timing,
       platforms: input.platforms,
       results,

@@ -70,3 +70,32 @@ export async function uploadPublicMp4(
 
   return { url, path, bucket: bucket.name };
 }
+
+/**
+ * Upload PNG bytes to `social-images/<source>/<id>-<ts>.png` with a download
+ * token and return its permanent public URL — same token scheme as the MP4
+ * helper, so Buffer can fetch it at publish time.
+ */
+export async function uploadPublicPng(
+  bytes: Buffer | Uint8Array,
+  opts: { source: string; id: string },
+): Promise<UploadedVideo> {
+  const bucket = socialBucket();
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const path = `social-images/${safeSegment(opts.source)}/${safeSegment(opts.id)}-${ts}.png`;
+  const file = bucket.file(path);
+  const token = randomUUID();
+
+  await file.save(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes), {
+    resumable: false,
+    contentType: "image/png",
+    metadata: {
+      cacheControl: "public, max-age=86400",
+      metadata: { firebaseStorageDownloadTokens: token },
+    },
+  });
+
+  const encodedPath = encodeURIComponent(path);
+  const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+  return { url, path, bucket: bucket.name };
+}

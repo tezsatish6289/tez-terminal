@@ -37,12 +37,16 @@ export function CaptionReview({
   captions,
   onChange,
   disabled,
+  hideYouTube,
 }: {
   captions: CaptionsLike | null;
   onChange: (next: CaptionsLike) => void;
   disabled?: boolean;
+  /** Hide the YouTube title/description fields (e.g. image-only "news" posts). */
+  hideYouTube?: boolean;
 }) {
   const values = useMemo<CaptionsLike>(() => captions ?? {}, [captions]);
+  const fields = hideYouTube ? FIELDS.filter((f) => !f.key.startsWith("youtube")) : FIELDS;
 
   if (!captions) {
     return (
@@ -56,7 +60,7 @@ export function CaptionReview({
 
   return (
     <div className="space-y-3">
-      {FIELDS.map((f) => {
+      {fields.map((f) => {
         const raw = (values[f.key] ?? "") as string;
         const effective = clampCaption(normalizeCaption(raw), f.budget);
         const trimmed = effective.length < normalizeCaption(raw).length;

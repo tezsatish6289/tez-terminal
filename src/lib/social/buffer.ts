@@ -112,8 +112,10 @@ export interface CreateBufferPostInput {
    */
   network: string;
   text: string;
-  /** Public, stable (non-expiring) URL ending in .mp4 — Buffer fetches it at publish time. */
-  videoUrl: string;
+  /** Public, stable (non-expiring) video URL — Buffer fetches it at publish time. Provide this OR imageUrl. */
+  videoUrl?: string;
+  /** Public, stable image URL (PNG/JPG) for an image post. Provide this OR videoUrl. */
+  imageUrl?: string;
   thumbnailUrl?: string;
   /** Required for customScheduled — ISO-8601 UTC (e.g. 2026-06-29T03:42:00Z). */
   dueAt?: string;
@@ -130,10 +132,13 @@ export interface CreateBufferPostInput {
  * Enum values (reel/post/public) are bare GraphQL tokens — never quoted.
  */
 function networkMetadata(input: CreateBufferPostInput): string | null {
+  const isImage = !!input.imageUrl && !input.videoUrl;
   switch (input.network.trim().toLowerCase()) {
     case "instagram":
-      // A single video on IG publishes as a Reel; also surface it in the feed.
-      return `metadata: { instagram: { type: reel, shouldShareToFeed: true } }`;
+      // A single video on IG publishes as a Reel; a single image as a feed post.
+      return isImage
+        ? `metadata: { instagram: { type: post, shouldShareToFeed: true } }`
+        : `metadata: { instagram: { type: reel, shouldShareToFeed: true } }`;
     case "facebook":
       return `metadata: { facebook: { type: post } }`;
     case "youtube": {
@@ -155,9 +160,14 @@ function networkMetadata(input: CreateBufferPostInput): string | null {
  */
 export async function createBufferPost(input: CreateBufferPostInput): Promise<{ postId: string }> {
   const mode: BufferShareMode = input.mode ?? (input.dueAt ? "customScheduled" : "shareNow");
-  const videoAsset = input.thumbnailUrl
-    ? `{ video: { url: ${JSON.stringify(input.videoUrl)}, thumbnailUrl: ${JSON.stringify(input.thumbnailUrl)} } }`
-    : `{ video: { url: ${JSON.stringify(input.videoUrl)} } }`;
+  if (!input.videoUrl && !input.imageUrl) {
+    throw new BufferError("createBufferPost requires a videoUrl or imageUrl.");
+  }
+  const asset = input.imageUrl && !input.videoUrl
+    ? `{ image: { url: ${JSON.stringify(input.imageUrl)} } }`
+    : input.thumbnailUrl
+      ? `{ video: { url: ${JSON.stringify(input.videoUrl)}, thumbnailUrl: ${JSON.stringify(input.thumbnailUrl)} } }`
+      : `{ video: { url: ${JSON.stringify(input.videoUrl)} } }`;
 
   const fields = [
     `channelId: ${JSON.stringify(input.channelId)}`,
@@ -166,7 +176,7 @@ export async function createBufferPost(input: CreateBufferPostInput): Promise<{ 
     `mode: ${mode}`,
     input.dueAt ? `dueAt: ${JSON.stringify(input.dueAt)}` : null,
     `saveToDraft: false`,
-    `assets: [${videoAsset}]`,
+    `assets: [${asset}]`,
     networkMetadata(input),
   ]
     .filter(Boolean)

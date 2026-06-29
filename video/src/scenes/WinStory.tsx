@@ -1,7 +1,13 @@
 import React, { useEffect, useRef } from "react";
 import { AbsoluteFill, Audio, interpolate, Sequence, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { loadFont } from "@remotion/google-fonts/Inter";
 import { z } from "zod";
 import { MUSIC_TRACKS } from "../generated-tracks";
+
+// Match the fnoninja.com brand typeface (Inter). loadFont() registers it and
+// blocks the render until the webfont is ready, so the cards aren't rendered
+// with a fallback face.
+const { fontFamily: INTER } = loadFont();
 
 /**
  * Win-story reel (SR-audit success stories). This is a 1:1 port of the canvas
@@ -374,8 +380,11 @@ function draw(ctx: CanvasRenderingContext2D, data: WinStoryData, revealCount: nu
   drawBrandWatermark(ctx, REEL_W - CHART.left, fy + 160);
 }
 
-const REEL_BG = "linear-gradient(180deg, #0c1426 0%, #070b16 100%)";
-const FONT = "ui-sans-serif, system-ui, sans-serif";
+// Brand surface for the cards — fnoninja.com deep navy + the soft blue radial
+// glow used across the site (see src/lib/fnoninja/theme.ts).
+const CARD_BG_COLOR = "#080f1e";
+const CARD_GLOW = "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(37,99,235,0.14), transparent)";
+const FONT = `${INTER}, sans-serif`;
 
 /** FNONINJA shuriken mark (CSS port of the canvas logo). */
 const LogoMark: React.FC<{ size: number }> = ({ size }) => (
@@ -418,19 +427,22 @@ const Wordmark: React.FC<{ size: number }> = ({ size }) => (
 const IntroCard: React.FC<{ text: string; side: "support" | "resistance" }> = ({ text, side }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
-  const accent = side === "support" ? "#34d399" : "#f87171";
   const opacity = interpolate(frame, [0, 8, durationInFrames - 8, durationInFrames], [0, 1, 1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
   const rise = interpolate(frame, [0, 16], [28, 0], { extrapolateRight: "clamp" });
   return (
-    <AbsoluteFill style={{ background: REEL_BG, opacity, justifyContent: "center", alignItems: "center", padding: 96 }}>
+    <AbsoluteFill
+      style={{ backgroundColor: CARD_BG_COLOR, backgroundImage: CARD_GLOW, opacity, justifyContent: "center", alignItems: "center", padding: 96 }}
+    >
       <div style={{ transform: `translateY(${rise}px)`, textAlign: "center" }}>
-        <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 34, letterSpacing: 6, color: accent, marginBottom: 40 }}>
+        <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 34, letterSpacing: 6, color: FNO_ACCENT, marginBottom: 40 }}>
           {side === "support" ? "PUT-WALL BOUNCE" : "CALL-WALL REJECTION"}
         </div>
-        <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: 84, lineHeight: 1.15, color: "#f8fafc" }}>{text}</div>
+        <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 84, lineHeight: 1.15, letterSpacing: -1.5, color: FNO_TEXT }}>
+          {text}
+        </div>
       </div>
       <div style={{ position: "absolute", bottom: 110 }}>
         <Wordmark size={48} />
@@ -440,25 +452,26 @@ const IntroCard: React.FC<{ text: string; side: "support" | "resistance" }> = ({
 };
 
 /** Closing CTA card (after the chart). */
-const OutroCard: React.FC<{ text: string; side: "support" | "resistance" }> = ({ text, side }) => {
+const OutroCard: React.FC<{ text: string }> = ({ text }) => {
   const frame = useCurrentFrame();
-  const accent = side === "support" ? "#34d399" : "#f87171";
   const lead = text.replace(/[.\s]+$/, "");
   const opacity = interpolate(frame, [0, 10], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const rise = interpolate(frame, [0, 18], [30, 0], { extrapolateRight: "clamp" });
   return (
-    <AbsoluteFill style={{ background: REEL_BG, opacity, justifyContent: "center", alignItems: "center", padding: 96 }}>
+    <AbsoluteFill
+      style={{ backgroundColor: CARD_BG_COLOR, backgroundImage: CARD_GLOW, opacity, justifyContent: "center", alignItems: "center", padding: 96 }}
+    >
       <div style={{ transform: `translateY(${rise}px)`, textAlign: "center" }}>
-        <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: 88, lineHeight: 1.12, color: "#f8fafc", marginBottom: 56 }}>
+        <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 88, lineHeight: 1.12, letterSpacing: -1.5, color: FNO_TEXT, marginBottom: 56 }}>
           {lead}
         </div>
-        <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 40, color: "#94a3b8" }}>
-          Visit <span style={{ color: accent }}>fnoninja.com</span>
+        <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 40, color: FNO_MUTED }}>
+          Visit <span style={{ color: FNO_ACCENT }}>fnoninja.com</span>
         </div>
       </div>
       <div style={{ position: "absolute", bottom: 150, display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
         <Wordmark size={52} />
-        <div style={{ fontFamily: FONT, fontWeight: 600, fontSize: 22, color: FNO_MUTED }}>
+        <div style={{ fontFamily: FONT, fontWeight: 500, fontSize: 22, color: FNO_MUTED }}>
           Educational · Not investment advice
         </div>
       </div>
@@ -509,7 +522,7 @@ export const WinStory: React.FC<WinStoryData> = (data) => {
         <WinStoryChart {...data} />
       </Sequence>
       <Sequence from={INTRO_FRAMES + CHART_FRAMES} durationInFrames={OUTRO_FRAMES}>
-        <OutroCard text={closing} side={data.side} />
+        <OutroCard text={closing} />
       </Sequence>
     </AbsoluteFill>
   );

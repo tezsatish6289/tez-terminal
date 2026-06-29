@@ -21,11 +21,49 @@ import {
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
+import { isNseExpiryExpired } from "@/lib/levels/zones-expiry-label";
 
 const AGGREGATE_DOC = "config/zone_status_stocks";
 
 export function stockDocId(symbol: string): string {
   return `config/suggested_stock_zones_${symbol}`;
+}
+
+/** One serialized `maxPainByExpiry` row (the forward-map slice the picker reads). */
+type SerializedSlice = ReturnType<typeof serializeSlice>;
+
+/**
+ * Decide the `maxPainByExpiry` to persist, guarding against a degraded refresh
+ * wiping a stock's forward map.
+ *
+ * During an NSE outage the batch falls back to Dhan, which only returns the
+ * nearest expiry. Writing that single slice would clobber a richer multi-expiry
+ * doc and kill the stock's expiry picker + Outlook chart (this is exactly why
+ * stocks lost their Outlook during the proxy outage while indices — which keep
+ * their last-good cache — did not). When the fresh write is a degraded
+ * single-expiry Dhan snapshot but we still hold a richer multi-expiry doc, keep
+ * the last-good slices (dropping any that have since expired) so the page
+ * degrades gracefully like an index instead of losing the forward map. Pure.
+ */
+export function resolveMaxPainByExpiry(
+  freshSlices: SerializedSlice[],
+  prevSlices: unknown,
+  source: "nse_equity" | "dhan_equity",
+  nowMs: number = Date.now(),
+): SerializedSlice[] {
+  // Only the degraded Dhan fallback can downgrade; a genuine NSE refresh with
+  // fewer expiries is the truth and must win.
+  if (source !== "dhan_equity" || freshSlices.length > 1) return freshSlices;
+  if (!Array.isArray(prevSlices)) return freshSlices;
+  const activePrev = prevSlices.filter(
+    (s): s is Record<string, unknown> =>
+      !!s &&
+      typeof s === "object" &&
+      typeof (s as Record<string, unknown>).expiry === "string" &&
+      !isNseExpiryExpired((s as Record<string, unknown>).expiry as string, nowMs),
+  );
+  if (activePrev.length <= freshSlices.length) return freshSlices;
+  return activePrev.map((s, i) => ({ ...(s as SerializedSlice), dayIndex: i }));
 }
 
 /** Serialize one expiry slice into maxPainByExpiry row shape. */
@@ -163,7 +201,14 @@ export async function persistEquityZonesDoc(
     );
     return false;
   }
-  await db.doc(stockDocId(primary.symbol)).set(serialize(primary, byExpiry, source));
+  const doc = serialize(primary, byExpiry, source);
+  // Don't let a single-expiry Dhan fallback wipe a richer multi-expiry forward
+  // map (keeps the expiry picker + Outlook alive through an NSE outage).
+  if (source === "dhan_equity" && doc.maxPainByExpiry.length <= 1) {
+    const prev = (await db.doc(stockDocId(primary.symbol)).get()).data();
+    doc.maxPainByExpiry = resolveMaxPainByExpiry(doc.maxPainByExpiry, prev?.maxPainByExpiry, source);
+  }
+  await db.doc(stockDocId(primary.symbol)).set(doc);
   return true;
 }
 

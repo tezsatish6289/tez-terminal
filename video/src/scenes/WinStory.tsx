@@ -1,12 +1,39 @@
 import React, { useEffect, useRef } from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { z } from "zod";
+import { MUSIC_TRACKS } from "../generated-tracks";
 
 /**
  * Win-story reel (SR-audit success stories). This is a 1:1 port of the canvas
  * painter in src/components/admin/SrStoryReplay.tsx so the rendered MP4 matches
  * the admin preview exactly — candles reveal progressively, then the frame holds.
+ *
+ * A looping background track (rotated per story) plays under it, matching the
+ * put/call cluster videos.
  */
+
+/** Deterministic per-story track so each reel differs but re-renders are stable. */
+function pickStoryTrack(seed: string): string {
+  if (!MUSIC_TRACKS.length) return "audio/hitslab-soft-soft-background-music-423580.mp3";
+  let h = 7;
+  for (const c of seed) h = ((h << 5) - h + c.charCodeAt(0)) | 0;
+  return MUSIC_TRACKS[Math.abs(h) % MUSIC_TRACKS.length]!;
+}
+
+/** Looping bed with a gentle fade-in/out (mirrors ClusterVideo's BgMusic). */
+const BgMusic: React.FC<{ track: string }> = ({ track }) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames, fps } = useVideoConfig();
+  const fadeIn = Math.round(fps * 0.6);
+  const fadeOut = Math.round(fps * 1.2);
+  const vol = interpolate(
+    frame,
+    [0, fadeIn, durationInFrames - fadeOut, durationInFrames],
+    [0, 0.5, 0.5, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+  );
+  return <Audio src={staticFile(track)} loop volume={Math.max(0, vol)} />;
+};
 
 const storyBarSchema = z.object({
   t: z.number(),
@@ -35,6 +62,8 @@ export const winStoryDataSchema = z.object({
   movePct: z.number(),
   eventAt: z.string(),
   pocHitAt: z.string().nullable(),
+  /** Background track under public/audio — defaults to a per-story rotation. */
+  musicTrack: z.string().optional(),
   candles: z.array(storyBarSchema),
 });
 export type WinStoryData = z.infer<typeof winStoryDataSchema>;
@@ -284,6 +313,7 @@ export const WinStory: React.FC<WinStoryData> = (data) => {
   const revealFrames = Math.max(1, Math.round(REVEAL_SECONDS * fps));
   const progress = Math.min(1, frame / revealFrames);
   const revealCount = Math.ceil(progress * total);
+  const track = data.musicTrack ?? pickStoryTrack(`${data.symbol}|${data.side}|${data.eventAt}`);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -297,6 +327,7 @@ export const WinStory: React.FC<WinStoryData> = (data) => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#070b16" }}>
+      <BgMusic track={track} />
       <canvas ref={canvasRef} width={REEL_W} height={REEL_H} style={{ width: "100%", height: "100%" }} />
     </AbsoluteFill>
   );

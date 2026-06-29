@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { Clapperboard, Download, Loader2, Sparkles, Wand2, X } from "lucide-react";
 import { ScheduleToBufferPanel, type CaptionsLike } from "@/components/admin/ScheduleToBufferPanel";
+import { CaptionReview } from "@/components/admin/CaptionReview";
 
 type AuthedFetch = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -133,7 +134,7 @@ export function SrStoryPublish({
       onClick={onClose}
     >
       <div
-        className="my-6 w-full max-w-lg rounded-2xl border bg-[#0b1220]"
+        className="my-6 w-full max-w-5xl rounded-2xl border bg-[#0b1220]"
         style={{ borderColor: "rgba(255,255,255,0.1)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -146,7 +147,7 @@ export function SrStoryPublish({
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="p-4">
           {/* One-click: render + captions together (mirrors /admin/videos "Generate all"). */}
           <button
             type="button"
@@ -157,73 +158,74 @@ export function SrStoryPublish({
             {generatingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
             {generatingAll ? "Generating video + captions…" : "Generate video + captions"}
           </button>
-          <p className="text-[10px] text-muted-foreground/60 -mt-2">
-            Renders the reel and writes per-channel captions in one go — then pick channels and schedule below.
+          <p className="mt-2 mb-4 text-[10px] text-muted-foreground/60">
+            Renders the reel and writes per-channel captions in one go — review captions on the right, then pick channels and schedule.
           </p>
 
-          {/* Step 1 — render */}
-          <section className="rounded-xl border border-white/10 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Clapperboard className="h-4 w-4 text-emerald-300" /> 1. Reel
-              </h3>
-              <button
-                type="button"
-                onClick={() => void generateVideo()}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10 disabled:opacity-50"
-              >
-                {rendering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clapperboard className="h-3.5 w-3.5" />}
-                {videoUrl ? "Re-render" : "Render only"}
-              </button>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Left column — reel + schedule */}
+            <div className="space-y-4">
+              <section className="rounded-xl border border-white/10 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Clapperboard className="h-4 w-4 text-emerald-300" /> 1. Reel
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => void generateVideo()}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10 disabled:opacity-50"
+                  >
+                    {rendering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clapperboard className="h-3.5 w-3.5" />}
+                    {videoUrl ? "Re-render" : "Render only"}
+                  </button>
+                </div>
+                {renderMsg && <p className={`mt-2 text-[11px] ${msgColor(renderMsg.kind)}`}>{renderMsg.text}</p>}
+                {videoUrl && (
+                  <div className="mt-3">
+                    <video src={videoUrl} controls className="w-full rounded-lg border border-white/10" />
+                    <a
+                      href={videoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-[11px] text-sky-300 hover:underline"
+                    >
+                      <Download className="h-3 w-3" /> Open / download MP4
+                    </a>
+                  </div>
+                )}
+              </section>
+
+              <ScheduleToBufferPanel
+                authedFetch={authedFetch}
+                source="sr-audit"
+                contentId={story.id}
+                contentLabel={story.label}
+                captions={captions}
+                videoUrl={videoUrl}
+              />
             </div>
-            {renderMsg && <p className={`mt-2 text-[11px] ${msgColor(renderMsg.kind)}`}>{renderMsg.text}</p>}
-            {videoUrl && (
-              <div className="mt-3">
-                <video src={videoUrl} controls className="w-full rounded-lg border border-white/10" />
-                <a
-                  href={videoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-[11px] text-sky-300 hover:underline"
+
+            {/* Right column — caption review (editable) */}
+            <div className="lg:max-h-[70vh] lg:overflow-y-auto lg:pr-1">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-violet-300" /> 2. Review captions
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => void generateCaptions()}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-violet-400/30 text-violet-200 hover:bg-violet-400/10 disabled:opacity-50"
                 >
-                  <Download className="h-3 w-3" /> Open / download MP4
-                </a>
+                  {captionsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {captions ? "Regenerate" : "Captions only"}
+                </button>
               </div>
-            )}
-          </section>
-
-          {/* Step 2 — captions */}
-          <section className="rounded-xl border border-white/10 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-violet-300" /> 2. Captions
-              </h3>
-              <button
-                type="button"
-                onClick={() => void generateCaptions()}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-violet-400/30 text-violet-200 hover:bg-violet-400/10 disabled:opacity-50"
-              >
-                {captionsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                {captions ? "Regenerate" : "Captions only"}
-              </button>
+              {captionError && <p className="mb-2 text-[11px] text-rose-300">{captionError}</p>}
+              <CaptionReview captions={captions} onChange={setCaptions} disabled={busy} />
             </div>
-            {captionError && <p className="mt-2 text-[11px] text-rose-300">{captionError}</p>}
-            {captions && (
-              <p className="mt-2 text-[11px] text-emerald-300/90">Captions ready — review per channel below.</p>
-            )}
-          </section>
-
-          {/* Step 3 — schedule */}
-          <ScheduleToBufferPanel
-            authedFetch={authedFetch}
-            source="sr-audit"
-            contentId={story.id}
-            contentLabel={story.label}
-            captions={captions}
-            videoUrl={videoUrl}
-          />
+          </div>
         </div>
       </div>
     </div>

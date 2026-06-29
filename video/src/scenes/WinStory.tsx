@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { AbsoluteFill, Audio, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, interpolate, Sequence, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { z } from "zod";
 import { MUSIC_TRACKS } from "../generated-tracks";
 
@@ -69,11 +69,81 @@ export const winStoryDataSchema = z.object({
 export type WinStoryData = z.infer<typeof winStoryDataSchema>;
 
 export const WIN_STORY_FPS = 30;
-const REVEAL_SECONDS = 5;
-const HOLD_SECONDS = 2.5;
+
+// Three-part reel: opening hook card → chart reveal → closing CTA card.
+const INTRO_FRAMES = Math.round(2.4 * WIN_STORY_FPS);
+const CHART_REVEAL_FRAMES = Math.round(5 * WIN_STORY_FPS);
+const CHART_HOLD_FRAMES = Math.round(1.6 * WIN_STORY_FPS);
+const CHART_FRAMES = CHART_REVEAL_FRAMES + CHART_HOLD_FRAMES;
+const OUTRO_FRAMES = Math.round(3 * WIN_STORY_FPS);
 
 export function winStoryDuration(): number {
-  return Math.round((REVEAL_SECONDS + HOLD_SECONDS) * WIN_STORY_FPS);
+  return INTRO_FRAMES + CHART_FRAMES + OUTRO_FRAMES;
+}
+
+/** Rotating opening hooks shown before the chart (no URL). */
+const OPENING_CAPTIONS = [
+  "Another day. Another winner.",
+  "The market left clues.",
+  "This setup was hiding in plain sight.",
+  "Smart money showed its hand.",
+  "Here's what the market was telling us.",
+  "We spotted this before the move.",
+  "The zones were clear.",
+  "The options chain told the story.",
+  "Another clean setup.",
+  "The edge was visible.",
+  "When positioning shifts, opportunities appear.",
+  "One chart. One opportunity.",
+  "Follow the data.",
+  "The clues were all there.",
+  "This is why we track positioning.",
+  "Not a prediction. A read.",
+  "Watch this setup unfold.",
+  "The market gave us a roadmap.",
+  "Sometimes the chart is crystal clear.",
+  "Another textbook reaction.",
+  "Spot. Plan. Profit.",
+  "This is what conviction looks like.",
+  "A simple setup with a powerful outcome.",
+  "The levels mattered.",
+  "Price followed the positioning.",
+] as const;
+
+/** Rotating closing lines shown after the chart (the CTA card appends fnoninja.com). */
+const CLOSING_CAPTIONS = [
+  "Another winner.",
+  "The zones worked again.",
+  "Built on data, not hope.",
+  "Read the market. Take better trades.",
+  "Follow the positioning.",
+  "Where options lead, price follows.",
+  "The edge is visible.",
+  "Find opportunities faster.",
+  "Market intelligence for traders.",
+  "Consistency > Luck.",
+  "Data in. Winner out.",
+  "Discover what the market is watching.",
+  "Trade with conviction.",
+  "Spot high-conviction zones.",
+  "Stop guessing. Start analyzing.",
+  "Research in minutes, not hours.",
+  "The market leaves footprints.",
+  "Another setup. Another result.",
+  "Let the data guide you.",
+  "Find your edge.",
+  "The streak continues.",
+  "Precision beats prediction.",
+  "See what others miss.",
+  "Decode the options market.",
+  "Trade smarter.",
+] as const;
+
+/** Stable hash so a given story always picks the same line, but stories vary. */
+function seededIndex(seed: string, len: number, salt: number): number {
+  let h = salt;
+  for (const c of seed) h = ((h << 5) - h + c.charCodeAt(0)) | 0;
+  return Math.abs(h) % Math.max(1, len);
 }
 
 const REEL_W = 1080;
@@ -304,16 +374,107 @@ function draw(ctx: CanvasRenderingContext2D, data: WinStoryData, revealCount: nu
   drawBrandWatermark(ctx, REEL_W - CHART.left, fy + 160);
 }
 
-export const WinStory: React.FC<WinStoryData> = (data) => {
+const REEL_BG = "linear-gradient(180deg, #0c1426 0%, #070b16 100%)";
+const FONT = "ui-sans-serif, system-ui, sans-serif";
+
+/** FNONINJA shuriken mark (CSS port of the canvas logo). */
+const LogoMark: React.FC<{ size: number }> = ({ size }) => (
+  <div
+    style={{
+      width: size,
+      height: size,
+      borderRadius: size * 0.25,
+      background: FNO_LOGO_MARK,
+      position: "relative",
+      flexShrink: 0,
+    }}
+  >
+    <div
+      style={{
+        position: "absolute",
+        width: size * 0.26,
+        height: size * 0.26,
+        borderRadius: size * 0.05,
+        background: FNO_LOGO_BG,
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%) rotate(45deg)",
+      }}
+    />
+  </div>
+);
+
+const Wordmark: React.FC<{ size: number }> = ({ size }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: size * 0.32 }}>
+    <LogoMark size={size} />
+    <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: size, letterSpacing: -1, lineHeight: 1 }}>
+      <span style={{ color: FNO_TEXT }}>FNO</span>
+      <span style={{ color: FNO_ACCENT }}>NINJA</span>
+    </div>
+  </div>
+);
+
+/** Opening hook card (before the chart). */
+const IntroCard: React.FC<{ text: string; side: "support" | "resistance" }> = ({ text, side }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { durationInFrames } = useVideoConfig();
+  const accent = side === "support" ? "#34d399" : "#f87171";
+  const opacity = interpolate(frame, [0, 8, durationInFrames - 8, durationInFrames], [0, 1, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const rise = interpolate(frame, [0, 16], [28, 0], { extrapolateRight: "clamp" });
+  return (
+    <AbsoluteFill style={{ background: REEL_BG, opacity, justifyContent: "center", alignItems: "center", padding: 96 }}>
+      <div style={{ transform: `translateY(${rise}px)`, textAlign: "center" }}>
+        <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 34, letterSpacing: 6, color: accent, marginBottom: 40 }}>
+          {side === "support" ? "PUT-WALL BOUNCE" : "CALL-WALL REJECTION"}
+        </div>
+        <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: 84, lineHeight: 1.15, color: "#f8fafc" }}>{text}</div>
+      </div>
+      <div style={{ position: "absolute", bottom: 110 }}>
+        <Wordmark size={48} />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/** Closing CTA card (after the chart). */
+const OutroCard: React.FC<{ text: string; side: "support" | "resistance" }> = ({ text, side }) => {
+  const frame = useCurrentFrame();
+  const accent = side === "support" ? "#34d399" : "#f87171";
+  const lead = text.replace(/[.\s]+$/, "");
+  const opacity = interpolate(frame, [0, 10], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const rise = interpolate(frame, [0, 18], [30, 0], { extrapolateRight: "clamp" });
+  return (
+    <AbsoluteFill style={{ background: REEL_BG, opacity, justifyContent: "center", alignItems: "center", padding: 96 }}>
+      <div style={{ transform: `translateY(${rise}px)`, textAlign: "center" }}>
+        <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: 88, lineHeight: 1.12, color: "#f8fafc", marginBottom: 56 }}>
+          {lead}
+        </div>
+        <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 40, color: "#94a3b8" }}>
+          Visit <span style={{ color: accent }}>fnoninja.com</span>
+        </div>
+      </div>
+      <div style={{ position: "absolute", bottom: 150, display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
+        <Wordmark size={52} />
+        <div style={{ fontFamily: FONT, fontWeight: 600, fontSize: 22, color: FNO_MUTED }}>
+          Educational · Not investment advice
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/** The candle-reveal chart (canvas), with a short fade-in. Sits between the cards. */
+const WinStoryChart: React.FC<WinStoryData> = (data) => {
+  const frame = useCurrentFrame();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const total = Math.max(1, data.candles.length);
-  const revealFrames = Math.max(1, Math.round(REVEAL_SECONDS * fps));
-  const progress = Math.min(1, frame / revealFrames);
+  const progress = Math.min(1, frame / CHART_REVEAL_FRAMES);
   const revealCount = Math.ceil(progress * total);
-  const track = data.musicTrack ?? pickStoryTrack(`${data.symbol}|${data.side}|${data.eventAt}`);
+  const opacity = interpolate(frame, [0, 8], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -326,9 +487,30 @@ export const WinStory: React.FC<WinStoryData> = (data) => {
   }, [data, revealCount]);
 
   return (
+    <AbsoluteFill style={{ backgroundColor: "#070b16", opacity }}>
+      <canvas ref={canvasRef} width={REEL_W} height={REEL_H} style={{ width: "100%", height: "100%" }} />
+    </AbsoluteFill>
+  );
+};
+
+export const WinStory: React.FC<WinStoryData> = (data) => {
+  const track = data.musicTrack ?? pickStoryTrack(`${data.symbol}|${data.side}|${data.eventAt}`);
+  const seed = `${data.symbol}|${data.side}|${data.eventAt}`;
+  const opening = OPENING_CAPTIONS[seededIndex(seed, OPENING_CAPTIONS.length, 5)]!;
+  const closing = CLOSING_CAPTIONS[seededIndex(seed, CLOSING_CAPTIONS.length, 131)]!;
+
+  return (
     <AbsoluteFill style={{ backgroundColor: "#070b16" }}>
       <BgMusic track={track} />
-      <canvas ref={canvasRef} width={REEL_W} height={REEL_H} style={{ width: "100%", height: "100%" }} />
+      <Sequence from={0} durationInFrames={INTRO_FRAMES}>
+        <IntroCard text={opening} side={data.side} />
+      </Sequence>
+      <Sequence from={INTRO_FRAMES} durationInFrames={CHART_FRAMES}>
+        <WinStoryChart {...data} />
+      </Sequence>
+      <Sequence from={INTRO_FRAMES + CHART_FRAMES} durationInFrames={OUTRO_FRAMES}>
+        <OutroCard text={closing} side={data.side} />
+      </Sequence>
     </AbsoluteFill>
   );
 };

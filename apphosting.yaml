@@ -111,6 +111,17 @@ env:
     secret: BUFFER_API_KEY
     availability:
       - RUNTIME
+  # Cloud Run Job that renders the put/call videos (see scripts/deploy-video-renderer.sh).
+  # Presence of VIDEO_RENDER_JOB switches /admin/videos render from "local only"
+  # to triggering the cloud job + polling video_renders/{id}.
+  - variable: VIDEO_RENDER_JOB
+    value: fnoninja-video-renderer
+    availability:
+      - RUNTIME
+  - variable: VIDEO_RENDER_REGION
+    value: us-central1
+    availability:
+      - RUNTIME
   - variable: GOOGLE_OAUTH_CLIENT_ID
     secret: GOOGLE_OAUTH_CLIENT_ID
   - variable: GOOGLE_OAUTH_CLIENT_SECRET

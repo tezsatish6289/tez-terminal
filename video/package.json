@@ -9,10 +9,12 @@
     "render:call": "remotion render ClusterCall out/call-cluster.mp4",
     "still": "remotion still ClusterPut out/frame.png --frame=210",
     "fetch": "node scripts/fetch-from-api.mjs",
+    "cloud-render": "node scripts/cloud-render.mjs",
     "music": "node scripts/make-music.mjs"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",
+    "firebase-admin": "^13.7.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "remotion": "^4.0.0",

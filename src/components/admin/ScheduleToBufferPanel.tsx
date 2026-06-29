@@ -148,7 +148,11 @@ export function ScheduleToBufferPanel({
     setError("");
     setResults(null);
     try {
-      const blob = await (await fetch(videoUrl)).blob();
+      // A cloud render is already hosted at a public URL — hand that straight to
+      // the API (no re-download/upload, and avoids CORS on the storage URL). A
+      // local blob: preview still needs its bytes uploaded.
+      const isPublicUrl = /^https?:\/\//i.test(videoUrl);
+      const blob = isPublicUrl ? null : await (await fetch(videoUrl)).blob();
       const timing =
         mode === "now"
           ? { mode: "now" as const }
@@ -158,7 +162,7 @@ export function ScheduleToBufferPanel({
       for (const p of chosen) captionsPayload[p.id] = captionFor(p.id);
 
       const fd = new FormData();
-      fd.append("video", blob, `${contentId}.mp4`);
+      if (blob) fd.append("video", blob, `${contentId}.mp4`);
       fd.append(
         "payload",
         JSON.stringify({
@@ -168,6 +172,7 @@ export function ScheduleToBufferPanel({
           captions: captionsPayload,
           platforms: chosen.map((p) => p.id),
           timing,
+          ...(isPublicUrl ? { videoUrl } : {}),
         }),
       );
 

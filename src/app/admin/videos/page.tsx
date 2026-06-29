@@ -184,6 +184,50 @@ export default function VideosAdminPage() {
     setVideoSource(source);
   }, []);
 
+  /** Point the preview at an already-public URL (cloud render output). */
+  const setRemoteVideo = useCallback((url: string, source: string) => {
+    setVideoUrl((prev) => {
+      if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return url;
+    });
+    setVideoSource(source);
+  }, []);
+
+  /**
+   * Poll a Cloud Run Job render until it's ready/failed. On success loads the
+   * public MP4 into the preview. Returns true when a video is ready.
+   */
+  const pollCloudRender = useCallback(
+    async (renderId: string): Promise<boolean> => {
+      const deadline = Date.now() + 12 * 60_000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 5000));
+        try {
+          const res = await authedFetch(`/api/admin/videos/render-status?renderId=${encodeURIComponent(renderId)}`);
+          const json = await res.json();
+          if (!res.ok) continue;
+          if (json.status === "ready" && json.url) {
+            setRemoteVideo(json.url as string, "Cloud render");
+            return true;
+          }
+          if (json.status === "failed") {
+            setRenderMsg({ kind: "error", text: json.error ?? "Cloud render failed." });
+            return false;
+          }
+          setRenderMsg({
+            kind: "info",
+            text: json.status === "rendering" ? "Cloud render in progress… (a few minutes)" : "Cloud render queued…",
+          });
+        } catch {
+          /* transient — keep polling */
+        }
+      }
+      setRenderMsg({ kind: "error", text: "Cloud render timed out. Check back shortly." });
+      return false;
+    },
+    [authedFetch, setRemoteVideo],
+  );
+
   const loadRenderedVideo = useCallback(async () => {
     if (!selected) return;
     setVideoLoading(true);
@@ -242,6 +286,10 @@ export default function VideosAdminPage() {
         setRenderMsg({ kind: "ok", text: "Render complete. Loading preview…" });
         await loadList();
         await loadRenderedVideo();
+      } else if (json.async && json.renderId) {
+        setRenderMsg({ kind: "info", text: json.message ?? "Cloud render started…" });
+        const ok = await pollCloudRender(json.renderId);
+        if (ok) setRenderMsg({ kind: "ok", text: "Cloud render complete. Preview loaded below." });
       } else if (json.reason === "NOT_LOCAL") {
         setRenderMsg({ kind: "info", text: json.message });
       } else {
@@ -252,7 +300,7 @@ export default function VideosAdminPage() {
     } finally {
       setRendering(false);
     }
-  }, [selected, authedFetch, loadList, loadRenderedVideo]);
+  }, [selected, authedFetch, loadList, loadRenderedVideo, pollCloudRender]);
 
   /** One click: fetch fresh data → render video → write captions → show both. */
   const generateAll = useCallback(async () => {
@@ -264,6 +312,7 @@ export default function VideosAdminPage() {
     setProgress({ stage: "render", text: "Step 1/2 · Fetching today's data and rendering the video… (a few minutes — keep this tab open)" });
 
     let videoReady = false;
+    let cloudRendered = false;
     let dataMissing = false;
     try {
       const res = await authedFetch("/api/admin/videos/render", {
@@ -275,6 +324,10 @@ export default function VideosAdminPage() {
       if (!res.ok) throw new Error(json.error ?? "Render failed");
       if (json.rendered) {
         videoReady = true;
+      } else if (json.async && json.renderId) {
+        setRenderMsg({ kind: "info", text: json.message ?? "Cloud render started…" });
+        cloudRendered = true;
+        videoReady = await pollCloudRender(json.renderId);
       } else if (json.reason === "NO_DATA" || json.reason === "FETCH_FAILED") {
         dataMissing = true;
         setRenderMsg({ kind: "error", text: json.message ?? "No data available to build the video." });
@@ -316,7 +369,9 @@ export default function VideosAdminPage() {
       setCaptionError(msg);
     }
 
-    if (videoReady) {
+    // Cloud renders already set the preview to the public URL; only local
+    // renders need to pull the freshly-written file off disk.
+    if (videoReady && !cloudRendered) {
       await loadList();
       await loadRenderedVideo();
     }
@@ -333,7 +388,7 @@ export default function VideosAdminPage() {
           : "Couldn't complete. See the messages below.",
     });
     setBusy(false);
-  }, [selected, authedFetch, loadList, loadRenderedVideo]);
+  }, [selected, authedFetch, loadList, loadRenderedVideo, pollCloudRender]);
 
   const onPickFile = (file: File | null) => {
     if (!file) return;

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { getAdminFirestore } from "@/firebase/admin";
 import type { VideoTopic } from "./topics";
 
 /**
@@ -65,14 +66,30 @@ export class TopicDataMissingError extends Error {
   }
 }
 
+/**
+ * Cloud-render fallback: the Cloud Run Job publishes a compact summary to
+ * `video_props/{topicId}` (see video/scripts/cloud-render.mjs) because prod has
+ * no access to the container's local props file. Returns null if absent.
+ */
+async function readPropsFromFirestore(topic: VideoTopic): Promise<RawProps | null> {
+  try {
+    const snap = await getAdminFirestore().collection("video_props").doc(topic.id).get();
+    return snap.exists ? (snap.data() as RawProps) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function buildTopicSummary(topic: VideoTopic): Promise<TopicSummary> {
-  let raw: RawProps;
+  let raw: RawProps | null = null;
   try {
     const text = await readFile(propsPath(topic), "utf8");
     raw = JSON.parse(text) as RawProps;
   } catch {
-    throw new TopicDataMissingError(topic);
+    // Not on the local render machine — fall back to the cloud-published summary.
+    raw = await readPropsFromFirestore(topic);
   }
+  if (!raw) throw new TopicDataMissingError(topic);
 
   const variant = raw.variant ?? topic.variant;
   const slides = Array.isArray(raw.stocks) ? raw.stocks : [];

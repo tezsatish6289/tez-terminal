@@ -2,6 +2,7 @@
 
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SrStoryReplay, type StoryReplayData } from "@/components/admin/SrStoryReplay";
+import { SrStoryPublish } from "@/components/admin/SrStoryPublish";
 import { useUser } from "@/firebase";
 import { isAdminEmail } from "@/lib/admin-emails-client";
 import { srEventDisplayStatus, srEventOutcome } from "@/lib/sr-audit/pnl";
@@ -15,6 +16,7 @@ import {
   Loader2,
   PlayCircle,
   RefreshCw,
+  Send,
   ShieldAlert,
   TrendingDown,
   TrendingUp,
@@ -89,8 +91,20 @@ export default function SrAuditAdminPage() {
   const [replayOpen, setReplayOpen] = useState(false);
   const [replayLoading, setReplayLoading] = useState(false);
   const [replayData, setReplayData] = useState<StoryReplayData | null>(null);
+  const [publishRow, setPublishRow] = useState<SrEventRow | null>(null);
 
   const isAdmin = isAdminEmail(user?.email);
+
+  /** Bearer-authed fetch for the publish modal (render + captions + schedule). */
+  const authedFetch = useCallback(
+    async (input: string, init?: RequestInit) => {
+      const idToken = await user!.getIdToken();
+      const headers = new Headers(init?.headers);
+      headers.set("Authorization", `Bearer ${idToken}`);
+      return fetch(input, { ...init, headers });
+    },
+    [user],
+  );
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -560,6 +574,15 @@ export default function SrAuditAdminPage() {
                                 <Download className="h-3 w-3" />
                                 Story
                               </button>
+                              <button
+                                type="button"
+                                onClick={() => setPublishRow(row)}
+                                title="Render the reel + schedule it to Buffer"
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase border border-violet-400/30 text-violet-200 hover:bg-violet-400/10"
+                              >
+                                <Send className="h-3 w-3" />
+                                Post
+                              </button>
                             </div>
                           ) : (
                             <span className="text-slate-600 text-[10px]">—</span>
@@ -580,6 +603,14 @@ export default function SrAuditAdminPage() {
           data={replayData}
           loading={replayLoading}
           onClose={() => setReplayOpen(false)}
+        />
+      ) : null}
+
+      {publishRow?.id ? (
+        <SrStoryPublish
+          authedFetch={authedFetch}
+          story={{ id: publishRow.id, symbol: publishRow.symbol, label: publishRow.label || publishRow.symbol }}
+          onClose={() => setPublishRow(null)}
         />
       ) : null}
     </div>

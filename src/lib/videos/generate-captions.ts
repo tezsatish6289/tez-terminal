@@ -117,7 +117,7 @@ function parseGeminiJson<T>(raw: string): T {
   }
 }
 
-async function callGemini(
+export async function callGemini(
   prompt: string,
   schema: Record<string, unknown>,
   required: string[],

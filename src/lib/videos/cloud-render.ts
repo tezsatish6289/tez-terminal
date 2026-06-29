@@ -133,6 +133,8 @@ export async function triggerStoryRender(input: StoryTriggerInput): Promise<stri
     { name: "RENDER_ID", value: renderId },
     { name: "RENDER_KIND", value: "sr-story" },
     { name: "STORY_ID", value: input.storyId },
+    // Used for the uploaded MP4 filename (keeps it keyed to the story).
+    { name: "TOPIC_ID", value: input.storyId },
     { name: "COMPOSITION_ID", value: "WinStory" },
     { name: "PROPS_FILE", value: "out/sr-story.json" },
     { name: "OUTPUT_FILE", value: "out/sr-story.mp4" },

@@ -317,7 +317,7 @@ export default function SrAuditAdminPage() {
   return (
     <div className="min-h-screen bg-background">
       <TopBar />
-      <main className="max-w-7xl mx-auto px-4 pt-6 pb-16">
+      <main className="max-w-[min(1720px,98vw)] mx-auto px-3 sm:px-4 pt-6 pb-16">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
@@ -468,7 +468,9 @@ export default function SrAuditAdminPage() {
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">POC</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Status</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Src</th>
-                  <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Story</th>
+                  <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500 min-w-[22rem] w-[22rem]">
+                    Story
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -578,9 +580,9 @@ export default function SrAuditAdminPage() {
                         <td className="px-3 py-2 text-slate-500 uppercase text-[10px]">
                           {row.levelsSource ?? "—"}
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap">
+                        <td className="px-3 py-2 whitespace-nowrap min-w-[22rem] w-[22rem]">
                           {isWinner ? (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-nowrap items-center gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => void openReplay(row)}

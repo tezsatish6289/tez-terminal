@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   },
   // @solana/web3.js and bs58 use Node.js built-ins (crypto, buffer, etc.)
   // that must not be bundled by webpack — load them natively at runtime.
-  serverExternalPackages: ["@solana/web3.js", "bs58", "undici", "sharp"],
+  serverExternalPackages: ["@solana/web3.js", "bs58", "undici", "sharp", "@resvg/resvg-js"],
   // The standalone output (used by Firebase App Hosting) traces server deps,
   // but sharp loads its platform binary + libvips .so via a dynamic require the
   // tracer can't follow, so they get dropped from the deployed bundle. Force the
@@ -18,6 +18,9 @@ const nextConfig: NextConfig = {
   // for the upload route that uses sharp.
   outputFileTracingIncludes: {
     "/api/chat/upload": ["./node_modules/@img/**/*"],
+    // @resvg/resvg-js loads its platform .node binary via a dynamic require the
+    // tracer can't follow — copy the native packages for the news image route.
+    "/api/admin/news/image": ["./node_modules/@resvg/resvg-js-*/**/*"],
   },
   async headers() {
     return [

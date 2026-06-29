@@ -11,6 +11,7 @@ import type { SuccessStoryCandidate } from "@/lib/videos/success-story";
 import { format } from "date-fns";
 import {
   Activity,
+  CheckCircle2,
   DatabaseZap,
   Download,
   Loader2,
@@ -24,6 +25,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type SrEventRow = SrZoneEvent & { id?: string };
+
+interface PostedInfo {
+  at: string;
+  status: "ok" | "partial" | "failed";
+  platforms: string[];
+}
 
 interface StoryFetchResponse {
   candidate: SuccessStoryCandidate | null;
@@ -92,6 +99,7 @@ export default function SrAuditAdminPage() {
   const [replayLoading, setReplayLoading] = useState(false);
   const [replayData, setReplayData] = useState<StoryReplayData | null>(null);
   const [publishRow, setPublishRow] = useState<SrEventRow | null>(null);
+  const [posted, setPosted] = useState<Record<string, PostedInfo>>({});
 
   const isAdmin = isAdminEmail(user?.email);
 
@@ -130,9 +138,23 @@ export default function SrAuditAdminPage() {
     }
   }, [user]);
 
+  const fetchPosted = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await authedFetch(`/api/admin/social/posted?source=sr-audit`);
+      const json = await res.json();
+      if (res.ok && json.posted) setPosted(json.posted as Record<string, PostedInfo>);
+    } catch {
+      /* non-fatal — the badge is informational */
+    }
+  }, [user, authedFetch]);
+
   useEffect(() => {
-    if (isAdmin) void fetchData();
-  }, [isAdmin, fetchData]);
+    if (isAdmin) {
+      void fetchData();
+      void fetchPosted();
+    }
+  }, [isAdmin, fetchData, fetchPosted]);
 
   const runBackfill = useCallback(async () => {
     if (!user) return;
@@ -326,7 +348,10 @@ export default function SrAuditAdminPage() {
             </button>
             <button
               type="button"
-              onClick={() => void fetchData()}
+              onClick={() => {
+                void fetchData();
+                void fetchPosted();
+              }}
               disabled={loading}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide border border-white/10 hover:bg-white/5 disabled:opacity-50"
             >
@@ -581,8 +606,17 @@ export default function SrAuditAdminPage() {
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase border border-violet-400/30 text-violet-200 hover:bg-violet-400/10"
                               >
                                 <Send className="h-3 w-3" />
-                                Post
+                                {row.id && posted[row.id] ? "Re-post" : "Post"}
                               </button>
+                              {row.id && posted[row.id] ? (
+                                <span
+                                  title={`Posted ${format(new Date(posted[row.id]!.at), "MMM d, HH:mm")} · ${posted[row.id]!.platforms.join(", ")}`}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase border border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
+                                >
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Posted
+                                </span>
+                              ) : null}
                             </div>
                           ) : (
                             <span className="text-slate-600 text-[10px]">—</span>
@@ -610,7 +644,10 @@ export default function SrAuditAdminPage() {
         <SrStoryPublish
           authedFetch={authedFetch}
           story={{ id: publishRow.id, symbol: publishRow.symbol, label: publishRow.label || publishRow.symbol }}
-          onClose={() => setPublishRow(null)}
+          onClose={() => {
+            setPublishRow(null);
+            void fetchPosted();
+          }}
         />
       ) : null}
     </div>

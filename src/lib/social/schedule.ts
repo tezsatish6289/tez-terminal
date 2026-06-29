@@ -110,7 +110,10 @@ export async function scheduleToBuffer(input: ScheduleInput): Promise<ScheduleRe
       const first = (blocks[0] ?? "").trim();
       const rest = blocks.slice(1).join("\n\n").trim();
       youtubeTitle = (first || normalized).replace(/\s+/g, " ").slice(0, 95);
-      text = clampCaption(rest || normalized, def.postBudget);
+      // Buffer only publishes YouTube as Shorts and the reel is vertical 9:16, so
+      // it already classifies as a Short; the #Shorts tag is belt-and-suspenders.
+      const desc = rest || normalized;
+      text = clampCaption(/#shorts\b/i.test(desc) ? desc : `${desc}\n\n#Shorts`, def.postBudget);
       youtubeCategoryId = YOUTUBE_CATEGORY_ID;
     }
 
@@ -176,6 +179,49 @@ export async function scheduleToBuffer(input: ScheduleInput): Promise<ScheduleRe
   }
 
   return { id, status, results };
+}
+
+export interface PostedSummary {
+  /** ISO timestamp of the most recent successful publish/schedule for this content. */
+  at: string;
+  status: ScheduleResult["status"];
+  /** Platforms that were posted or scheduled (not skipped/failed). */
+  platforms: SocialPlatformId[];
+}
+
+/**
+ * Map of contentId → posted summary for one source (e.g. "sr-audit"), so the
+ * admin list can show a "Posted" badge. Only counts records where at least one
+ * channel was actually posted or scheduled. Uses a single equality filter (no
+ * composite index needed) and aggregates the latest record per content in memory.
+ */
+export async function getPostedContentMap(source: string): Promise<Record<string, PostedSummary>> {
+  const db = getAdminFirestore();
+  const snap = await db.collection(SOCIAL_POSTS_COLLECTION).where("source", "==", source).get();
+  const map: Record<string, PostedSummary> = {};
+
+  for (const doc of snap.docs) {
+    const d = doc.data() as {
+      contentId?: string;
+      status?: ScheduleResult["status"];
+      createdAt?: string;
+      results?: ChannelResult[];
+    };
+    const contentId = d.contentId;
+    if (!contentId) continue;
+
+    const livePlatforms = (d.results ?? [])
+      .filter((r) => r.status === "posted" || r.status === "scheduled")
+      .map((r) => r.platform);
+    if (livePlatforms.length === 0) continue; // nothing actually went out
+
+    const at = d.createdAt ?? "";
+    const prev = map[contentId];
+    if (!prev || at > prev.at) {
+      map[contentId] = { at, status: d.status ?? "ok", platforms: livePlatforms };
+    }
+  }
+  return map;
 }
 
 /** Recent social_posts for the admin activity log. */

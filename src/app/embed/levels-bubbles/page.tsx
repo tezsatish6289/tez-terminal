@@ -86,6 +86,7 @@ export default function LevelsBubblesEmbedPage() {
         hasMarketData={Boolean(payload)}
         toneFilter="all"
         physicsIntensity={0.25}
+        showToneSummary
       />
     </div>
   );

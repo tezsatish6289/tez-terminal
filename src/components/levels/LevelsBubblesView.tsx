@@ -18,8 +18,10 @@ import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import {
   bubbleMatchesMapFilter,
+  countBubbleMapFilters,
   type BubbleMapFilter,
 } from "@/lib/zones/bubble-map-filter";
+import { LevelsBubbleToneSummary } from "@/components/levels/LevelsBubbleToneSummary";
 import { levelsFromStockRow } from "@/lib/zones/levels-actionable-list";
 import { matchesSlideshowSetup, type ZoneBands } from "@/lib/zones/zone-status";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
@@ -67,6 +69,7 @@ export function LevelsBubblesView({
   searchQuery = "",
   layoutActive = true,
   physicsIntensity = 1,
+  showToneSummary = false,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
@@ -80,6 +83,8 @@ export function LevelsBubblesView({
   layoutActive?: boolean;
   /** Scales bubble drift / collision energy (embed preview uses a calmer default). */
   physicsIntensity?: number;
+  /** Compact At/Near support & resistance counts above the map. */
+  showToneSummary?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
@@ -132,6 +137,8 @@ export function LevelsBubblesView({
     () => filtered.map((it) => it.id).join("|"),
     [filtered],
   );
+
+  const toneCounts = useMemo(() => countBubbleMapFilters(items), [items]);
 
   // Broadcast map scene mounts in-flow when visible — kick layout after paint.
   useEffect(() => {
@@ -251,6 +258,8 @@ export function LevelsBubblesView({
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full max-md:flex-none max-md:min-h-[min(62dvh,560px)]">
       <style dangerouslySetInnerHTML={{ __html: BUBBLE_ANIM_CSS }} />
+
+      {showToneSummary ? <LevelsBubbleToneSummary counts={toneCounts} /> : null}
 
       <div
         ref={containerRef}

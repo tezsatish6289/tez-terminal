@@ -1,7 +1,6 @@
 "use client";
 
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
-import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { FNO_ACCENT, FNO_BG_CANVAS, FNO_CARD_BG, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const EMBED_SRC = "/embed/levels-bubbles";
@@ -52,14 +51,8 @@ export function FnoNinjaHeroCard() {
 
           <p className="text-sm sm:text-base lg:text-lg leading-relaxed max-w-xl" style={{ color: FNO_MUTED }}>
             We turn thousands of option-chain data points into clear{" "}
-            <span className="font-semibold" style={{ color: LEVELS_ZONE_CHART.bull.badgeText }}>
-              support
-            </span>
-            ,{" "}
-            <span className="font-semibold" style={{ color: LEVELS_ZONE_CHART.bear.badgeText }}>
-              resistance
-            </span>
-            , and market structure across the entire NSE F&amp;O universe in real time.
+            <span className="italic">support</span>, <span className="italic">resistance</span>, and market
+            structure across the entire NSE F&amp;O universe in real time.
           </p>
         </div>
 

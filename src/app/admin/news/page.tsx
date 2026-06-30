@@ -49,6 +49,7 @@ export default function NewsAdminPage() {
   const [draftMsg, setDraftMsg] = useState<Msg | null>(null);
   const [draft, setDraft] = useState<NewsDraft | null>(null);
   const [captions, setCaptions] = useState<CaptionsLike | null>(null);
+  const [imagePrompt, setImagePrompt] = useState("");
 
   const [imaging, setImaging] = useState(false);
   const [imageMsg, setImageMsg] = useState<Msg | null>(null);
@@ -82,6 +83,7 @@ export default function NewsAdminPage() {
       const d = json.draft as NewsDraft;
       setDraft(d);
       setCaptions(d.captions);
+      setImagePrompt(d.imagePrompt);
       setContentId(`news-${Date.now()}`);
       setImageUrl(null);
       setImageMsg(null);
@@ -101,7 +103,11 @@ export default function NewsAdminPage() {
       const res = await authedFetch("/api/admin/news/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentId, headline: draft.headline, imagePrompt: draft.imagePrompt }),
+        body: JSON.stringify({
+          contentId,
+          headline: draft.headline,
+          imagePrompt: imagePrompt.trim() || draft.imagePrompt,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Image generation failed");
@@ -112,7 +118,7 @@ export default function NewsAdminPage() {
     } finally {
       setImaging(false);
     }
-  }, [draft, contentId, authedFetch]);
+  }, [draft, contentId, imagePrompt, authedFetch]);
 
   const msgColor = (k: Msg["kind"]) =>
     k === "ok" ? "text-emerald-300" : k === "error" ? "text-rose-300" : "text-slate-300";
@@ -223,6 +229,18 @@ export default function NewsAdminPage() {
                   </button>
                 </div>
                 {imageMsg && <p className={`mt-2 text-[11px] ${msgColor(imageMsg.kind)}`}>{imageMsg.text}</p>}
+                <label className="mt-3 block">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    Art direction (editable)
+                  </span>
+                  <textarea
+                    value={imagePrompt}
+                    onChange={(e) => setImagePrompt(e.target.value)}
+                    rows={5}
+                    spellCheck={false}
+                    className="mt-1 w-full resize-y rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-[11px] leading-relaxed text-slate-300 outline-none focus:border-emerald-500/40"
+                  />
+                </label>
                 {imageUrl && (
                   <img
                     src={imageUrl}

@@ -59,6 +59,7 @@ ${brief}
 Produce a JSON object with these fields:
 - "headline": a crisp, factual headline, max 70 characters, no hashtags, no emoji.
 - "summary": 1-2 sentence plain summary of the news (for internal review).
+- "imagePrompt": 90-140 word art direction for an AI image model that will draw ONLY the background (we overlay headline text). Describe a bold, cinematic, story-specific editorial illustration — concrete visual metaphors tied to THIS news (e.g. RBI building silhouette, NSE glow, sector icons, rupee liquidity ribbons, options-chain lattice, Mumbai skyline). Rich palette on deep navy (#080f1e) with vivid accent lighting (electric blue, amber, or emerald by tone). Volumetric rays, glass reflections, holographic data particles — NOT generic bland chart wallpaper. Upper 60% hero visual; lower 40% fades darker/simpler for text. No text, logos, numbers, watermarks, or faces. 4:5 vertical.
 - "twitter": post for X. <= 200 chars. 1-2 relevant hashtags. May end with ${WEBSITE}.
 - "facebook": post for Facebook. <= 380 chars. Friendly, informative.
 - "linkedin": post for LinkedIn. <= 1000 chars. Professional, analytical tone.
@@ -72,19 +73,25 @@ Rules for every caption:
 const CAPTION_SCHEMA = {
   headline: { type: "string" },
   summary: { type: "string" },
+  imagePrompt: { type: "string" },
   twitter: { type: "string" },
   facebook: { type: "string" },
   linkedin: { type: "string" },
   instagram: { type: "string" },
 } as const;
 
-/** Build the image-model prompt from the headline (background art only — we overlay text). */
-export function buildImagePrompt(headline: string): string {
-  return `A clean, modern, premium financial-news background illustration for a social media card about: "${headline}".
-Style: dark navy (#080f1e) base with subtle deep-blue radial glow and soft abstract market motifs
-(gentle candlestick / data-grid / network textures), cinematic, high quality, minimal.
-IMPORTANT: Do NOT render any text, words, letters, numbers, logos, or watermarks.
-Leave the lower third relatively clean and uncluttered for an overlay. No people's faces. 4:5 vertical composition.`;
+/** Fallback background-art prompt when the caption step omits imagePrompt. */
+export function buildImagePrompt(headline: string, summary?: string): string {
+  const ctx = summary?.trim() ? `\nStory context: ${summary.trim().slice(0, 300)}` : "";
+  return `Bold editorial cover illustration for Indian financial news: "${headline}".${ctx}
+
+Art direction: cinematic financial journalism — vivid and story-specific, NOT a bland corporate template. Use concrete metaphors tied to the headline (central bank architecture, trading-floor energy, sector silhouettes, rupee liquidity streams, options-chain lattice, monsoon cityscape, policy document glow).
+
+Palette: deep navy (#080f1e) base with dramatic accent lighting — electric blue, amber gold, or emerald by story tone. Volumetric light rays, glass reflections, holographic data particles, strong depth.
+
+Composition: 4:5 vertical. Hero visual in upper 60%; lower 40% fades darker and simpler for text overlay.
+
+STRICT: No text, letters, numbers, logos, watermarks, or human faces. Magazine-quality detail.`;
 }
 
 export async function generateNewsDraft(userPrompt: string): Promise<NewsDraft> {
@@ -96,20 +103,31 @@ export async function generateNewsDraft(userPrompt: string): Promise<NewsDraft> 
   const raw = await geminiJson<{
     headline?: string;
     summary?: string;
+    imagePrompt?: string;
     twitter?: string;
     facebook?: string;
     linkedin?: string;
     instagram?: string;
-  }>(captionPrompt(input, brief), CAPTION_SCHEMA, ["headline", "twitter", "facebook", "linkedin", "instagram"]);
+  }>(captionPrompt(input, brief), CAPTION_SCHEMA, [
+    "headline",
+    "imagePrompt",
+    "twitter",
+    "facebook",
+    "linkedin",
+    "instagram",
+  ]);
 
   const clamp = (s: string | undefined, platformId: "twitter" | "facebook" | "linkedin" | "instagram") =>
     clampCaption(normalizeCaption(s ?? ""), getPlatform(platformId)!.postBudget);
 
   const headline = (raw.headline ?? "").replace(/\s+/g, " ").trim().slice(0, 90) || "Market update";
+  const summary = (raw.summary ?? brief).trim();
+  const imagePrompt =
+    (raw.imagePrompt ?? "").replace(/\s+/g, " ").trim() || buildImagePrompt(headline, summary);
 
   return {
     headline,
-    summary: (raw.summary ?? brief).trim(),
+    summary,
     sources,
     captions: {
       twitter: clamp(raw.twitter, "twitter"),
@@ -117,6 +135,6 @@ export async function generateNewsDraft(userPrompt: string): Promise<NewsDraft> 
       linkedin: clamp(raw.linkedin, "linkedin"),
       instagram: clamp(raw.instagram, "instagram"),
     },
-    imagePrompt: buildImagePrompt(headline),
+    imagePrompt,
   };
 }

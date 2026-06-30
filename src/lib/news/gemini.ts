@@ -121,7 +121,10 @@ export async function geminiJson<T extends Record<string, unknown>>(
 export async function geminiImage(prompt: string): Promise<Buffer> {
   const data = await postGemini(NEWS_IMAGE_MODEL, {
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { responseModalities: ["IMAGE"] },
+    generationConfig: {
+      responseModalities: ["IMAGE"],
+      imageConfig: { aspectRatio: "3:4" },
+    },
   });
   const parts = data.candidates?.[0]?.content?.parts ?? [];
   const img = parts.find((p) => p.inlineData?.data)?.inlineData;

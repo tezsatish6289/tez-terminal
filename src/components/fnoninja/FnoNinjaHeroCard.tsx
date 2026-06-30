@@ -1,7 +1,7 @@
 "use client";
 
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
-import { FNO_BG_CANVAS, FNO_CARD_BG, FNO_MUTED } from "@/lib/fnoninja/theme";
+import { FNO_ACCENT, FNO_BG_CANVAS, FNO_CARD_BG, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const EMBED_SRC = "/embed/levels-bubbles";
 
@@ -19,8 +19,15 @@ export function FnoNinjaHeroCard() {
       {/* Left — headline, live badge, CTA */}
       <div className="flex flex-col justify-center gap-5 sm:gap-6 p-5 sm:p-7 lg:p-8 xl:p-10 lg:w-[40%] xl:w-[38%] lg:shrink-0 lg:border-r border-white/[0.06]">
         <div className="space-y-4 sm:space-y-5">
-          <h1 className="text-[1.65rem] sm:text-3xl lg:text-[2rem] xl:text-[2.35rem] font-black tracking-tight leading-[1.1] text-white">
-            See where the Smart Money is Positioned
+          <h1 className="text-[1.65rem] sm:text-3xl lg:text-[2rem] xl:text-[2.35rem] font-black tracking-tight leading-[1.08] text-white">
+            <span className="block">See where</span>
+            <span
+              className="block text-[1.95rem] sm:text-[2.15rem] lg:text-[2.35rem] xl:text-[2.65rem] leading-[1.05]"
+              style={{ color: FNO_ACCENT }}
+            >
+              Smart Money
+            </span>
+            <span className="block">is positioned.</span>
           </h1>
 
           <p className="text-sm sm:text-[15px] leading-relaxed" style={{ color: FNO_MUTED }}>

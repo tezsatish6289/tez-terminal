@@ -9,9 +9,11 @@ import { FNO_ACCENT_SOFT, FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninj
 export function FnoNinjaCtaLink({
   children,
   variant = "primary",
+  className = "",
 }: {
   children: React.ReactNode;
   variant?: "primary" | "nav" | "secondary";
+  className?: string;
 }) {
   const href = fnoAnalyticsHref(usePathname());
 
@@ -22,7 +24,7 @@ export function FnoNinjaCtaLink({
     return (
       <Link
         href={href}
-        className={`${baseBtn} gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white`}
+        className={`${baseBtn} gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${className}`.trim()}
         style={{
           background: FNO_CTA_GRADIENT,
           boxShadow: FNO_CTA_SHADOW,
@@ -37,7 +39,7 @@ export function FnoNinjaCtaLink({
     return (
       <Link
         href={href}
-        className={`${baseBtn} gap-2 rounded-lg px-7 py-3 text-sm border`}
+        className={`${baseBtn} gap-2 rounded-lg px-7 py-3 text-sm border ${className}`.trim()}
         style={{
           border: "1px solid rgba(90,140,220,0.22)",
           color: "#93c5fd",
@@ -53,7 +55,7 @@ export function FnoNinjaCtaLink({
   return (
     <Link
       href={href}
-      className={`${baseBtn} gap-2.5 rounded-lg px-8 py-3.5 text-xs uppercase tracking-widest text-white`}
+      className={`${baseBtn} gap-2.5 rounded-lg px-8 py-3.5 text-xs uppercase tracking-widest text-white ${className}`.trim()}
       style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
     >
       {children}

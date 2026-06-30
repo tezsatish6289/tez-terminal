@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
@@ -43,8 +43,18 @@ interface Row {
   oi: OiPoint | null;
 }
 
-const PAD = { top: 16, right: 16, bottom: 28, left: 56 };
+const PAD = { top: 16, right: 16, bottom: 44, left: 56 };
 const CANDLE_COLOR = "#3b82f6";
+
+/** Dedicated footer row — chart SVG must never bleed into this zone. */
+const GUIDE_FOOTER_CLASS =
+  "shrink-0 min-h-[7.5rem] border-t border-white/10 bg-[#070d1a] px-0.5 py-2.5 relative z-10";
+
+const CHART_SHELL_STYLE: CSSProperties = {
+  display: "grid",
+  gridTemplateRows: "auto minmax(0, 1fr) auto",
+  minHeight: 0,
+};
 
 export type OiHistoryRange = "1M" | "3M" | "6M";
 
@@ -88,7 +98,7 @@ export function OiHistoryChart({
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 800, h: 420 });
+  const [size, setSize] = useState({ w: 320, h: 240 });
   const [candles, setCandles] = useState<DailyCandle[] | null>(null);
   const [oi, setOi] = useState<OiPoint[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,7 +114,11 @@ export function OiHistoryChart({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const sync = () => setSize({ w: el.clientWidth || 800, h: el.clientHeight || 420 });
+    const sync = () => {
+      const w = el.clientWidth || 320;
+      const h = el.clientHeight || 240;
+      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
@@ -229,33 +243,36 @@ export function OiHistoryChart({
 
   if (historyLoading) {
     return (
-      <div className={className} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <div className={className} style={CHART_SHELL_STYLE}>
+        <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
         <div
           ref={containerRef}
-          className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2.5"
+          className="min-h-0 overflow-hidden relative flex flex-col items-center justify-center gap-2.5"
         >
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
           <p className="text-sm" style={{ color: "#94a3b8" }}>
             Loading History ....
           </p>
         </div>
-        {guide}
+        <div className={GUIDE_FOOTER_CLASS}>{guide}</div>
       </div>
     );
   }
 
   if (error || !displayRows.length || !model) {
     return (
-      <div className={className} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <div className={className} style={CHART_SHELL_STYLE}>
         {rows.length > 0 ? (
           <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
-        ) : null}
-        <div ref={containerRef} className="flex-1 min-h-0 flex items-center justify-center">
+        ) : (
+          <div />
+        )}
+        <div ref={containerRef} className="min-h-0 overflow-hidden relative flex items-center justify-center">
           <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
             {error ?? "Could not load OI history for this symbol."}
           </p>
         </div>
-        {guide}
+        <div className={GUIDE_FOOTER_CLASS}>{guide}</div>
       </div>
     );
   }
@@ -276,18 +293,18 @@ export function OiHistoryChart({
   }
 
   return (
-    <div className={className} style={{ display: "flex", flexDirection: "column", minHeight: 0, position: "relative" }}>
+    <div className={className} style={CHART_SHELL_STYLE}>
       <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
-      <div ref={containerRef} className="flex-1 min-h-0 relative">
-      <svg
-        width={w}
-        height={h}
-        role="img"
-        aria-label="OI wall history"
-        onPointerMove={onMove}
-        onPointerLeave={() => setHoverIdx(null)}
-        style={{ touchAction: "none" }}
-      >
+      <div ref={containerRef} className="min-h-0 overflow-hidden relative">
+        <svg
+          width={w}
+          height={h}
+          role="img"
+          aria-label="OI wall history"
+          onPointerMove={onMove}
+          onPointerLeave={() => setHoverIdx(null)}
+          style={{ touchAction: "none", display: "block" }}
+        >
         {/* price grid */}
         {yTicks.map((t, i) => (
           <g key={`y-${i}`}>
@@ -349,17 +366,26 @@ export function OiHistoryChart({
           />
         )}
 
-        {/* x date labels (sparse) */}
+        {/* x date labels — kept inside bottom padding, above the guide footer */}
         {displayRows.map((r, i) => {
           const everyN = Math.ceil(displayRows.length / 7);
           if (i % everyN !== 0 && i !== displayRows.length - 1) return null;
           return (
-            <text key={`x-${i}`} x={xFor(i)} y={h - PAD.bottom + 14} textAnchor="middle" fontSize={9} fontFamily="ui-sans-serif, system-ui" fill="#64748b">
+            <text
+              key={`x-${i}`}
+              x={xFor(i)}
+              y={h - 10}
+              textAnchor="middle"
+              dominantBaseline="auto"
+              fontSize={9}
+              fontFamily="ui-sans-serif, system-ui"
+              fill="#64748b"
+            >
               {fmtDateLabel(r.date)}
             </text>
           );
         })}
-      </svg>
+        </svg>
 
       {/* hover tooltip */}
       {hover && (
@@ -387,9 +413,9 @@ export function OiHistoryChart({
             />
           )}
         </div>
-      )}
+        )}
       </div>
-      {guide}
+      <div className={GUIDE_FOOTER_CLASS}>{guide}</div>
     </div>
   );
 }
@@ -528,10 +554,7 @@ function HistoryChartGuide({
   maxPainColor: string;
 }) {
   return (
-    <div
-      className="shrink-0 border-t border-white/10 px-0.5 py-2.5 space-y-2"
-      aria-label="How to read this chart"
-    >
+    <div className="space-y-2" aria-label="How to read this chart">
       <div className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
         <GuideSeries color={bullLine} label="Put wall" desc="Highest put OI strike below spot — support." />
         <GuideSeries color={bearLine} label="Call wall" desc="Highest call OI strike above spot — resistance." />

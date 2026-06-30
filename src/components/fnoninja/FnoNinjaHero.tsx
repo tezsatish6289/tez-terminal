@@ -40,12 +40,19 @@ export function FnoNinjaHero() {
         <div className="grid flex-1 min-h-0 lg:grid-cols-2 gap-8 lg:gap-12 xl:gap-16 items-center lg:items-stretch">
           <div className="text-left min-w-0 flex flex-col justify-center gap-7 sm:gap-8 lg:gap-9 lg:py-2">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-[3.25rem] font-black tracking-tight leading-[1.08] text-white">
-              See the Entire <span style={{ color: FNO_ACCENT }}>F&amp;O</span> Market at a Glance
+              See Where the Smart Money Is Positioned
             </h1>
 
             <p className="text-sm sm:text-base leading-relaxed max-w-lg" style={{ color: FNO_MUTED }}>
-              See one interactive map of the full NSE F&amp;O market. Instantly spot open interest
-              clusters and key price zones — built from live option data.
+              Turn thousands of option-chain data points into clear support, resistance, and market
+              structure across the entire NSE F&amp;O universe.
+            </p>
+
+            <p className="text-xs sm:text-sm font-semibold tracking-wide" style={{ color: FNO_MUTED }}>
+              <span className="font-black uppercase" style={{ color: FNO_ACCENT }}>
+                Live
+              </span>{" "}
+              data for 193+ F&amp;O Stocks &amp; Indices
             </p>
 
             <div>

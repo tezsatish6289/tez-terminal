@@ -85,6 +85,7 @@ export default function LevelsBubblesEmbedPage() {
         onBubbleOpen={openFullBubbleMap}
         hasMarketData={Boolean(payload)}
         toneFilter="all"
+        physicsIntensity={0.25}
       />
     </div>
   );

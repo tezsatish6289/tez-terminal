@@ -5,7 +5,7 @@ import { FNO_HERO_TEXTURE, FNO_HERO_TEXTURE_SIZE } from "@/lib/fnoninja/theme";
 export function FnoNinjaHero() {
   return (
     <section
-      className="relative border-b flex flex-col min-h-[calc(100dvh-3.5rem)] sm:min-h-[calc(100dvh-4rem)] py-5 sm:py-7 lg:py-9"
+      className="relative border-b flex flex-col h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] min-h-0 overflow-hidden"
       style={{ borderColor: "rgba(90,140,220,0.08)" }}
     >
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
@@ -26,7 +26,7 @@ export function FnoNinjaHero() {
         />
       </div>
 
-      <div className={`relative ${FB_WIDE_SHELL} flex-1 flex flex-col justify-center min-h-0`}>
+      <div className={`relative ${FB_WIDE_SHELL} flex-1 flex flex-col min-h-0 py-3 sm:py-4 lg:py-5`}>
         <FnoNinjaHeroCard />
       </div>
     </section>

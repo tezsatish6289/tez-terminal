@@ -66,6 +66,7 @@ export function LevelsBubblesView({
   toneFilter = "all",
   searchQuery = "",
   layoutActive = true,
+  physicsIntensity = 1,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
@@ -77,6 +78,8 @@ export function LevelsBubblesView({
   searchQuery?: string;
   /** When true, re-measure the container (e.g. broadcast map scene is visible). */
   layoutActive?: boolean;
+  /** Scales bubble drift / collision energy (embed preview uses a calmer default). */
+  physicsIntensity?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
@@ -230,7 +233,7 @@ export function LevelsBubblesView({
       const frame = physicsFrameRef.current;
       if (frame > 90) {
         const t = Math.min(1, (frame - 90) / 120);
-        stepPhysics(nodesRef.current, size.w, size.h, 0.06 + t * 0.06);
+        stepPhysics(nodesRef.current, size.w, size.h, (0.06 + t * 0.06) * physicsIntensity);
       }
       applyPositions();
       rafRef.current = requestAnimationFrame(loop);
@@ -238,7 +241,7 @@ export function LevelsBubblesView({
     rafRef.current = requestAnimationFrame(loop);
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [filteredIds, size.w, size.h, layoutReady]);
+  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity]);
 
   const setBubbleRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) elRefs.current.set(id, el);

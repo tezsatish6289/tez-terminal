@@ -56,7 +56,12 @@ function TickerStrip({ items }: { items: MarketTickerItem[] }) {
   );
 }
 
-export function FnoNinjaMarketTicker() {
+type FnoNinjaMarketTickerProps = {
+  /** Inside a parent card — softer chrome, no full-bleed bar. */
+  embedded?: boolean;
+};
+
+export function FnoNinjaMarketTicker({ embedded = false }: FnoNinjaMarketTickerProps) {
   const [items, setItems] = useState<MarketTickerItem[]>([]);
 
   useEffect(() => {
@@ -87,9 +92,9 @@ export function FnoNinjaMarketTicker() {
 
   return (
     <div
-      className="w-full overflow-hidden border-b"
+      className={`w-full overflow-hidden border-b ${embedded ? "shrink-0" : ""}`}
       style={{
-        backgroundColor: "rgba(8,15,30,0.85)",
+        backgroundColor: embedded ? "rgba(255,255,255,0.02)" : "rgba(8,15,30,0.85)",
         borderColor: "rgba(90,140,220,0.08)",
       }}
     >

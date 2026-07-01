@@ -81,7 +81,7 @@ export function FnoNinjaProblemChartShowcase() {
 
   return (
     <div
-      className="rounded-xl sm:rounded-2xl overflow-hidden flex flex-col min-h-[min(44vh,390px)] lg:min-h-[360px] xl:min-h-[390px] h-full"
+      className="rounded-xl sm:rounded-2xl overflow-hidden flex flex-col h-full min-h-[min(44vh,390px)] lg:min-h-[360px] xl:min-h-[390px]"
       style={{ border: FNO_CARD_BORDER, backgroundColor: "rgba(8,15,30,0.55)" }}
     >
       <div

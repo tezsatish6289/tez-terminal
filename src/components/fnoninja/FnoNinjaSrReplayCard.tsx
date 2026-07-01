@@ -12,6 +12,7 @@ export function FnoNinjaSrReplayCard({
   summary,
   initialReplay = null,
   isActive = false,
+  isCompleted = false,
   onComplete,
   className = "",
 }: {
@@ -20,6 +21,8 @@ export function FnoNinjaSrReplayCard({
   initialReplay?: StoryReplayData | null;
   /** When true, plays the canvas replay once. */
   isActive?: boolean;
+  /** When true, shows the finished frame (marketing row fill). */
+  isCompleted?: boolean;
   onComplete?: () => void;
   className?: string;
 }) {
@@ -78,6 +81,8 @@ export function FnoNinjaSrReplayCard({
             onComplete={onComplete}
             className="h-full"
           />
+        ) : data && isCompleted ? (
+          <SrStoryReplayCanvas data={data} active={false} loop={false} className="h-full" />
         ) : data ? (
           <div
             className="absolute inset-0 flex items-center justify-center opacity-35"
@@ -116,20 +121,30 @@ export function FnoNinjaSrReplayCardCompact({
   summary,
   initialReplay = null,
   isActive = false,
+  isCompleted = false,
   onComplete,
+  fillWidth = false,
 }: {
   summary: SrReplaySummary;
   initialReplay?: StoryReplayData | null;
   isActive?: boolean;
+  isCompleted?: boolean;
   onComplete?: () => void;
+  /** Fill carousel column on desktop multi-column row. */
+  fillWidth?: boolean;
 }) {
   return (
     <FnoNinjaSrReplayCard
       summary={summary}
       initialReplay={initialReplay}
       isActive={isActive}
+      isCompleted={isCompleted}
       onComplete={onComplete}
-      className="max-w-[220px] sm:max-w-[240px]"
+      className={
+        fillWidth
+          ? "w-full max-w-[220px] sm:max-w-[240px] mx-auto lg:max-w-none lg:mx-0"
+          : "w-full max-w-[220px] sm:max-w-[240px] mx-auto"
+      }
     />
   );
 }

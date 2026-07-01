@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Carousel,
   CarouselContent,
@@ -12,7 +12,21 @@ import { FnoNinjaSrReplayCardCompact } from "@/components/fnoninja/FnoNinjaSrRep
 import { FnoNinjaSrReplaySort } from "@/components/fnoninja/FnoNinjaSrReplaySort";
 import type { SrReplaySort } from "@/lib/fnoninja/sr-replay-types";
 import type { SrReplayWithStory } from "@/lib/fnoninja/sr-replays";
+import { replayColumnCount } from "@/lib/fnoninja/sr-replay-columns";
 import { FNO_MUTED } from "@/lib/fnoninja/theme";
+
+function useReplayColumnCount(): number {
+  const [columns, setColumns] = useState(1);
+
+  useEffect(() => {
+    const update = () => setColumns(replayColumnCount(window.innerWidth));
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  return columns;
+}
 
 export function FnoNinjaSrReplaysShowcase({
   initialReplays,
@@ -24,10 +38,23 @@ export function FnoNinjaSrReplaysShowcase({
   const [sort, setSort] = useState<SrReplaySort>(initialSort);
   const [replays, setReplays] = useState(initialReplays);
   const [loading, setLoading] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [playingIndex, setPlayingIndex] = useState(0);
+  const [windowStart, setWindowStart] = useState(0);
+  const [completedIndices, setCompletedIndices] = useState<Set<number>>(() => new Set());
   const [api, setApi] = useState<CarouselApi>();
   const [canPrev, setCanPrev] = useState(false);
   const [canNext, setCanNext] = useState(false);
+  const columnCount = useReplayColumnCount();
+  const isMultiColumn = columnCount > 1;
+  const playingIndexRef = useRef(playingIndex);
+  playingIndexRef.current = playingIndex;
+
+  const resetPlayback = useCallback(() => {
+    setPlayingIndex(0);
+    setWindowStart(0);
+    setCompletedIndices(new Set());
+    api?.scrollTo(0, true);
+  }, [api]);
 
   const fetchReplays = useCallback(async (nextSort: SrReplaySort) => {
     setLoading(true);
@@ -39,7 +66,9 @@ export function FnoNinjaSrReplaysShowcase({
       const json = (await res.json()) as { replays?: SrReplayWithStory[] };
       if (res.ok && Array.isArray(json.replays)) {
         setReplays(json.replays);
-        setActiveIndex(0);
+        setPlayingIndex(0);
+        setWindowStart(0);
+        setCompletedIndices(new Set());
       }
     } finally {
       setLoading(false);
@@ -54,19 +83,39 @@ export function FnoNinjaSrReplaysShowcase({
     [fetchReplays],
   );
 
-  const advanceReplay = useCallback(() => {
-    if (replays.length === 0) return;
-    setActiveIndex((i) => (i + 1) % replays.length);
-  }, [replays.length]);
+  const handleCardComplete = useCallback(
+    (index: number) => {
+      if (index !== playingIndexRef.current || replays.length === 0) return;
+
+      setCompletedIndices((prev) => {
+        const nextCompleted = new Set(prev);
+        nextCompleted.add(index);
+        return nextCompleted;
+      });
+
+      const next = index + 1;
+      if (next >= replays.length) {
+        setPlayingIndex(0);
+        setWindowStart(0);
+        setCompletedIndices(new Set());
+        api?.scrollTo(0, true);
+        return;
+      }
+
+      setWindowStart((ws) => (next < ws + columnCount ? ws : next - columnCount + 1));
+      setPlayingIndex(next);
+    },
+    [columnCount, replays.length],
+  );
 
   useEffect(() => {
-    setActiveIndex(0);
-  }, [initialReplays]);
+    resetPlayback();
+  }, [initialReplays, columnCount, resetPlayback]);
 
   useEffect(() => {
     if (!api || replays.length === 0) return;
-    api.scrollTo(activeIndex);
-  }, [api, activeIndex, replays.length]);
+    api.scrollTo(windowStart, true);
+  }, [api, windowStart, replays.length]);
 
   useEffect(() => {
     if (!api) return;
@@ -83,6 +132,12 @@ export function FnoNinjaSrReplaysShowcase({
     };
   }, [api, replays]);
 
+  const carouselWrapperClass = isMultiColumn
+    ? "relative w-full"
+    : "relative max-w-[280px] sm:max-w-[300px] mx-auto";
+
+  const itemBasisClass = isMultiColumn ? "pl-3 sm:pl-4 basis-[20%]" : "basis-full";
+
   return (
     <div className="relative">
       <div className="mb-4 sm:mb-5 flex flex-wrap items-center justify-between gap-4">
@@ -98,19 +153,22 @@ export function FnoNinjaSrReplaysShowcase({
           zone audit.
         </p>
       ) : (
-        <>
-          <Carousel setApi={setApi} opts={{ align: "start", dragFree: true }} className="w-full">
-            <CarouselContent className="-ml-3 sm:-ml-4">
+        <div className={carouselWrapperClass}>
+          <Carousel
+            setApi={setApi}
+            opts={{ align: isMultiColumn ? "start" : "center", dragFree: isMultiColumn }}
+            className="w-full"
+          >
+            <CarouselContent className={isMultiColumn ? "-ml-3 sm:-ml-4" : undefined}>
               {replays.map((replay, index) => (
-                <CarouselItem
-                  key={replay.id}
-                  className="pl-3 sm:pl-4 basis-[78%] sm:basis-[46%] md:basis-[34%] lg:basis-[26%] xl:basis-[22%]"
-                >
+                <CarouselItem key={replay.id} className={itemBasisClass}>
                   <FnoNinjaSrReplayCardCompact
                     summary={replay}
                     initialReplay={replay.replay}
-                    isActive={index === activeIndex}
-                    onComplete={advanceReplay}
+                    isActive={index === playingIndex}
+                    isCompleted={completedIndices.has(index)}
+                    onComplete={() => handleCardComplete(index)}
+                    fillWidth={isMultiColumn}
                   />
                 </CarouselItem>
               ))}
@@ -123,7 +181,7 @@ export function FnoNinjaSrReplaysShowcase({
                 type="button"
                 onClick={() => api?.scrollPrev()}
                 disabled={!canPrev}
-                className="absolute -left-1 sm:-left-3 top-[42%] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0d1b2e]/95 text-white/80 transition enabled:hover:text-white disabled:opacity-30"
+                className={`absolute ${isMultiColumn ? "-left-1 sm:-left-3" : "-left-2 sm:-left-12"} top-[42%] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0d1b2e]/95 text-white/80 transition enabled:hover:text-white disabled:opacity-30`}
                 aria-label="Previous replay"
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -132,14 +190,14 @@ export function FnoNinjaSrReplaysShowcase({
                 type="button"
                 onClick={() => api?.scrollNext()}
                 disabled={!canNext}
-                className="absolute -right-1 sm:-right-3 top-[42%] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0d1b2e]/95 text-white/80 transition enabled:hover:text-white disabled:opacity-30"
+                className={`absolute ${isMultiColumn ? "-right-1 sm:-right-3" : "-right-2 sm:-right-12"} top-[42%] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0d1b2e]/95 text-white/80 transition enabled:hover:text-white disabled:opacity-30`}
                 aria-label="Next replay"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
             </>
           ) : null}
-        </>
+        </div>
       )}
     </div>
   );

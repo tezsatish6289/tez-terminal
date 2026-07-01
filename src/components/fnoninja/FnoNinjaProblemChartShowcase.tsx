@@ -81,11 +81,11 @@ export function FnoNinjaProblemChartShowcase() {
 
   return (
     <div
-      className="rounded-xl sm:rounded-2xl overflow-hidden flex flex-col min-h-[min(58vh,520px)] lg:min-h-[480px] xl:min-h-[520px] h-full"
+      className="rounded-xl sm:rounded-2xl overflow-hidden flex flex-col min-h-[min(44vh,390px)] lg:min-h-[360px] xl:min-h-[390px] h-full"
       style={{ border: FNO_CARD_BORDER, backgroundColor: "rgba(8,15,30,0.55)" }}
     >
       <div
-        className="shrink-0 px-3 sm:px-4 py-2.5 sm:py-3 border-b flex flex-wrap items-center gap-x-3 gap-y-2"
+        className="shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 border-b flex flex-wrap items-center gap-x-3 gap-y-2"
         style={{ borderColor: "rgba(90,140,220,0.12)" }}
       >
         <div className="min-w-0 flex-1">
@@ -123,7 +123,7 @@ export function FnoNinjaProblemChartShowcase() {
       <button
         type="button"
         onClick={openChart}
-        className="relative flex-1 min-h-[360px] sm:min-h-[400px] lg:min-h-[420px] w-full text-left cursor-pointer group"
+        className="relative flex-1 min-h-[270px] sm:min-h-[300px] lg:min-h-[315px] w-full text-left cursor-pointer group"
         aria-label={target ? `Open ${target.symbol} ${VIEW_LABELS[viewMode]} — live demo` : "Loading live chart demo"}
         disabled={loading || !target}
       >

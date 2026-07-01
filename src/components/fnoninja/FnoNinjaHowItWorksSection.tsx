@@ -52,22 +52,6 @@ export function FnoNinjaHowItWorksSection() {
           </div>
         ))}
       </div>
-
-      <div className="mt-10 sm:mt-12 lg:mt-14 max-w-2xl mx-auto text-center space-y-2">
-        <p className="text-sm sm:text-base font-semibold text-white/90">
-          These levels are not predictions.
-        </p>
-        <p className="text-sm sm:text-base leading-relaxed" style={{ color: FNO_MUTED }}>
-          But price often reacts around them.{" "}
-          <a
-            href="#features"
-            className="font-semibold underline underline-offset-4 decoration-white/20 hover:decoration-white/50 transition-colors"
-            style={{ color: FNO_ACCENT }}
-          >
-            See real examples below.
-          </a>
-        </p>
-      </div>
     </section>
   );
 }

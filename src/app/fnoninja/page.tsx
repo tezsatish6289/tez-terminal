@@ -4,6 +4,7 @@ import { FnoNinjaProblemShowcasePrefetch } from "@/components/fnoninja/FnoNinjaP
 import { FnoNinjaProblemSection } from "@/components/fnoninja/FnoNinjaProblemSection";
 import { FnoNinjaFeaturesSection } from "@/components/fnoninja/FnoNinjaFeaturesSection";
 import { FnoNinjaHowItWorksSection } from "@/components/fnoninja/FnoNinjaHowItWorksSection";
+import { FnoNinjaSrReplaysSection } from "@/components/fnoninja/FnoNinjaSrReplaysSection";
 import { FnoNinjaDisclaimerSection } from "@/components/fnoninja/FnoNinjaDisclaimerSection";
 import { FnoNinjaPricingSection } from "@/components/fnoninja/FnoNinjaPricingSection";
 import { FnoNinjaWebinarSection } from "@/components/fnoninja/FnoNinjaWebinarSection";
@@ -22,6 +23,8 @@ export default function FnoNinjaLandingPage() {
       <FnoNinjaProblemSection />
 
       <FnoNinjaHowItWorksSection />
+
+      <FnoNinjaSrReplaysSection />
 
       <FnoNinjaFeaturesSection />
 

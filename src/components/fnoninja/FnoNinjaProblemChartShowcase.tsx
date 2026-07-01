@@ -15,7 +15,7 @@ import {
   pickWidestSpreadStock,
   type ShowcaseSymbol,
 } from "@/lib/levels/pick-widest-cluster-symbol";
-import { formatLevelsChartMeta, levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
+import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { FNO_ACCENT, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
 
 const ROTATE_MS = 8_000;
@@ -115,7 +115,7 @@ export function FnoNinjaProblemChartShowcase() {
 
   return (
     <div
-      className="rounded-xl sm:rounded-2xl overflow-hidden flex flex-col min-h-[min(52vh,440px)] lg:min-h-[400px] h-full"
+      className="rounded-xl sm:rounded-2xl overflow-hidden flex flex-col min-h-[min(58vh,520px)] lg:min-h-[480px] xl:min-h-[520px] h-full"
       style={{ border: FNO_CARD_BORDER, backgroundColor: "rgba(8,15,30,0.55)" }}
     >
       <div
@@ -158,7 +158,7 @@ export function FnoNinjaProblemChartShowcase() {
       <button
         type="button"
         onClick={openChart}
-        className="relative flex-1 min-h-[320px] sm:min-h-[360px] w-full text-left cursor-pointer group"
+        className="relative flex-1 min-h-[360px] sm:min-h-[400px] lg:min-h-[420px] w-full text-left cursor-pointer group"
         aria-label={target ? `Open ${target.symbol} ${VIEW_LABELS[viewMode]} — live demo` : "Loading live chart demo"}
         disabled={loading || !target}
       >
@@ -182,12 +182,13 @@ export function FnoNinjaProblemChartShowcase() {
             </span>
           </div>
         ) : (
-          <div key={`${target.symbol}-${viewMode}`} className="absolute inset-0 p-2 sm:p-3 animate-in fade-in duration-500">
+          <div key={`${target.symbol}-${viewMode}`} className="absolute inset-0 p-1 sm:p-1.5 animate-in fade-in duration-500">
             {viewMode === "history" ? (
               <OiHistoryChart
                 className="h-full w-full"
                 scope={target.scope}
                 symbol={target.symbol}
+                hideGuide
               />
             ) : viewMode === "outlook" ? (
               <NiftyOutlookChart
@@ -205,21 +206,14 @@ export function FnoNinjaProblemChartShowcase() {
                 levels={levels}
                 loading={false}
                 hideChartShortcuts
+                hideTvFooterHint
+                showBrandWatermark={false}
                 showHeader={false}
               />
             )}
           </div>
         )}
       </button>
-
-      {tvConfig && !loading ? (
-        <p
-          className="shrink-0 px-3 sm:px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] border-t"
-          style={{ borderColor: "rgba(90,140,220,0.08)", color: "#475569" }}
-        >
-          {formatLevelsChartMeta(tvConfig)}
-        </p>
-      ) : null}
     </div>
   );
 }

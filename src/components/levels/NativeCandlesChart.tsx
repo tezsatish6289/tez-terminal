@@ -123,6 +123,8 @@ export const NativeCandlesChart = forwardRef<
     onToggleSlideshowPause?: () => void;
     /** Slideshow: no overlay shortcut stack; use tvFooterHint instead. */
     hideShortcuts?: boolean;
+    /** Hide centred TradingView footer copy when shortcuts are hidden. */
+    hideTvFooterHint?: boolean;
     /** Slideshow: fit all loaded ~30d candles on first paint (and on symbol change). */
     defaultFullHistory?: boolean;
     /** On-chart FNONINJA watermark (default true). */
@@ -148,6 +150,7 @@ export const NativeCandlesChart = forwardRef<
     slideshowPaused,
     onToggleSlideshowPause,
     hideShortcuts = false,
+    hideTvFooterHint = false,
     defaultFullHistory = false,
     showBrandWatermark = true,
     onFullHistoryZoomChange,
@@ -730,7 +733,7 @@ export const NativeCandlesChart = forwardRef<
           slideshowPaused={slideshowPaused}
           onToggleSlideshowPause={onToggleSlideshowPause}
         />
-      ) : (
+      ) : hideTvFooterHint ? null : (
         <LevelsChartTvFooterHint
           webChartUrl={webChartUrl}
           zonesExpiry={levels?.zonesExpiry}

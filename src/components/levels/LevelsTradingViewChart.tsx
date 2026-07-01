@@ -28,6 +28,8 @@ export function LevelsTradingViewChart({
   onFullHistoryZoomChange,
   onLastCloseChange,
   showHeader = true,
+  hideTvFooterHint = false,
+  showBrandWatermark = true,
   className = "",
 }: {
   config: LevelsTvConfig;
@@ -47,6 +49,10 @@ export function LevelsTradingViewChart({
   onLastCloseChange?: (close: number) => void;
   /** Deep-dive page: title lives in page chrome; chart fills remaining viewport. */
   showHeader?: boolean;
+  /** Hide centred TradingView footer copy (e.g. homepage showcase). */
+  hideTvFooterHint?: boolean;
+  /** On-chart FNONINJA watermark. */
+  showBrandWatermark?: boolean;
   className?: string;
 }) {
   const [mounted, setMounted] = useState(false);
@@ -113,7 +119,9 @@ export function LevelsTradingViewChart({
             slideshowPaused={slideshowPaused}
             onToggleSlideshowPause={onToggleSlideshowPause}
             hideShortcuts={hideChartShortcuts}
+            hideTvFooterHint={hideTvFooterHint}
             defaultFullHistory={defaultFullHistory}
+            showBrandWatermark={showBrandWatermark}
             onFullHistoryZoomChange={onFullHistoryZoomChange}
             onLastCloseChange={onLastCloseChange}
           />

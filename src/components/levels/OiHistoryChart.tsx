@@ -56,6 +56,12 @@ const CHART_SHELL_STYLE: CSSProperties = {
   minHeight: 0,
 };
 
+const COMPACT_SHELL_STYLE: CSSProperties = {
+  display: "grid",
+  gridTemplateRows: "auto minmax(0, 1fr)",
+  minHeight: 0,
+};
+
 export type OiHistoryRange = "1M" | "3M" | "6M";
 
 /** Calendar lookback from the latest stored day (6M matches our ~120-day store cap). */
@@ -92,10 +98,13 @@ export function OiHistoryChart({
   scope,
   symbol,
   className,
+  hideGuide = false,
 }: {
   scope: LevelsTvScope;
   symbol: string;
   className?: string;
+  /** Hide Put/Call wall legend footer (e.g. homepage showcase). */
+  hideGuide?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 320, h: 240 });
@@ -239,11 +248,14 @@ export function OiHistoryChart({
 
   const guide = <HistoryChartGuide bullLine={bull.line} bearLine={bear.line} maxPainColor={mp} />;
 
+  const shellStyle = hideGuide ? COMPACT_SHELL_STYLE : CHART_SHELL_STYLE;
+  const guideFooter = hideGuide ? null : <div className={GUIDE_FOOTER_CLASS}>{guide}</div>;
+
   const historyLoading = loading || (!error && !rows.length);
 
   if (historyLoading) {
     return (
-      <div className={className} style={CHART_SHELL_STYLE}>
+      <div className={className} style={shellStyle}>
         <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
         <div
           ref={containerRef}
@@ -254,14 +266,14 @@ export function OiHistoryChart({
             Loading History ....
           </p>
         </div>
-        <div className={GUIDE_FOOTER_CLASS}>{guide}</div>
+        {guideFooter}
       </div>
     );
   }
 
   if (error || !displayRows.length || !model) {
     return (
-      <div className={className} style={CHART_SHELL_STYLE}>
+      <div className={className} style={shellStyle}>
         {rows.length > 0 ? (
           <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
         ) : (
@@ -272,7 +284,7 @@ export function OiHistoryChart({
             {error ?? "Could not load OI history for this symbol."}
           </p>
         </div>
-        <div className={GUIDE_FOOTER_CLASS}>{guide}</div>
+        {guideFooter}
       </div>
     );
   }
@@ -293,7 +305,7 @@ export function OiHistoryChart({
   }
 
   return (
-    <div className={className} style={CHART_SHELL_STYLE}>
+    <div className={className} style={shellStyle}>
       <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
       <div ref={containerRef} className="min-h-0 overflow-hidden relative">
         <svg
@@ -415,7 +427,7 @@ export function OiHistoryChart({
         </div>
         )}
       </div>
-      <div className={GUIDE_FOOTER_CLASS}>{guide}</div>
+      {guideFooter}
     </div>
   );
 }

@@ -12,11 +12,11 @@ export async function FnoNinjaSrReplaysSection() {
       className={`${FB_CONTENT_SHELL} py-16 sm:py-20 lg:py-24`}
       style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}
     >
-      <div className="max-w-3xl mb-8 sm:mb-10 lg:mb-12">
-        <p className="text-sm sm:text-base font-semibold text-white/90">
+      <div className="mb-10 sm:mb-12 max-w-3xl">
+        <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
           These levels are not predictions.
-        </p>
-        <p className="mt-2 text-sm sm:text-base lg:text-lg leading-relaxed" style={{ color: FNO_MUTED }}>
+        </h2>
+        <p className="mt-4 sm:mt-5 text-base sm:text-lg leading-relaxed" style={{ color: FNO_MUTED }}>
           But price often reacts around them. See real examples below.
         </p>
       </div>

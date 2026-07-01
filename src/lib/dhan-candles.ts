@@ -136,8 +136,30 @@ export async function resolveDhanEquitySecurityId(symbol: string): Promise<numbe
 
 // ── Dhan intraday fetch ─────────────────────────────────────────────
 
-function fmtDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Format the IST calendar date (YYYY-MM-DD) of a given instant. */
+function fmtIstDate(d: Date): string {
+  return new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * Dhan's `toDate` is **non-inclusive** (per DhanHQ v2 docs), so passing today's
+ * date returns candles strictly *before* today — silently dropping the current
+ * (and, right after midnight IST, the most recent) trading session and making
+ * the chart's latest price look stale/wrong.
+ *
+ * Fix: anchor the range to the IST calendar and push `toDate` to tomorrow so the
+ * latest session is always included. Dhan clamps future dates to the last
+ * available bar, so an end date ahead of "now" is safe.
+ */
+function dhanDateRange(lookbackDays: number): { fromDate: string; toDate: string } {
+  const now = Date.now();
+  return {
+    fromDate: fmtIstDate(new Date(now - lookbackDays * DAY_MS)),
+    toDate: fmtIstDate(new Date(now + DAY_MS)),
+  };
 }
 
 interface DhanIntradayResponse {
@@ -162,16 +184,15 @@ async function fetchDhanIntraday(
   const creds = await ensureValidToken();
   if (!creds) throw new Error("Dhan token unavailable");
 
-  const to = new Date();
-  const from = new Date(to.getTime() - INTRADAY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  const { fromDate, toDate } = dhanDateRange(INTRADAY_LOOKBACK_DAYS);
   const body = JSON.stringify({
     securityId: String(securityId),
     exchangeSegment: segment.exchangeSegment,
     instrument: segment.instrument,
     interval,
     oi: false,
-    fromDate: fmtDate(from),
-    toDate: fmtDate(to),
+    fromDate,
+    toDate,
   });
 
   let res: Response | null = null;
@@ -263,16 +284,15 @@ async function fetchDhanDaily(
   const creds = await ensureValidToken();
   if (!creds) throw new Error("Dhan token unavailable");
 
-  const to = new Date();
-  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+  const { fromDate, toDate } = dhanDateRange(days);
   const body = JSON.stringify({
     securityId: String(securityId),
     exchangeSegment: segment.exchangeSegment,
     instrument: segment.instrument,
     expiryCode: 0,
     oi: false,
-    fromDate: fmtDate(from),
-    toDate: fmtDate(to),
+    fromDate,
+    toDate,
   });
 
   let res: Response | null = null;

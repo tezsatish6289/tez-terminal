@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowRight, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   Carousel,
@@ -11,9 +10,9 @@ import {
 } from "@/components/ui/carousel";
 import { FnoNinjaSrReplayCardCompact } from "@/components/fnoninja/FnoNinjaSrReplayCard";
 import { FnoNinjaSrReplaySort } from "@/components/fnoninja/FnoNinjaSrReplaySort";
-import type { SrReplaySort, SrReplaySummary } from "@/lib/fnoninja/sr-replay-types";
+import type { SrReplaySort } from "@/lib/fnoninja/sr-replay-types";
 import type { SrReplayWithStory } from "@/lib/fnoninja/sr-replays";
-import { FNO_ACCENT_SOFT, FNO_MUTED } from "@/lib/fnoninja/theme";
+import { FNO_MUTED } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaSrReplaysShowcase({
   initialReplays,
@@ -142,21 +141,6 @@ export function FnoNinjaSrReplaysShowcase({
           ) : null}
         </>
       )}
-
-      <div className="mt-8 sm:mt-10 flex justify-center">
-        <Link
-          href={`/fnoninja/replays?sort=${sort}`}
-          className="inline-flex items-center justify-center gap-2 rounded-lg px-7 py-3 text-sm font-bold transition-all hover:scale-105"
-          style={{
-            border: "1px solid rgba(90,140,220,0.22)",
-            color: "#93c5fd",
-            backgroundColor: FNO_ACCENT_SOFT,
-          }}
-        >
-          View all
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
     </div>
   );
 }

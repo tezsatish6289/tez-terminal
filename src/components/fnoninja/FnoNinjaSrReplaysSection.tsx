@@ -14,10 +14,12 @@ export async function FnoNinjaSrReplaysSection() {
     >
       <div className="mb-10 sm:mb-12 max-w-3xl">
         <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
-          These levels are not predictions.
+          Put / Call clusters act as strong Support / Resistance
         </h2>
-        <p className="mt-4 sm:mt-5 text-base sm:text-lg leading-relaxed" style={{ color: FNO_MUTED }}>
-          But price often reacts around them. See real examples below.
+        <p className="mt-4 sm:mt-5 text-base sm:text-lg leading-relaxed space-y-1" style={{ color: FNO_MUTED }}>
+          <span className="block">These levels are not predictions.</span>
+          <span className="block">But price often reacts around them.</span>
+          <span className="block">See real profitable moves below.</span>
         </p>
       </div>
 

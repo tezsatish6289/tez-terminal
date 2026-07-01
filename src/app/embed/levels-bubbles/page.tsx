@@ -40,6 +40,19 @@ interface LevelsPayload {
 export default function LevelsBubblesEmbedPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [showcaseEmphasis, setShowcaseEmphasis] = useState<BubbleMapFilter>("all");
+  const [physicsIntensity, setPhysicsIntensity] = useState(0.25);
+  const [layoutScale, setLayoutScale] = useState(1);
+
+  useEffect(() => {
+    const applyViewport = () => {
+      const narrow = window.innerWidth < 768;
+      setPhysicsIntensity(narrow ? 0 : 0.25);
+      setLayoutScale(narrow ? 0.72 : 1);
+    };
+    applyViewport();
+    window.addEventListener("resize", applyViewport);
+    return () => window.removeEventListener("resize", applyViewport);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -68,11 +81,13 @@ export default function LevelsBubblesEmbedPage() {
     [payload, stockBySymbol],
   );
 
+  const showcaseSteps = useMemo(() => bubbleShowcaseSteps(bubbleItems), [bubbleItems]);
+  const showcaseSolo = showcaseSteps.length === 1;
+
   useEffect(() => {
     if (!payload || bubbleItems.length === 0) return;
-    const steps = bubbleShowcaseSteps(bubbleItems);
-    return runBubbleShowcaseCycle(steps, setShowcaseEmphasis);
-  }, [payload, bubbleItems]);
+    return runBubbleShowcaseCycle(showcaseSteps, setShowcaseEmphasis);
+  }, [payload, bubbleItems, showcaseSteps]);
 
   const openFullBubbleMap = useCallback(() => {
     const url = levelsBubblesPagePathForHost(window.location.hostname);
@@ -97,9 +112,11 @@ export default function LevelsBubblesEmbedPage() {
         onBubbleOpen={openFullBubbleMap}
         hasMarketData={Boolean(payload)}
         toneFilter="all"
-        physicsIntensity={0.25}
+        physicsIntensity={physicsIntensity}
+        layoutScale={layoutScale}
         showToneSummary
         showcaseEmphasis={showcaseEmphasis}
+        showcaseSolo={showcaseSolo}
       />
     </div>
   );

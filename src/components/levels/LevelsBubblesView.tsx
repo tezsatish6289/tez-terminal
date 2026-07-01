@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   bubbleRadius,
+  bubbleStackZIndex,
   createPhysicsNodes,
   isInZoneTone,
   stepPhysics,
@@ -62,6 +63,13 @@ const BUBBLE_ANIM_CSS = `
 .levels-bubble-pop-out {
   animation: levels-bubble-pop-out 0.45s ease-out forwards;
 }
+@keyframes levels-bubble-showcase-breathe {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.035); filter: brightness(1.1); }
+}
+.levels-bubble-showcase-breathe {
+  animation: levels-bubble-showcase-breathe 2.8s ease-in-out infinite;
+}
 `;
 
 export function LevelsBubblesView({
@@ -74,6 +82,10 @@ export function LevelsBubblesView({
   physicsIntensity = 1,
   showToneSummary = false,
   showcaseEmphasis = "all",
+  /** Softer, non-looping emphasis when only one filter has setups. */
+  showcaseSolo = false,
+  /** Scales bubble radii for tight embed viewports (e.g. mobile hero). */
+  layoutScale = 1,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
@@ -94,6 +106,8 @@ export function LevelsBubblesView({
    * (does not filter items out — use toneFilter for that).
    */
   showcaseEmphasis?: BubbleMapFilter;
+  showcaseSolo?: boolean;
+  layoutScale?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
@@ -106,6 +120,10 @@ export function LevelsBubblesView({
   const physicsFrameRef = useRef(0);
   const showcaseEmphasisRef = useRef(showcaseEmphasis);
   showcaseEmphasisRef.current = showcaseEmphasis;
+  const showcaseSoloRef = useRef(showcaseSolo);
+  showcaseSoloRef.current = showcaseSolo;
+  const layoutScaleRef = useRef(layoutScale);
+  layoutScaleRef.current = layoutScale;
 
   const syncSize = useCallback(() => {
     const el = containerRef.current;
@@ -216,10 +234,11 @@ export function LevelsBubblesView({
     if (!layoutReady || size.w < 120 || size.h < 120) return;
 
     const existing = new Map(nodesRef.current.map((n) => [n.id, n]));
-    nodesRef.current = createPhysicsNodes(filtered, size.w, size.h, existing);
+    const scale = layoutScaleRef.current;
+    nodesRef.current = createPhysicsNodes(filtered, size.w, size.h, existing, scale);
 
     for (const n of nodesRef.current) {
-      n.r = bubbleRadius(n.item.scope, n.item.tone);
+      n.r = bubbleRadius(n.item.scope, n.item.tone) * scale;
       if (!existing.has(n.id)) {
         n.vx = 0;
         n.vy = 0;
@@ -232,22 +251,33 @@ export function LevelsBubblesView({
     }
 
     physicsFrameRef.current = 0;
+    if (physicsIntensity <= 0) {
+      for (const n of nodesRef.current) {
+        n.vx = 0;
+        n.vy = 0;
+      }
+    }
 
     const applyPositions = () => {
       const emphasis = showcaseEmphasisRef.current;
       const emphasisActive = emphasis !== "all";
+      const solo = showcaseSoloRef.current && emphasisActive;
+      const scale = layoutScaleRef.current;
       for (const n of nodesRef.current) {
         const el = elRefs.current.get(n.id);
         if (!el) continue;
         const targetR = (() => {
-          const baseR = bubbleRadius(n.item.scope, n.item.tone);
+          const baseR = bubbleRadius(n.item.scope, n.item.tone) * scale;
           if (!emphasisActive) return baseR;
           const matched = bubbleMatchesMapFilter(n.item.tone, emphasis);
           if (matched) {
+            if (solo) {
+              return baseR * (n.item.scope === "index" ? 1.08 : 1.26);
+            }
             return baseR * (n.item.scope === "index" ? 1.14 : 1.48);
           }
-          if (n.item.scope === "index") return baseR * 0.9;
-          return baseR * 0.76;
+          if (n.item.scope === "index") return baseR * (solo ? 0.95 : 0.9);
+          return baseR * (solo ? 0.88 : 0.76);
         })();
         n.r += (targetR - n.r) * (emphasisActive ? 0.14 : 0.22);
         const d = n.r * 2;
@@ -256,21 +286,20 @@ export function LevelsBubblesView({
         el.style.transform = `translate3d(${n.x - n.r}px, ${n.y - n.r}px, 0)`;
         const matched =
           emphasisActive && bubbleMatchesMapFilter(n.item.tone, emphasis);
-        const baseZ = n.item.scope === "index" ? 20 : 6;
         if (matched) {
           el.style.zIndex = "320";
           el.style.opacity = "1";
         } else if (emphasisActive) {
           el.style.zIndex = String(n.item.scope === "index" ? 8 : 4);
-          el.style.opacity = n.item.scope === "index" ? "0.42" : "0.24";
+          el.style.opacity = solo
+            ? n.item.scope === "index"
+              ? "0.58"
+              : "0.46"
+            : n.item.scope === "index"
+              ? "0.42"
+              : "0.24";
         } else {
-          el.style.zIndex = String(
-            n.item.scope === "index"
-              ? baseZ + 10
-              : isInZoneTone(n.item.tone)
-                ? baseZ + 8
-                : baseZ,
-          );
+          el.style.zIndex = String(bubbleStackZIndex(n.item.scope, n.item.tone));
           el.style.opacity = "1";
         }
         el.style.transition = emphasisActive
@@ -284,7 +313,7 @@ export function LevelsBubblesView({
     const loop = () => {
       physicsFrameRef.current += 1;
       const frame = physicsFrameRef.current;
-      if (frame > 90) {
+      if (frame > 90 && physicsIntensity > 0) {
         const t = Math.min(1, (frame - 90) / 120);
         stepPhysics(nodesRef.current, size.w, size.h, (0.06 + t * 0.06) * physicsIntensity);
       }
@@ -294,7 +323,7 @@ export function LevelsBubblesView({
     rafRef.current = requestAnimationFrame(loop);
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity]);
+  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale]);
 
   const setBubbleRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) elRefs.current.set(id, el);
@@ -330,7 +359,7 @@ export function LevelsBubblesView({
         ) : (
           filtered.map((item) => {
             const style = resolveBubbleVisual(item.scope, item.tone);
-            const r = bubbleRadius(item.scope, item.tone);
+            const r = bubbleRadius(item.scope, item.tone) * layoutScale;
             const fontMain = Math.max(
               10,
               Math.min(item.scope === "index" ? 17 : 14, r * 0.22),
@@ -344,6 +373,11 @@ export function LevelsBubblesView({
                   ? "levels-bubble-pop-out"
                   : "";
             const borderW = style.borderWidth;
+            const emphMatched =
+              showcaseEmphasis !== "all" &&
+              bubbleMatchesMapFilter(item.tone, showcaseEmphasis);
+            const breatheAnim =
+              showcaseSolo && emphMatched ? "levels-bubble-showcase-breathe" : "";
             return (
               <div
                 key={item.id}
@@ -354,7 +388,7 @@ export function LevelsBubblesView({
                 <button
                   type="button"
                   onClick={() => onBubbleOpen(item)}
-                  className={`w-full h-full flex flex-col items-center justify-center rounded-full hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 cursor-pointer ${popAnim}`}
+                  className={`w-full h-full flex flex-col items-center justify-center rounded-full hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 cursor-pointer ${popAnim} ${breatheAnim}`}
                   style={{
                     background: style.fill,
                     border: `${borderW}px ${style.borderStyle} ${style.border}`,

@@ -40,11 +40,15 @@ export function packBubbles<T extends BubblePhysicsItem>(
   items: T[],
   width: number,
   height: number,
+  radiusScale = 1,
 ): { item: T; x: number; y: number; r: number }[] {
   if (width < 40 || height < 40 || items.length === 0) return [];
 
   const sorted = [...items]
-    .map((item) => ({ item, r: bubbleRadius(item.scope, item.tone) }))
+    .map((item) => ({
+      item,
+      r: bubbleRadius(item.scope, item.tone) * radiusScale,
+    }))
     .sort((a, b) => b.r - a.r);
 
   const cx = width / 2;
@@ -96,8 +100,9 @@ export function createPhysicsNodes<T extends BubblePhysicsItem>(
   width: number,
   height: number,
   existing?: Map<string, PhysicsNode<T>>,
+  radiusScale = 1,
 ): PhysicsNode<T>[] {
-  const packed = packBubbles(items, width, height);
+  const packed = packBubbles(items, width, height, radiusScale);
   return packed.map(({ item, x, y, r }) => {
     const prev = existing?.get(item.id);
     return {
@@ -196,4 +201,26 @@ export function stepPhysics(
 
 export function isInZoneTone(tone: BubbleTone): boolean {
   return tone === "IN_BULL" || tone === "IN_BEAR";
+}
+
+export function isNearZoneTone(tone: BubbleTone): boolean {
+  return tone === "NEAR_BULL" || tone === "NEAR_BEAR";
+}
+
+/** Paint order: zone setups above indices and neutral/unscanned stocks. */
+export function bubbleStackZIndex(scope: "index" | "stock", tone: BubbleTone): number {
+  switch (tone) {
+    case "IN_BULL":
+    case "IN_BEAR":
+      return scope === "index" ? 210 : 200;
+    case "NEAR_BULL":
+    case "NEAR_BEAR":
+      return scope === "index" ? 170 : 160;
+    case "NEUTRAL":
+    case "ILLIQUID":
+      return scope === "index" ? 90 : 50;
+    case "UNSCANNED":
+    default:
+      return scope === "index" ? 70 : 25;
+  }
 }

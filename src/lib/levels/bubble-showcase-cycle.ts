@@ -42,6 +42,15 @@ export function runBubbleShowcaseCycle(
     });
 
   void (async () => {
+    if (steps.length === 1) {
+      // One active filter: brief full-map intro, then settle — no all↔highlight loop.
+      onPhase("all");
+      await sleep(allMs);
+      if (cancelled) return;
+      onPhase(steps[0]!);
+      return;
+    }
+
     while (!cancelled) {
       onPhase("all");
       await sleep(allMs);

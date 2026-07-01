@@ -12,7 +12,7 @@
  * only stamps an error so the page keeps showing the previous good levels.
  */
 
-import type { Firestore } from "firebase-admin/firestore";
+import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { EquityOptionsZones } from "@/lib/equity-options-zones";
 import {
   storedSourceToPublic,
@@ -240,4 +240,43 @@ export async function writeStockZoneAggregate(
     { entries: entriesMap, updatedAt: new Date().toISOString() },
     { merge: true },
   );
+}
+
+/**
+ * Drop aggregate + per-symbol zone docs for symbols no longer in the F&O
+ * universe (delistings, demergers, renames).
+ *
+ * The aggregate is written with `{ merge: true }`, so entries for symbols the
+ * batch stops processing would otherwise linger forever with a frozen price
+ * (e.g. TATAMOTORS after its demerger). The bubble map hides them (it iterates
+ * the live universe), but they still pollute the In-Zone screener and any raw
+ * reads of the aggregate.
+ *
+ * Caller MUST pass the authoritative universe and guard against an empty set so
+ * a failed universe load can never wipe the whole aggregate. Best-effort per-doc
+ * deletes. Returns the pruned symbols.
+ */
+export async function pruneStaleStockZones(
+  db: Firestore,
+  validSymbols: Iterable<string>,
+): Promise<string[]> {
+  const valid = new Set<string>();
+  for (const s of validSymbols) valid.add(s.toUpperCase());
+  if (valid.size === 0) return [];
+
+  const snap = await db.doc(AGGREGATE_DOC).get();
+  const entries = (snap.data()?.entries ?? {}) as Record<string, unknown>;
+  const orphans = Object.keys(entries).filter((sym) => !valid.has(sym.toUpperCase()));
+  if (orphans.length === 0) return [];
+
+  // Dotted keys are treated as field paths; NSE F&O symbols never contain dots.
+  const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+  for (const sym of orphans) updates[`entries.${sym}`] = FieldValue.delete();
+  await db.doc(AGGREGATE_DOC).update(updates);
+
+  await Promise.all(
+    orphans.map((sym) => db.doc(stockDocId(sym)).delete().catch(() => undefined)),
+  );
+
+  return orphans;
 }

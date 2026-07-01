@@ -29,6 +29,7 @@ import {
 } from "@/lib/dhan-instruments-sync";
 import {
   persistEquityZonesDoc,
+  pruneStaleStockZones,
   stampEquityZonesError,
   stockDocId,
   writeStockZoneAggregate,
@@ -393,6 +394,19 @@ export async function runStockZonesBatch(
   }
 
   await writeStockZoneAggregate(db, entries);
+
+  // Self-healing: drop aggregate/per-symbol docs for names that left the F&O
+  // universe. Guarded by a non-empty universe so a failed load can't wipe it.
+  if (fnoUniverse.length > 0) {
+    try {
+      const pruned = await pruneStaleStockZones(db, fnoUniverse);
+      if (pruned.length) {
+        console.log(`[stock-zones] pruned ${pruned.length} stale symbol(s): ${pruned.join(", ")}`);
+      }
+    } catch (e) {
+      console.error("[stock-zones] prune failed:", e instanceof Error ? e.message : e);
+    }
+  }
 
   if (fromQueue && processed > 0 && queueLength > 0) {
     await writeCursor(db, (startCursor + processed) % queueLength);

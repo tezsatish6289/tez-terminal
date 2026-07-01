@@ -36,18 +36,37 @@ export interface PhysicsNode<T extends BubblePhysicsItem = BubblePhysicsItem> {
 }
 
 /** Golden-angle spiral + collision relaxation for initial layout. */
+export interface PackBubblesOptions {
+  radiusScale?: number;
+  mobileEmbed?: boolean;
+}
+
+export function layoutBubbleRadius(
+  scope: "index" | "stock",
+  tone: BubbleTone,
+  radiusScale = 1,
+  mobileEmbed = false,
+): number {
+  const base = bubbleRadius(scope, tone);
+  if (!mobileEmbed) return base * radiusScale;
+  if (scope === "index") return base * radiusScale * 0.42;
+  if (isInZoneTone(tone) || isNearZoneTone(tone)) return base * radiusScale * 0.98;
+  return base * radiusScale * 0.48;
+}
+
 export function packBubbles<T extends BubblePhysicsItem>(
   items: T[],
   width: number,
   height: number,
-  radiusScale = 1,
+  options: PackBubblesOptions = {},
 ): { item: T; x: number; y: number; r: number }[] {
+  const { radiusScale = 1, mobileEmbed = false } = options;
   if (width < 40 || height < 40 || items.length === 0) return [];
 
   const sorted = [...items]
     .map((item) => ({
       item,
-      r: bubbleRadius(item.scope, item.tone) * radiusScale,
+      r: layoutBubbleRadius(item.scope, item.tone, radiusScale, mobileEmbed),
     }))
     .sort((a, b) => b.r - a.r);
 
@@ -66,7 +85,8 @@ export function packBubbles<T extends BubblePhysicsItem>(
   });
 
   const pad = 4;
-  for (let iter = 0; iter < 48; iter++) {
+  const relaxIters = mobileEmbed ? 72 : 48;
+  for (let iter = 0; iter < relaxIters; iter++) {
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const a = nodes[i];
@@ -92,6 +112,54 @@ export function packBubbles<T extends BubblePhysicsItem>(
     }
   }
 
+  if (mobileEmbed) {
+    const cx = width / 2;
+    const cy = height / 2;
+    const zoneNodes = nodes.filter(
+      (n) =>
+        n.item.scope === "stock" &&
+        (isInZoneTone(n.item.tone) || isNearZoneTone(n.item.tone)),
+    );
+    zoneNodes.forEach((n, i) => {
+      const spread = Math.min(width, height) * 0.22;
+      const t = zoneNodes.length <= 1 ? 0 : (i / (zoneNodes.length - 1)) * 2 - 1;
+      n.x = cx + t * spread;
+      n.y = cy - height * 0.06;
+    });
+    const indexNodes = nodes.filter((n) => n.item.scope === "index");
+    indexNodes.forEach((n, i) => {
+      const span = width - n.r * 2 - 24;
+      const t = indexNodes.length <= 1 ? 0.5 : i / (indexNodes.length - 1);
+      n.x = 12 + n.r + span * t;
+      n.y = height - n.r - 14;
+    });
+    for (let iter = 0; iter < 32; iter++) {
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i];
+          const b = nodes[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.hypot(dx, dy) || 0.001;
+          const minDist = a.r + b.r + pad;
+          if (dist < minDist) {
+            const push = (minDist - dist) / 2;
+            const ux = dx / dist;
+            const uy = dy / dist;
+            a.x -= ux * push;
+            a.y -= uy * push;
+            b.x += ux * push;
+            b.y += uy * push;
+          }
+        }
+      }
+      for (const n of nodes) {
+        n.x = Math.max(n.r + 8, Math.min(width - n.r - 8, n.x));
+        n.y = Math.max(n.r + 8, Math.min(height - n.r - 8, n.y));
+      }
+    }
+  }
+
   return nodes;
 }
 
@@ -100,9 +168,9 @@ export function createPhysicsNodes<T extends BubblePhysicsItem>(
   width: number,
   height: number,
   existing?: Map<string, PhysicsNode<T>>,
-  radiusScale = 1,
+  options: PackBubblesOptions = {},
 ): PhysicsNode<T>[] {
-  const packed = packBubbles(items, width, height, radiusScale);
+  const packed = packBubbles(items, width, height, options);
   return packed.map(({ item, x, y, r }) => {
     const prev = existing?.get(item.id);
     return {

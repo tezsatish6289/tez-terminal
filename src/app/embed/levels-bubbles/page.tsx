@@ -42,12 +42,14 @@ export default function LevelsBubblesEmbedPage() {
   const [showcaseEmphasis, setShowcaseEmphasis] = useState<BubbleMapFilter>("all");
   const [physicsIntensity, setPhysicsIntensity] = useState(0.25);
   const [layoutScale, setLayoutScale] = useState(1);
+  const [embedMobileLayout, setEmbedMobileLayout] = useState(false);
 
   useEffect(() => {
     const applyViewport = () => {
       const narrow = window.innerWidth < 768;
       setPhysicsIntensity(narrow ? 0 : 0.25);
-      setLayoutScale(narrow ? 0.72 : 1);
+      setLayoutScale(narrow ? 0.62 : 1);
+      setEmbedMobileLayout(narrow);
     };
     applyViewport();
     window.addEventListener("resize", applyViewport);
@@ -114,6 +116,7 @@ export default function LevelsBubblesEmbedPage() {
         toneFilter="all"
         physicsIntensity={physicsIntensity}
         layoutScale={layoutScale}
+        embedMobileLayout={embedMobileLayout}
         showToneSummary
         showcaseEmphasis={showcaseEmphasis}
         showcaseSolo={showcaseSolo}

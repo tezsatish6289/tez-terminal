@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
-  bubbleRadius,
   bubbleStackZIndex,
   createPhysicsNodes,
   isInZoneTone,
+  layoutBubbleRadius,
   stepPhysics,
   type PhysicsNode,
 } from "@/lib/levels/bubble-physics";
+import { pickEmbedMobileLayoutItems } from "@/lib/levels/embed-mobile-layout";
 import {
   deriveBubbleDisplayTone,
   resolveBubbleVisual,
@@ -70,6 +71,13 @@ const BUBBLE_ANIM_CSS = `
 .levels-bubble-showcase-breathe {
   animation: levels-bubble-showcase-breathe 2.8s ease-in-out infinite;
 }
+@keyframes levels-bubble-showcase-breathe-mobile {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.06); filter: brightness(1.18); }
+}
+.levels-bubble-showcase-breathe-mobile {
+  animation: levels-bubble-showcase-breathe-mobile 2.4s ease-in-out infinite;
+}
 `;
 
 export function LevelsBubblesView({
@@ -86,6 +94,8 @@ export function LevelsBubblesView({
   showcaseSolo = false,
   /** Scales bubble radii for tight embed viewports (e.g. mobile hero). */
   layoutScale = 1,
+  /** Landing iframe on mobile: fewer bubbles, zone stocks centered. */
+  embedMobileLayout = false,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
@@ -108,6 +118,7 @@ export function LevelsBubblesView({
   showcaseEmphasis?: BubbleMapFilter;
   showcaseSolo?: boolean;
   layoutScale?: number;
+  embedMobileLayout?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
@@ -124,6 +135,8 @@ export function LevelsBubblesView({
   showcaseSoloRef.current = showcaseSolo;
   const layoutScaleRef = useRef(layoutScale);
   layoutScaleRef.current = layoutScale;
+  const embedMobileLayoutRef = useRef(embedMobileLayout);
+  embedMobileLayoutRef.current = embedMobileLayout;
 
   const syncSize = useCallback(() => {
     const el = containerRef.current;
@@ -150,9 +163,14 @@ export function LevelsBubblesView({
     };
   }, [syncSize]);
 
+  const layoutItems = useMemo(() => {
+    if (!embedMobileLayout) return items;
+    return pickEmbedMobileLayoutItems(items);
+  }, [items, embedMobileLayout]);
+
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toUpperCase();
-    return items.filter((it) => {
+    return layoutItems.filter((it) => {
       if (!bubbleMatchesMapFilter(it.tone, toneFilter)) return false;
       if (!q) return true;
       return (
@@ -160,7 +178,7 @@ export function LevelsBubblesView({
         it.label.toUpperCase().includes(q)
       );
     });
-  }, [items, searchQuery, toneFilter]);
+  }, [layoutItems, searchQuery, toneFilter]);
 
   const filteredIds = useMemo(
     () => filtered.map((it) => it.id).join("|"),
@@ -233,12 +251,18 @@ export function LevelsBubblesView({
   useEffect(() => {
     if (!layoutReady || size.w < 120 || size.h < 120) return;
 
-    const existing = new Map(nodesRef.current.map((n) => [n.id, n]));
+    const existing = embedMobileLayoutRef.current
+      ? new Map<string, PhysicsNode<LevelsBubbleItem>>()
+      : new Map(nodesRef.current.map((n) => [n.id, n]));
     const scale = layoutScaleRef.current;
-    nodesRef.current = createPhysicsNodes(filtered, size.w, size.h, existing, scale);
+    const mobileEmbed = embedMobileLayoutRef.current;
+    nodesRef.current = createPhysicsNodes(filtered, size.w, size.h, existing, {
+      radiusScale: scale,
+      mobileEmbed,
+    });
 
     for (const n of nodesRef.current) {
-      n.r = bubbleRadius(n.item.scope, n.item.tone) * scale;
+      n.r = layoutBubbleRadius(n.item.scope, n.item.tone, scale, mobileEmbed);
       if (!existing.has(n.id)) {
         n.vx = 0;
         n.vy = 0;
@@ -263,29 +287,36 @@ export function LevelsBubblesView({
       const emphasisActive = emphasis !== "all";
       const solo = showcaseSoloRef.current && emphasisActive;
       const scale = layoutScaleRef.current;
+      const mobileEmbed = embedMobileLayoutRef.current;
       for (const n of nodesRef.current) {
         const el = elRefs.current.get(n.id);
         if (!el) continue;
+        const matched =
+          emphasisActive && bubbleMatchesMapFilter(n.item.tone, emphasis);
         const targetR = (() => {
-          const baseR = bubbleRadius(n.item.scope, n.item.tone) * scale;
+          const baseR = layoutBubbleRadius(n.item.scope, n.item.tone, scale, mobileEmbed);
           if (!emphasisActive) return baseR;
-          const matched = bubbleMatchesMapFilter(n.item.tone, emphasis);
           if (matched) {
             if (solo) {
-              return baseR * (n.item.scope === "index" ? 1.08 : 1.26);
+              const boost = mobileEmbed ? 1.44 : 1.26;
+              return baseR * (n.item.scope === "index" ? 1.08 : boost);
             }
             return baseR * (n.item.scope === "index" ? 1.14 : 1.48);
           }
           if (n.item.scope === "index") return baseR * (solo ? 0.95 : 0.9);
-          return baseR * (solo ? 0.88 : 0.76);
+          return baseR * (solo ? (mobileEmbed ? 0.72 : 0.88) : 0.76);
         })();
         n.r += (targetR - n.r) * (emphasisActive ? 0.14 : 0.22);
+        if (mobileEmbed && matched && emphasisActive) {
+          const cx = size.w * 0.5;
+          const cy = size.h * 0.42;
+          n.x += (cx - n.x) * 0.07;
+          n.y += (cy - n.y) * 0.07;
+        }
         const d = n.r * 2;
         el.style.width = `${d}px`;
         el.style.height = `${d}px`;
         el.style.transform = `translate3d(${n.x - n.r}px, ${n.y - n.r}px, 0)`;
-        const matched =
-          emphasisActive && bubbleMatchesMapFilter(n.item.tone, emphasis);
         if (matched) {
           el.style.zIndex = "320";
           el.style.opacity = "1";
@@ -323,7 +354,7 @@ export function LevelsBubblesView({
     rafRef.current = requestAnimationFrame(loop);
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale]);
+  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale, embedMobileLayout]);
 
   const setBubbleRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) elRefs.current.set(id, el);
@@ -359,7 +390,12 @@ export function LevelsBubblesView({
         ) : (
           filtered.map((item) => {
             const style = resolveBubbleVisual(item.scope, item.tone);
-            const r = bubbleRadius(item.scope, item.tone) * layoutScale;
+            const r = layoutBubbleRadius(
+              item.scope,
+              item.tone,
+              layoutScale,
+              embedMobileLayout,
+            );
             const fontMain = Math.max(
               10,
               Math.min(item.scope === "index" ? 17 : 14, r * 0.22),
@@ -377,7 +413,11 @@ export function LevelsBubblesView({
               showcaseEmphasis !== "all" &&
               bubbleMatchesMapFilter(item.tone, showcaseEmphasis);
             const breatheAnim =
-              showcaseSolo && emphMatched ? "levels-bubble-showcase-breathe" : "";
+              showcaseSolo && emphMatched
+                ? embedMobileLayout
+                  ? "levels-bubble-showcase-breathe-mobile"
+                  : "levels-bubble-showcase-breathe"
+                : "";
             return (
               <div
                 key={item.id}

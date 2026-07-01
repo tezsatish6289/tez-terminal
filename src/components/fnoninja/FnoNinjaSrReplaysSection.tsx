@@ -1,10 +1,10 @@
-import { FnoNinjaSrReplayCarousel } from "@/components/fnoninja/FnoNinjaSrReplayCarousel";
+import { FnoNinjaSrReplaysShowcase } from "@/components/fnoninja/FnoNinjaSrReplaysShowcase";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { listSrReplayShorts } from "@/lib/fnoninja/sr-replays";
+import { listSrReplaySummaries } from "@/lib/fnoninja/sr-replays";
 import { FNO_MUTED, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 export async function FnoNinjaSrReplaysSection() {
-  const replays = await listSrReplayShorts(12);
+  const replays = await listSrReplaySummaries({ sort: "best", limit: 12 });
 
   return (
     <section
@@ -21,7 +21,7 @@ export async function FnoNinjaSrReplaysSection() {
         </p>
       </div>
 
-      <FnoNinjaSrReplayCarousel replays={replays} />
+      <FnoNinjaSrReplaysShowcase initialReplays={replays} initialSort="best" />
     </section>
   );
 }

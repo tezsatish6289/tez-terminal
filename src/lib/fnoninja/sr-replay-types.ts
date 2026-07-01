@@ -1,11 +1,27 @@
-/** Public SR-audit success-story short for marketing surfaces. */
-export type SrReplayShort = {
+/** Public SR-audit story replay summary for marketing surfaces. */
+export type SrReplaySort = "best" | "latest" | "oldest";
+
+export type SrReplaySummary = {
   id: string;
   title: string;
-  videoUrl: string;
   symbol: string;
   label: string;
   side: "support" | "resistance";
-  movePct: number | null;
-  publishedAt: string;
+  scope: "stock" | "index";
+  movePct: number;
+  eventAt: string;
 };
+
+/** @deprecated Use SrReplaySummary — kept for transitional imports. */
+export type SrReplayShort = SrReplaySummary;
+
+export const SR_REPLAY_SORT_OPTIONS: { id: SrReplaySort; label: string }[] = [
+  { id: "best", label: "Best" },
+  { id: "latest", label: "Latest" },
+  { id: "oldest", label: "Oldest" },
+];
+
+export function parseSrReplaySort(raw: string | null | undefined): SrReplaySort {
+  if (raw === "latest" || raw === "oldest") return raw;
+  return "best";
+}

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminFirestore } from "@/firebase/admin";
+import { loadStoryReplayPayload } from "@/lib/sr-audit/load-story-replay";
 import { requireAdmin } from "@/lib/admin-auth";
-import { loadEventCandles } from "@/lib/sr-audit/candle-snapshot";
+import { qualifySuccessStory } from "@/lib/videos/success-story";
+import { getAdminFirestore } from "@/firebase/admin";
 import { SR_ZONE_EVENTS_COLLECTION } from "@/lib/sr-audit/constants";
 import type { SrZoneEvent } from "@/lib/sr-audit/types";
-import { qualifySuccessStory } from "@/lib/videos/success-story";
 
 export const dynamic = "force-dynamic";
 
@@ -32,29 +32,29 @@ export async function GET(request: NextRequest) {
 
     const event = { id: docSnap.id, ...(docSnap.data() as SrZoneEvent) };
     const candidate = qualifySuccessStory(event);
-    const snapshot = await loadEventCandles(db, id);
+    const replay = await loadStoryReplayPayload(id);
 
     return NextResponse.json({
       candidate,
-      candles: snapshot?.bars ?? [],
-      levels: snapshot
+      candles: replay?.candles ?? [],
+      levels: replay
         ? {
-            side: snapshot.side,
-            entrySpot: snapshot.entrySpot,
-            maxPain: snapshot.maxPain,
-            invalidation: snapshot.invalidation,
-            clusterStrike: snapshot.clusterStrike,
-            putClusterStrike: snapshot.putClusterStrike,
-            putClusterSize: snapshot.putClusterSize,
-            callClusterStrike: snapshot.callClusterStrike,
-            callClusterSize: snapshot.callClusterSize,
-            bullZoneLow: snapshot.bullZoneLow,
-            bullZoneHigh: snapshot.bullZoneHigh,
-            bearZoneLow: snapshot.bearZoneLow,
-            bearZoneHigh: snapshot.bearZoneHigh,
+            side: replay.side,
+            entrySpot: replay.entrySpot,
+            maxPain: replay.maxPain,
+            invalidation: replay.invalidation,
+            clusterStrike: replay.side === "support" ? replay.putClusterStrike : replay.callClusterStrike,
+            putClusterStrike: replay.putClusterStrike,
+            putClusterSize: replay.putClusterSize,
+            callClusterStrike: replay.callClusterStrike,
+            callClusterSize: replay.callClusterSize,
+            bullZoneLow: replay.bullZoneLow,
+            bullZoneHigh: replay.bullZoneHigh,
+            bearZoneLow: replay.bearZoneLow,
+            bearZoneHigh: replay.bearZoneHigh,
           }
         : null,
-      hasSnapshot: !!snapshot,
+      hasSnapshot: !!replay?.candles.length,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

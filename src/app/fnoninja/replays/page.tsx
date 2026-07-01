@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { FnoNinjaSrReplayCard } from "@/components/fnoninja/FnoNinjaSrReplayCard";
+import { Suspense } from "react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { FnoNinjaReplaysGallery } from "@/components/fnoninja/FnoNinjaReplaysGallery";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { listSrReplayShorts } from "@/lib/fnoninja/sr-replays";
+import { listSrReplaySummaries } from "@/lib/fnoninja/sr-replays";
+import { parseSrReplaySort } from "@/lib/fnoninja/sr-replay-types";
 import { FNONINJA_SITE_METADATA } from "@/lib/fnoninja/metadata";
 import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
 
@@ -20,8 +22,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function FnoNinjaReplaysPage() {
-  const replays = await listSrReplayShorts(100);
+type PageProps = {
+  searchParams: Promise<{ sort?: string }>;
+};
+
+export default async function FnoNinjaReplaysPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const sort = parseSrReplaySort(params.sort);
+  const replays = await listSrReplaySummaries({ sort, limit: 100 });
 
   return (
     <div className="font-sans antialiased min-w-0 flex flex-col flex-1">
@@ -46,19 +54,15 @@ export default async function FnoNinjaReplaysPage() {
           </p>
         </header>
 
-        {replays.length === 0 ? (
-          <p className="text-sm sm:text-base leading-relaxed" style={{ color: FNO_MUTED }}>
-            No replay videos published yet. Check back soon.
-          </p>
-        ) : (
-          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 sm:gap-5 [column-fill:balance]">
-            {replays.map((replay) => (
-              <div key={replay.id} className="mb-4 sm:mb-5 break-inside-avoid">
-                <FnoNinjaSrReplayCard replay={replay} />
-              </div>
-            ))}
-          </div>
-        )}
+        <Suspense
+          fallback={
+            <div className="flex justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: FNO_MUTED }} />
+            </div>
+          }
+        >
+          <FnoNinjaReplaysGallery initialReplays={replays} initialSort={sort} />
+        </Suspense>
       </div>
     </div>
   );

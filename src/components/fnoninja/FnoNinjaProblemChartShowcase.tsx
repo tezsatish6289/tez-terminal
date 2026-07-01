@@ -7,14 +7,9 @@ import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import type { LevelsViewMode } from "@/components/levels/LevelsOutlookViewToggle";
-import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
+import { loadProblemShowcase } from "@/lib/levels/resolve-problem-showcase";
+import { NIFTY_SHOWCASE_FALLBACK, type ShowcaseSymbol } from "@/lib/levels/pick-widest-cluster-symbol";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
-import {
-  levelsSupportShowcase,
-  NIFTY_SHOWCASE_FALLBACK,
-  pickWidestSpreadStock,
-  type ShowcaseSymbol,
-} from "@/lib/levels/pick-widest-cluster-symbol";
 import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { FNO_ACCENT, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
 
@@ -27,35 +22,6 @@ const VIEW_LABELS: Record<LevelsViewMode, string> = {
   history: "History",
 };
 
-interface LevelsPayload {
-  stocks: {
-    symbol: string;
-    label: string;
-    spot: number | null;
-    bullZoneHigh: number | null;
-    bearZoneLow: number | null;
-  }[];
-}
-
-async function resolveShowcase(): Promise<{ target: ShowcaseSymbol; levels: PublicLevels | null }> {
-  const res = await fetch("/api/freedombot/levels", { cache: "no-store" });
-  const json = (await res.json()) as LevelsPayload;
-  const picked = pickWidestSpreadStock(json.stocks ?? []);
-
-  if (picked) {
-    const full = await fetchSymbolLevels("stock", picked.symbol);
-    if (levelsSupportShowcase(full.data)) {
-      return { target: picked, levels: full.data };
-    }
-  }
-
-  const nifty = await fetchSymbolLevels("index", NIFTY_SHOWCASE_FALLBACK.symbol);
-  return {
-    target: NIFTY_SHOWCASE_FALLBACK,
-    levels: nifty.data,
-  };
-}
-
 /** Live rotating chart / outlook / history for the homepage problem section. */
 export function FnoNinjaProblemChartShowcase() {
   const [target, setTarget] = useState<ShowcaseSymbol | null>(null);
@@ -67,7 +33,7 @@ export function FnoNinjaProblemChartShowcase() {
     let cancelled = false;
     void (async () => {
       try {
-        const result = await resolveShowcase();
+        const result = await loadProblemShowcase();
         if (cancelled) return;
         setTarget(result.target);
         setLevels(result.levels);
@@ -130,7 +96,6 @@ export function FnoNinjaProblemChartShowcase() {
               <p className="font-black text-white text-sm sm:text-base truncate">{target.symbol}</p>
               <p className="text-[11px] sm:text-xs truncate" style={{ color: "#94a3b8" }}>
                 {target.label}
-                {target.scope === "stock" ? " · widest OI spread" : " · live index"}
               </p>
             </>
           ) : null}

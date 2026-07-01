@@ -1,8 +1,9 @@
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FnoNinjaHero } from "@/components/fnoninja/FnoNinjaHero";
+import { FnoNinjaProblemShowcasePrefetch } from "@/components/fnoninja/FnoNinjaProblemShowcasePrefetch";
+import { FnoNinjaProblemSection } from "@/components/fnoninja/FnoNinjaProblemSection";
 import { FnoNinjaFeaturesSection } from "@/components/fnoninja/FnoNinjaFeaturesSection";
 import { FnoNinjaHowItWorksSection } from "@/components/fnoninja/FnoNinjaHowItWorksSection";
-import { FnoNinjaProblemSection } from "@/components/fnoninja/FnoNinjaProblemSection";
 import { FnoNinjaDisclaimerSection } from "@/components/fnoninja/FnoNinjaDisclaimerSection";
 import { FnoNinjaPricingSection } from "@/components/fnoninja/FnoNinjaPricingSection";
 import { FnoNinjaWebinarSection } from "@/components/fnoninja/FnoNinjaWebinarSection";
@@ -15,6 +16,7 @@ import { FNO_ACCENT, FNO_MUTED, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 export default function FnoNinjaLandingPage() {
   return (
     <div className="font-sans antialiased min-w-0 flex flex-col flex-1">
+      <FnoNinjaProblemShowcasePrefetch />
       <FnoNinjaHero />
 
       <FnoNinjaProblemSection />

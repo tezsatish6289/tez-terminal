@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { FnoNinjaReplaysGallery } from "@/components/fnoninja/FnoNinjaReplaysGallery";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { listSrReplaySummaries } from "@/lib/fnoninja/sr-replays";
+import { listSrReplaysWithStories } from "@/lib/fnoninja/sr-replays";
 import { parseSrReplaySort } from "@/lib/fnoninja/sr-replay-types";
 import { FNONINJA_SITE_METADATA } from "@/lib/fnoninja/metadata";
 import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
@@ -29,7 +29,7 @@ type PageProps = {
 export default async function FnoNinjaReplaysPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const sort = parseSrReplaySort(params.sort);
-  const replays = await listSrReplaySummaries({ sort, limit: 100 });
+  const replays = await listSrReplaysWithStories({ sort, limit: 100 });
 
   return (
     <div className="font-sans antialiased min-w-0 flex flex-col flex-1">

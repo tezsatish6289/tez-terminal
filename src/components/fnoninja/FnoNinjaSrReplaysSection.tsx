@@ -1,10 +1,10 @@
 import { FnoNinjaSrReplaysShowcase } from "@/components/fnoninja/FnoNinjaSrReplaysShowcase";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { listSrReplaySummaries } from "@/lib/fnoninja/sr-replays";
+import { listSrReplaysWithStories } from "@/lib/fnoninja/sr-replays";
 import { FNO_MUTED, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 export async function FnoNinjaSrReplaysSection() {
-  const replays = await listSrReplaySummaries({ sort: "best", limit: 12 });
+  const replays = await listSrReplaysWithStories({ sort: "best", limit: 12 });
 
   return (
     <section

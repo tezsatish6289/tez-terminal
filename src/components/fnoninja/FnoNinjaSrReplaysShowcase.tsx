@@ -12,13 +12,14 @@ import {
 import { FnoNinjaSrReplayCardCompact } from "@/components/fnoninja/FnoNinjaSrReplayCard";
 import { FnoNinjaSrReplaySort } from "@/components/fnoninja/FnoNinjaSrReplaySort";
 import type { SrReplaySort, SrReplaySummary } from "@/lib/fnoninja/sr-replay-types";
+import type { SrReplayWithStory } from "@/lib/fnoninja/sr-replays";
 import { FNO_ACCENT_SOFT, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaSrReplaysShowcase({
   initialReplays,
   initialSort = "best",
 }: {
-  initialReplays: SrReplaySummary[];
+  initialReplays: SrReplayWithStory[];
   initialSort?: SrReplaySort;
 }) {
   const [sort, setSort] = useState<SrReplaySort>(initialSort);
@@ -32,10 +33,10 @@ export function FnoNinjaSrReplaysShowcase({
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/fnoninja/sr-replays?sort=${nextSort}&limit=12`,
+        `/api/fnoninja/sr-replays?sort=${nextSort}&limit=12&withStory=1`,
         { cache: "no-store" },
       );
-      const json = (await res.json()) as { replays?: SrReplaySummary[] };
+      const json = (await res.json()) as { replays?: SrReplayWithStory[] };
       if (res.ok && Array.isArray(json.replays)) {
         setReplays(json.replays);
       }
@@ -90,7 +91,7 @@ export function FnoNinjaSrReplaysShowcase({
                   key={replay.id}
                   className="pl-3 sm:pl-4 basis-[78%] sm:basis-[46%] md:basis-[34%] lg:basis-[26%] xl:basis-[22%]"
                 >
-                  <FnoNinjaSrReplayCardCompact summary={replay} />
+                  <FnoNinjaSrReplayCardCompact summary={replay} initialReplay={replay.replay} />
                 </CarouselItem>
               ))}
             </CarouselContent>

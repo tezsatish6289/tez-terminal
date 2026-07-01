@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listSrReplaySummaries, parseSrReplaySort } from "@/lib/fnoninja/sr-replays";
+import { listSrReplaySummaries, listSrReplaysWithStories, parseSrReplaySort } from "@/lib/fnoninja/sr-replays";
 
 export const dynamic = "force-dynamic";
 
-/** GET /api/fnoninja/sr-replays?sort=best|latest|oldest&limit=24 */
+/** GET /api/fnoninja/sr-replays?sort=best|latest|oldest&limit=24&withStory=1 */
 export async function GET(request: NextRequest) {
   try {
     const sort = parseSrReplaySort(request.nextUrl.searchParams.get("sort"));
     const raw = request.nextUrl.searchParams.get("limit");
     const limit = raw ? Math.min(Math.max(parseInt(raw, 10) || 24, 1), 100) : 24;
+    const withStory = request.nextUrl.searchParams.get("withStory") === "1";
+
+    if (withStory) {
+      const replays = await listSrReplaysWithStories({ sort, limit });
+      return NextResponse.json(
+        { replays, sort, updatedAt: new Date().toISOString() },
+        { headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" } },
+      );
+    }
+
     const replays = await listSrReplaySummaries({ sort, limit });
     return NextResponse.json(
       { replays, sort, updatedAt: new Date().toISOString() },

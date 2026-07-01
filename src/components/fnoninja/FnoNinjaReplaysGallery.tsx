@@ -8,15 +8,15 @@ import { FnoNinjaSrReplaySort } from "@/components/fnoninja/FnoNinjaSrReplaySort
 import {
   parseSrReplaySort,
   type SrReplaySort,
-  type SrReplaySummary,
 } from "@/lib/fnoninja/sr-replay-types";
+import type { SrReplayWithStory } from "@/lib/fnoninja/sr-replays";
 import { FNO_MUTED } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaReplaysGallery({
   initialReplays,
   initialSort = "best",
 }: {
-  initialReplays: SrReplaySummary[];
+  initialReplays: SrReplayWithStory[];
   initialSort?: SrReplaySort;
 }) {
   const searchParams = useSearchParams();
@@ -29,10 +29,10 @@ export function FnoNinjaReplaysGallery({
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/fnoninja/sr-replays?sort=${nextSort}&limit=100`,
+        `/api/fnoninja/sr-replays?sort=${nextSort}&limit=100&withStory=1`,
         { cache: "no-store" },
       );
-      const json = (await res.json()) as { replays?: SrReplaySummary[] };
+      const json = (await res.json()) as { replays?: SrReplayWithStory[] };
       if (res.ok && Array.isArray(json.replays)) {
         setReplays(json.replays);
       }
@@ -77,7 +77,7 @@ export function FnoNinjaReplaysGallery({
         <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 sm:gap-5 [column-fill:balance]">
           {replays.map((replay) => (
             <div key={replay.id} className="mb-4 sm:mb-5 break-inside-avoid">
-              <FnoNinjaSrReplayCard summary={replay} />
+              <FnoNinjaSrReplayCard summary={replay} initialReplay={replay.replay} />
             </div>
           ))}
         </div>

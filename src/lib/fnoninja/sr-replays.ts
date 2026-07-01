@@ -1,12 +1,16 @@
 import "server-only";
 
 import { getAdminFirestore } from "@/firebase/admin";
+import { loadStoryReplayPayload } from "@/lib/sr-audit/load-story-replay";
+import type { StoryReplayData } from "@/lib/sr-audit/story-replay-types";
 import {
   parseSrReplaySort,
   type SrReplaySort,
   type SrReplaySummary,
 } from "@/lib/fnoninja/sr-replay-types";
 import { findSuccessStories } from "@/lib/videos/success-story";
+
+export type SrReplayWithStory = SrReplaySummary & { replay: StoryReplayData };
 
 function buildTitle(candidate: {
   symbol: string;
@@ -59,6 +63,20 @@ export async function listSrReplaySummaries(
   }));
 
   return sortSummaries(summaries, sort).slice(0, limit);
+}
+
+/** Summaries plus candle replay payloads (for SSR / instant canvas play). */
+export async function listSrReplaysWithStories(
+  opts: { sort?: SrReplaySort; limit?: number } = {},
+): Promise<SrReplayWithStory[]> {
+  const summaries = await listSrReplaySummaries(opts);
+  const loaded = await Promise.all(
+    summaries.map(async (summary) => {
+      const replay = await loadStoryReplayPayload(summary.id);
+      return replay ? { ...summary, replay } : null;
+    }),
+  );
+  return loaded.filter((x): x is SrReplayWithStory => x != null);
 }
 
 export { parseSrReplaySort };

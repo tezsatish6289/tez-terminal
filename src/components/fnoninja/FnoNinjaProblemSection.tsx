@@ -9,15 +9,17 @@ export function FnoNinjaProblemSection() {
       <FnoNinjaMarketTicker />
 
       <div className={`${FB_WIDE_SHELL} py-12 sm:py-16 lg:py-20`}>
-        <div className="grid lg:grid-cols-[minmax(0,0.68fr)_minmax(0,1.32fr)] gap-8 lg:gap-10 xl:gap-12 items-center">
-          <h2 className="text-2xl sm:text-3xl lg:text-[2.35rem] xl:text-[2.65rem] font-black text-white tracking-tight leading-[1.12] flex flex-col gap-5 sm:gap-6 lg:gap-8">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_auto] gap-10 lg:gap-14 xl:gap-16 items-center">
+          <h2 className="pl-6 sm:pl-8 lg:pl-10 xl:pl-12 max-w-xl lg:max-w-[28rem] xl:max-w-[32rem] text-2xl sm:text-3xl lg:text-[2.35rem] xl:text-[2.65rem] font-black text-white tracking-tight leading-[1.12] flex flex-col gap-5 sm:gap-6 lg:gap-8">
             <span>Option chain data is powerful — but tracking hundreds of stocks is exhausting.</span>
             <span style={{ color: FNO_ACCENT }}>
               We handle the data so you can focus on the opportunities.
             </span>
           </h2>
 
-          <FnoNinjaProblemChartShowcase />
+          <div className="w-full max-w-[min(100%,640px)] lg:max-w-[600px] xl:max-w-[640px] lg:justify-self-end">
+            <FnoNinjaProblemChartShowcase />
+          </div>
         </div>
       </div>
     </section>

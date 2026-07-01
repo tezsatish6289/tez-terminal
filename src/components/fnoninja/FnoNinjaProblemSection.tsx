@@ -14,7 +14,9 @@ export function FnoNinjaProblemSection() {
       <div className={`${FB_WIDE_SHELL} pt-16 sm:pt-20 lg:pt-24 pb-20 sm:pb-24 lg:pb-32`}>
         <header className="mb-8 sm:mb-10 lg:mb-12">
           <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
-            See the Big Picture Instantly
+            See the{" "}
+            <span style={{ color: FNO_ACCENT }}>Big Picture</span>{" "}
+            Instantly
           </h2>
         </header>
 
@@ -33,7 +35,7 @@ export function FnoNinjaProblemSection() {
               className="flex flex-col justify-center lg:w-[38%] xl:w-[36%] lg:shrink-0 rounded-xl sm:rounded-2xl p-6 sm:p-8 lg:p-9 xl:p-10"
               style={INNER_PANEL}
             >
-              <h2 className="text-xl sm:text-[1.35rem] lg:text-[1.65rem] xl:text-[1.85rem] font-black text-white tracking-tight leading-[1.18] flex flex-col gap-4 sm:gap-5 lg:gap-6">
+              <h2 className="text-lg sm:text-xl lg:text-[1.35rem] xl:text-[1.65rem] font-black text-white tracking-tight leading-[1.18] flex flex-col gap-3 sm:gap-4 lg:gap-5">
                 <span>Option chain data is powerful — but tracking hundreds of stocks is exhausting.</span>
                 <span style={{ color: FNO_ACCENT }}>
                   We handle the data so you can focus on the opportunities.

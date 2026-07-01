@@ -11,7 +11,13 @@ const INNER_PANEL = {
 export function FnoNinjaProblemSection() {
   return (
     <section className="border-b" style={{ borderColor: "rgba(90,140,220,0.08)" }}>
-      <div className={`${FB_WIDE_SHELL} pt-12 sm:pt-16 lg:pt-20 pb-20 sm:pb-24 lg:pb-32`}>
+      <div className={`${FB_WIDE_SHELL} pt-16 sm:pt-20 lg:pt-24 pb-20 sm:pb-24 lg:pb-32`}>
+        <header className="mb-8 sm:mb-10 lg:mb-12">
+          <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
+            See the Big Picture Instantly
+          </h2>
+        </header>
+
         <div
           className="rounded-2xl sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl"
           style={{

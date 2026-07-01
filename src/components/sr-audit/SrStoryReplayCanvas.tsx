@@ -7,7 +7,19 @@ import type { StoryReplayData } from "@/lib/sr-audit/story-replay-types";
 
 const REEL_W = 1080;
 const REEL_H = 1920;
-const CHART = { top: 330, left: 48, right: 232, bottom: 1500 };
+const CHART = { top: 330, left: 48, right: 232, bottom: 1480 };
+/** Candle reveal duration + hold on final frame before advancing carousel. */
+const REPLAY_DURATION_MS = 8_000;
+const REPLAY_HOLD_MS = 3_200;
+const FOOTER = {
+  topGap: 44,
+  height: 156,
+  labelPx: 26,
+  leftDatePx: 38,
+  rightDatePx: 52,
+  padX: 22,
+  logoGap: 88,
+} as const;
 
 const FNO_LOGO_MARK = "#3b82f6";
 const FNO_LOGO_BG = "#080f1e";
@@ -239,7 +251,7 @@ export function drawStoryReplayFrame(
   hline(data.invalidation, "#64748b", "Invalidation", [3, 6]);
 
   const fmt = (iso: string | null) => (iso ? format(new Date(iso), "MMM d, HH:mm") : "—");
-  const fy = CHART.bottom + 70;
+  const fy = CHART.bottom + FOOTER.topGap;
   const footerCells: [string, string, string][] = [
     ["ENTERED", fmt(data.eventAt), "#93c5fd"],
     ["MAX PAIN HIT", fmt(data.pocHitAt), "#fbbf24"],
@@ -248,17 +260,18 @@ export function drawStoryReplayFrame(
   footerCells.forEach(([k, v, col], i) => {
     const fx = CHART.left + i * (fcW + 24);
     ctx.fillStyle = "rgba(255,255,255,0.05)";
-    roundRect(ctx, fx, fy, fcW, 110, 16);
+    roundRect(ctx, fx, fy, fcW, FOOTER.height, 18);
     ctx.fill();
     ctx.fillStyle = col;
-    ctx.font = "800 20px ui-sans-serif, system-ui";
-    ctx.fillText(k, fx + 18, fy + 38);
+    ctx.font = `800 ${FOOTER.labelPx}px ui-sans-serif, system-ui`;
+    ctx.fillText(k, fx + FOOTER.padX, fy + 44);
     ctx.fillStyle = "#e2e8f0";
-    ctx.font = "800 30px ui-sans-serif, system-ui";
-    ctx.fillText(v, fx + 18, fy + 80);
+    const datePx = i === 1 ? FOOTER.rightDatePx : FOOTER.leftDatePx;
+    ctx.font = `800 ${datePx}px ui-sans-serif, system-ui`;
+    ctx.fillText(v, fx + FOOTER.padX, fy + FOOTER.height - 30);
   });
 
-  drawBrandWatermark(ctx, REEL_W - CHART.left, fy + 160);
+  drawBrandWatermark(ctx, REEL_W - CHART.left, fy + FOOTER.height + FOOTER.logoGap);
 }
 
 export function SrStoryReplayCanvas({
@@ -311,7 +324,7 @@ export function SrStoryReplayCanvas({
     stop();
 
     const total = data.candles.length;
-    const durationMs = 5200;
+    const durationMs = REPLAY_DURATION_MS;
     const start = performance.now();
     const step = (now: number) => {
       const t = Math.min(1, (now - start) / durationMs);
@@ -324,8 +337,11 @@ export function SrStoryReplayCanvas({
           setProgress(0);
           play();
         }, 1200);
-      } else {
-        onCompleteRef.current?.();
+      } else if (onCompleteRef.current) {
+        draw(total);
+        loopTimerRef.current = window.setTimeout(() => {
+          onCompleteRef.current?.();
+        }, REPLAY_HOLD_MS);
       }
     };
     rafRef.current = requestAnimationFrame(step);

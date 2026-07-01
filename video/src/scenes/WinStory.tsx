@@ -154,7 +154,7 @@ function seededIndex(seed: string, len: number, salt: number): number {
 
 const REEL_W = 1080;
 const REEL_H = 1920;
-const CHART = { top: 330, left: 48, right: 232, bottom: 1500 };
+const CHART = { top: 330, left: 48, right: 232, bottom: 1480 };
 
 const FNO_LOGO_MARK = "#3b82f6";
 const FNO_LOGO_BG = "#080f1e";
@@ -358,7 +358,8 @@ function draw(ctx: CanvasRenderingContext2D, data: WinStoryData, revealCount: nu
   hline(data.maxPain, "#fbbf24", "Max pain", [10, 6]);
   hline(data.invalidation, "#64748b", "Invalidation", [3, 6]);
 
-  const fy = CHART.bottom + 70;
+  const fy = CHART.bottom + 44;
+  const fcH = 156;
   const footerCells: [string, string, string][] = [
     ["ENTERED", fmtDate(data.eventAt), "#93c5fd"],
     ["MAX PAIN HIT", fmtDate(data.pocHitAt), "#fbbf24"],
@@ -367,17 +368,17 @@ function draw(ctx: CanvasRenderingContext2D, data: WinStoryData, revealCount: nu
   footerCells.forEach(([k, v, col], i) => {
     const fx = CHART.left + i * (fcW + 24);
     ctx.fillStyle = "rgba(255,255,255,0.05)";
-    roundRect(ctx, fx, fy, fcW, 110, 16);
+    roundRect(ctx, fx, fy, fcW, fcH, 18);
     ctx.fill();
     ctx.fillStyle = col;
-    ctx.font = "800 20px ui-sans-serif, system-ui";
-    ctx.fillText(k, fx + 18, fy + 38);
+    ctx.font = "800 26px ui-sans-serif, system-ui";
+    ctx.fillText(k, fx + 22, fy + 44);
     ctx.fillStyle = "#e2e8f0";
-    ctx.font = "800 30px ui-sans-serif, system-ui";
-    ctx.fillText(v, fx + 18, fy + 80);
+    ctx.font = i === 1 ? "800 52px ui-sans-serif, system-ui" : "800 38px ui-sans-serif, system-ui";
+    ctx.fillText(v, fx + 22, fy + fcH - 30);
   });
 
-  drawBrandWatermark(ctx, REEL_W - CHART.left, fy + 160);
+  drawBrandWatermark(ctx, REEL_W - CHART.left, fy + fcH + 88);
 }
 
 // Brand surface for the cards — fnoninja.com deep navy + the soft blue radial

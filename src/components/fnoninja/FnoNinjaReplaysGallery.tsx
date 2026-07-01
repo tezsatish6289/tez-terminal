@@ -24,6 +24,7 @@ export function FnoNinjaReplaysGallery({
   const [sort, setSort] = useState<SrReplaySort>(urlSort);
   const [replays, setReplays] = useState(initialReplays);
   const [loading, setLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const fetchReplays = useCallback(async (nextSort: SrReplaySort) => {
     setLoading(true);
@@ -35,11 +36,17 @@ export function FnoNinjaReplaysGallery({
       const json = (await res.json()) as { replays?: SrReplayWithStory[] };
       if (res.ok && Array.isArray(json.replays)) {
         setReplays(json.replays);
+        setActiveIndex(0);
       }
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const advanceReplay = useCallback(() => {
+    if (replays.length === 0) return;
+    setActiveIndex((i) => (i + 1) % replays.length);
+  }, [replays.length]);
 
   useEffect(() => {
     const next = parseSrReplaySort(searchParams.get("sort"));
@@ -75,9 +82,14 @@ export function FnoNinjaReplaysGallery({
         </p>
       ) : (
         <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 sm:gap-5 [column-fill:balance]">
-          {replays.map((replay) => (
+          {replays.map((replay, index) => (
             <div key={replay.id} className="mb-4 sm:mb-5 break-inside-avoid">
-              <FnoNinjaSrReplayCard summary={replay} initialReplay={replay.replay} />
+              <FnoNinjaSrReplayCard
+                summary={replay}
+                initialReplay={replay.replay}
+                isActive={index === activeIndex}
+                onComplete={advanceReplay}
+              />
             </div>
           ))}
         </div>

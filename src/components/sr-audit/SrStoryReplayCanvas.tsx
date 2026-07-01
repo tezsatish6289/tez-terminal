@@ -263,21 +263,32 @@ export function drawStoryReplayFrame(
 
 export function SrStoryReplayCanvas({
   data,
-  autoPlay = true,
+  autoPlay = false,
+  active = false,
   loop = true,
   showControls = false,
+  onComplete,
   className = "",
 }: {
   data: StoryReplayData;
+  /** Legacy: always play on mount (admin modal). */
   autoPlay?: boolean;
+  /** Play once while true (marketing cards). */
+  active?: boolean;
   loop?: boolean;
   showControls?: boolean;
+  onComplete?: () => void;
   className?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const loopTimerRef = useRef<number | null>(null);
+  const onCompleteRef = useRef(onComplete);
   const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   const draw = useCallback(
     (revealCount: number) => {
@@ -288,10 +299,16 @@ export function SrStoryReplayCanvas({
     [data],
   );
 
-  const play = useCallback(() => {
-    if (!data.candles.length) return;
+  const stop = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     if (loopTimerRef.current) window.clearTimeout(loopTimerRef.current);
+    rafRef.current = null;
+    loopTimerRef.current = null;
+  }, []);
+
+  const play = useCallback(() => {
+    if (!data.candles.length) return;
+    stop();
 
     const total = data.candles.length;
     const durationMs = 5200;
@@ -307,18 +324,29 @@ export function SrStoryReplayCanvas({
           setProgress(0);
           play();
         }, 1200);
+      } else {
+        onCompleteRef.current?.();
       }
     };
     rafRef.current = requestAnimationFrame(step);
-  }, [data, draw, loop]);
+  }, [data, draw, loop, stop]);
+
+  const shouldPlay = autoPlay || active;
 
   useEffect(() => {
-    if (autoPlay && data.candles.length) play();
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      if (loopTimerRef.current) window.clearTimeout(loopTimerRef.current);
-    };
-  }, [autoPlay, data, play]);
+    if (!data.candles.length) return;
+
+    if (shouldPlay) {
+      setProgress(0);
+      play();
+    } else {
+      stop();
+      setProgress(0);
+      draw(data.candles.length);
+    }
+
+    return stop;
+  }, [shouldPlay, data, play, draw, stop]);
 
   return (
     <div className={className}>

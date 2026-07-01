@@ -25,6 +25,7 @@ export function FnoNinjaSrReplaysShowcase({
   const [sort, setSort] = useState<SrReplaySort>(initialSort);
   const [replays, setReplays] = useState(initialReplays);
   const [loading, setLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [api, setApi] = useState<CarouselApi>();
   const [canPrev, setCanPrev] = useState(false);
   const [canNext, setCanNext] = useState(false);
@@ -39,6 +40,7 @@ export function FnoNinjaSrReplaysShowcase({
       const json = (await res.json()) as { replays?: SrReplayWithStory[] };
       if (res.ok && Array.isArray(json.replays)) {
         setReplays(json.replays);
+        setActiveIndex(0);
       }
     } finally {
       setLoading(false);
@@ -52,6 +54,20 @@ export function FnoNinjaSrReplaysShowcase({
     },
     [fetchReplays],
   );
+
+  const advanceReplay = useCallback(() => {
+    if (replays.length === 0) return;
+    setActiveIndex((i) => (i + 1) % replays.length);
+  }, [replays.length]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [initialReplays]);
+
+  useEffect(() => {
+    if (!api || replays.length === 0) return;
+    api.scrollTo(activeIndex);
+  }, [api, activeIndex, replays.length]);
 
   useEffect(() => {
     if (!api) return;
@@ -86,12 +102,17 @@ export function FnoNinjaSrReplaysShowcase({
         <>
           <Carousel setApi={setApi} opts={{ align: "start", dragFree: true }} className="w-full">
             <CarouselContent className="-ml-3 sm:-ml-4">
-              {replays.map((replay) => (
+              {replays.map((replay, index) => (
                 <CarouselItem
                   key={replay.id}
                   className="pl-3 sm:pl-4 basis-[78%] sm:basis-[46%] md:basis-[34%] lg:basis-[26%] xl:basis-[22%]"
                 >
-                  <FnoNinjaSrReplayCardCompact summary={replay} initialReplay={replay.replay} />
+                  <FnoNinjaSrReplayCardCompact
+                    summary={replay}
+                    initialReplay={replay.replay}
+                    isActive={index === activeIndex}
+                    onComplete={advanceReplay}
+                  />
                 </CarouselItem>
               ))}
             </CarouselContent>

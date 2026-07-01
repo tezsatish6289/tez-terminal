@@ -21,7 +21,10 @@ import {
   countBubbleMapFilters,
   type BubbleMapFilter,
 } from "@/lib/zones/bubble-map-filter";
-import { LevelsBubbleToneSummary } from "@/components/levels/LevelsBubbleToneSummary";
+import {
+  LevelsBubbleToneSummary,
+  type BubbleToneSummaryKey,
+} from "@/components/levels/LevelsBubbleToneSummary";
 import { levelsFromStockRow } from "@/lib/zones/levels-actionable-list";
 import { matchesSlideshowSetup, type ZoneBands } from "@/lib/zones/zone-status";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
@@ -70,6 +73,7 @@ export function LevelsBubblesView({
   layoutActive = true,
   physicsIntensity = 1,
   showToneSummary = false,
+  showcaseEmphasis = "all",
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
@@ -85,6 +89,11 @@ export function LevelsBubblesView({
   physicsIntensity?: number;
   /** Compact At/Near support & resistance counts above the map. */
   showToneSummary?: boolean;
+  /**
+   * Landing showcase: keep all bubbles visible but enlarge + foreground matches
+   * (does not filter items out — use toneFilter for that).
+   */
+  showcaseEmphasis?: BubbleMapFilter;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
@@ -95,6 +104,8 @@ export function LevelsBubblesView({
   const [popClass, setPopClass] = useState<Record<string, "in" | "out">>({});
   const [layoutReady, setLayoutReady] = useState(false);
   const physicsFrameRef = useRef(0);
+  const showcaseEmphasisRef = useRef(showcaseEmphasis);
+  showcaseEmphasisRef.current = showcaseEmphasis;
 
   const syncSize = useCallback(() => {
     const el = containerRef.current;
@@ -139,6 +150,14 @@ export function LevelsBubblesView({
   );
 
   const toneCounts = useMemo(() => countBubbleMapFilters(items), [items]);
+
+  const showcaseActiveKey: BubbleToneSummaryKey | null =
+    showcaseEmphasis === "IN_BULL" ||
+    showcaseEmphasis === "NEAR_BULL" ||
+    showcaseEmphasis === "IN_BEAR" ||
+    showcaseEmphasis === "NEAR_BEAR"
+      ? showcaseEmphasis
+      : null;
 
   // Broadcast map scene mounts in-flow when visible — kick layout after paint.
   useEffect(() => {
@@ -215,21 +234,48 @@ export function LevelsBubblesView({
     physicsFrameRef.current = 0;
 
     const applyPositions = () => {
+      const emphasis = showcaseEmphasisRef.current;
+      const emphasisActive = emphasis !== "all";
       for (const n of nodesRef.current) {
         const el = elRefs.current.get(n.id);
         if (!el) continue;
+        const targetR = (() => {
+          const baseR = bubbleRadius(n.item.scope, n.item.tone);
+          if (!emphasisActive) return baseR;
+          const matched = bubbleMatchesMapFilter(n.item.tone, emphasis);
+          if (matched) {
+            return baseR * (n.item.scope === "index" ? 1.14 : 1.48);
+          }
+          if (n.item.scope === "index") return baseR * 0.9;
+          return baseR * 0.76;
+        })();
+        n.r += (targetR - n.r) * (emphasisActive ? 0.14 : 0.22);
         const d = n.r * 2;
         el.style.width = `${d}px`;
         el.style.height = `${d}px`;
         el.style.transform = `translate3d(${n.x - n.r}px, ${n.y - n.r}px, 0)`;
+        const matched =
+          emphasisActive && bubbleMatchesMapFilter(n.item.tone, emphasis);
         const baseZ = n.item.scope === "index" ? 20 : 6;
-        el.style.zIndex = String(
-          n.item.scope === "index"
-            ? baseZ + 10
-            : isInZoneTone(n.item.tone)
-              ? baseZ + 8
-              : baseZ,
-        );
+        if (matched) {
+          el.style.zIndex = "320";
+          el.style.opacity = "1";
+        } else if (emphasisActive) {
+          el.style.zIndex = String(n.item.scope === "index" ? 8 : 4);
+          el.style.opacity = n.item.scope === "index" ? "0.42" : "0.24";
+        } else {
+          el.style.zIndex = String(
+            n.item.scope === "index"
+              ? baseZ + 10
+              : isInZoneTone(n.item.tone)
+                ? baseZ + 8
+                : baseZ,
+          );
+          el.style.opacity = "1";
+        }
+        el.style.transition = emphasisActive
+          ? "opacity 0.55s ease"
+          : "opacity 0.35s ease";
       }
     };
 
@@ -259,7 +305,9 @@ export function LevelsBubblesView({
     <div className="flex flex-col flex-1 min-h-0 h-full max-md:flex-none max-md:min-h-[min(62dvh,560px)]">
       <style dangerouslySetInnerHTML={{ __html: BUBBLE_ANIM_CSS }} />
 
-      {showToneSummary ? <LevelsBubbleToneSummary counts={toneCounts} /> : null}
+      {showToneSummary ? (
+        <LevelsBubbleToneSummary counts={toneCounts} activeKey={showcaseActiveKey} />
+      ) : null}
 
       <div
         ref={containerRef}

@@ -85,7 +85,7 @@ export function FnoNinjaSrReplaysShowcase({
 
   return (
     <div className="relative">
-      <div className="mb-6 sm:mb-8 flex flex-wrap items-center justify-between gap-4">
+      <div className="mb-4 sm:mb-5 flex flex-wrap items-center justify-between gap-4">
         <FnoNinjaSrReplaySort value={sort} onChange={onSortChange} />
         {loading ? (
           <Loader2 className="h-4 w-4 animate-spin" style={{ color: FNO_MUTED }} aria-label="Loading" />

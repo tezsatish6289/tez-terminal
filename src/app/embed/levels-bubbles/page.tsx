@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { buildLevelsBubbleItems, LevelsBubblesView } from "@/components/levels/LevelsBubblesView";
+import {
+  bubbleShowcaseSteps,
+  runBubbleShowcaseCycle,
+} from "@/lib/levels/bubble-showcase-cycle";
 import { levelsBubblesPagePathForHost } from "@/lib/levels/levels-chart-url";
+import type { BubbleMapFilter } from "@/lib/zones/bubble-map-filter";
 import { FNO_BG_CANVAS } from "@/lib/fnoninja/theme";
 interface RawItem {
   symbol?: string;
@@ -34,6 +39,7 @@ interface LevelsPayload {
 /** Live bubble map for landing-page iframe — any bubble click opens the full map. */
 export default function LevelsBubblesEmbedPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
+  const [showcaseEmphasis, setShowcaseEmphasis] = useState<BubbleMapFilter>("all");
 
   const load = useCallback(async () => {
     try {
@@ -62,6 +68,12 @@ export default function LevelsBubblesEmbedPage() {
     [payload, stockBySymbol],
   );
 
+  useEffect(() => {
+    if (!payload || bubbleItems.length === 0) return;
+    const steps = bubbleShowcaseSteps(bubbleItems);
+    return runBubbleShowcaseCycle(steps, setShowcaseEmphasis);
+  }, [payload, bubbleItems]);
+
   const openFullBubbleMap = useCallback(() => {
     const url = levelsBubblesPagePathForHost(window.location.hostname);
     try {
@@ -87,6 +99,7 @@ export default function LevelsBubblesEmbedPage() {
         toneFilter="all"
         physicsIntensity={0.25}
         showToneSummary
+        showcaseEmphasis={showcaseEmphasis}
       />
     </div>
   );

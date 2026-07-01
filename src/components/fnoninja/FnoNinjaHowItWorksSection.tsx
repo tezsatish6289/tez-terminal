@@ -4,18 +4,18 @@ import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
 const STEPS = [
   {
     step: "01",
-    title: "Live Data Collection",
-    body: "We continuously fetch and process real-time option chain data for all NSE F&O stocks and key indices during market hours.",
+    title: "Scan Everything",
+    body: "We process real-time option chain data for 200+ NSE F&O stocks and major indices in real time.",
   },
   {
     step: "02",
-    title: "Smart Analysis",
-    body: "Our algorithms identify high-conviction open interest clusters and automatically derive key support and resistance zones — clearly labelled as observations, never as trading signals.",
+    title: "Highlight What Matters",
+    body: "Our system identifies stocks at strong Put Clusters (Support) and Call Clusters (Resistance) plus Max Pain levels.",
   },
   {
     step: "03",
-    title: "Interactive Visualization",
-    body: "The insights are brought to life through intuitive market maps, symbol dashboards, and clean charts — giving you a powerful visual edge for your own research and decision-making.",
+    title: "You Focus on Trading",
+    body: "Instead of scanning hundreds of chains manually, you see stocks at important zones clearly — so you can spend your time on analysis and decision-making.",
   },
 ] as const;
 
@@ -27,16 +27,13 @@ const cardStyle = {
 export function FnoNinjaHowItWorksSection() {
   return (
     <section id="how-it-works" className={`${FB_CONTENT_SHELL} pt-20 sm:pt-24 lg:pt-28 pb-16 sm:pb-20 lg:pb-24`}>
-      <div className="mb-10 sm:mb-12">
-        <p
-          className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] font-mono mb-4"
-          style={{ color: FNO_ACCENT }}
-        >
-          3-Step Process
-        </p>
+      <div className="mb-10 sm:mb-12 max-w-3xl">
         <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
           How FNO Ninja Works
         </h2>
+        <p className="mt-4 sm:mt-5 text-base sm:text-lg leading-relaxed" style={{ color: FNO_MUTED }}>
+          We make option chain analysis fast and practical.
+        </p>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4 lg:gap-5">
@@ -54,6 +51,22 @@ export function FnoNinjaHowItWorksSection() {
             </p>
           </div>
         ))}
+      </div>
+
+      <div className="mt-10 sm:mt-12 lg:mt-14 max-w-2xl mx-auto text-center space-y-2">
+        <p className="text-sm sm:text-base font-semibold text-white/90">
+          These levels are not predictions.
+        </p>
+        <p className="text-sm sm:text-base leading-relaxed" style={{ color: FNO_MUTED }}>
+          But price often reacts around them.{" "}
+          <a
+            href="#features"
+            className="font-semibold underline underline-offset-4 decoration-white/20 hover:decoration-white/50 transition-colors"
+            style={{ color: FNO_ACCENT }}
+          >
+            See real examples below.
+          </a>
+        </p>
       </div>
     </section>
   );

@@ -23,7 +23,7 @@ import {
 } from "@/lib/fnoninja/paths";
 import { consumeFnoPostLoginRedirect } from "@/lib/fnoninja/post-login-redirect";
 import { FNO_NAV_SPACER_CLASS } from "@/lib/fnoninja/responsive";
-import { FB_CONTENT_SHELL, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
+import { FB_CONTENT_SHELL, FB_LEVELS_SHELL, FB_WIDE_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_BG, FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 /** Reserve space below the fixed header in page layout. */
@@ -124,7 +124,12 @@ export function FnoNinjaNav() {
     };
   }, [menuOpen]);
 
-  const shellClass = isLevelsApp ? FB_LEVELS_SHELL : FB_CONTENT_SHELL;
+  const isLanding = isFnoNinjaLandingPath(pathname);
+  const shellClass = isLevelsApp
+    ? FB_LEVELS_SHELL
+    : isLanding
+      ? FB_WIDE_SHELL
+      : FB_CONTENT_SHELL;
 
   const header = (
     <>

@@ -26,7 +26,7 @@ const cardStyle = {
 
 export function FnoNinjaHowItWorksSection() {
   return (
-    <section id="how-it-works" className={`${FB_CONTENT_SHELL} py-16 sm:py-20 lg:py-24`}>
+    <section id="how-it-works" className={`${FB_CONTENT_SHELL} pt-20 sm:pt-24 lg:pt-28 pb-16 sm:pb-20 lg:pb-24`}>
       <div className="mb-10 sm:mb-12">
         <p
           className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] font-mono mb-4"

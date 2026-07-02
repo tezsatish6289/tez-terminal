@@ -1,7 +1,7 @@
 "use client";
 
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
-import { FNO_ACCENT, FNO_BG_CANVAS, FNO_CARD_BG, FNO_MUTED } from "@/lib/fnoninja/theme";
+import { FNO_BG_CANVAS, FNO_CARD_BG, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const EMBED_SRC = "/embed/levels-bubbles";
 
@@ -38,21 +38,13 @@ export function FnoNinjaHeroCard() {
       {/* Left — headline, subtext, CTA */}
       <div className="flex flex-col justify-center gap-8 sm:gap-10 lg:gap-12 p-6 sm:p-8 lg:p-10 xl:p-12 pt-14 sm:pt-16 lg:pt-10 lg:w-[40%] xl:w-[38%] lg:shrink-0 lg:border-r border-white/[0.06]">
         <div className="space-y-6 sm:space-y-8 lg:space-y-10">
-          <h1 className="text-[1.95rem] sm:text-[2.35rem] lg:text-[2.5rem] xl:text-[2.85rem] font-black tracking-tight leading-[1.12] text-white flex flex-col gap-1 sm:gap-1.5">
-            <span className="block">See where</span>
-            <span
-              className="block text-[2.35rem] sm:text-[2.65rem] lg:text-[2.9rem] xl:text-[3.25rem] leading-[1.05]"
-              style={{ color: FNO_ACCENT }}
-            >
-              Smart Money
-            </span>
-            <span className="block">is positioned.</span>
+          <h1 className="text-[1.95rem] sm:text-[2.35rem] lg:text-[2.5rem] xl:text-[2.85rem] font-black tracking-tight leading-[1.12] text-white">
+            Visualize price pressure before the move happens
           </h1>
 
           <p className="text-sm sm:text-base lg:text-lg leading-relaxed max-w-xl" style={{ color: FNO_MUTED }}>
-            We turn thousands of option-chain data points into clear{" "}
-            <span className="italic">support</span>, <span className="italic">resistance</span>, and market
-            structure across the entire NSE F&amp;O universe in real time.
+            Real-time support and resistance mapping for Indian F&amp;O stocks based on live option-chain
+            Open Interest clusters.
           </p>
         </div>
 

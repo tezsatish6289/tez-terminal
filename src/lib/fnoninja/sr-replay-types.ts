@@ -1,3 +1,5 @@
+import type { StoryReplayData } from "@/lib/sr-audit/story-replay-types";
+
 /** Public SR-audit story replay summary for marketing surfaces. */
 export type SrReplaySort = "best" | "latest" | "oldest";
 
@@ -11,6 +13,9 @@ export type SrReplaySummary = {
   movePct: number;
   eventAt: string;
 };
+
+/** Marketing carousel item with optional prefetched story payload. */
+export type SrReplayWithStory = SrReplaySummary & { replay: StoryReplayData };
 
 /** @deprecated Use SrReplaySummary — kept for transitional imports. */
 export type SrReplayShort = SrReplaySummary;

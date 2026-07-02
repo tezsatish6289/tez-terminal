@@ -6,7 +6,7 @@
  * so it runs on server (cron) and client (UI badges) identically.
  */
 
-import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
+import { computeZoneSlAnchors } from "@/lib/zones/zone-sl-anchors";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 
 export type ZoneStatus =

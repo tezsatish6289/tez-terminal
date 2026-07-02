@@ -1,0 +1,42 @@
+name: Sync UI to tez-terminal
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  open-sync-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fnoninja-frontend
+        uses: actions/checkout@v4
+        with:
+          path: fnoninja-frontend
+
+      - name: Checkout tez-terminal
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.TEZ_TERMINAL_REPO }}
+          token: ${{ secrets.TEZ_TERMINAL_SYNC_TOKEN }}
+          path: tez-terminal
+          ref: main
+
+      - name: Apply sync paths
+        run: |
+          cd tez-terminal
+          ./scripts/sync-fnoninja-frontend-to-tez-terminal.sh ../fnoninja-frontend
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.TEZ_TERMINAL_SYNC_TOKEN }}
+          path: tez-terminal
+          commit-message: "sync: fnoninja frontend UI from fnoninja-frontend"
+          title: "sync: fnoninja frontend UI"
+          body: |
+            Automated sync from [fnoninja-frontend](https://github.com/${{ github.repository }}) @ ${{ github.sha }}.
+
+            Review UI-only paths from `SYNC_PATHS.txt`, then merge to deploy fnoninja.com.
+          branch: sync/fnoninja-frontend-${{ github.run_id }}
+          delete-branch: true

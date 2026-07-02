@@ -11,7 +11,7 @@ import {
 import { FnoNinjaSrReplayCardCompact } from "@/components/fnoninja/FnoNinjaSrReplayCard";
 import { FnoNinjaSrReplaySort } from "@/components/fnoninja/FnoNinjaSrReplaySort";
 import type { SrReplaySort } from "@/lib/fnoninja/sr-replay-types";
-import type { SrReplayWithStory } from "@/lib/fnoninja/sr-replays";
+import type { SrReplayWithStory } from "@/lib/fnoninja/sr-replay-types";
 import { replayColumnCount } from "@/lib/fnoninja/sr-replay-columns";
 import { FNO_MUTED } from "@/lib/fnoninja/theme";
 

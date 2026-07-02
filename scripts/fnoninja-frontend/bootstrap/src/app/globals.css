@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 4%;
+    --foreground: 210 12% 88%;
+    --card: 240 5% 7%;
+    --card-foreground: 210 12% 88%;
+    --popover: 0 0% 4%;
+    --popover-foreground: 210 12% 88%;
+    --primary: 258 21% 24%;
+    --primary-foreground: 182 45% 65%;
+    --secondary: 258 15% 15%;
+    --secondary-foreground: 210 12% 88%;
+    --muted: 258 15% 15%;
+    --muted-foreground: 210 10% 65%;
+    /* Softer accent: less saturation, no neon */
+    --accent: 185 35% 58%;
+    --accent-foreground: 249 20% 8%;
+    --destructive: 0 50% 52%;
+    --destructive-foreground: 210 12% 88%;
+    --border: 258 21% 20%;
+    --input: 258 21% 20%;
+    --ring: 185 35% 58%;
+    --radius: 0.75rem;
+    /* Softer positive/negative for PNL, badges, moves */
+    --positive: 152 40% 52%;
+    --negative: 0 42% 52%;
+    --sidebar-background: 249 20% 6%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 185 35% 58%;
+    --sidebar-primary-foreground: 249 20% 8%;
+    --sidebar-accent: 258 21% 24%;
+    --sidebar-accent-foreground: 185 35% 58%;
+    --sidebar-border: 258 21% 15%;
+    --sidebar-ring: 185 35% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+.trading-view-container {
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #38304a;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(185 35% 45%);
+}
+
+/** Atlas AI coach drawer — flat readable surface, glow on border only */
+.fynn-ai-pane {
+  background: #070d1a;
+  border-left: 1px solid rgba(96, 165, 250, 0.35);
+  box-shadow: inset 1px 0 0 rgba(96, 165, 250, 0.12);
+}
+
+/** Ask Fynn / Atlas trigger — sparkle icon glow only */
+.fynn-sparkle-glow {
+  filter:
+    drop-shadow(0 0 2px rgba(96, 165, 250, 0.9))
+    drop-shadow(0 0 6px rgba(96, 165, 250, 0.5));
+  transition: filter 0.2s ease;
+}
+
+.fynn-sparkle-btn:hover .fynn-sparkle-glow,
+.fynn-sparkle-btn:focus-visible .fynn-sparkle-glow {
+  filter:
+    drop-shadow(0 0 3px rgba(96, 165, 250, 1))
+    drop-shadow(0 0 8px rgba(96, 165, 250, 0.65));
+}
+
+.fynn-sparkle-btn-open .fynn-sparkle-glow {
+  filter:
+    drop-shadow(0 0 3px rgba(147, 197, 253, 1))
+    drop-shadow(0 0 10px rgba(96, 165, 250, 0.75));
+}
+
+/** Atlas AI featured tile on home — gradient border, flat readable interior */
+.features-atlas-shell {
+  background: linear-gradient(
+    135deg,
+    rgba(96, 165, 250, 0.45),
+    rgba(139, 92, 246, 0.22),
+    rgba(59, 130, 246, 0.35)
+  );
+  padding: 1px;
+}
+
+.features-atlas-inner {
+  background: #0d1b2e;
+}
+
+/** Sparkle icons inside the Atlas AI coach drawer */
+.fynn-coach-sparkle {
+  color: #93c5fd;
+  filter:
+    drop-shadow(0 0 2px rgba(96, 165, 250, 0.85))
+    drop-shadow(0 0 6px rgba(96, 165, 250, 0.45));
+}

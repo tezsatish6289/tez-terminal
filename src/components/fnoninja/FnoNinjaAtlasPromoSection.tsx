@@ -1,18 +1,13 @@
+"use client";
+
 import Image from "next/image";
-import { unstable_cache } from "next/cache";
+import { useEffect, useState } from "react";
 import { FnoNinjaWebinarCard } from "@/components/fnoninja/FnoNinjaWebinarSection";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_LANDING_FOLD_CLASS } from "@/lib/fnoninja/responsive";
-import { getWebinarRegistrationTotal } from "@/lib/fnoninja/webinar-stats";
 import { FNO_GRADIENT_TEXT, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const ATLAS_AGENT_SRC = "/fnoninja/atlas-agent.webp";
-
-const getCachedWebinarRegistrationTotal = unstable_cache(
-  getWebinarRegistrationTotal,
-  ["fnoninja-webinar-registration-total"],
-  { revalidate: 300 },
-);
 
 function AtlasAgentImage() {
   return (
@@ -27,8 +22,26 @@ function AtlasAgentImage() {
   );
 }
 
-export async function FnoNinjaAtlasPromoSection() {
-  const registrationCount = await getCachedWebinarRegistrationTotal();
+export function FnoNinjaAtlasPromoSection() {
+  const [registrationCount, setRegistrationCount] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/fnoninja/webinar/stats", { cache: "no-store" });
+        const json = (await res.json()) as { total?: number };
+        if (!cancelled && res.ok && typeof json.total === "number") {
+          setRegistrationCount(json.total);
+        }
+      } catch {
+        // Omit count on failure — card still renders.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section

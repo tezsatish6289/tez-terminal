@@ -8,7 +8,7 @@ import {
 } from "lightweight-charts";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
-import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
+import { computeZoneSlAnchors } from "@/lib/zones/zone-sl-anchors";
 
 export interface ZoneSlAnchors {
   bullSl: number | null;

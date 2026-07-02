@@ -7,7 +7,7 @@ import type {
   PublicLevelsExpiryOption,
   PublicLevelsExpirySlice,
 } from "@/lib/levels/index-expiry-levels";
-import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
+import { computeZoneSlAnchors } from "@/lib/zones/zone-sl-anchors";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";

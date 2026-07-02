@@ -3,7 +3,7 @@
  * NSE stocks & indices → native Dhan candles; TV link for full chart in new tab.
  */
 
-import type { IndexKey } from "@/lib/index-options-zones";
+import type { IndexKey } from "@/lib/index-specs";
 
 export type LevelsTvScope = "index" | "stock";
 

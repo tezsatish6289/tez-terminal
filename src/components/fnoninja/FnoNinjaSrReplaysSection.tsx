@@ -1,19 +1,37 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { FnoNinjaSrReplaysShowcase } from "@/components/fnoninja/FnoNinjaSrReplaysShowcase";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
-import { listSrReplaysWithStories, type SrReplayWithStory } from "@/lib/fnoninja/sr-replays";
+import type { SrReplayWithStory } from "@/lib/fnoninja/sr-replay-types";
 import { FNO_MUTED } from "@/lib/fnoninja/theme";
 
-export async function FnoNinjaSrReplaysSection() {
-  let replays: SrReplayWithStory[] = [];
-  try {
-    replays = await listSrReplaysWithStories({ sort: "best", limit: 12 });
-  } catch (e) {
-    // A replay/data-store hiccup must not take down the whole landing page.
-    console.error("[FnoNinjaSrReplaysSection] failed to load replays:", e);
-  }
+export function FnoNinjaSrReplaysSection() {
+  const [replays, setReplays] = useState<SrReplayWithStory[] | null>(null);
 
-  // No replays (empty or fetch failed) → hide the section entirely.
-  if (replays.length === 0) return null;
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/fnoninja/sr-replays?sort=best&limit=12&withStory=1", {
+          cache: "no-store",
+        });
+        const json = (await res.json()) as { replays?: SrReplayWithStory[] };
+        if (!cancelled && res.ok && Array.isArray(json.replays)) {
+          setReplays(json.replays);
+        } else if (!cancelled) {
+          setReplays([]);
+        }
+      } catch {
+        if (!cancelled) setReplays([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (replays === null || replays.length === 0) return null;
 
   return (
     <section

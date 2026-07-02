@@ -5,6 +5,10 @@ export const FNO_PAGE_ROOT =
 /** Must match fixed nav outer height (FNO_NAV_HEIGHT_CLASS with box-border). */
 export const FNO_NAV_SPACER_CLASS = "h-14 sm:h-16";
 
+/** One marketing fold below the fixed nav — matches FnoNinjaHero height. */
+export const FNO_LANDING_FOLD_CLASS =
+  "min-h-[calc(100dvh-3.5rem)] sm:min-h-[calc(100dvh-4rem)]";
+
 /** Fallback nav clearance for tour callouts when nav is not mounted yet. */
 export const FNO_NAV_CLEARANCE_PX = 72;
 

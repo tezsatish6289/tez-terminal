@@ -68,7 +68,10 @@ export function FnoNinjaSrReplayCard({
   }, [summary.id, data, error]);
 
   return (
-    <article className={`flex flex-col min-w-0 ${className}`.trim()}>
+    <article
+      className={`flex flex-col min-w-0 ${className}`.trim()}
+      aria-label={`${summary.symbol} ${summary.side === "support" ? "put wall bounce" : "call wall rejection"} replay`}
+    >
       <div
         className="relative aspect-[9/16] w-full overflow-hidden rounded-xl sm:rounded-2xl"
         style={{ border: FNO_CARD_BORDER, backgroundColor: "rgba(8,15,30,0.55)" }}
@@ -105,14 +108,6 @@ export function FnoNinjaSrReplayCard({
           <div className="absolute inset-0 bg-white/[0.03]" aria-hidden />
         )}
       </div>
-
-      <h3 className="mt-3 text-sm sm:text-[15px] font-semibold text-white leading-snug line-clamp-2">
-        {summary.symbol}
-      </h3>
-      <p className="mt-1 text-xs" style={{ color: FNO_MUTED }}>
-        {summary.label}
-        {summary.side === "support" ? " · Put wall bounce" : " · Call wall rejection"}
-      </p>
     </article>
   );
 }

@@ -136,11 +136,11 @@ export function FnoNinjaSrReplaysShowcase({
     ? "relative w-full"
     : "relative max-w-[280px] sm:max-w-[300px] mx-auto";
 
-  const itemBasisClass = isMultiColumn ? "pl-3 sm:pl-4 basis-[20%]" : "basis-full";
+  const itemBasisClass = isMultiColumn ? "pl-5 sm:pl-6 basis-[20%]" : "basis-full";
 
   return (
     <div className="relative">
-      <div className="mb-4 sm:mb-5 flex flex-wrap items-center justify-between gap-4">
+      <div className="mb-8 sm:mb-10 flex flex-wrap items-center justify-between gap-4">
         <FnoNinjaSrReplaySort value={sort} onChange={onSortChange} />
         {loading ? (
           <Loader2 className="h-4 w-4 animate-spin" style={{ color: FNO_MUTED }} aria-label="Loading" />
@@ -159,7 +159,7 @@ export function FnoNinjaSrReplaysShowcase({
             opts={{ align: isMultiColumn ? "start" : "center", dragFree: isMultiColumn }}
             className="w-full"
           >
-            <CarouselContent className={isMultiColumn ? "-ml-3 sm:-ml-4" : undefined}>
+            <CarouselContent className={isMultiColumn ? "-ml-5 sm:-ml-6" : undefined}>
               {replays.map((replay, index) => (
                 <CarouselItem key={replay.id} className={itemBasisClass}>
                   <FnoNinjaSrReplayCardCompact
@@ -181,7 +181,7 @@ export function FnoNinjaSrReplaysShowcase({
                 type="button"
                 onClick={() => api?.scrollPrev()}
                 disabled={!canPrev}
-                className={`absolute ${isMultiColumn ? "-left-1 sm:-left-3" : "-left-2 sm:-left-12"} top-[42%] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0d1b2e]/95 text-white/80 transition enabled:hover:text-white disabled:opacity-30`}
+                className={`absolute ${isMultiColumn ? "left-0" : "-left-2 sm:-left-12"} top-[42%] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0d1b2e]/95 text-white/80 transition enabled:hover:text-white disabled:opacity-30`}
                 aria-label="Previous replay"
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -190,7 +190,7 @@ export function FnoNinjaSrReplaysShowcase({
                 type="button"
                 onClick={() => api?.scrollNext()}
                 disabled={!canNext}
-                className={`absolute ${isMultiColumn ? "-right-1 sm:-right-3" : "-right-2 sm:-right-12"} top-[42%] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0d1b2e]/95 text-white/80 transition enabled:hover:text-white disabled:opacity-30`}
+                className={`absolute ${isMultiColumn ? "right-0" : "-right-2 sm:-right-12"} top-[42%] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0d1b2e]/95 text-white/80 transition enabled:hover:text-white disabled:opacity-30`}
                 aria-label="Next replay"
               >
                 <ChevronRight className="h-5 w-5" />

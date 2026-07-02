@@ -1,5 +1,5 @@
 import { FnoNinjaLogoMark } from "@/components/fnoninja/FnoNinjaLogoMark";
-import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const DOES_NOT_PROVIDE = [
@@ -14,7 +14,7 @@ const DOES_NOT_PROVIDE = [
 
 export function FnoNinjaDisclaimerSection() {
   return (
-    <section id="disclaimer" className={`${FB_CONTENT_SHELL} py-16 sm:py-20 lg:py-24`}>
+    <section id="disclaimer" className={`${FNO_LANDING_SHELL} py-16 sm:py-20 lg:py-24`}>
       <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,48rem)_1fr] lg:gap-8">
         <div className="min-w-0">
           <p

@@ -1,5 +1,5 @@
 import { FnoNinjaHeroCard } from "@/components/fnoninja/FnoNinjaHeroCard";
-import { FB_WIDE_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_HERO_TEXTURE, FNO_HERO_TEXTURE_SIZE } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaHero() {
@@ -26,7 +26,7 @@ export function FnoNinjaHero() {
         />
       </div>
 
-      <div className={`relative ${FB_WIDE_SHELL} flex-1 flex flex-col min-h-0 py-3 sm:py-4 lg:py-5`}>
+      <div className={`relative ${FNO_LANDING_SHELL} flex-1 flex flex-col min-h-0 py-3 sm:py-4 lg:py-5`}>
         <FnoNinjaHeroCard />
       </div>
     </section>

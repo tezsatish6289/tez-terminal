@@ -29,21 +29,18 @@ export const FNONINJA_PRICING_TIERS: FnoNinjaPricingTier[] = [
     ],
   },
   {
-    id: "monthly",
-    label: "Monthly",
-    priceInr: 900,
-    pricePerDayInr: 30,
-    periodLabel: "30 days",
-    features: ["All analytics features", "Live session data refresh", "Slideshow & filters"],
-  },
-  {
     id: "half-yearly",
     label: "Half yearly",
     priceInr: 4500,
     pricePerDayInr: 25,
     periodLabel: "6 months",
     badge: "Popular",
-    features: ["Everything in monthly", "Save ₹900 vs monthly", "Best for active swing traders"],
+    features: [
+      "All analytics features",
+      "Live session data refresh",
+      "Slideshow & filters",
+      "Best for active swing traders",
+    ],
   },
   {
     id: "yearly",
@@ -52,7 +49,12 @@ export const FNONINJA_PRICING_TIERS: FnoNinjaPricingTier[] = [
     pricePerDayInr: 20,
     periodLabel: "12 months",
     badge: "Best value",
-    features: ["Everything in monthly", "Lowest cost per day", "Full-year market structure access"],
+    features: [
+      "All analytics features",
+      "Live session data refresh",
+      "Slideshow & filters",
+      "Full-year market structure access",
+    ],
   },
 ];
 

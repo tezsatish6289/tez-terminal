@@ -1,6 +1,6 @@
 import { CheckCircle2 } from "lucide-react";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
-import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import {
   FNONINJA_PRICING_TIERS,
   formatInr,
@@ -22,7 +22,7 @@ export function FnoNinjaPricingSection() {
   return (
     <section
       id="pricing"
-      className={`${FB_CONTENT_SHELL} py-16 sm:py-20 lg:py-24`}
+      className={`${FNO_LANDING_SHELL} py-16 sm:py-20 lg:py-24`}
       style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}
     >
       <div className="mb-10 sm:mb-12 max-w-2xl mx-auto text-center">
@@ -41,7 +41,7 @@ export function FnoNinjaPricingSection() {
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-5">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
         {FNONINJA_PRICING_TIERS.map((tier) => (
           <article
             key={tier.id}

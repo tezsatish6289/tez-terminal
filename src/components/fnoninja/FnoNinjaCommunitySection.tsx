@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation";
 import { ArrowRight, MessageCircle } from "lucide-react";
 import { useUser } from "@/firebase";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
-import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import { fnoCommunityChatHref } from "@/lib/fnoninja/paths";
+import { FNO_LANDING_FOLD_CLASS } from "@/lib/fnoninja/responsive";
 import {
   FNO_ACCENT,
   FNO_CTA_GRADIENT,
@@ -214,44 +215,49 @@ function CommunityCta() {
 
 export function FnoNinjaCommunitySection() {
   return (
-    <section id="community" className={`${FB_CONTENT_SHELL} py-16 sm:py-20 lg:py-24`}>
-      <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
-        <div className="max-w-xl">
-          <p
-            className="mb-4 font-mono text-[11px] font-bold uppercase tracking-[0.2em] sm:text-xs"
-            style={{ color: FNO_ACCENT }}
-          >
-            Community
-          </p>
-          <h2 className="text-3xl font-black leading-[1.1] tracking-tight text-white sm:text-4xl lg:text-[2.75rem]">
-            Don&apos;t trade alone.
-          </h2>
-          <p className="mt-4 text-sm leading-relaxed sm:text-base" style={{ color: FNO_MUTED }}>
-            Join a private room where traders discuss market structure, option clusters, and setups
-            using the same FNO Ninja data.
-          </p>
+    <section
+      id="community"
+      className={`${FNO_LANDING_SHELL} ${FNO_LANDING_FOLD_CLASS} flex flex-col py-10 sm:py-12 lg:py-14`}
+    >
+      <div className="flex min-h-0 flex-1 flex-col justify-center">
+        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+          <div className="max-w-xl">
+            <p
+              className="mb-4 font-mono text-[11px] font-bold uppercase tracking-[0.2em] sm:text-xs"
+              style={{ color: FNO_ACCENT }}
+            >
+              Community
+            </p>
+            <h2 className="text-3xl font-black leading-[1.1] tracking-tight text-white sm:text-4xl lg:text-[2.75rem]">
+              We understand trading alone is hard, that&apos;s why we built a community.
+            </h2>
+            <p className="mt-4 text-sm leading-relaxed sm:text-base" style={{ color: FNO_MUTED }}>
+              Join a private room where traders discuss market structure, option clusters, and setups
+              using the same FNO Ninja data.
+            </p>
 
-          <ul className="mt-6 space-y-2">
-            {CHECKLIST.map((item) => (
-              <li
-                key={item}
-                className="flex items-center gap-2 text-sm font-medium text-white"
-              >
-                <span aria-hidden style={{ color: "#34d399" }}>
-                  ✓
-                </span>
-                {item}
-              </li>
-            ))}
-          </ul>
+            <ul className="mt-6 space-y-2">
+              {CHECKLIST.map((item) => (
+                <li
+                  key={item}
+                  className="flex items-center gap-2 text-sm font-medium text-white"
+                >
+                  <span aria-hidden style={{ color: "#34d399" }}>
+                    ✓
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
 
-          <div className="mt-8">
-            <CommunityCta />
+            <div className="mt-8">
+              <CommunityCta />
+            </div>
           </div>
-        </div>
 
-        <div className="lg:pl-4">
-          <ChatPreview />
+          <div className="lg:pl-4">
+            <ChatPreview />
+          </div>
         </div>
       </div>
     </section>

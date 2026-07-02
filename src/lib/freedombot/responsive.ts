@@ -6,6 +6,10 @@ export const FB_CONTENT_SHELL = "max-w-[1200px] mx-auto w-full px-4 sm:px-6";
 
 export const FB_WIDE_SHELL = "max-w-[1440px] mx-auto w-full px-4 sm:px-6 lg:px-8";
 
+/** FNONINJA landing — one consistent gutter between wide data canvas and tight text. */
+export const FNO_LANDING_SHELL =
+  "max-w-[1360px] mx-auto w-full px-5 sm:px-7 lg:px-10";
+
 export const FB_DOC_SHELL = "max-w-6xl mx-auto w-full px-4 sm:px-6";
 
 export const FB_NARROW_SHELL = "max-w-3xl mx-auto w-full px-4 sm:px-6";

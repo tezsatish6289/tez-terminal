@@ -1,4 +1,3 @@
-import { FnoNinjaLogoMark } from "@/components/fnoninja/FnoNinjaLogoMark";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import {
   FNO_LANDING_BORDER,
@@ -25,7 +24,7 @@ export function FnoNinjaDisclaimerSection() {
           For informational and <GradientText>educational purposes</GradientText> only.
         </h2>
       </div>
-      <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="mt-6 grid items-start gap-6 sm:mt-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div
           className="rounded-xl border p-6 sm:p-7 text-[13px] sm:text-sm leading-relaxed text-slate-400"
           style={{ borderColor: FNO_LANDING_BORDER, backgroundColor: "#0d1830" }}
@@ -76,16 +75,6 @@ export function FnoNinjaDisclaimerSection() {
         FNO Ninja is not affiliated with, endorsed by, or sponsored by the National Stock Exchange
         (NSE), Bombay Stock Exchange (BSE), or any other exchange or broker.
       </p>
-
-      <div
-        className="pointer-events-none hidden items-center justify-center lg:flex mt-10"
-        aria-hidden="true"
-      >
-        <FnoNinjaLogoMark
-          size={320}
-          className="h-auto w-full max-w-[320px] select-none opacity-[0.08] rounded-2xl"
-        />
-      </div>
     </section>
   );
 }

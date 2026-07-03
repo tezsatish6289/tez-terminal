@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowRight, CheckCircle2, Loader2, PlayCircle, X } from "lucide-react";
 import { FNO_LANDING_BORDER, registerForWebinar } from "@/lib/fnoninja/landing-ui";
-import { googleCalendarUrl, getWebinarSessionByIstDate } from "@/lib/fnoninja/webinar";
+import {
+  formatWebinarSession,
+  getUpcomingWebinarSessions,
+  getWebinarSessionByIstDate,
+  googleCalendarUrl,
+} from "@/lib/fnoninja/webinar";
 
 type RegisterState =
   | { kind: "idle" }
@@ -58,9 +63,46 @@ function Field({
         autoComplete={autoComplete}
         maxLength={maxLength}
         required={required}
-        className="w-full rounded-lg border bg-[#0d1830]/60 px-3 py-2.5 text-[14px] text-white outline-none placeholder:text-slate-500/60 focus:border-[#60a5fa]/60 focus:bg-[#0d1830]/90"
+        className={fieldClass}
         style={{ borderColor: FNO_LANDING_BORDER }}
       />
+    </label>
+  );
+}
+
+const fieldClass =
+  "w-full rounded-lg border bg-[#0d1830]/60 px-3 py-2.5 text-[14px] text-white outline-none placeholder:text-slate-500/60 focus:border-[#60a5fa]/60 focus:bg-[#0d1830]/90";
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  required,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        className={`${fieldClass} cursor-pointer appearance-none bg-[length:1rem] bg-[right_0.75rem_center] bg-no-repeat pr-9`}
+        style={{
+          borderColor: FNO_LANDING_BORDER,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+        }}
+      >
+        {children}
+      </select>
     </label>
   );
 }
@@ -74,9 +116,12 @@ export function FnoNinjaWebinarRegisterModal({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
+  const [sessionDate, setSessionDate] = useState("");
   const [state, setState] = useState<RegisterState>({ kind: "idle" });
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const onCloseRef = useRef(onClose);
+
+  const upcomingSessions = useMemo(() => getUpcomingWebinarSessions(12), []);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -85,6 +130,12 @@ export function FnoNinjaWebinarRegisterModal({
   useEffect(() => {
     if (!open) return;
     setState({ kind: "idle" });
+    const fallback = upcomingSessions[0]?.istDate ?? "";
+    const preferred =
+      defaultSessionDate && getWebinarSessionByIstDate(defaultSessionDate)
+        ? defaultSessionDate
+        : fallback;
+    setSessionDate(preferred);
     const t = window.setTimeout(() => firstInputRef.current?.focus(), 30);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCloseRef.current?.();
@@ -96,7 +147,7 @@ export function FnoNinjaWebinarRegisterModal({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
     };
-  }, [open]);
+  }, [open, defaultSessionDate, upcomingSessions]);
 
   if (!open) return null;
 
@@ -113,6 +164,8 @@ export function FnoNinjaWebinarRegisterModal({
       return setState({ kind: "error", message: "Please enter a valid email." });
     if (trimmedMobile.replace(/\D/g, "").length < 7)
       return setState({ kind: "error", message: "Please enter a valid mobile number." });
+    if (!sessionDate || !getWebinarSessionByIstDate(sessionDate))
+      return setState({ kind: "error", message: "Please pick a session date and time." });
 
     setState({ kind: "submitting" });
     try {
@@ -120,7 +173,7 @@ export function FnoNinjaWebinarRegisterModal({
         name: trimmedName,
         email: trimmedEmail,
         mobile: trimmedMobile,
-        sessionDate: defaultSessionDate,
+        sessionDate,
         source: "fnoninja.com/webinar",
       });
       setState({
@@ -140,6 +193,7 @@ export function FnoNinjaWebinarRegisterModal({
 
   const session = state.kind === "success" ? getWebinarSessionByIstDate(state.sessionDate) : null;
   const gcalHref = session ? googleCalendarUrl(session) : null;
+  const successLabel = session ? formatWebinarSession(session) : state.kind === "success" ? state.sessionDate : "";
 
   return (
     <div
@@ -171,7 +225,7 @@ export function FnoNinjaWebinarRegisterModal({
             <h3 className="mt-5 text-xl font-black tracking-tight text-white">You&apos;re in.</h3>
             <p className="mt-2 text-[14px] text-slate-400">
               We&apos;ve reserved your seat for{" "}
-              <span className="font-semibold text-white">{state.sessionDate}</span>.
+              <span className="font-semibold text-white">{successLabel}</span>.
               {state.calendarInvite
                 ? " A calendar invite is on its way to your inbox."
                 : " Check your email for details."}
@@ -224,6 +278,18 @@ export function FnoNinjaWebinarRegisterModal({
             </div>
 
             <div className="mt-5 space-y-3">
+              <SelectField
+                label="Session date & time (IST)"
+                value={sessionDate}
+                onChange={setSessionDate}
+                required
+              >
+                {upcomingSessions.map((s) => (
+                  <option key={s.istDate} value={s.istDate} className="bg-[#0a1220]">
+                    {formatWebinarSession(s)}
+                  </option>
+                ))}
+              </SelectField>
               <Field
                 label="Full name"
                 inputRef={firstInputRef}

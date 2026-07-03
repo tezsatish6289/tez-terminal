@@ -62,9 +62,9 @@ export function FnoNinjaComboSection() {
       className="border-b"
       style={{ borderColor: "rgba(90,140,220,0.08)" }}
     >
-      <div className={`${FNO_LANDING_SHELL} py-20`}>
-        <div className="grid items-stretch gap-10 lg:grid-cols-2 lg:gap-14">
-          <div className="flex flex-col rounded-2xl border border-[rgba(90,140,220,0.18)] bg-[#0d1830]/40 p-5 lg:p-5">
+      <div className={`${FNO_LANDING_SHELL} py-12 sm:py-16 lg:py-20`}>
+        <div className="grid items-stretch gap-8 lg:grid-cols-2 lg:gap-12 xl:gap-14">
+          <div className="flex min-w-0 flex-col rounded-2xl border border-[rgba(90,140,220,0.18)] bg-[#0d1830]/40 p-4 sm:p-5">
             <p
               className="text-[11px] font-semibold uppercase tracking-[0.18em]"
               style={{ color: FNO_ACCENT }}
@@ -101,7 +101,7 @@ export function FnoNinjaComboSection() {
                 </li>
               </ul>
 
-              <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[11px]">
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px] sm:text-[11px]">
                 <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/5 p-2">
                   <div className="text-[18px] font-black tabular-nums text-emerald-300">{counts.atS}</div>
                   <div className="uppercase tracking-wider text-emerald-300/80">At Support</div>
@@ -131,7 +131,9 @@ export function FnoNinjaComboSection() {
             )}
           </div>
 
-          <FnoNinjaComboShowcase />
+          <div className="min-w-0">
+            <FnoNinjaComboShowcase />
+          </div>
         </div>
       </div>
     </section>

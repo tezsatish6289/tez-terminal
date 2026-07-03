@@ -6,6 +6,10 @@ import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
+import {
+  FNO_LOGIN_DISCLAIMER,
+  FNO_LOGIN_GATE_DESCRIPTION,
+} from "@/lib/fnoninja/login-copy";
 import { fnoLoginHref } from "@/lib/fnoninja/paths";
 import { FNO_MOBILE_SLIDE_BODY_MIN_CLASS } from "@/lib/fnoninja/responsive";
 import {
@@ -16,8 +20,7 @@ import {
   FNO_MUTED,
 } from "@/lib/fnoninja/theme";
 
-const DEFAULT_DESCRIPTION =
-  "Sign in with Google to get 1 month free access to option-chain zones, charts & symbol analytics. Market Map is open to all.";
+const DEFAULT_DESCRIPTION = FNO_LOGIN_GATE_DESCRIPTION;
 
 const LOGIN_BTN_CLASS =
   "inline-flex items-center justify-center font-bold text-white transition-all hover:scale-[1.02] gap-2.5 rounded-xl px-8 py-3.5 text-sm";
@@ -178,10 +181,9 @@ export function FnoNinjaChartLoginGate({
           {backAction.label}
         </button>
       ) : null}
-      <div className="max-w-sm space-y-1.5 text-[11px] leading-relaxed" style={{ color: "#475569" }}>
-        <p>1 month free • Cancel anytime • No Credit Card required.</p>
-        <p>Informational market data only. Not investment advice.</p>
-      </div>
+      <p className="max-w-sm text-[11px] leading-relaxed" style={{ color: "#475569" }}>
+        {FNO_LOGIN_DISCLAIMER}
+      </p>
     </main>
   );
 }

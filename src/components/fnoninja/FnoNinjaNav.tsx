@@ -24,6 +24,7 @@ import {
 } from "@/lib/fnoninja/paths";
 import { FNO_NAV_SPACER_CLASS } from "@/lib/fnoninja/responsive";
 import { FB_CONTENT_SHELL, FB_LEVELS_SHELL, FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_LOGIN_NAV_HINT } from "@/lib/fnoninja/login-copy";
 import { FNO_BG, FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 /** Reserve space below the fixed header in page layout. */
@@ -288,7 +289,7 @@ export function FnoNinjaNav() {
               ) : (
                 <div className="space-y-3">
                   <p className="text-sm leading-relaxed" style={{ color: "#64748b" }}>
-                    Sign in with Google to unlock symbol charts and deep-dive analytics.
+                    {FNO_LOGIN_NAV_HINT}
                   </p>
                   <FnoNinjaGoogleSignInButton
                     className="w-full"

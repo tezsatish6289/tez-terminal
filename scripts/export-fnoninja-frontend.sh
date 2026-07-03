@@ -65,7 +65,7 @@ rm -f "$DEST/src/firebase/admin.ts" 2>/dev/null || true
 mkdir -p "$DEST/src/lib/fnoninja"
 for f in theme responsive paths metadata seo learn-content liveslide-walkthrough-content \
   favslide-walkthrough-content pricing webinar social-links auth post-login-redirect logo-mark \
-  favslide sr-replay-types sr-replay-columns market-ticker-types use-learn-nifty-live-data; do
+  favslide sr-replay-types sr-replay-columns market-ticker-types use-learn-nifty-live-data login-copy; do
   copy_file "src/lib/fnoninja/$f.ts" "src/lib/fnoninja/$f.ts"
 done
 

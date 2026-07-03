@@ -100,3 +100,13 @@ export function fnoLearnHref(pathname: string, slug?: LearnArticleSlug): string 
   }
   return slug ? `${base}/${slug}` : base;
 }
+
+/** Webinar page path for current host/env. */
+export function fnoWebinarHref(pathname: string): string {
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/webinar";
+  }
+  if (pathname.startsWith("/fnoninja")) return "/fnoninja/webinar";
+  return "/webinar";
+}

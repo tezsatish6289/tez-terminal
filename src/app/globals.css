@@ -119,3 +119,11 @@
     drop-shadow(0 0 2px rgba(96, 165, 250, 0.85))
     drop-shadow(0 0 6px rgba(96, 165, 250, 0.45));
 }
+
+/** FNONINJA landing — subtle grid (Lovable landing-page-refresh) */
+.fno-grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(90, 140, 220, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(90, 140, 220, 0.06) 1px, transparent 1px);
+  background-size: 42px 42px;
+}

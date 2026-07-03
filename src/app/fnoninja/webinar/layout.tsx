@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
 
 export const metadata: Metadata = {
-  title: "Free F&O Webinar",
+  title: "Free Live Webinar — Read Option Chains Like an Analyst | FNO Ninja",
   description:
-    "Join FNONINJA's free 1-hour live webinar, every evening at 8 PM IST — learn to read option-chain support & resistance, max-pain, and open-interest walls. Educational only.",
+    "Join a free 60-minute live session on reading option-chain support, resistance and max-pain zones — and building a rule-based plan around them.",
   alternates: { canonical: `${FNONINJA_SITE_URL}/webinar` },
   openGraph: {
-    title: "Free F&O Webinar — FNONINJA",
+    title: "Free Live Webinar — Read Option Chains Like an Analyst",
     description:
-      "A free, beginner-friendly live session on reading option-chain market structure. Daily at 8 PM IST.",
+      "60 minutes. Clear frameworks. Live Q&A. Learn how pros read positioning data.",
     url: `${FNONINJA_SITE_URL}/webinar`,
   },
 };

@@ -20,6 +20,7 @@ import {
   fnoLoginHref,
   fnoMarketingHash,
   fnoProductHomeHref,
+  fnoWebinarHref,
   isFnoNinjaLandingPath,
 } from "@/lib/fnoninja/paths";
 import { FNO_NAV_SPACER_CLASS } from "@/lib/fnoninja/responsive";
@@ -31,8 +32,9 @@ import { FNO_BG, FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_NAV_BORDER } from "@/lib/
 export const FNO_NAV_HEIGHT_CLASS = "h-14 sm:h-16";
 
 const ANCHOR_LINKS = [
-  { label: "How it works", href: "#how-it-works" },
+  { label: "How it works", href: "#how" },
   { label: "Community", href: "#community" },
+  { label: "Webinar", href: "/webinar", isPath: true },
   { label: "Pricing", href: "#pricing" },
   { label: "Disclaimer", href: "#disclaimer" },
 ] as const;
@@ -344,15 +346,27 @@ export function FnoNinjaNav() {
                 Learn
               </Link>
               {ANCHOR_LINKS.map((l) => (
-                <a
-                  key={l.label}
-                  href={fnoMarketingHash(pathname, l.href)}
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
-                  style={{ color: "#94a3b8" }}
-                >
-                  {l.label}
-                </a>
+                l.isPath ? (
+                  <Link
+                    key={l.label}
+                    href={fnoWebinarHref(pathname)}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
+                    style={{ color: "#94a3b8" }}
+                  >
+                    {l.label}
+                  </Link>
+                ) : (
+                  <a
+                    key={l.label}
+                    href={fnoMarketingHash(pathname, l.href)}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
+                    style={{ color: "#94a3b8" }}
+                  >
+                    {l.label}
+                  </a>
+                )
               ))}
             </nav>
 

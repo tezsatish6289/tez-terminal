@@ -1,12 +1,15 @@
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_LANDING_FOLD_CLASS } from "@/lib/fnoninja/responsive";
-import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
+import {
+  FNO_LANDING_BORDER,
+  GradientText,
+  SectionEyebrow,
+} from "@/lib/fnoninja/landing-ui";
 
 const STEPS = [
   {
     step: "01",
     title: "Scan Everything",
-    body: "We process real-time option chain data for 200+ NSE F&O stocks and major indices in real time.",
+    body: "We process option-chain data for 200+ NSE F&O stocks and major indices throughout the trading session.",
   },
   {
     step: "02",
@@ -20,38 +23,37 @@ const STEPS = [
   },
 ] as const;
 
-const cardStyle = {
-  backgroundColor: "#131a28",
-  border: "1px solid rgba(90,140,220,0.12)",
-};
-
 export function FnoNinjaHowItWorksSection() {
   return (
-    <section
-      id="how-it-works"
-      className={`${FNO_LANDING_SHELL} ${FNO_LANDING_FOLD_CLASS} flex flex-col py-10 sm:py-12 lg:py-14`}
-    >
-      <div className="flex min-h-0 flex-1 flex-col justify-center">
-        <div className="mb-8 sm:mb-10 max-w-3xl">
-          <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
-            How FNO Ninja Works
+    <section id="how" className="relative border-b" style={{ borderColor: FNO_LANDING_BORDER }}>
+      <div className={`${FNO_LANDING_SHELL} py-16 sm:py-20 lg:py-24`}>
+        <div className="max-w-3xl">
+          <SectionEyebrow>How it works</SectionEyebrow>
+          <h2 className="mt-4 text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
+            See the structure. <GradientText>Skip the scanning.</GradientText>
           </h2>
-          <p className="mt-4 sm:mt-5 text-base sm:text-lg leading-relaxed" style={{ color: FNO_MUTED }}>
-            We make option chain analysis fast and practical.
+          <p className="mt-4 sm:mt-5 text-sm sm:text-base leading-relaxed text-slate-400">
+            Three steps to turn raw option-chain data into clear support, resistance, and max-pain
+            context.
           </p>
         </div>
 
-        <div className="grid min-h-0 flex-1 items-stretch gap-4 sm:grid-cols-3 lg:gap-5">
+        <div className="relative mt-12 grid gap-4 sm:grid-cols-3 lg:gap-5">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-8 right-8 top-6 hidden h-px bg-gradient-to-r from-transparent via-[#3b82f6]/40 to-transparent sm:block"
+          />
           {STEPS.map(({ step, title, body }) => (
-            <div key={step} className="flex h-full flex-col rounded-2xl p-6 sm:p-8 lg:p-10" style={cardStyle}>
-              <p
-                className="text-base font-bold font-mono tracking-wide mb-5 sm:mb-6"
-                style={{ color: FNO_ACCENT }}
-              >
+            <div
+              key={step}
+              className="group relative rounded-2xl border bg-gradient-to-b from-white/[0.03] to-transparent p-6 transition hover:border-[#3b82f6]/50"
+              style={{ borderColor: FNO_LANDING_BORDER, backgroundColor: "#0d1830" }}
+            >
+              <p className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#3b82f6]/30 bg-[#080f1e] text-sm font-black tracking-wider text-[#60a5fa] shadow-[0_0_30px_rgba(59,130,246,0.25)]">
                 {step}
               </p>
-              <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-white leading-snug">{title}</h3>
-              <p className="mt-4 text-sm sm:text-base lg:text-[17px] leading-relaxed" style={{ color: FNO_MUTED }}>
+              <h3 className="mt-5 text-lg sm:text-xl lg:text-2xl font-bold text-white leading-snug">{title}</h3>
+              <p className="mt-3 text-sm sm:text-base leading-relaxed text-slate-400">
                 {body}
               </p>
             </div>

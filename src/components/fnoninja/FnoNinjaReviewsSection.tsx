@@ -1,6 +1,10 @@
 import { Star } from "lucide-react";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_ACCENT, FNO_MUTED, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
+import {
+  FNO_LANDING_BORDER,
+  GradientText,
+  SectionEyebrow,
+} from "@/lib/fnoninja/landing-ui";
 
 const REVIEWS = [
   {
@@ -25,22 +29,13 @@ const REVIEWS = [
 
 export function FnoNinjaReviewsSection() {
   return (
-    <section
-      id="reviews"
-      className={`${FNO_LANDING_SHELL} py-16 sm:py-20 lg:py-24`}
-      style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}
-    >
+    <section id="reviews" className={`${FNO_LANDING_SHELL} border-b py-16 sm:py-20 lg:py-24`} style={{ borderColor: FNO_LANDING_BORDER }}>
       <div className="mb-10 sm:mb-12 max-w-3xl">
-        <p
-          className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] font-mono mb-4"
-          style={{ color: FNO_ACCENT }}
-        >
-          Reviews
-        </p>
-        <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
-          Trusted by traders who read the data.
+        <SectionEyebrow>Reviews</SectionEyebrow>
+        <h2 className="mt-4 text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
+          Trusted by traders who <GradientText>read the data.</GradientText>
         </h2>
-        <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-2xl" style={{ color: FNO_MUTED }}>
+        <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-2xl text-slate-400">
           Independent experiences from traders using FNO Ninja for market structure analysis.
         </p>
       </div>
@@ -49,10 +44,10 @@ export function FnoNinjaReviewsSection() {
         {REVIEWS.map((review) => (
           <article
             key={review.name}
-            className="rounded-xl border p-6"
+            className="rounded-xl border p-6 transition hover:border-[#60a5fa]/30"
             style={{
-              borderColor: "rgba(90,140,220,0.12)",
-              backgroundColor: "rgba(13,27,46,0.4)",
+              borderColor: FNO_LANDING_BORDER,
+              backgroundColor: "#0d1830",
             }}
           >
             <div className="flex gap-1 text-amber-300">
@@ -66,7 +61,7 @@ export function FnoNinjaReviewsSection() {
             <div className="mt-5 flex items-center gap-3">
               <div
                 className="grid h-9 w-9 place-items-center rounded-full text-[13px] font-bold"
-                style={{ backgroundColor: "rgba(59,130,246,0.15)", color: FNO_ACCENT }}
+                style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
               >
                 {review.name
                   .split(" ")
@@ -75,7 +70,7 @@ export function FnoNinjaReviewsSection() {
               </div>
               <div>
                 <div className="text-sm font-semibold text-white">{review.name}</div>
-                <div className="text-[12px]" style={{ color: FNO_MUTED }}>
+                <div className="text-[12px] text-slate-500">
                   {review.role}
                 </div>
               </div>

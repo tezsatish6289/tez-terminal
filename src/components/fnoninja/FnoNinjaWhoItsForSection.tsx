@@ -1,91 +1,76 @@
+import { BarChart3, Target, Zap } from "lucide-react";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
+import {
+  FNO_LANDING_BORDER,
+  GradientText,
+  SectionEyebrow,
+} from "@/lib/fnoninja/landing-ui";
 
 const PERSONAS = [
   {
+    icon: Zap,
     title: "Intraday Trader",
-    subtitle: "Same-day · index & momentum focused",
-    quote: "Show me where the action is, fast.",
-    body: "Scans NIFTY, BANKNIFTY, and FINNIFTY zones throughout the session. Slideshow mode keeps the heavy hitters cycling so you react to live structure — not stale charts.",
+    subtitle: "Same-day · index & momentum",
+    body: "Live NIFTY, BANKNIFTY, and FINNIFTY zones with a slideshow that cycles the heavy hitters.",
     tags: ["Slideshow mode", "Zone dashboard", "Index views"],
   },
   {
+    icon: BarChart3,
     title: "F&O Trader",
     subtitle: "Options & futures · stock-specific",
-    quote: "I need structured OI context across the F&O universe.",
-    body: "Tracks option-derived zones across 200+ NSE F&O symbols. Uses the market map and symbol analytics to see where price sits relative to heavy open interest — your read, your call.",
+    body: "OI-based zones across 200+ NSE F&O symbols. See where price sits relative to heavy open interest.",
     tags: ["Market map", "Symbol analytics", "Zone overlay"],
   },
   {
+    icon: Target,
     title: "Swing Trader",
     subtitle: "Positional · 3–10 day horizon",
-    quote: "I need to know where the option market is leaning before I size up.",
-    body: "Frames conviction trades around put and call clusters that tend to act as support and resistance. Spots setups worth deeper analysis without scanning hundreds of chains manually.",
+    body: "Put and call clusters that tend to act as support and resistance, without scanning hundreds of chains.",
     tags: ["Market map", "Zone dashboard", "In-zone screener"],
   },
 ] as const;
 
-const ROW_BORDER = "rgba(90,140,220,0.1)";
-
 export function FnoNinjaWhoItsForSection() {
   return (
-    <section className={`${FNO_LANDING_SHELL} py-16 sm:py-20 lg:py-24`}>
+    <section id="personas" className={`${FNO_LANDING_SHELL} border-b py-16 sm:py-20 lg:py-24`} style={{ borderColor: FNO_LANDING_BORDER }}>
       <div className="mb-10 sm:mb-12 max-w-3xl">
-        <p
-          className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] font-mono mb-4"
-          style={{ color: FNO_ACCENT }}
-        >
-          Who it&apos;s for
-        </p>
-        <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
-          Built for people who read the data, not the noise.
+        <SectionEyebrow>Who it&apos;s for</SectionEyebrow>
+        <h2 className="mt-4 text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
+          Built for people who <GradientText>read the data, not the noise.</GradientText>
         </h2>
-        <p className="mt-4 text-sm sm:text-base leading-relaxed" style={{ color: FNO_MUTED }}>
-          Three trader types. One analytics surface. Every view is informational — your
-          interpretation, your decision.
+        <p className="mt-4 text-sm sm:text-base leading-relaxed text-slate-400">
+          Three trader types. One analytics surface. Informational views — your interpretation, your
+          decision.
         </p>
       </div>
 
-      <div className="border-t" style={{ borderColor: ROW_BORDER }}>
-        {PERSONAS.map(({ title, subtitle, quote, body, tags }) => (
+      <div className="grid gap-4 md:grid-cols-3">
+        {PERSONAS.map(({ icon: Icon, title, subtitle, body, tags }) => (
           <article
             key={title}
-            className="group grid grid-cols-1 gap-5 sm:gap-6 py-8 sm:py-9 lg:py-10 border-b px-1 sm:px-2 -mx-1 sm:-mx-2 transition-colors duration-200 hover:bg-white/[0.02] lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-x-10 xl:gap-x-14 lg:items-start"
-            style={{ borderColor: ROW_BORDER }}
+            className="group rounded-xl border p-6 transition hover:border-[#60a5fa]/30"
+            style={{ borderColor: FNO_LANDING_BORDER, backgroundColor: "#0d1830" }}
           >
-            <div className="min-w-0">
-              <h3 className="text-xl sm:text-2xl font-bold text-white leading-snug transition-colors duration-200 group-hover:text-[#60a5fa]">
-                {title}
-              </h3>
-              <p
-                className="mt-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest leading-relaxed"
-                style={{ color: "#475569" }}
-              >
-                {subtitle}
-              </p>
+            <div className="flex items-center gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#3b82f6]/15 text-[#60a5fa]">
+                <Icon className="h-5 w-5" strokeWidth={1.8} />
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-widest text-slate-500">{subtitle}</p>
+                <h3 className="text-lg font-bold tracking-tight text-white">{title}</h3>
+              </div>
             </div>
-
-            <div className="min-w-0 lg:pr-4">
-              <p
-                className="text-sm sm:text-[15px] italic leading-relaxed"
-                style={{ color: FNO_ACCENT }}
-              >
-                &ldquo;{quote}&rdquo;
-              </p>
-              <p className="mt-3 text-[13px] sm:text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
-                {body}
-              </p>
-              <p
-                className="mt-4 text-[10px] font-bold uppercase tracking-widest leading-relaxed"
-                style={{ color: "#334155" }}
-              >
-                {tags.map((tag, tagIndex) => (
-                  <span key={tag}>
-                    {tagIndex > 0 ? <span className="mx-1.5 opacity-40">·</span> : null}
-                    {tag}
-                  </span>
-                ))}
-              </p>
+            <p className="mt-4 text-[14px] leading-relaxed text-slate-400">{body}</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border px-2.5 py-1 text-[11px] text-slate-400"
+                  style={{ borderColor: "rgba(90,140,220,0.14)", backgroundColor: "rgba(148,163,184,0.05)" }}
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
           </article>
         ))}

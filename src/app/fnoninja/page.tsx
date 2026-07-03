@@ -1,3 +1,4 @@
+import { FnoNinjaLandingGate } from "@/components/fnoninja/FnoNinjaPostLoginRedirect";
 import { FnoNinjaHero } from "@/components/fnoninja/FnoNinjaHero";
 import { FnoNinjaComboSection } from "@/components/fnoninja/FnoNinjaComboSection";
 import { FnoNinjaHowItWorksSection } from "@/components/fnoninja/FnoNinjaHowItWorksSection";
@@ -9,7 +10,7 @@ import { FnoNinjaCommunitySection } from "@/components/fnoninja/FnoNinjaCommunit
 import { FnoNinjaAtlasPromoSection } from "@/components/fnoninja/FnoNinjaAtlasPromoSection";
 import { FnoNinjaSocialSection } from "@/components/fnoninja/FnoNinjaSocialSection";
 
-export default function FnoNinjaLandingPage() {
+function FnoNinjaLandingPageContent() {
   return (
     <div className="font-sans antialiased min-w-0 flex flex-col flex-1">
       <FnoNinjaHero />
@@ -32,5 +33,13 @@ export default function FnoNinjaLandingPage() {
 
       <FnoNinjaSocialSection />
     </div>
+  );
+}
+
+export default function FnoNinjaLandingPage() {
+  return (
+    <FnoNinjaLandingGate>
+      <FnoNinjaLandingPageContent />
+    </FnoNinjaLandingGate>
   );
 }

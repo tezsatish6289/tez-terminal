@@ -16,9 +16,9 @@ import { FnoNinjaNavLiveslideHelp } from "@/components/fnoninja/FnoNinjaNavLives
 import { FnoNinjaNavSearch } from "@/components/fnoninja/FnoNinjaNavSearch";
 import {
   fnoAnalyticsHref,
-  fnoHomeHref,
   fnoLearnHref,
   fnoMarketingHash,
+  fnoProductHomeHref,
   isFnoNinjaLandingPath,
 } from "@/lib/fnoninja/paths";
 import { consumeFnoPostLoginRedirect } from "@/lib/fnoninja/post-login-redirect";
@@ -98,11 +98,11 @@ function FnoNinjaLandingNavCta({
 
 export function FnoNinjaNav() {
   const pathname = usePathname();
-  const homeHref = fnoHomeHref(pathname);
-  const isLevelsApp = isFnoNinjaLevelsPath(pathname);
-  const showNavSearch = !isFnoNinjaLandingPath(pathname);
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const isLevelsApp = isFnoNinjaLevelsPath(pathname);
+  const productHomeHref = fnoProductHomeHref(pathname, !!user && !isUserLoading);
+  const showNavSearch = !isFnoNinjaLandingPath(pathname);
   const { toggle: toggleChat, open: chatOpen, unreadCount: chatUnread } = useChatPanel();
   const showChatButton = !!user && !isFnoNinjaLandingPath(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -156,7 +156,7 @@ export function FnoNinjaNav() {
               </button>
             )}
 
-            <Link href={homeHref} className="flex-shrink-0 min-w-0">
+            <Link href={productHomeHref} className="flex-shrink-0 min-w-0">
               <FnoNinjaLogo size={34} />
             </Link>
           </div>

@@ -1,8 +1,18 @@
 import type { LearnArticleSlug } from "@/lib/fnoninja/learn-content";
 
-/** Marketing home — no global symbol search in nav. */
+/** Marketing home — no global symbol search in nav. Signed-in users are redirected to the app. */
 export function isFnoNinjaLandingPath(pathname: string): boolean {
   return pathname === "/" || pathname === "/fnoninja";
+}
+
+/** Levels app — default destination for signed-in users. */
+export function fnoAppHref(pathname: string): string {
+  return fnoAnalyticsHref(pathname);
+}
+
+/** Logo target — marketing home for guests, levels app for signed-in users. */
+export function fnoProductHomeHref(pathname: string, signedIn: boolean): string {
+  return signedIn ? fnoAppHref(pathname) : fnoHomeHref(pathname);
 }
 
 export function fnoHomeHref(pathname: string): string {

@@ -5,6 +5,7 @@ import { FnoNinjaHowItWorksSection } from "@/components/fnoninja/FnoNinjaHowItWo
 import { FnoNinjaSrReplaysSection } from "@/components/fnoninja/FnoNinjaSrReplaysSection";
 import { FnoNinjaDisclaimerSection } from "@/components/fnoninja/FnoNinjaDisclaimerSection";
 import { FnoNinjaPricingSection } from "@/components/fnoninja/FnoNinjaPricingSection";
+import { FnoNinjaReviewsSection } from "@/components/fnoninja/FnoNinjaReviewsSection";
 import { FnoNinjaWhoItsForSection } from "@/components/fnoninja/FnoNinjaWhoItsForSection";
 import { FnoNinjaCommunitySection } from "@/components/fnoninja/FnoNinjaCommunitySection";
 import { FnoNinjaAtlasPromoSection } from "@/components/fnoninja/FnoNinjaAtlasPromoSection";
@@ -26,6 +27,8 @@ function FnoNinjaLandingPageContent() {
       <FnoNinjaAtlasPromoSection />
 
       <FnoNinjaWhoItsForSection />
+
+      <FnoNinjaReviewsSection />
 
       <FnoNinjaPricingSection />
 

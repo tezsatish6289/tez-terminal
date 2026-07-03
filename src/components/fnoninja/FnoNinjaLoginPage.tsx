@@ -18,7 +18,7 @@ import { FB_COMPACT_SHELL } from "@/lib/freedombot/responsive";
 import {
   FNO_CARD_BG,
   FNO_CARD_BORDER,
-  FNO_GRADIENT_TEXT,
+  FNO_GRADIENT_TEXT_STYLE,
   FNO_MUTED,
 } from "@/lib/fnoninja/theme";
 
@@ -60,7 +60,7 @@ function FnoNinjaLoginPageInner() {
 
         <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
           Sign in to{" "}
-          <span className="uppercase" style={FNO_GRADIENT_TEXT}>
+          <span className="uppercase" style={FNO_GRADIENT_TEXT_STYLE}>
             FNONINJA
           </span>
         </h1>

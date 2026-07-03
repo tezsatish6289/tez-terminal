@@ -27,6 +27,13 @@ export const FNO_LOGO_MARK = "#3b82f6";
 export const FNO_ACCENT_SOFT = "rgba(37,99,235,0.08)";
 export const FNO_GRADIENT_TEXT =
   "linear-gradient(135deg, #3b82f6 0%, #60a5fa 60%, #93c5fd 100%)";
+/** Clip gradient onto text — use as `style={FNO_GRADIENT_TEXT_STYLE}`. */
+export const FNO_GRADIENT_TEXT_STYLE = {
+  background: FNO_GRADIENT_TEXT,
+  WebkitBackgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+  backgroundClip: "text",
+} as const;
 export const FNO_CTA_GRADIENT = "linear-gradient(135deg, #1d4ed8, #3b82f6)";
 export const FNO_CTA_SHADOW = "0 6px 20px rgba(59,130,246,0.4)";
 

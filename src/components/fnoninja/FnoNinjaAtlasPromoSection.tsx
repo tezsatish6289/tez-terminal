@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { FnoNinjaWebinarCard } from "@/components/fnoninja/FnoNinjaWebinarSection";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_LANDING_FOLD_CLASS } from "@/lib/fnoninja/responsive";
-import { FNO_GRADIENT_TEXT, FNO_MUTED } from "@/lib/fnoninja/theme";
+import { FNO_GRADIENT_TEXT_STYLE, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const ATLAS_AGENT_SRC = "/fnoninja/atlas-agent.webp";
 
@@ -60,12 +60,7 @@ export function FnoNinjaAtlasPromoSection() {
               Let our{" "}
               <span
                 className="font-bold"
-                style={{
-                  background: FNO_GRADIENT_TEXT,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
+                style={FNO_GRADIENT_TEXT_STYLE}
               >
                 ATLAS AI
               </span>{" "}

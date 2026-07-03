@@ -4,26 +4,25 @@ import {
   FNO_LANDING_BORDER,
   GradientText,
   LANDING_PRIMARY_CTA,
-  LANDING_SHIMMER,
   SectionEyebrow,
 } from "@/lib/fnoninja/landing-ui";
 
 const ATLAS_FEATURES = [
-  "Symbol & zone context",
-  "Plain-English answers",
-  "Built on FNO Ninja data",
-  "Always available",
+  { title: "Ask anything", body: "Symbols, levels, setups" },
+  { title: "Grounded", body: "Live FNO Ninja data" },
+  { title: "Plain English", body: "No jargon walls" },
+  { title: "Always on", body: "24/7 standby" },
 ] as const;
 
 export function FnoNinjaAtlasSection() {
   return (
-    <section className="relative overflow-hidden border-b" style={{ borderColor: FNO_LANDING_BORDER }}>
+    <section id="atlas-ai" className="relative overflow-hidden border-b" style={{ borderColor: FNO_LANDING_BORDER }}>
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(55% 60% at 70% 35%, rgba(59,130,246,0.11), transparent 60%), radial-gradient(55% 45% at 25% 55%, rgba(139,92,246,0.06), transparent 55%)",
+            "radial-gradient(50% 58% at 70% 35%, rgba(99,102,241,0.1), transparent 65%), radial-gradient(48% 42% at 25% 55%, rgba(99,102,241,0.05), transparent 58%)",
         }}
       />
       <div className={`${FNO_LANDING_SHELL} relative py-16 sm:py-20 lg:py-24`}>
@@ -37,29 +36,30 @@ export function FnoNinjaAtlasSection() {
             </div>
 
             <h2 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-[2.8rem] lg:leading-[1.08] text-white">
-              Ask ATLAS <GradientText>AI.</GradientText>{" "}
-              <GradientText>Read the market like an analyst.</GradientText>
+              Ask about any symbol. <GradientText>Get grounded answers.</GradientText>
             </h2>
 
             <p className="mt-6 max-w-lg text-[16px] leading-relaxed text-slate-400">
-              An AI research assistant built on the same FNO Ninja data. Ask about any symbol, level,
-              or setup and get plain-English context grounded in option-chain structure.
+              An F&amp;O research assistant built on the same live option-chain data you see on the
+              market map.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-[13px] text-slate-300">
+            <div className="mt-8 grid max-w-md grid-cols-2 gap-3">
               {ATLAS_FEATURES.map((item) => (
-                <span key={item} className="inline-flex items-center gap-2">
-                  <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-[#3b82f6]/20 text-[10px] text-[#60a5fa]">
-                    ✓
-                  </span>
-                  {item}
-                </span>
+                <div
+                  key={item.title}
+                  className="rounded-xl border border-[rgba(90,140,220,0.16)] bg-[#0d1830]/40 p-4"
+                >
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[#60a5fa]">
+                    {item.title}
+                  </div>
+                  <div className="mt-1.5 text-[13px] leading-snug text-slate-300">{item.body}</div>
+                </div>
               ))}
             </div>
 
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <FnoNinjaLoginLink className={LANDING_PRIMARY_CTA}>
-                <span className={LANDING_SHIMMER} />
                 Chat with ATLAS
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
                   <path d="M5 12h14M13 6l6 6-6 6" />
@@ -79,7 +79,7 @@ export function FnoNinjaAtlasSection() {
                 style={{ borderColor: FNO_LANDING_BORDER, backgroundColor: "rgba(8,15,30,0.45)" }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-[#3b82f6] to-[#6366f1] text-[14px] font-black text-white ring-1 ring-white/15">
+                  <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[#3b82f6]/20 text-[14px] font-black text-[#93c5fd] ring-1 ring-[#3b82f6]/30">
                     AI
                   </div>
                   <div>
@@ -98,7 +98,7 @@ export function FnoNinjaAtlasSection() {
                 </div>
 
                 <div className="ml-auto max-w-[92%]">
-                  <div className="rounded-2xl rounded-tr-sm border border-[#3b82f6]/20 bg-gradient-to-br from-[#3b82f6]/12 to-[#3b82f6]/5 px-3.5 py-2.5 text-white">
+                  <div className="rounded-2xl rounded-tr-sm border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-3.5 py-2.5 text-white">
                     Put Cluster at <span className="font-semibold text-[#60a5fa]">24,000</span> and Call
                     Cluster at <span className="font-semibold text-[#60a5fa]">24,400</span>. Heavy OI
                     means price often reacts around these zones.

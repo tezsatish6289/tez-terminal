@@ -57,7 +57,7 @@ export function FnoNinjaHero() {
         <div className="relative flex flex-col justify-center">
           <h1 className="text-[42px] font-black leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-[58px]">
             Visualize{" "}
-            <span className="bg-gradient-to-r from-[#60a5fa] via-[#818cf8] to-[#a78bfa] bg-clip-text text-transparent">
+            <span className="text-[#60a5fa]">
               the price pressure
             </span>
             <br />

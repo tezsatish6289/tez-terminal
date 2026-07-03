@@ -26,7 +26,7 @@ import {
 import { FNO_NAV_SPACER_CLASS } from "@/lib/fnoninja/responsive";
 import { FB_CONTENT_SHELL, FB_LEVELS_SHELL, FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_LOGIN_NAV_HINT } from "@/lib/fnoninja/login-copy";
-import { FNO_BG, FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
+import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 /** Reserve space below the fixed header in page layout. */
 export const FNO_NAV_HEIGHT_CLASS = "h-14 sm:h-16";
@@ -73,10 +73,9 @@ function FnoNinjaLandingNavCta({
       <Link
         href={bubblesHref}
         onClick={onAction}
-        className={`inline-flex items-center justify-center font-bold transition-all hover:scale-105 gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${className}`}
+        className={`inline-flex items-center justify-center font-bold transition-all hover:scale-105 hover:bg-[#2563eb] gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${className}`}
         style={{
-          background: FNO_CTA_GRADIENT,
-          boxShadow: FNO_CTA_SHADOW,
+          backgroundColor: "#3b82f6",
         }}
       >
         Explore live market map
@@ -88,10 +87,9 @@ function FnoNinjaLandingNavCta({
     <Link
       href={loginHref}
       onClick={onAction}
-      className={`inline-flex items-center justify-center font-bold transition-all hover:scale-105 gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${className}`}
+      className={`inline-flex items-center justify-center font-bold transition-all hover:scale-105 hover:bg-[#2563eb] gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${className}`}
       style={{
-        background: FNO_CTA_GRADIENT,
-        boxShadow: FNO_CTA_SHADOW,
+        backgroundColor: "#3b82f6",
       }}
     >
       Log in

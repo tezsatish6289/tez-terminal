@@ -11,7 +11,6 @@ import {
   FNO_LANDING_BORDER,
   GradientText,
   LANDING_PRIMARY_CTA,
-  LANDING_SHIMMER,
   SectionEyebrow,
 } from "@/lib/fnoninja/landing-ui";
 
@@ -33,9 +32,9 @@ function ChatPreview() {
   const toneClass = useMemo(
     () => ({
       slate: "from-slate-500/40 to-slate-700/40 text-slate-100 ring-slate-400/30",
-      rose: "from-rose-500/40 to-rose-700/40 text-rose-100 ring-rose-400/30",
-      sky: "from-sky-500/40 to-sky-700/40 text-sky-100 ring-sky-400/30",
-      violet: "from-violet-500/40 to-violet-700/40 text-violet-100 ring-violet-400/30",
+      rose: "from-slate-500/40 to-slate-700/40 text-slate-100 ring-slate-400/30",
+      sky: "from-slate-500/40 to-slate-700/40 text-slate-100 ring-slate-400/30",
+      violet: "from-slate-500/40 to-slate-700/40 text-slate-100 ring-slate-400/30",
     }),
     [],
   );
@@ -105,7 +104,6 @@ function CommunityCta() {
         href={fnoLoginHref(pathname, href)}
         className={LANDING_PRIMARY_CTA}
       >
-        <span className={LANDING_SHIMMER} />
         Join the community
         <ArrowRight className="h-4 w-4" />
       </Link>
@@ -118,7 +116,6 @@ function CommunityCta() {
       onClick={() => router.push(href)}
       className={LANDING_PRIMARY_CTA}
     >
-      <span className={LANDING_SHIMMER} />
       Join the community
       <ArrowRight className="h-4 w-4" />
     </button>
@@ -135,8 +132,7 @@ export function FnoNinjaCommunitySection() {
             Discuss structure <GradientText>with serious traders.</GradientText>
           </h2>
           <p className="mt-4 text-sm leading-relaxed sm:text-base text-slate-400">
-            A private room for subscribers to talk market structure, option clusters, and setups —
-            using the same FNO Ninja data you see.
+            A private room for subscribers. Same data, real conversations.
           </p>
 
           <ul className="mt-7 grid grid-cols-2 gap-3 text-sm">

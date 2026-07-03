@@ -14,14 +14,17 @@ export function SectionEyebrow({ children }: { children: React.ReactNode }) {
 
 export function GradientText({ children }: { children: React.ReactNode }) {
   return (
-    <span className="bg-gradient-to-r from-[#60a5fa] via-[#818cf8] to-[#a78bfa] bg-clip-text text-transparent">
+    <span className="text-[#60a5fa]">
       {children}
     </span>
   );
 }
 
 export const LANDING_PRIMARY_CTA =
-  "group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-[#3b82f6] via-[#4f74f8] to-[#6366f1] px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-white shadow-[0_10px_40px_-10px_rgba(59,130,246,0.6)] ring-1 ring-white/10 transition-all hover:shadow-[0_15px_50px_-10px_rgba(99,102,241,0.7)] hover:brightness-110";
+  "inline-flex items-center gap-2 rounded-xl bg-[#3b82f6] px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-white transition-colors hover:bg-[#2563eb]";
+
+export const LANDING_PRIMARY_CTA_SM =
+  "inline-flex items-center gap-2 rounded-lg bg-[#3b82f6] px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-white transition-colors hover:bg-[#2563eb]";
 
 export const LANDING_SHIMMER =
   "pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full";

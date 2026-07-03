@@ -36,7 +36,7 @@ export function FnoNinjaReviewsSection() {
           Trusted by traders who <GradientText>read the data.</GradientText>
         </h2>
         <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-2xl text-slate-400">
-          Independent experiences from traders using FNO Ninja for market structure analysis.
+          Real users. Real routines.
         </p>
       </div>
 

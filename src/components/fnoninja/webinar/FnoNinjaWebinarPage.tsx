@@ -18,7 +18,6 @@ import {
   FNO_LANDING_BORDER,
   GradientText,
   LANDING_PRIMARY_CTA,
-  LANDING_SHIMMER,
   useWebinarStats,
 } from "@/lib/fnoninja/landing-ui";
 import {
@@ -159,13 +158,12 @@ function WebinarHero({
             Read the option chain like an <GradientText>analyst — not a rumour.</GradientText>
           </h1>
           <p className="mt-6 max-w-xl text-[16px] leading-relaxed text-slate-400">
-            A no-fluff, 60-minute live workshop on how professionals interpret support, resistance,
-            max-pain, and open-interest walls — then turn that read into a rule-based trading plan.
+            60 minutes. Real chart examples. Learn how pros read support, resistance, and max-pain,
+            then turn that read into a plan.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <button type="button" onClick={onReserve} className={LANDING_PRIMARY_CTA}>
-              <span className={LANDING_SHIMMER} />
               Reserve your free seat
               <ArrowRight className="h-4 w-4" />
             </button>
@@ -190,7 +188,7 @@ function WebinarHero({
               <span className="text-white/70">
                 {count === null
                   ? "Loading registrations…"
-                  : `${count.toLocaleString("en-IN")} traders registered`}
+                  : `${count.toLocaleString("en-IN")}+ registered`}
               </span>
             </div>
             <div className="inline-flex items-center gap-1.5">
@@ -201,7 +199,7 @@ function WebinarHero({
         </div>
 
         <div className="relative">
-          <div className="absolute inset-0 -z-10 rounded-3xl bg-gradient-to-br from-[#3b82f6]/30 via-transparent to-[#6366f1]/25 blur-2xl" />
+          <div className="absolute inset-0 -z-10 rounded-3xl bg-[radial-gradient(ellipse_at_center,rgba(251,191,36,0.18),transparent_65%)] blur-2xl" />
           <div
             className="overflow-hidden rounded-2xl border bg-gradient-to-br from-[#131a28] via-[#0d1830] to-[#0a1220] p-1 shadow-2xl"
             style={{ borderColor: FNO_LANDING_BORDER }}
@@ -220,11 +218,11 @@ function WebinarHero({
                 className="mt-5 aspect-video overflow-hidden rounded-xl border bg-[#0a1220]/50"
                 style={{ borderColor: FNO_LANDING_BORDER }}
               >
-                <div className="relative h-full w-full bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.25),transparent_60%)]">
+                <div className="relative h-full w-full bg-[radial-gradient(ellipse_at_top,rgba(251,191,36,0.22),transparent_60%)]">
                   <div className="absolute inset-0 grid place-items-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="grid h-14 w-14 place-items-center rounded-full bg-white/10 backdrop-blur">
-                        <PlayCircle className="h-8 w-8 text-white" />
+                        <PlayCircle className="h-8 w-8 text-[#93c5fd]" />
                       </div>
                       <span className="text-[11px] uppercase tracking-widest text-slate-400">
                         Live workshop preview
@@ -238,13 +236,13 @@ function WebinarHero({
                   >
                     <path
                       d="M0,150 C60,120 100,160 160,110 S260,60 320,90 400,50 400,50"
-                      stroke="#60a5fa"
+                      stroke="#fbbf24"
                       strokeWidth="2"
                       fill="none"
                     />
                     <path
                       d="M0,170 C50,150 120,140 180,150 S280,120 400,100"
-                      stroke="#818cf8"
+                      stroke="#fb923c"
                       strokeWidth="1.5"
                       fill="none"
                       strokeDasharray="3 3"
@@ -568,19 +566,18 @@ function WebinarFinalCTA({
           <GradientText>Read markets differently forever.</GradientText>
         </h2>
         <p className="mx-auto mt-5 max-w-xl text-[15px] text-slate-400">
-          Free · Live · Cameras optional. Come with a question, leave with a framework.
+          Free · Live · Cameras optional.
           {count !== null && (
             <>
               {" "}
               <span className="text-white/80">
-                Join {count.toLocaleString("en-IN")} traders already registered.
+                Join {count.toLocaleString("en-IN")}+ traders already registered.
               </span>
             </>
           )}
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
           <button type="button" onClick={onReserve} className={LANDING_PRIMARY_CTA}>
-            <span className={LANDING_SHIMMER} />
             Reserve your free seat
             <ArrowRight className="h-4 w-4" />
           </button>

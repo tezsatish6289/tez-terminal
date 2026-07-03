@@ -235,7 +235,7 @@ export function FnoNinjaWebinarRegisterModal({
                 href={state.youtubeWatchUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#3b82f6] to-[#6366f1] px-4 py-2.5 text-[13px] font-semibold text-white ring-1 ring-white/10 transition hover:brightness-110"
+                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#3b82f6] px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#2563eb]"
               >
                 <PlayCircle className="h-4 w-4" /> Open YouTube livestream
               </a>
@@ -335,7 +335,7 @@ export function FnoNinjaWebinarRegisterModal({
             <button
               type="submit"
               disabled={state.kind === "submitting"}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#3b82f6] via-[#4f74f8] to-[#6366f1] px-4 py-3 text-sm font-semibold uppercase tracking-wider text-white ring-1 ring-white/10 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#3b82f6] px-4 py-3 text-sm font-semibold uppercase tracking-wider text-white transition-colors hover:bg-[#2563eb] disabled:cursor-not-allowed disabled:opacity-70"
             >
               {state.kind === "submitting" ? (
                 <>

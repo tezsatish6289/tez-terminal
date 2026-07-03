@@ -57,7 +57,7 @@ export function FnoNinjaPricingSection() {
                 <span
                   className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${
                     tier.highlight
-                      ? "bg-gradient-to-r from-[#3b82f6] to-violet-500 text-white shadow-lg shadow-[#3b82f6]/30"
+                      ? "bg-[#3b82f6] text-white"
                       : "border bg-[#0d1830] text-slate-400"
                   }`}
                   style={{

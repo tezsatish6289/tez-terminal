@@ -73,7 +73,7 @@ export function FnoNinjaComboSection() {
             </p>
             <h2 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
               FNO Ninja —{" "}
-              <span className="bg-gradient-to-r from-[#60a5fa] via-[#818cf8] to-[#a78bfa] bg-clip-text text-transparent">
+              <span className="text-[#60a5fa]">
                 Screener + Indicator
               </span>
             </h2>
@@ -87,17 +87,26 @@ export function FnoNinjaComboSection() {
                 and resistance zones.
               </p>
               <ul className="space-y-2">
-                <li>
+                <li className="flex items-start gap-2.5">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#60a5fa]" />
+                  <span>
                   <strong className="font-semibold text-white">Call clusters act as resistance.</strong>{" "}
                   Heavy Call OI at a strike means the market is positioning for a ceiling.
+                  </span>
                 </li>
-                <li>
+                <li className="flex items-start gap-2.5">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#60a5fa]" />
+                  <span>
                   <strong className="font-semibold text-white">Put clusters act as support.</strong> Heavy
                   Put OI means traders are defending a floor.
+                  </span>
                 </li>
-                <li>
+                <li className="flex items-start gap-2.5">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#60a5fa]" />
+                  <span>
                   <strong className="font-semibold text-white">Strike mapping.</strong> Symbols at or near
                   OI clusters show up in the screener so you act on context, not just a chart.
+                  </span>
                 </li>
               </ul>
 

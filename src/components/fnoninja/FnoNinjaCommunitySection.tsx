@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { ArrowRight, MessageCircle } from "lucide-react";
 import { useUser } from "@/firebase";
-import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
-import { fnoCommunityChatHref } from "@/lib/fnoninja/paths";
+import { fnoCommunityChatHref, fnoLoginHref } from "@/lib/fnoninja/paths";
 import { FNO_LANDING_FOLD_CLASS } from "@/lib/fnoninja/responsive";
 import {
   FNO_ACCENT,
@@ -191,12 +190,14 @@ function CommunityCta() {
 
   if (!user) {
     return (
-      <FnoNinjaGoogleSignInButton
-        size="hero"
-        label="Join the community"
-        showGoogleIcon={false}
-        postSignInHref={href}
-      />
+      <Link
+        href={fnoLoginHref(pathname, href)}
+        className="inline-flex items-center justify-center gap-2.5 rounded-xl px-8 py-3.5 text-sm font-bold text-white transition-all hover:scale-[1.02]"
+        style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
+      >
+        Join the community
+        <ArrowRight className="h-4 w-4" />
+      </Link>
     );
   }
 

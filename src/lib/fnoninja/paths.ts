@@ -1,5 +1,36 @@
 import type { LearnArticleSlug } from "@/lib/fnoninja/learn-content";
 
+/** Dedicated sign-in page. */
+export function isFnoNinjaLoginPath(pathname: string): boolean {
+  return pathname === "/login" || pathname === "/fnoninja/login";
+}
+
+function fnoLoginBase(pathname: string): string {
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/login";
+  }
+  if (pathname.startsWith("/fnoninja")) return "/fnoninja/login";
+  return "/login";
+}
+
+/** Sign-in page — optional ?next= same-origin path after OAuth. */
+export function fnoLoginHref(pathname: string, returnTo?: string): string {
+  const base = fnoLoginBase(pathname);
+  if (!returnTo) return base;
+  return `${base}?next=${encodeURIComponent(returnTo)}`;
+}
+
+/** Safe post-login destination from ?next= or default app home. */
+export function resolveFnoLoginNext(
+  searchParams: Pick<URLSearchParams, "get">,
+  pathname: string,
+): string {
+  const raw = searchParams.get("next")?.trim();
+  if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  return fnoAnalyticsHref(pathname);
+}
+
 /** Marketing home — no global symbol search in nav. Signed-in users are redirected to the app. */
 export function isFnoNinjaLandingPath(pathname: string): boolean {
   return pathname === "/" || pathname === "/fnoninja";

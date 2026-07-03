@@ -1,5 +1,5 @@
 import { CheckCircle2 } from "lucide-react";
-import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
+import { FnoNinjaPricingTrialCta } from "@/components/fnoninja/FnoNinjaPricingTrialCta";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import {
   FNONINJA_PRICING_TIERS,
@@ -108,7 +108,7 @@ export function FnoNinjaPricingSection() {
             </ul>
 
             {tier.id === "trial" ? (
-              <FnoNinjaGoogleSignInButton className="w-full" size="hero" />
+              <FnoNinjaPricingTrialCta className="w-full" />
             ) : (
               <button
                 type="button"

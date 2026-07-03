@@ -12,6 +12,7 @@ Designers polish UI in **`fnoninja-frontend`** (Lovable-friendly). Production sh
 ## Pages in scope
 
 - `/` landing
+- `/login` (dedicated sign-in)
 - `/levels`, `/levels/chart`, chat panel (`/levels?chat=1`)
 - `/learn/*`
 - `/webinar`, `/contact`, `/privacy`, `/terms`

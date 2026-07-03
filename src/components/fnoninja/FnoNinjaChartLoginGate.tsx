@@ -1,14 +1,44 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
-import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
+import { fnoLoginHref } from "@/lib/fnoninja/paths";
 import { FNO_MOBILE_SLIDE_BODY_MIN_CLASS } from "@/lib/fnoninja/responsive";
-import { FNO_ACCENT, FNO_APP_SURFACE_STYLE, FNO_MUTED } from "@/lib/fnoninja/theme";
+import {
+  FNO_ACCENT,
+  FNO_APP_SURFACE_STYLE,
+  FNO_CTA_GRADIENT,
+  FNO_CTA_SHADOW,
+  FNO_MUTED,
+} from "@/lib/fnoninja/theme";
 
 const DEFAULT_DESCRIPTION =
   "Sign in with Google to get 1 month free access to option-chain zones, charts & symbol analytics. Market Map is open to all.";
+
+const LOGIN_BTN_CLASS =
+  "inline-flex items-center justify-center font-bold text-white transition-all hover:scale-[1.02] gap-2.5 rounded-xl px-8 py-3.5 text-sm";
+
+function FnoNinjaLoginCta({ className = "" }: { className?: string }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const returnTo =
+    searchParams.size > 0 ? `${pathname}?${searchParams.toString()}` : pathname;
+  const loginHref = fnoLoginHref(pathname, returnTo);
+
+  return (
+    <Link
+      href={loginHref}
+      className={`${LOGIN_BTN_CLASS} ${className}`}
+      style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
+    >
+      Sign in with Google
+    </Link>
+  );
+}
 
 function FnoNinjaLoginShimmerOverlay({
   backAction,
@@ -42,7 +72,9 @@ function FnoNinjaLoginShimmerOverlay({
       </div>
 
       <div className="relative z-10 flex flex-col items-center gap-4 px-6 pointer-events-auto">
-        <FnoNinjaGoogleSignInButton size="hero" />
+        <Suspense fallback={<Loader2 className="h-6 w-6 animate-spin" style={{ color: FNO_MUTED }} />}>
+          <FnoNinjaLoginCta />
+        </Suspense>
         {backAction ? (
           <button
             type="button"
@@ -133,7 +165,9 @@ export function FnoNinjaChartLoginGate({
           {description}
         </p>
       </div>
-      <FnoNinjaGoogleSignInButton size="hero" />
+      <Suspense fallback={<Loader2 className="h-6 w-6 animate-spin" style={{ color: FNO_MUTED }} />}>
+        <FnoNinjaLoginCta />
+      </Suspense>
       {backAction ? (
         <button
           type="button"

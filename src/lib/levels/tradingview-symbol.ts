@@ -4,6 +4,7 @@
  */
 
 import type { IndexKey } from "@/lib/index-specs";
+import { buildTradingViewWebChartUrl } from "@/lib/tradingview-symbol";
 
 export type LevelsTvScope = "index" | "stock";
 
@@ -54,13 +55,6 @@ function fullSymbol(exchange: string, symbol: string): string {
   return `${exchange.toUpperCase()}:${symbol.toUpperCase()}`;
 }
 
-function webChartUrl(full: string, interval: string): string {
-  const u = new URL("https://www.tradingview.com/chart/");
-  u.searchParams.set("symbol", full);
-  u.searchParams.set("interval", interval);
-  return u.toString();
-}
-
 export function levelsTradingViewParams(
   scope: LevelsTvScope,
   symbol: string,
@@ -78,7 +72,7 @@ export function levelsTradingViewParams(
       symbol: upper,
       interval: LEVELS_TV_INTERVAL,
       fullSymbol: full,
-      webChartUrl: webChartUrl(full, LEVELS_TV_INTERVAL),
+      webChartUrl: buildTradingViewWebChartUrl(full, LEVELS_TV_INTERVAL),
       indianMarket: true,
       nativeCandles: true,
       candlesScope: "index",
@@ -94,7 +88,7 @@ export function levelsTradingViewParams(
       symbol: sym,
       interval: LEVELS_TV_INTERVAL,
       fullSymbol: full,
-      webChartUrl: webChartUrl(fullSymbol("NSE", sym), LEVELS_TV_INTERVAL),
+      webChartUrl: buildTradingViewWebChartUrl(fullSymbol("NSE", sym), LEVELS_TV_INTERVAL),
       indianMarket: true,
       nativeCandles: true,
       candlesScope: "stock",

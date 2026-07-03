@@ -34,6 +34,18 @@ export const TEZ_TERMINAL_CHART_ORIGIN = "https://tezterminal.com";
 export type TradingViewChartVariant = "signal" | "embed";
 
 /**
+ * Link to tradingview.com/chart (levels "Press T" / open full chart).
+ * The colon in EXCHANGE:SYMBOL must stay literal — URLSearchParams encodes it
+ * to %3A and TradingView's chart router mis-reads that as part of the ticker
+ * (e.g. NSE%3AMPHASIS → invalid "3AMPHASIS").
+ */
+export function buildTradingViewWebChartUrl(tvSymbol: string, interval: string): string {
+  const sym = tvSymbol.trim().toUpperCase();
+  const tf = interval.trim() || "15";
+  return `https://www.tradingview.com/chart/?symbol=${sym}&interval=${encodeURIComponent(tf)}`;
+}
+
+/**
  * signal → advanced-chart (same as /chart/[id]).
  * embed → widgetembed for India (better in cross-origin iframe on /embed/chart).
  */

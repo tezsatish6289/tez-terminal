@@ -23,6 +23,7 @@ import {
   syncSimZoneBands,
 } from "@/components/simulator/sim-native-chart-overlays";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
+import { buildTradingViewWebChartUrl } from "@/lib/tradingview-symbol";
 import { epochUtcToChartIstSeconds } from "@/lib/market-hours";
 import { noClusterLine } from "@/components/simulator/heatmap-types";
 
@@ -444,12 +445,7 @@ export function SimZoneCandlesChart({
   }, [suggested, spot, symbol, fitPriceScale]);
 
   useEffect(() => {
-    const tvUrl = (() => {
-      const u = new URL("https://www.tradingview.com/chart/");
-      u.searchParams.set("symbol", `BYBIT:${symbol}.P`);
-      u.searchParams.set("interval", INTERVAL);
-      return u.toString();
-    })();
+    const tvUrl = buildTradingViewWebChartUrl(`BYBIT:${symbol}.P`, INTERVAL);
 
     function isTypingTarget(target: EventTarget | null): boolean {
       const el = target as HTMLElement | null;

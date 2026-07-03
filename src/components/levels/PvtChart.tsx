@@ -48,6 +48,8 @@ const COMPACT_SHELL_STYLE = {
 const GUIDE_FOOTER_CLASS =
   "shrink-0 min-h-[5rem] border-t border-white/10 bg-[#070d1a] px-3 py-2.5 relative z-10";
 
+const PVT_PANE_HEIGHT = 140;
+
 function filterCandlesByRange(candles: DailyCandle[], range: PvtHistoryRange): DailyCandle[] {
   if (!candles.length) return candles;
   const last = candles[candles.length - 1]!.time;
@@ -60,6 +62,10 @@ function fmtPvt(v: number): string {
   if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
   if (abs >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
   return v.toFixed(0);
+}
+
+function toChartTime(epochSec: number): UTCTimestamp {
+  return epochUtcToChartIstSeconds(epochSec) as UTCTimestamp;
 }
 
 export function PvtChart({
@@ -80,6 +86,7 @@ export function PvtChart({
   const [candles, setCandles] = useState<DailyCandle[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chartReady, setChartReady] = useState(false);
   const [range, setRange] = useState<PvtHistoryRange>("6M");
 
   useEffect(() => {
@@ -90,6 +97,7 @@ export function PvtChart({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setCandles(null);
     (async () => {
       try {
         const res = await fetch(
@@ -121,10 +129,12 @@ export function PvtChart({
 
   const pvtSeries = useMemo(() => computePvt(displayCandles), [displayCandles]);
 
+  // Chart shell must stay mounted while loading — otherwise the ref is null and init never runs.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
+    setChartReady(false);
     const chart = createChart(el, {
       autoSize: true,
       layout: {
@@ -146,42 +156,48 @@ export function PvtChart({
       },
     });
 
-    const candlesSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#16a34a",
-      downColor: "#dc2626",
-      borderUpColor: "#16a34a",
-      borderDownColor: "#dc2626",
-      wickUpColor: "#16a34a",
-      wickDownColor: "#dc2626",
-      priceScaleId: "right",
-    });
-    candlesSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.05, bottom: 0.38 },
-    });
-
-    const pvtLine = chart.addSeries(LineSeries, {
-      color: "#60a5fa",
-      lineWidth: 2,
-      priceScaleId: "pvt",
-      priceFormat: {
-        type: "custom",
-        formatter: fmtPvt,
+    const candlesSeries = chart.addSeries(
+      CandlestickSeries,
+      {
+        upColor: "#16a34a",
+        downColor: "#dc2626",
+        borderUpColor: "#16a34a",
+        borderDownColor: "#dc2626",
+        wickUpColor: "#16a34a",
+        wickDownColor: "#dc2626",
       },
-    });
-    chart.priceScale("pvt").applyOptions({
-      scaleMargins: { top: 0.62, bottom: 0.05 },
-      borderColor: "rgba(255,255,255,0.08)",
-    });
+      0,
+    );
+
+    const pvtLine = chart.addSeries(
+      LineSeries,
+      {
+        color: "#60a5fa",
+        lineWidth: 2,
+        priceFormat: {
+          type: "custom",
+          formatter: fmtPvt,
+        },
+      },
+      1,
+    );
+
+    const pvtPane = chart.panes()[1];
+    if (pvtPane) {
+      pvtPane.setHeight(PVT_PANE_HEIGHT);
+    }
 
     chartRef.current = chart;
     candleRef.current = candlesSeries;
     pvtRef.current = pvtLine;
+    setChartReady(true);
 
     return () => {
       chart.remove();
       chartRef.current = null;
       candleRef.current = null;
       pvtRef.current = null;
+      setChartReady(false);
     };
   }, []);
 
@@ -189,11 +205,11 @@ export function PvtChart({
     const candleSeries = candleRef.current;
     const pvtLine = pvtRef.current;
     const chart = chartRef.current;
-    if (!candleSeries || !pvtLine || !chart || displayCandles.length === 0) return;
+    if (!chartReady || !candleSeries || !pvtLine || !chart || displayCandles.length === 0) return;
 
     candleSeries.setData(
       displayCandles.map((c) => ({
-        time: epochUtcToChartIstSeconds(c.time) as UTCTimestamp,
+        time: toChartTime(c.time),
         open: c.open,
         high: c.high,
         low: c.low,
@@ -202,12 +218,12 @@ export function PvtChart({
     );
     pvtLine.setData(
       pvtSeries.map((p) => ({
-        time: epochUtcToChartIstSeconds(p.time) as UTCTimestamp,
+        time: toChartTime(p.time),
         value: p.value,
       })),
     );
     chart.timeScale().fitContent();
-  }, [displayCandles, pvtSeries]);
+  }, [chartReady, displayCandles, pvtSeries]);
 
   const shellStyle = hideGuide ? COMPACT_SHELL_STYLE : CHART_SHELL_STYLE;
   const guideFooter = hideGuide ? null : (
@@ -222,43 +238,30 @@ export function PvtChart({
     </div>
   );
 
-  if (loading) {
-    return (
-      <div className={className} style={shellStyle}>
-        <PvtRangeToggle value={range} onChange={setRange} />
-        <div className="min-h-0 overflow-hidden relative flex flex-col items-center justify-center gap-2.5">
-          <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
-          <p className="text-sm" style={{ color: "#94a3b8" }}>
-            Loading PVT…
-          </p>
-        </div>
-        {guideFooter}
-      </div>
-    );
-  }
-
-  if (error || displayCandles.length === 0) {
-    return (
-      <div className={className} style={shellStyle}>
-        {(candles?.length ?? 0) > 0 ? (
-          <PvtRangeToggle value={range} onChange={setRange} />
-        ) : (
-          <div />
-        )}
-        <div className="min-h-0 overflow-hidden relative flex items-center justify-center">
-          <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
-            {error ?? "Not enough daily data for PVT."}
-          </p>
-        </div>
-        {guideFooter}
-      </div>
-    );
-  }
+  const showOverlay = loading || Boolean(error) || displayCandles.length === 0;
 
   return (
     <div className={className} style={shellStyle}>
       <PvtRangeToggle value={range} onChange={setRange} />
-      <div ref={containerRef} className="min-h-0 overflow-hidden relative" />
+      <div className="relative min-h-0 overflow-hidden">
+        <div ref={containerRef} className="absolute inset-0" />
+        {showOverlay ? (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.45)]">
+            {loading ? (
+              <>
+                <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+                <p className="text-sm" style={{ color: "#94a3b8" }}>
+                  Loading PVT…
+                </p>
+              </>
+            ) : (
+              <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
+                {error ?? "Not enough daily data for PVT."}
+              </p>
+            )}
+          </div>
+        ) : null}
+      </div>
       {guideFooter}
     </div>
   );

@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
+import { PvtChart } from "@/components/levels/PvtChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import type { LevelsViewMode } from "@/components/levels/LevelsOutlookViewToggle";
 import type { ShowcaseSymbol } from "@/lib/levels/pick-widest-cluster-symbol";
@@ -13,12 +14,13 @@ import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { FNO_ACCENT, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
 
 const ROTATE_MS = 8_000;
-const VIEW_ORDER: LevelsViewMode[] = ["chart", "outlook", "history"];
+const VIEW_ORDER: LevelsViewMode[] = ["chart", "outlook", "history", "pvt"];
 
 const VIEW_LABELS: Record<LevelsViewMode, string> = {
   chart: "Chart",
   outlook: "Outlook",
   history: "History",
+  pvt: "PVT",
 };
 
 const DEFAULT_ROOT_CLASS =
@@ -169,6 +171,13 @@ export function FnoNinjaLevelsPreviewCard({
           >
             {viewMode === "history" ? (
               <OiHistoryChart
+                className="h-full w-full"
+                scope={target.scope}
+                symbol={target.symbol}
+                hideGuide
+              />
+            ) : viewMode === "pvt" ? (
+              <PvtChart
                 className="h-full w-full"
                 scope={target.scope}
                 symbol={target.symbol}

@@ -1,7 +1,7 @@
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
 
-export type LevelsChartView = "chart" | "outlook" | "history";
+export type LevelsChartView = "chart" | "outlook" | "history" | "pvt";
 
 function levelsChartQuery(
   scope: LevelsTvScope,

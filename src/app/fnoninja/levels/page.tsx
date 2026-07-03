@@ -24,6 +24,7 @@ import {
 } from "@/components/levels/LevelsOutlookViewToggle";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
+import { PvtChart } from "@/components/levels/PvtChart";
 import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
 import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook-keyboard";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
@@ -510,13 +511,17 @@ export default function LevelsPage() {
     isSlideView &&
     slideshowChartViewMode === "history" &&
     (inZoneActive?.scope === "index" || inZoneActive?.scope === "stock");
+  const showSlideshowPvt =
+    isSlideView &&
+    slideshowChartViewMode === "pvt" &&
+    (inZoneActive?.scope === "index" || inZoneActive?.scope === "stock");
 
   useChartOutlookKeyboardShortcuts(
     true,
     () => setSlideshowChartViewMode("chart"),
     () => setSlideshowChartViewMode("outlook"),
     isSlideView && !fynnDrawerOpen,
-    { historyAvailable: true, onHistory: () => setSlideshowChartViewMode("history") },
+    { historyAvailable: true, onHistory: () => setSlideshowChartViewMode("history"), pvtAvailable: true, onPvt: () => setSlideshowChartViewMode("pvt") },
   );
 
   /** Chart + news rail — stable for all native-candle slideshow symbols (not gated on levels load). */
@@ -754,6 +759,12 @@ export default function LevelsPage() {
         ) : null}
         {showSlideshowHistory && inZoneActive ? (
           <OiHistoryChart
+            className="flex-1 min-h-0 h-full w-full"
+            scope={inZoneActive.scope}
+            symbol={inZoneActive.symbol}
+          />
+        ) : showSlideshowPvt && inZoneActive ? (
+          <PvtChart
             className="flex-1 min-h-0 h-full w-full"
             scope={inZoneActive.scope}
             symbol={inZoneActive.symbol}

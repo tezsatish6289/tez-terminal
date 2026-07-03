@@ -26,6 +26,7 @@ import {
   type LevelsViewMode,
 } from "@/components/levels/LevelsOutlookViewToggle";
 import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
+import { PvtChart } from "@/components/levels/PvtChart";
 import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook-keyboard";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { FNO_LEVELS_MAIN, FNO_LEVELS_SHELL } from "@/lib/fnoninja/responsive";
@@ -131,11 +132,14 @@ function ChartContent() {
     setChartFullHistory(true);
     const wantsHistory =
       urlView === "history" && (scope === "index" || scope === "stock");
-    setViewMode(wantsHistory ? "history" : "chart");
+    const wantsPvt =
+      urlView === "pvt" && (scope === "index" || scope === "stock");
+    setViewMode(wantsHistory ? "history" : wantsPvt ? "pvt" : "chart");
   }, [config?.symbol, config?.exchange, config?.candlesScope, urlView, scope]);
 
   const showOutlook = viewMode === "outlook";
   const showHistory = viewMode === "history";
+  const showPvt = viewMode === "pvt";
   const expiryPickerEnabled = expiryOptions && expiryOptions.length > 1;
 
   useChartOutlookKeyboardShortcuts(
@@ -143,7 +147,7 @@ function ChartContent() {
     () => setViewMode("chart"),
     () => setViewMode("outlook"),
     Boolean(scope && symbol),
-    { historyAvailable: true, onHistory: () => setViewMode("history") },
+    { historyAvailable: true, onHistory: () => setViewMode("history"), pvtAvailable: true, onPvt: () => setViewMode("pvt") },
   );
 
   const companyName = useMemo(() => {
@@ -249,6 +253,12 @@ function ChartContent() {
               <LevelsOutlookViewToggle value={viewMode} onChange={setViewMode} />
               {showHistory && scope ? (
                 <OiHistoryChart
+                  className="flex-1 min-h-0 h-full w-full"
+                  scope={scope}
+                  symbol={symbol}
+                />
+              ) : showPvt && scope ? (
+                <PvtChart
                   className="flex-1 min-h-0 h-full w-full"
                   scope={scope}
                   symbol={symbol}

@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import {
+  DAILY_LOOKBACK_DAYS,
   getIndexCandles,
   getIndexDailyCandles,
   getStockCandles,
@@ -40,11 +41,18 @@ function candleErrorResponse(symbol: string, result: Pick<CandleResult, "error" 
   );
 }
 
+function parseDailyLookbackDays(raw: string | null): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return DAILY_LOOKBACK_DAYS;
+  return Math.min(365, Math.max(30, Math.round(n)));
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const rawSymbol = searchParams.get("symbol") ?? "";
   const interval = searchParams.get("interval") ?? "5";
   const scope = (searchParams.get("scope") ?? "stock").toLowerCase();
+  const dailyLookbackDays = parseDailyLookbackDays(searchParams.get("days"));
 
   if (scope === "index") {
     const indexKey = normalizeIndexKey(rawSymbol);
@@ -57,7 +65,7 @@ export async function GET(req: NextRequest) {
     try {
       const daily = interval.toUpperCase() === "D";
       const result = daily
-        ? await getIndexDailyCandles(indexKey)
+        ? await getIndexDailyCandles(indexKey, dailyLookbackDays)
         : await getIndexCandles(indexKey, interval);
       if (!result.ok) return candleErrorResponse(indexKey, result);
       return NextResponse.json(
@@ -93,7 +101,7 @@ export async function GET(req: NextRequest) {
   try {
     const daily = interval.toUpperCase() === "D";
     const result = daily
-      ? await getStockDailyCandles(symbol)
+      ? await getStockDailyCandles(symbol, dailyLookbackDays)
       : await getStockCandles(symbol, interval);
     if (!result.ok) return candleErrorResponse(symbol, result);
     return NextResponse.json(

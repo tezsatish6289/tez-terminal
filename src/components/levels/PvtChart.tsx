@@ -302,7 +302,7 @@ export function PvtChart({
   const guideFooter = hideGuide ? null : (
     <div className={GUIDE_FOOTER_CLASS}>
       <p className="text-[11px] font-semibold" style={{ color: "#cbd5e1" }}>
-        Price Volume Trend (PVT)
+        Trend Chart — Price Volume Trend (PVT)
       </p>
       <p className="mt-1 text-[10px] leading-relaxed" style={{ color: "#64748b" }}>
         Daily candles with put/call cluster + max pain lines; PVT below resets to zero at the

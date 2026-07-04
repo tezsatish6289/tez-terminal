@@ -10,10 +10,10 @@ export function LevelsOutlookViewToggle({
   onChange: (v: LevelsViewMode) => void;
 }) {
   const options: { id: LevelsViewMode; label: string; kbd?: string }[] = [
-    { id: "chart", label: "Chart", kbd: "C" },
+    { id: "pvt", label: "Trend Chart", kbd: "P" },
+    { id: "chart", label: "Intraday Chart", kbd: "C" },
     { id: "outlook", label: "Outlook", kbd: "O" },
     { id: "history", label: "History", kbd: "H" },
-    { id: "pvt", label: "PVT", kbd: "P" },
   ];
   return (
     <div className="mb-1.5 flex shrink-0 items-center gap-1 self-start rounded-lg border border-white/10 bg-white/[0.03] p-0.5">

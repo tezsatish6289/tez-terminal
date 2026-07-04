@@ -14,13 +14,13 @@ import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { FNO_ACCENT, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
 
 const ROTATE_MS = 8_000;
-const VIEW_ORDER: LevelsViewMode[] = ["chart", "outlook", "history", "pvt"];
+const VIEW_ORDER: LevelsViewMode[] = ["pvt", "chart", "outlook", "history"];
 
 const VIEW_LABELS: Record<LevelsViewMode, string> = {
-  chart: "Chart",
+  chart: "Intraday Chart",
   outlook: "Outlook",
   history: "History",
-  pvt: "PVT",
+  pvt: "Trend Chart",
 };
 
 const DEFAULT_ROOT_CLASS =

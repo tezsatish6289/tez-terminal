@@ -16,8 +16,13 @@ import {
 } from "@/lib/levels/format-cluster-size";
 import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
 
-const PAD_DEFAULT = { top: 18, right: 18, bottom: 40, left: 60 };
-const PAD_COMPACT = { top: 6, right: 6, bottom: 16, left: 28 };
+const PAD_DEFAULT = { top: 46, right: 18, bottom: 44, left: 60 };
+const PAD_COMPACT = { top: 28, right: 6, bottom: 20, left: 28 };
+/** Max pain — dashed everywhere else on levels charts. */
+const MAX_PAIN_DASH = "6 4";
+/** Spot — distinct from amber max pain on this chart. */
+const SPOT_LINE = "#e2e8f0";
+const SPOT_ACCENT = "#38bdf8";
 
 function fmt(p: number): string {
   return Math.round(p).toLocaleString();
@@ -254,7 +259,7 @@ export function NiftyOutlookChart({
           </g>
         ))}
 
-        {/* Today marker + expiry boundary lines and labels */}
+        {/* Today marker */}
         <line
           x1={todayX}
           x2={todayX}
@@ -263,9 +268,35 @@ export function NiftyOutlookChart({
           stroke="rgba(251,191,36,0.25)"
           strokeWidth={1}
         />
+
+        {/* Per-expiry column bands + boundary lines */}
+        {slots.map((s, i) => {
+          const width = Math.max(s.x1 - s.x0, 0);
+          return (
+            <g key={`col-bg-${i}`}>
+              <rect
+                x={s.x0}
+                y={PAD.top}
+                width={width}
+                height={h - PAD.top - PAD.bottom}
+                fill={i % 2 === 0 ? "rgba(148,163,184,0.035)" : "rgba(148,163,184,0.07)"}
+              />
+              <line
+                x1={s.x1}
+                x2={s.x1}
+                y1={PAD.top}
+                y2={h - PAD.bottom}
+                stroke="rgba(255,255,255,0.1)"
+                strokeWidth={1}
+                strokeDasharray="3 3"
+              />
+            </g>
+          );
+        })}
+
         <text
           x={todayX}
-          y={h - PAD.bottom + (compact ? 11 : 15)}
+          y={h - PAD.bottom + (compact ? 11 : 14)}
           textAnchor="middle"
           fontSize={compact ? 8 : 10}
           fontWeight={700}
@@ -274,48 +305,6 @@ export function NiftyOutlookChart({
         >
           Today
         </text>
-        {slots.map((s, i) => (
-          <g key={`x-${i}`}>
-            <line
-              x1={s.x1}
-              x2={s.x1}
-              y1={PAD.top}
-              y2={h - PAD.bottom}
-              stroke="rgba(255,255,255,0.08)"
-              strokeWidth={1}
-              strokeDasharray="3 3"
-            />
-            <text
-              x={s.x1}
-              y={h - PAD.bottom + (compact ? 11 : 15)}
-              textAnchor="middle"
-              fontSize={compact ? 7 : 10}
-              fontWeight={500}
-              fontFamily="ui-sans-serif, system-ui"
-              fill="#94a3b8"
-            >
-              {s.cp.label}
-            </text>
-            {!compact ? (
-              <text
-                x={s.x1}
-                y={h - PAD.bottom + 27}
-                textAnchor="middle"
-                fontSize={8}
-                fontFamily="ui-sans-serif, system-ui"
-                fill={
-                  s.cp.confidence === "high"
-                    ? "#86efac"
-                    : s.cp.confidence === "medium"
-                      ? "#fcd34d"
-                      : "#fca5a5"
-                }
-              >
-                {confidenceLabel(s.cp.confidence)}
-              </text>
-            ) : null}
-          </g>
-        ))}
 
         {/* Stepped resistance + support blocks (intensity = wall OI strength) */}
         {bandBlocks(
@@ -351,34 +340,6 @@ export function NiftyOutlookChart({
           pointerEvents="none"
         />
 
-        {/* Spot reference line */}
-        {series.spot != null && (
-          <g>
-            <line
-              x1={PAD.left}
-              x2={w - PAD.right}
-              y1={yFor(series.spot)}
-              y2={yFor(series.spot)}
-              stroke="#fbbf24"
-              strokeWidth={1.5}
-              strokeDasharray="2 3"
-              opacity={0.6}
-            />
-            {!compact ? (
-              <text
-                x={PAD.left + 4}
-                y={yFor(series.spot) - 4}
-                fontSize={9}
-                fontWeight={700}
-                fontFamily="ui-sans-serif, system-ui"
-                fill="#fcd34d"
-              >
-                Spot {fmt(series.spot)}
-              </text>
-            ) : null}
-          </g>
-        )}
-
         {/* Stepped max-pain ladder: flat per slot, vertical step at each boundary */}
         {slots.map((s, i) =>
           s.cp.maxPain != null ? (
@@ -390,6 +351,7 @@ export function NiftyOutlookChart({
               y2={yFor(s.cp.maxPain)}
               stroke={maxPainColor}
               strokeWidth={2}
+              strokeDasharray={MAX_PAIN_DASH}
               opacity={confidenceOpacity(s.cp.confidence)}
             />
           ) : null,
@@ -406,7 +368,7 @@ export function NiftyOutlookChart({
               y2={yFor(next.cp.maxPain)}
               stroke={maxPainColor}
               strokeWidth={1.5}
-              strokeDasharray="3 3"
+              strokeDasharray={MAX_PAIN_DASH}
               opacity={confidenceOpacity(next.cp.confidence) * 0.7}
             />
           );
@@ -438,18 +400,163 @@ export function NiftyOutlookChart({
             </g>
           ) : null,
         )}
+
+        {/* Expiry column headers — on top so fade overlay does not wash them out */}
+        {slots.map((s, i) => {
+          const width = Math.max(s.x1 - s.x0, 0);
+          const cx = s.x0 + width / 2;
+          const headerH = compact ? 18 : 28;
+          const showHeader = width >= (compact ? 36 : 48);
+          const confColor =
+            s.cp.confidence === "high"
+              ? "#86efac"
+              : s.cp.confidence === "medium"
+                ? "#fcd34d"
+                : "#fca5a5";
+
+          if (!showHeader) return null;
+
+          return (
+            <g key={`col-hdr-${i}`}>
+              <rect
+                x={s.x0 + 2}
+                y={PAD.top + 3}
+                width={Math.max(width - 4, 0)}
+                height={headerH}
+                rx={5}
+                fill="rgba(8, 13, 26, 0.92)"
+                stroke="rgba(148,163,184,0.28)"
+              />
+              <text
+                x={cx}
+                y={PAD.top + (compact ? 11 : 14)}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={compact ? 8 : 10}
+                fontWeight={800}
+                fontFamily="ui-sans-serif, system-ui"
+                fill="#f1f5f9"
+              >
+                {s.cp.label}
+              </text>
+              {!compact ? (
+                <text
+                  x={cx}
+                  y={PAD.top + 26}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize={7.5}
+                  fontWeight={600}
+                  fontFamily="ui-sans-serif, system-ui"
+                  fill={confColor}
+                >
+                  {confidenceLabel(s.cp.confidence)} · expiry
+                </text>
+              ) : null}
+              <text
+                x={cx}
+                y={h - PAD.bottom + (compact ? 11 : 14)}
+                textAnchor="middle"
+                fontSize={compact ? 7 : 9}
+                fontWeight={600}
+                fontFamily="ui-sans-serif, system-ui"
+                fill="#64748b"
+              >
+                {i === 0 ? `Now → ${s.cp.label}` : `→ ${s.cp.label}`}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Spot — white/sky line + price tag (distinct from amber max pain) */}
+        {series.spot != null ? (
+          (() => {
+            const spotY = yFor(series.spot);
+            const tagW = compact ? 72 : 84;
+            const tagH = compact ? 20 : 24;
+            const tagX = w - PAD.right - tagW - 2;
+            return (
+              <g key="spot-ref">
+                <line
+                  x1={PAD.left}
+                  x2={w - PAD.right}
+                  y1={spotY}
+                  y2={spotY}
+                  stroke={SPOT_ACCENT}
+                  strokeWidth={5}
+                  opacity={0.12}
+                />
+                <line
+                  x1={PAD.left}
+                  x2={w - PAD.right}
+                  y1={spotY}
+                  y2={spotY}
+                  stroke={SPOT_LINE}
+                  strokeWidth={compact ? 1.5 : 2}
+                  opacity={0.95}
+                />
+                <circle
+                  cx={todayX + (compact ? 4 : 6)}
+                  cy={spotY}
+                  r={compact ? 3 : 3.5}
+                  fill={SPOT_LINE}
+                  stroke={SPOT_ACCENT}
+                  strokeWidth={1.5}
+                />
+                <rect
+                  x={tagX}
+                  y={spotY - tagH / 2}
+                  width={tagW}
+                  height={tagH}
+                  rx={5}
+                  fill="rgba(8, 13, 26, 0.96)"
+                  stroke={SPOT_ACCENT}
+                  strokeWidth={1.5}
+                />
+                <text
+                  x={tagX + 8}
+                  y={spotY + (compact ? 3 : 4)}
+                  dominantBaseline="middle"
+                  fontSize={compact ? 7 : 8}
+                  fontWeight={700}
+                  fontFamily="ui-sans-serif, system-ui"
+                  fill={SPOT_ACCENT}
+                >
+                  SPOT
+                </text>
+                <text
+                  x={tagX + tagW - 8}
+                  y={spotY + (compact ? 3 : 4)}
+                  textAnchor="end"
+                  dominantBaseline="middle"
+                  fontSize={compact ? 9 : 10}
+                  fontWeight={800}
+                  fontFamily="ui-monospace, monospace"
+                  fill={SPOT_LINE}
+                >
+                  {fmt(series.spot)}
+                </text>
+              </g>
+            );
+          })()
+        ) : null}
       </svg>
 
       {/* Legend */}
       {!compact ? (
         <div
-          className="absolute top-2 left-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] max-w-[min(55%,14rem)]"
+          className="absolute top-2 left-3 flex flex-col gap-1 text-[9px] max-w-[min(55%,16rem)]"
           style={{ color: "#94a3b8" }}
         >
-          <LegendChip color={bull.line} label="Support" />
-          <LegendChip color={bear.line} label="Resistance" />
-          <LegendChip color={maxPainColor} label="Max pain" />
-          <span style={{ opacity: 0.7 }}>← confident · speculative →</span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <LegendChip color={bull.line} label="Support" />
+            <LegendChip color={bear.line} label="Resistance" />
+            <LegendChip color={maxPainColor} label="Max pain" dashed />
+            <LegendChip color={SPOT_ACCENT} label="Spot" />
+          </div>
+          <span style={{ opacity: 0.82 }}>
+            Each column = one expiry&apos;s positioning · ← confident · speculative →
+          </span>
         </div>
       ) : null}
       {showAttribution ? (
@@ -464,13 +571,30 @@ export function NiftyOutlookChart({
   );
 }
 
-function LegendChip({ color, label }: { color: string; label: string }) {
+function LegendChip({
+  color,
+  label,
+  dashed = false,
+}: {
+  color: string;
+  label: string;
+  dashed?: boolean;
+}) {
   return (
     <span className="flex items-center gap-1">
-      <span
-        className="inline-block rounded-sm"
-        style={{ width: 9, height: 9, backgroundColor: color }}
-      />
+      {dashed ? (
+        <span
+          className="inline-block w-[11px] border-t-[2.5px] border-dashed"
+          style={{ borderColor: color }}
+          aria-hidden
+        />
+      ) : (
+        <span
+          className="inline-block rounded-sm"
+          style={{ width: 9, height: 9, backgroundColor: color }}
+          aria-hidden
+        />
+      )}
       {label}
     </span>
   );

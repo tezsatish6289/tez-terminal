@@ -165,3 +165,13 @@ export function confidenceOpacity(c: OutlookConfidence): number {
 export function confidenceLabel(c: OutlookConfidence): string {
   return c === "high" ? "Confident" : c === "medium" ? "Softening" : "Speculative";
 }
+
+/** Footer line listing each expiry column on the Outlook chart. */
+export function formatOutlookExpiryMeta(
+  levels: PublicLevels | null | undefined,
+  spotOverride?: number | null,
+): string | null {
+  const series = buildOutlookSeries(levels, spotOverride);
+  if (!series?.checkpoints.length) return null;
+  return series.checkpoints.map((cp) => cp.label).join(" · ");
+}

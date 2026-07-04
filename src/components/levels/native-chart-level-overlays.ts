@@ -235,7 +235,9 @@ export function applyClusterSummaryPriceLines(
   series: ISeriesApi<"Candlestick">,
   priceLinesRef: { current: IPriceLine[] },
   levels: PublicLevels | null | undefined,
+  opts?: { showAxisLabels?: boolean },
 ): void {
+  const showAxisLabels = opts?.showAxisLabels ?? false;
   for (const line of priceLinesRef.current) series.removePriceLine(line);
   priceLinesRef.current = [];
   if (!levels) return;
@@ -260,14 +262,14 @@ export function applyClusterSummaryPriceLines(
   push(callPrice, LEVELS_ZONE_CHART.bear.line, "Call OI peak", LineStyle.Dashed, 2, 11);
   push(levels.poc, LEVELS_ZONE_CHART.maxPain.line, "Max Pain", LineStyle.Dashed, 2, 0);
 
-  for (const spec of mergeCoincidentPriceLines(rawSpecs, false)) {
+  for (const spec of mergeCoincidentPriceLines(rawSpecs, showAxisLabels)) {
     priceLinesRef.current.push(
       series.createPriceLine({
         price: spec.price,
         color: spec.color,
         lineWidth: spec.width,
         lineStyle: spec.style,
-        axisLabelVisible: false,
+        axisLabelVisible: showAxisLabels,
         title: spec.title,
       }),
     );

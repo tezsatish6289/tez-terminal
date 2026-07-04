@@ -425,7 +425,9 @@ export function PvtChart({
 
     candleSeries.setData(candleData);
     pvtLine.setData(pvtData);
-    applyClusterSummaryPriceLines(candleSeries, priceLinesRef, effectiveLevels);
+    applyClusterSummaryPriceLines(candleSeries, priceLinesRef, effectiveLevels, {
+      showAxisLabels: true,
+    });
     candleChart.timeScale().fitContent();
     pvtChart.timeScale().fitContent();
     applyPvtRightPadding(candleChart, pvtChart, displayCandles.length);
@@ -464,6 +466,7 @@ export function PvtChart({
               containerRef={overlayRootRef}
               levels={effectiveLevels}
               visible
+              showZoneRole
             />
           ) : null}
           {showOverlay ? (

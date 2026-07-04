@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import type { IChartApi, ISeriesApi } from "lightweight-charts";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import type { LevelVisualFocus } from "@/components/levels/native-chart-level-overlays";
-import { priceLevelKey } from "@/components/levels/native-chart-level-overlays";
 import { formatClusterPeakLabel } from "@/lib/levels/format-cluster-size";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { FNO_ACCENT } from "@/lib/fnoninja/theme";
@@ -26,41 +25,67 @@ function priceY(series: ISeriesApi<"Candlestick">, price: number | null | undefi
   return series.priceToCoordinate(price);
 }
 
-type LabelPos = { id: string; top: number; text: string; style: React.CSSProperties; zIndex: number };
-
-const MIN_LABEL_GAP = 26;
-
-const LABEL_Z_INDEX: Record<string, number> = {
-  maxPain: 10,
-  "put-maxPain": 11,
-  "call-maxPain": 11,
-  put: 20,
-  call: 20,
+type LabelPos = {
+  id: string;
+  top: number;
+  text: string;
+  subtitle?: string | null;
+  style: React.CSSProperties;
+  zIndex: number;
 };
 
-function isClusterLabel(id: string): boolean {
-  return id === "put" || id === "call";
-}
+const MIN_LABEL_GAP = 8;
+
+const LABEL_Z_INDEX: Record<string, number> = {
+  maxPain: 5,
+  put: 25,
+  call: 25,
+};
 
 function isMaxPainLabel(id: string): boolean {
-  return id === "maxPain" || id === "put-maxPain" || id === "call-maxPain";
+  return id === "maxPain";
 }
 
-/** Keep put/call pills readable when max pain sits on the same price band. */
+function labelHeight(label: LabelPos): number {
+  return label.subtitle ? 38 : 26;
+}
+
+function clampTop(y: number, chartHeight: number, heightPx: number): number {
+  const half = heightPx / 2;
+  return Math.min(Math.max(y, half + 6), chartHeight - half - 6);
+}
+
+/** Prefer shifting Max Pain so Support/Resistance pills stay on their bands. */
 function resolveLabelCollisions(labels: LabelPos[], height: number): LabelPos[] {
-  const clamp = (y: number) => Math.min(Math.max(y, 14), height - 14);
   const result = labels.map((l) => ({ ...l }));
 
-  for (const mp of result.filter((l) => isMaxPainLabel(l.id))) {
-    for (const cluster of result.filter((l) => isClusterLabel(l.id))) {
-      const delta = mp.top - cluster.top;
-      if (Math.abs(delta) >= MIN_LABEL_GAP) continue;
-      mp.top = delta <= 0 ? cluster.top - MIN_LABEL_GAP : cluster.top + MIN_LABEL_GAP;
-      mp.top = clamp(mp.top);
+  const overlapGap = (a: LabelPos, b: LabelPos) =>
+    (labelHeight(a) + labelHeight(b)) / 2 + MIN_LABEL_GAP;
+
+  const overlaps = (a: LabelPos, b: LabelPos) => Math.abs(a.top - b.top) < overlapGap(a, b);
+
+  for (let pass = 0; pass < 10; pass++) {
+    let moved = false;
+    for (let i = 0; i < result.length; i++) {
+      for (let j = i + 1; j < result.length; j++) {
+        const a = result[i]!;
+        const b = result[j]!;
+        if (!overlaps(a, b)) continue;
+
+        const pushTarget =
+          isMaxPainLabel(a.id) ? a : isMaxPainLabel(b.id) ? b : b.zIndex <= a.zIndex ? a : b;
+        const anchor = pushTarget === a ? b : a;
+        const gap = overlapGap(a, b);
+        const newTop =
+          pushTarget.top <= anchor.top ? anchor.top - gap : anchor.top + gap;
+        pushTarget.top = clampTop(newTop, height, labelHeight(pushTarget));
+        moved = true;
+      }
     }
+    if (!moved) break;
   }
 
-  return result.sort((a, b) => a.zIndex - b.zIndex);
+  return result;
 }
 
 const CLUSTER_LABEL_STYLE: React.CSSProperties = {
@@ -86,6 +111,23 @@ function labelFocused(id: string, focus: LevelVisualFocus | null | undefined): b
   return id === "maxPain";
 }
 
+function formatExpiryShort(expiry: string | null | undefined): string | null {
+  if (!expiry?.trim()) return null;
+  const parts = expiry.trim().split("/");
+  if (parts.length !== 3) return `${expiry} expiry`;
+  const day = Number.parseInt(parts[0]!, 10);
+  const month = Number.parseInt(parts[1]!, 10);
+  const year = Number.parseInt(parts[2]!, 10);
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) {
+    return `${expiry} expiry`;
+  }
+  const monthName = new Date(Date.UTC(year, month - 1, day)).toLocaleString("en-IN", {
+    month: "short",
+    timeZone: "UTC",
+  });
+  return `${day} ${monthName} expiry`;
+}
+
 export function LevelsChartClusterBandLabels({
   chartRef,
   seriesRef,
@@ -93,6 +135,7 @@ export function LevelsChartClusterBandLabels({
   levels,
   visible,
   visualFocus,
+  showZoneRole = false,
 }: {
   chartRef: React.RefObject<IChartApi | null>;
   seriesRef: React.RefObject<ISeriesApi<"Candlestick"> | null>;
@@ -100,6 +143,8 @@ export function LevelsChartClusterBandLabels({
   levels: PublicLevels | null | undefined;
   visible: boolean;
   visualFocus?: LevelVisualFocus | null;
+  /** Trend chart: prefix Support / Resistance so OI pills are not lost inside Max Pain copy. */
+  showZoneRole?: boolean;
 }) {
   const [labels, setLabels] = useState<LabelPos[]>([]);
 
@@ -112,7 +157,6 @@ export function LevelsChartClusterBandLabels({
     }
 
     const height = container.clientHeight;
-    const clamp = (y: number) => Math.min(Math.max(y, 14), height - 14);
     const next: LabelPos[] = [];
 
     const putText = formatClusterPeakLabel(
@@ -127,114 +171,62 @@ export function LevelsChartClusterBandLabels({
       levels.callClusterStrike,
       levels.callClusterChange,
     );
-    const expirySuffix = levels.zonesExpiry ? ` · ${levels.zonesExpiry} Expiry` : "";
+    const maxPainSubtitle = formatExpiryShort(levels.zonesExpiry);
 
-    const pocKey = levels.poc != null ? priceLevelKey(levels.poc) : null;
-    const putAtPoc =
-      pocKey != null &&
-      levels.putClusterStrike != null &&
-      priceLevelKey(levels.putClusterStrike) === pocKey;
-    const callAtPoc =
-      pocKey != null &&
-      levels.callClusterStrike != null &&
-      priceLevelKey(levels.callClusterStrike) === pocKey;
+    if (putText && levels.bullLow != null && levels.bullHigh != null) {
+      const center = bandCenterY(series, levels.bullLow, levels.bullHigh);
+      if (center != null) {
+        const focused = labelFocused("put", visualFocus);
+        const rolePrefix = showZoneRole ? "Support · " : "";
+        next.push({
+          id: "put",
+          top: clampTop(center, height, 26),
+          zIndex: LABEL_Z_INDEX.put,
+          text: `${rolePrefix}${putText}`,
+          style: {
+            ...CLUSTER_LABEL_STYLE,
+            opacity: focused ? 1 : 0.72,
+            boxShadow: focused
+              ? "0 0 20px rgba(34,197,94,0.35), 0 0 12px rgba(8,15,30,0.5)"
+              : CLUSTER_LABEL_STYLE.boxShadow,
+            border: focused ? `1px solid ${LEVELS_ZONE_CHART.bull.bandBorder}` : "1px solid transparent",
+          },
+        });
+      }
+    }
 
-    if (putAtPoc && levels.poc != null && putText) {
+    if (levels.poc != null) {
       const y = priceY(series, levels.poc);
       if (y != null) {
-        const focused = labelFocused("put", visualFocus) || labelFocused("maxPain", visualFocus);
+        const focused = labelFocused("maxPain", visualFocus);
         next.push({
-          id: "put-maxPain",
-          top: clamp(y),
-          zIndex: LABEL_Z_INDEX["put-maxPain"],
-          text: `${putText} · Max Pain${expirySuffix}`,
+          id: "maxPain",
+          top: clampTop(y, height, maxPainSubtitle ? 38 : 26),
+          zIndex: LABEL_Z_INDEX.maxPain,
+          text: "Max Pain",
+          subtitle: maxPainSubtitle,
           style: {
             ...MAX_PAIN_LABEL_STYLE,
             opacity: focused ? 1 : 0.72,
             boxShadow: focused
-              ? "0 0 24px rgba(251,191,36,0.35), 0 0 16px rgba(34,197,94,0.25)"
+              ? "0 0 24px rgba(251,191,36,0.4), 0 0 12px rgba(8,15,30,0.5)"
               : MAX_PAIN_LABEL_STYLE.boxShadow,
-            border: focused ? "1px solid rgba(251,191,36,0.45)" : "1px solid transparent",
+            border: focused ? "1px solid rgba(251,191,36,0.5)" : "1px solid transparent",
           },
         });
       }
-    } else {
-      if (putText && levels.bullLow != null && levels.bullHigh != null) {
-        const center = bandCenterY(series, levels.bullLow, levels.bullHigh);
-        if (center != null) {
-          const focused = labelFocused("put", visualFocus);
-          next.push({
-            id: "put",
-            top: clamp(center),
-            zIndex: LABEL_Z_INDEX.put,
-            text: putText,
-            style: {
-              ...CLUSTER_LABEL_STYLE,
-              opacity: focused ? 1 : 0.72,
-              boxShadow: focused
-                ? "0 0 20px rgba(34,197,94,0.35), 0 0 12px rgba(8,15,30,0.5)"
-                : CLUSTER_LABEL_STYLE.boxShadow,
-              border: focused ? `1px solid ${LEVELS_ZONE_CHART.bull.bandBorder}` : "1px solid transparent",
-            },
-          });
-        }
-      }
-
-      if (levels.poc != null && !callAtPoc) {
-        const y = priceY(series, levels.poc);
-        if (y != null) {
-          const focused = labelFocused("maxPain", visualFocus);
-          next.push({
-            id: "maxPain",
-            top: clamp(y),
-            zIndex: LABEL_Z_INDEX.maxPain,
-            text: `Max Pain${expirySuffix}`,
-            style: {
-              ...MAX_PAIN_LABEL_STYLE,
-              opacity: focused ? 1 : 0.72,
-              boxShadow: focused
-                ? "0 0 24px rgba(251,191,36,0.4), 0 0 12px rgba(8,15,30,0.5)"
-                : MAX_PAIN_LABEL_STYLE.boxShadow,
-              border: focused ? "1px solid rgba(251,191,36,0.5)" : "1px solid transparent",
-            },
-          });
-        }
-      }
     }
 
-    if (callAtPoc && levels.poc != null && callText) {
-      const y = priceY(series, levels.poc);
-      if (y != null) {
-        const existing = next.find((l) => l.id === "put-maxPain");
-        if (existing) {
-          existing.text = `${existing.text} · ${callText}`;
-        } else {
-          const focused = labelFocused("call", visualFocus) || labelFocused("maxPain", visualFocus);
-          next.push({
-            id: "call-maxPain",
-            top: clamp(y),
-            zIndex: LABEL_Z_INDEX["call-maxPain"],
-            text: `${callText} · Max Pain${expirySuffix}`,
-            style: {
-              ...MAX_PAIN_LABEL_STYLE,
-              opacity: focused ? 1 : 0.72,
-              boxShadow: focused
-                ? "0 0 24px rgba(251,191,36,0.35), 0 0 16px rgba(239,68,68,0.25)"
-                : MAX_PAIN_LABEL_STYLE.boxShadow,
-              border: focused ? "1px solid rgba(251,191,36,0.45)" : "1px solid transparent",
-            },
-          });
-        }
-      }
-    } else if (callText && levels.bearLow != null && levels.bearHigh != null) {
+    if (callText && levels.bearLow != null && levels.bearHigh != null) {
       const center = bandCenterY(series, levels.bearLow, levels.bearHigh);
       if (center != null) {
         const focused = labelFocused("call", visualFocus);
+        const rolePrefix = showZoneRole ? "Resistance · " : "";
         next.push({
           id: "call",
-          top: clamp(center),
+          top: clampTop(center, height, 26),
           zIndex: LABEL_Z_INDEX.call,
-          text: callText,
+          text: `${rolePrefix}${callText}`,
           style: {
             ...CLUSTER_LABEL_STYLE,
             opacity: focused ? 1 : 0.72,
@@ -248,7 +240,7 @@ export function LevelsChartClusterBandLabels({
     }
 
     setLabels(resolveLabelCollisions(next, height));
-  }, [containerRef, levels, seriesRef, visible, visualFocus]);
+  }, [containerRef, levels, seriesRef, showZoneRole, visible, visualFocus]);
 
   useEffect(() => {
     updatePositions();
@@ -278,6 +270,7 @@ export function LevelsChartClusterBandLabels({
           key={label.id}
           top={label.top}
           text={label.text}
+          subtitle={label.subtitle}
           style={label.style}
           zIndex={label.zIndex}
         />
@@ -289,20 +282,30 @@ export function LevelsChartClusterBandLabels({
 function BandChartLabel({
   top,
   text,
+  subtitle,
   style,
   zIndex,
 }: {
   top: number;
   text: string;
+  subtitle?: string | null;
   style: React.CSSProperties;
   zIndex: number;
 }) {
   return (
     <div
-      className="absolute left-1.5 sm:left-3 max-w-[min(72%,14rem)] max-md:max-w-[min(68%,11rem)] -translate-y-1/2 rounded-md px-1.5 py-0.5 max-md:px-1.5 max-md:py-0.5 text-[9px] sm:text-[11px] font-bold leading-snug tracking-tight whitespace-normal"
+      className="absolute left-1.5 sm:left-3 max-w-[min(68%,12rem)] max-md:max-w-[min(64%,10rem)] -translate-y-1/2 rounded-md px-1.5 py-0.5 max-md:px-1.5 max-md:py-0.5 text-[9px] sm:text-[10px] font-bold leading-snug tracking-tight whitespace-normal"
       style={{ top, zIndex, ...style }}
     >
-      {text}
+      <span>{text}</span>
+      {subtitle ? (
+        <span
+          className="mt-0.5 block text-[8px] sm:text-[9px] font-semibold leading-tight"
+          style={{ color: "rgba(251, 191, 36, 0.72)" }}
+        >
+          {subtitle}
+        </span>
+      ) : null}
     </div>
   );
 }

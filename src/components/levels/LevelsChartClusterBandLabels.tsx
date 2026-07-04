@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { IChartApi, ISeriesApi } from "lightweight-charts";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import type { LevelVisualFocus } from "@/components/levels/native-chart-level-overlays";
-import { formatClusterPeakLabel } from "@/lib/levels/format-cluster-size";
+import { formatClusterPeakLabelParts } from "@/lib/levels/format-cluster-size";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { FNO_ACCENT } from "@/lib/fnoninja/theme";
 
@@ -29,6 +29,7 @@ type LabelPos = {
   id: string;
   top: number;
   text: string;
+  delta?: string | null;
   subtitle?: string | null;
   style: React.CSSProperties;
   zIndex: number;
@@ -159,13 +160,13 @@ export function LevelsChartClusterBandLabels({
     const height = container.clientHeight;
     const next: LabelPos[] = [];
 
-    const putText = formatClusterPeakLabel(
+    const putParts = formatClusterPeakLabelParts(
       "Put",
       levels.putClusterSize,
       levels.putClusterStrike,
       levels.putClusterChange,
     );
-    const callText = formatClusterPeakLabel(
+    const callParts = formatClusterPeakLabelParts(
       "Call",
       levels.callClusterSize,
       levels.callClusterStrike,
@@ -173,7 +174,7 @@ export function LevelsChartClusterBandLabels({
     );
     const maxPainSubtitle = formatExpiryShort(levels.zonesExpiry);
 
-    if (putText && levels.bullLow != null && levels.bullHigh != null) {
+    if (putParts && levels.bullLow != null && levels.bullHigh != null) {
       const center = bandCenterY(series, levels.bullLow, levels.bullHigh);
       if (center != null) {
         const focused = labelFocused("put", visualFocus);
@@ -182,7 +183,8 @@ export function LevelsChartClusterBandLabels({
           id: "put",
           top: clampTop(center, height, 26),
           zIndex: LABEL_Z_INDEX.put,
-          text: `${rolePrefix}${putText}`,
+          text: `${rolePrefix}${putParts.main}`,
+          delta: putParts.delta,
           style: {
             ...CLUSTER_LABEL_STYLE,
             opacity: focused ? 1 : 0.72,
@@ -217,7 +219,7 @@ export function LevelsChartClusterBandLabels({
       }
     }
 
-    if (callText && levels.bearLow != null && levels.bearHigh != null) {
+    if (callParts && levels.bearLow != null && levels.bearHigh != null) {
       const center = bandCenterY(series, levels.bearLow, levels.bearHigh);
       if (center != null) {
         const focused = labelFocused("call", visualFocus);
@@ -226,7 +228,8 @@ export function LevelsChartClusterBandLabels({
           id: "call",
           top: clampTop(center, height, 26),
           zIndex: LABEL_Z_INDEX.call,
-          text: `${rolePrefix}${callText}`,
+          text: `${rolePrefix}${callParts.main}`,
+          delta: callParts.delta,
           style: {
             ...CLUSTER_LABEL_STYLE,
             opacity: focused ? 1 : 0.72,
@@ -270,6 +273,7 @@ export function LevelsChartClusterBandLabels({
           key={label.id}
           top={label.top}
           text={label.text}
+          delta={label.delta}
           subtitle={label.subtitle}
           style={label.style}
           zIndex={label.zIndex}
@@ -279,15 +283,23 @@ export function LevelsChartClusterBandLabels({
   );
 }
 
+function deltaTone(delta: string): string {
+  if (delta.startsWith("▲")) return "rgba(74, 222, 128, 0.9)";
+  if (delta.startsWith("▼")) return "rgba(248, 113, 113, 0.9)";
+  return "rgba(148, 163, 184, 0.85)";
+}
+
 function BandChartLabel({
   top,
   text,
+  delta,
   subtitle,
   style,
   zIndex,
 }: {
   top: number;
   text: string;
+  delta?: string | null;
   subtitle?: string | null;
   style: React.CSSProperties;
   zIndex: number;
@@ -297,7 +309,17 @@ function BandChartLabel({
       className="absolute left-1.5 sm:left-3 max-w-[min(68%,12rem)] max-md:max-w-[min(64%,10rem)] -translate-y-1/2 rounded-md px-1.5 py-0.5 max-md:px-1.5 max-md:py-0.5 text-[9px] sm:text-[10px] font-bold leading-snug tracking-tight whitespace-normal"
       style={{ top, zIndex, ...style }}
     >
-      <span>{text}</span>
+      <span>
+        {text}
+        {delta ? (
+          <span
+            className="ml-1 align-baseline text-[7px] sm:text-[8px] font-semibold leading-none"
+            style={{ color: deltaTone(delta) }}
+          >
+            {delta}
+          </span>
+        ) : null}
+      </span>
       {subtitle ? (
         <span
           className="mt-0.5 block text-[8px] sm:text-[9px] font-semibold leading-tight"

@@ -31,6 +31,25 @@ export function formatClusterStrike(strike: number | null | undefined): string |
       });
 }
 
+/** Chart label parts — delta is rendered smaller in chart pills. */
+export function formatClusterPeakLabelParts(
+  side: "Put" | "Call",
+  contracts: number | null | undefined,
+  strike: number | null | undefined,
+  change?: number | null,
+): { main: string; delta: string | null } | null {
+  const size = formatClusterContracts(contracts);
+  if (!size) return null;
+  const strikeText = formatClusterStrike(strike);
+  const main = strikeText
+    ? `${side} OI peak — ${size} @ ${strikeText}`
+    : `${side} OI peak — ${size}`;
+  const deltaFormatted = formatClusterDelta(change);
+  if (!deltaFormatted) return { main, delta: null };
+  const arrow = (change ?? 0) >= 0 ? "▲" : "▼";
+  return { main, delta: `${arrow}${deltaFormatted.replace(/^[+−]/, "")}` };
+}
+
 /** Chart label: "Put OI peak — 125k @ 24,000  ▲12k". */
 export function formatClusterPeakLabel(
   side: "Put" | "Call",
@@ -38,14 +57,7 @@ export function formatClusterPeakLabel(
   strike: number | null | undefined,
   change?: number | null,
 ): string | null {
-  const size = formatClusterContracts(contracts);
-  if (!size) return null;
-  const strikeText = formatClusterStrike(strike);
-  const base = strikeText
-    ? `${side} OI peak — ${size} @ ${strikeText}`
-    : `${side} OI peak — ${size}`;
-  const delta = formatClusterDelta(change);
-  if (!delta) return base;
-  const arrow = (change ?? 0) >= 0 ? "▲" : "▼";
-  return `${base}  ${arrow}${delta.replace(/^[+−]/, "")}`;
+  const parts = formatClusterPeakLabelParts(side, contracts, strike, change);
+  if (!parts) return null;
+  return parts.delta ? `${parts.main}  ${parts.delta}` : parts.main;
 }

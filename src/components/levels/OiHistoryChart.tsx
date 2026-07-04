@@ -43,6 +43,8 @@ interface Row {
   date: string;
   candle: DailyCandle | null;
   oi: OiPoint | null;
+  /** Live cluster from `/api/freedombot/levels` — not yet in EOD history. */
+  live?: boolean;
 }
 
 const PAD = { top: 16, right: 16, bottom: 44, left: 56 };
@@ -59,6 +61,13 @@ const CHART_SHELL_STYLE: CSSProperties = {
 };
 
 const COMPACT_SHELL_STYLE: CSSProperties = {
+  display: "grid",
+  gridTemplateRows: "auto minmax(0, 1fr)",
+  minHeight: 0,
+};
+
+/** Chart pane + below-chart attribution (keeps x-axis dates visible). */
+const ATTRIBUTION_SHELL_STYLE: CSSProperties = {
   display: "grid",
   gridTemplateRows: "auto minmax(0, 1fr)",
   minHeight: 0,
@@ -84,6 +93,36 @@ function filterRowsByRange(rows: Row[], range: OiHistoryRange): Row[] {
 
 function istDateKey(epochSec: number): string {
   return new Date(epochSec * 1000 + 5.5 * 3600_000).toISOString().slice(0, 10);
+}
+
+function istTodayKey(nowMs: number = Date.now()): string {
+  return new Date(nowMs + 5.5 * 3600_000).toISOString().slice(0, 10);
+}
+
+/** Merge live OI cluster from levels so the right edge reflects today's walls. */
+function mergeLiveLevels(rows: Row[], levels: PublicLevels | null | undefined): Row[] {
+  if (!rows.length || !levels || levels.unavailable) return rows;
+  const putStrike = levels.putClusterStrike;
+  const callStrike = levels.callClusterStrike;
+  if (putStrike == null && callStrike == null) return rows;
+
+  const todayKey = istTodayKey();
+  const liveOi: OiPoint = {
+    date: todayKey,
+    spot: levels.spot,
+    putStrike,
+    putOI: levels.putClusterSize ?? null,
+    callStrike,
+    callOI: levels.callClusterSize ?? null,
+    maxPain: null,
+    expiry: levels.zonesExpiry ?? null,
+  };
+
+  const last = rows[rows.length - 1]!;
+  if (last.date === todayKey) {
+    return [...rows.slice(0, -1), { ...last, oi: liveOi, live: true }];
+  }
+  return [...rows, { date: todayKey, oi: liveOi, candle: null, live: true }];
 }
 
 function fmtPrice(p: number): string {
@@ -121,10 +160,10 @@ export function OiHistoryChart({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  const [range, setRange] = useState<OiHistoryRange>("3M");
+  const [range, setRange] = useState<OiHistoryRange>("6M");
 
   useEffect(() => {
-    setRange("3M");
+    setRange("6M");
     setHoverIdx(null);
   }, [scope, symbol]);
 
@@ -184,7 +223,23 @@ export function OiHistoryChart({
       .map((p) => ({ date: p.date, oi: p, candle: candleByDate.get(p.date) ?? null }));
   }, [candles, oi]);
 
-  const displayRows = useMemo(() => filterRowsByRange(rows, range), [rows, range]);
+  const rowsWithLive = useMemo(() => mergeLiveLevels(rows, levels), [rows, levels]);
+
+  const displayRows = useMemo(
+    () => filterRowsByRange(rowsWithLive, range),
+    [rowsWithLive, range],
+  );
+
+  const liveSegmentIdx = useMemo(() => {
+    const idx = displayRows.findIndex((r) => r.live);
+    return idx > 0 ? idx : null;
+  }, [displayRows]);
+
+  const strikeMarkerIdx = useMemo(() => {
+    if (!displayRows.length) return new Set<number>();
+    const idx = hoverIdx != null ? hoverIdx : displayRows.length - 1;
+    return new Set([Math.max(0, Math.min(displayRows.length - 1, idx))]);
+  }, [displayRows.length, hoverIdx]);
 
   const model = useMemo(() => {
     if (!displayRows.length) return null;
@@ -256,11 +311,14 @@ export function OiHistoryChart({
 
   const guide = <HistoryChartGuide bullLine={bull.line} bearLine={bear.line} maxPainColor={mp} />;
 
-  const useOverlayAttribution = showAttribution;
-  const shellStyle =
-    hideGuide || useOverlayAttribution ? COMPACT_SHELL_STYLE : CHART_SHELL_STYLE;
+  const useBelowAttribution = showAttribution;
+  const shellStyle = hideGuide
+    ? useBelowAttribution
+      ? ATTRIBUTION_SHELL_STYLE
+      : COMPACT_SHELL_STYLE
+    : CHART_SHELL_STYLE;
   const guideFooter =
-    hideGuide || useOverlayAttribution ? null : (
+    hideGuide || useBelowAttribution ? null : (
       <div className={GUIDE_FOOTER_CLASS}>{guide}</div>
     );
 
@@ -320,7 +378,8 @@ export function OiHistoryChart({
   return (
     <div className={className} style={shellStyle}>
       <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
-      <div ref={containerRef} className="min-h-0 overflow-hidden relative">
+      <div className="min-h-0 flex flex-col overflow-hidden">
+        <div ref={containerRef} className="relative min-h-0 flex-1 overflow-hidden">
         <svg
           width={w}
           height={h}
@@ -351,6 +410,7 @@ export function OiHistoryChart({
           pickStrike={(r) => r.oi?.putStrike ?? null}
           widths={putWidths}
           color={bull.line}
+          dashedSegmentIdx={liveSegmentIdx}
         />
         <WallLineSegments
           side="call"
@@ -360,6 +420,15 @@ export function OiHistoryChart({
           pickStrike={(r) => r.oi?.callStrike ?? null}
           widths={callWidths}
           color={bear.line}
+          dashedSegmentIdx={liveSegmentIdx}
+        />
+        <WallStrikeMarkers
+          rows={displayRows}
+          xFor={xFor}
+          yFor={yFor}
+          putColor={bull.line}
+          callColor={bear.line}
+          highlightIndices={strikeMarkerIdx}
         />
 
         {/* daily candles — solid blue, always above wall lines */}
@@ -399,14 +468,15 @@ export function OiHistoryChart({
             <text
               key={`x-${i}`}
               x={xFor(i)}
-              y={h - 10}
+              y={h - 12}
               textAnchor="middle"
               dominantBaseline="auto"
               fontSize={9}
               fontFamily="ui-sans-serif, system-ui"
-              fill="#64748b"
+              fill={r.live ? "#93c5fd" : "#64748b"}
+              fontWeight={r.live ? 600 : 400}
             >
-              {fmtDateLabel(r.date)}
+              {r.live ? "Today" : fmtDateLabel(r.date)}
             </text>
           );
         })}
@@ -425,8 +495,14 @@ export function OiHistoryChart({
             minWidth: 130,
           }}
         >
-          <div className="font-semibold mb-0.5" style={{ color: "#cbd5e1" }}>{fmtDateLabel(hover.date)}</div>
-          {hover.candle && <Stat label="Close" value={fmtPrice(hover.candle.close)} color="#94a3b8" />}
+          <div className="font-semibold mb-0.5" style={{ color: hover.live ? "#93c5fd" : "#cbd5e1" }}>
+            {hover.live ? "Today (live cluster)" : fmtDateLabel(hover.date)}
+          </div>
+          {hover.candle ? (
+            <Stat label="Close" value={fmtPrice(hover.candle.close)} color="#94a3b8" />
+          ) : hover.oi?.spot != null ? (
+            <Stat label="Spot" value={fmtPrice(hover.oi.spot)} color="#94a3b8" />
+          ) : null}
           <Stat label="Call" value={tooltipVal(hover.oi?.callOI, hover.oi?.callStrike)} color={bear.labelText} />
           <Stat label="Put" value={tooltipVal(hover.oi?.putOI, hover.oi?.putStrike)} color={bull.labelText} />
           <Stat label="Max pain" value={hover.oi?.maxPain != null ? fmtPrice(hover.oi.maxPain) : "—"} color={mp} />
@@ -439,9 +515,11 @@ export function OiHistoryChart({
           )}
         </div>
         )}
-        {useOverlayAttribution ? (
+        </div>
+        {useBelowAttribution ? (
           <LevelsChartAttributionOverlay
             variant="history"
+            placement="below"
             levels={levels}
             webChartUrl={webChartUrl}
             showTradingView={Boolean(webChartUrl)}
@@ -492,6 +570,7 @@ function WallLineSegments({
   pickStrike,
   widths,
   color,
+  dashedSegmentIdx = null,
 }: {
   side: OiWallSide;
   rows: Row[];
@@ -500,6 +579,8 @@ function WallLineSegments({
   pickStrike: (r: Row) => number | null;
   widths: number[];
   color: string;
+  /** Segment index (connecting i-1 → i) drawn dashed — used for live cluster extension. */
+  dashedSegmentIdx?: number | null;
 }) {
   const segs: React.ReactNode[] = [];
 
@@ -552,6 +633,7 @@ function WallLineSegments({
       );
     }
 
+    const dashed = dashedSegmentIdx === i;
     segs.push(
       <line
         key={`${side}-${i}`}
@@ -563,11 +645,56 @@ function WallLineSegments({
         strokeWidth={w}
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity={lineOpacity}
+        strokeDasharray={dashed ? "5 4" : undefined}
+        opacity={dashed ? lineOpacity * 0.85 : lineOpacity}
       />,
     );
   }
   return <g>{segs}</g>;
+}
+
+/** Dots on wall strikes — highlights hovered / last bar so y-axis alignment is obvious. */
+function WallStrikeMarkers({
+  rows,
+  xFor,
+  yFor,
+  putColor,
+  callColor,
+  highlightIndices,
+}: {
+  rows: Row[];
+  xFor: (i: number) => number;
+  yFor: (price: number) => number;
+  putColor: string;
+  callColor: string;
+  highlightIndices: Set<number>;
+}) {
+  const dots: React.ReactNode[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (!highlightIndices.has(i)) continue;
+    const r = rows[i]!;
+    const x = xFor(i);
+    const hi = i === rows.length - 1;
+    for (const [strike, color] of [
+      [r.oi?.putStrike, putColor],
+      [r.oi?.callStrike, callColor],
+    ] as const) {
+      if (strike == null || !Number.isFinite(strike)) continue;
+      dots.push(
+        <circle
+          key={`dot-${i}-${color}`}
+          cx={x}
+          cy={yFor(strike)}
+          r={hi ? 4.5 : 3.5}
+          fill={hi ? color : "rgba(7,13,26,0.85)"}
+          stroke={color}
+          strokeWidth={hi ? 2 : 1.5}
+          opacity={0.95}
+        />,
+      );
+    }
+  }
+  return <g>{dots}</g>;
 }
 
 function tooltipVal(oi: number | null | undefined, strike: number | null | undefined): string {

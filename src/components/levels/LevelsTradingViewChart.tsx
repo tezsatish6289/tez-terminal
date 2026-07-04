@@ -25,7 +25,7 @@ export function LevelsTradingViewChart({
   onFullHistoryZoomChange,
   onLastCloseChange,
   showHeader = true,
-  hideTvFooterHint = false,
+  hideTvFooterHint = true,
   showBrandWatermark = true,
   className = "",
 }: {

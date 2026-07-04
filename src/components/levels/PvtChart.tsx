@@ -66,6 +66,7 @@ const CHART_BASE_OPTIONS = {
     background: { type: ColorType.Solid, color: "transparent" },
     textColor: "#94a3b8",
     fontSize: 11,
+    attributionLogo: false,
   },
   grid: {
     vertLines: { color: "rgba(255,255,255,0.04)" },

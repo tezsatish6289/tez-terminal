@@ -153,7 +153,7 @@ export const NativeCandlesChart = forwardRef<
     slideshowPaused,
     onToggleSlideshowPause,
     hideShortcuts = false,
-    hideTvFooterHint = false,
+    hideTvFooterHint = true,
     defaultFullHistory = false,
     showBrandWatermark = true,
     onFullHistoryZoomChange,
@@ -371,6 +371,7 @@ export const NativeCandlesChart = forwardRef<
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#94a3b8",
         fontSize: narrow ? 9 : 11,
+        attributionLogo: false,
       },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.04)" },

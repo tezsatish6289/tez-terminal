@@ -47,7 +47,6 @@ import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import {
   isSlideshowZoneStale,
   SLIDESHOW_ZONE_TICK_MS,
-  zonesUpdatedFooterLabel,
 } from "@/lib/levels/slideshow-zones";
 import {
   FNO_LEVELS_MAIN,
@@ -74,7 +73,6 @@ import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
 import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
-import { LevelsTradingViewOpenChip } from "@/components/levels/LevelsTradingViewOpenChip";
 import { LevelsMarketMapShareButton } from "@/components/levels/LevelsMarketMapShareButton";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
@@ -869,7 +867,6 @@ export default function LevelsPage() {
         headerTrailing={
           isSlideView && inZoneActive && activeTicker ? (
             <div className="flex flex-wrap items-center gap-1.5 justify-end">
-              <LevelsTradingViewOpenChip webChartUrl={activeTv.webChartUrl} />
               {isFnoNinjaHost ? (
                 <>
                   <LevelsSymbolShareButton
@@ -1008,7 +1005,6 @@ export default function LevelsPage() {
     }
 
     const chartSpot = chartLevelsForView?.spot ?? inZoneActive?.spot ?? null;
-    const zonesUpdatedLabel = zonesUpdatedFooterLabel(chartLevelsForView?.computedAt);
     return wrapSlideshowBody(
       slideshowNativeLayout ? (
         <></>
@@ -1034,7 +1030,6 @@ export default function LevelsPage() {
           onPrev={() => goInZone(-1)}
           onNext={() => goInZone(1)}
           onGoTo={setInZoneSlide}
-          zonesUpdatedLabel={zonesUpdatedLabel}
           slideshowAdvanceHint
           slideshowPaused={slideshowPaused}
           showCarouselArrows={false}
@@ -1055,7 +1050,6 @@ export default function LevelsPage() {
                   slideCount={inZoneCount}
                   activeIndex={inZoneCurrent}
                   onGoTo={setInZoneSlide}
-                  zonesUpdatedLabel={zonesUpdatedLabel}
                   slideshowAdvanceHint
                   slideshowPaused={slideshowPaused}
                 />

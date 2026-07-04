@@ -4,18 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "rea
 import { usePathname, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
-import { LevelsChartMetaFooter } from "@/components/levels/LevelsSplitLayout";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
-import {
-  isSlideshowZoneStale,
-  SLIDESHOW_ZONE_TICK_MS,
-  zonesUpdatedFooterLabel,
-} from "@/lib/levels/slideshow-zones";
+import { isSlideshowZoneStale, SLIDESHOW_ZONE_TICK_MS } from "@/lib/levels/slideshow-zones";
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
@@ -34,7 +29,6 @@ import { FNO_LEVELS_MAIN, FNO_LEVELS_SHELL } from "@/lib/fnoninja/responsive";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
 import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
-import { LevelsTradingViewOpenChip } from "@/components/levels/LevelsTradingViewOpenChip";
 import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
@@ -173,9 +167,6 @@ function ChartContent() {
     return null;
   }, [companyName, label, symbol]);
 
-  const zonesUpdatedLabel = zonesUpdatedFooterLabel(chartLevels?.computedAt);
-  const pathname = usePathname();
-
   const showFavslideToggle = Boolean(scope) && Boolean(symbol);
 
   if ((!scope || !symbol) && error) {
@@ -225,7 +216,6 @@ function ChartContent() {
           symbolSearch={
             showFavslideToggle && scope ? (
               <div className="flex items-center gap-2">
-                <LevelsTradingViewOpenChip webChartUrl={config.webChartUrl} />
                 <LevelsSymbolShareButton
                   scope={scope}
                   symbol={symbol}
@@ -292,18 +282,13 @@ function ChartContent() {
                   levels={chartLevels}
                   loading={loading}
                   hideChartShortcuts
+                  hideTvFooterHint
                   defaultFullHistory
                   showHeader={false}
                   nativeChartRef={nativeChartRef}
                   onFullHistoryZoomChange={setChartFullHistory}
                 />
               )}
-              <LevelsChartMetaFooter
-                slideCount={1}
-                activeIndex={0}
-                onGoTo={() => {}}
-                zonesUpdatedLabel={zonesUpdatedLabel}
-              />
             </>
           }
           news={

@@ -20,7 +20,12 @@ import {
   mergedPriceRange,
 } from "@/components/levels/native-chart-level-overlays";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
 import { computePvt, PVT_LOOKBACK_DAYS } from "@/lib/levels/pvt";
+import {
+  isSlideshowZoneStale,
+  SLIDESHOW_ZONE_TICK_MS,
+} from "@/lib/levels/slideshow-zones";
 import { epochUtcToChartIstSeconds } from "@/lib/market-hours";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 
@@ -76,15 +81,20 @@ function toChartTime(epochSec: number): UTCTimestamp {
   return epochUtcToChartIstSeconds(epochSec) as UTCTimestamp;
 }
 
+function levelsHaveBands(data: PublicLevels | null | undefined): boolean {
+  return data != null && (data.bullLow != null || data.bearLow != null);
+}
+
 export function PvtChart({
   scope,
   symbol,
-  levels,
+  levels: levelsProp,
   className,
   hideGuide = false,
 }: {
   scope: LevelsTvScope;
   symbol: string;
+  /** Optional parent levels — PVT also fetches its own when mounted. */
   levels?: PublicLevels | null;
   className?: string;
   hideGuide?: boolean;
@@ -95,19 +105,57 @@ export function PvtChart({
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const pvtRef = useRef<ISeriesApi<"Line"> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
-  const levelsRef = useRef(levels);
   const candleChartDataRef = useRef<CandlestickData[]>([]);
   const [candles, setCandles] = useState<DailyCandle[] | null>(null);
+  const [fetchedLevels, setFetchedLevels] = useState<PublicLevels | null>(null);
   const [loading, setLoading] = useState(true);
+  const [levelsLoading, setLevelsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [chartReady, setChartReady] = useState(false);
   const [range, setRange] = useState<PvtHistoryRange>("6M");
 
-  levelsRef.current = levels;
+  const effectiveLevels = useMemo(() => {
+    if (levelsHaveBands(levelsProp)) return levelsProp;
+    if (levelsHaveBands(fetchedLevels)) return fetchedLevels;
+    return levelsProp ?? fetchedLevels;
+  }, [levelsProp, fetchedLevels]);
+
+  const levelsRef = useRef(effectiveLevels);
+  levelsRef.current = effectiveLevels;
 
   useEffect(() => {
     setRange("6M");
+    setFetchedLevels(null);
   }, [scope, symbol]);
+
+  const loadOptionLevels = useCallback(
+    async (opts?: { quiet?: boolean }) => {
+      if (!opts?.quiet) setLevelsLoading(true);
+      try {
+        const json = await fetchSymbolLevels(scope, symbol, { slideshow: true });
+        setFetchedLevels(json.data);
+      } catch {
+        if (!opts?.quiet) setFetchedLevels(null);
+      } finally {
+        if (!opts?.quiet) setLevelsLoading(false);
+      }
+    },
+    [scope, symbol],
+  );
+
+  /** Fetch option-chain zones whenever the PVT tab is open (same API as Chart tab). */
+  useEffect(() => {
+    void loadOptionLevels();
+  }, [loadOptionLevels]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (isSlideshowZoneStale(effectiveLevels?.computedAt)) {
+        void loadOptionLevels({ quiet: true });
+      }
+    }, SLIDESHOW_ZONE_TICK_MS);
+    return () => clearInterval(id);
+  }, [scope, symbol, effectiveLevels?.computedAt, loadOptionLevels]);
 
   useEffect(() => {
     let cancelled = false;
@@ -246,9 +294,9 @@ export function PvtChart({
         value: p.value,
       })),
     );
-    applyClusterSummaryPriceLines(candleSeries, priceLinesRef, levels);
+    applyClusterSummaryPriceLines(candleSeries, priceLinesRef, effectiveLevels);
     chart.timeScale().fitContent();
-  }, [chartReady, displayCandles, pvtSeries, levels]);
+  }, [chartReady, displayCandles, pvtSeries, effectiveLevels]);
 
   const shellStyle = hideGuide ? COMPACT_SHELL_STYLE : CHART_SHELL_STYLE;
   const guideFooter = hideGuide ? null : (
@@ -263,8 +311,16 @@ export function PvtChart({
     </div>
   );
 
-  const showOverlay = loading || Boolean(error) || displayCandles.length === 0;
-  const showClusterLabels = chartReady && !showOverlay && levels != null;
+  const candlesReady = !loading && !error && displayCandles.length > 0;
+  const zonesReady = levelsHaveBands(effectiveLevels);
+  const showOverlay = !candlesReady;
+  const showZonesOverlay = candlesReady && levelsLoading && !zonesReady;
+  const overlayMessage = loading
+    ? "Loading PVT…"
+    : levelsLoading
+      ? "Loading option levels…"
+      : error ?? "Not enough daily data for PVT.";
+  const showClusterLabels = chartReady && candlesReady && zonesReady;
 
   return (
     <div className={className} style={shellStyle}>
@@ -276,7 +332,7 @@ export function PvtChart({
             chartRef={chartRef}
             seriesRef={candleRef}
             containerRef={overlayRootRef}
-            levels={levels}
+            levels={effectiveLevels}
             visible
           />
         ) : null}
@@ -286,14 +342,21 @@ export function PvtChart({
               <>
                 <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
                 <p className="text-sm" style={{ color: "#94a3b8" }}>
-                  Loading PVT…
+                  {overlayMessage}
                 </p>
               </>
             ) : (
               <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
-                {error ?? "Not enough daily data for PVT."}
+                {overlayMessage}
               </p>
             )}
+          </div>
+        ) : showZonesOverlay ? (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.35)]">
+            <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+            <p className="text-sm" style={{ color: "#94a3b8" }}>
+              Loading option levels…
+            </p>
           </div>
         ) : null}
       </div>

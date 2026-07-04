@@ -85,7 +85,7 @@ function ChartContent() {
       }
       try {
         if (scope !== "index" && scope !== "stock") return;
-        const json = await fetchSymbolLevels(scope, symbol, { slideshow: scope === "stock" });
+        const json = await fetchSymbolLevels(scope, symbol, { slideshow: true });
         if (!json.data && json.error) {
           setLabel(symbol);
           setLevels(null);

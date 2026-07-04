@@ -94,7 +94,7 @@ export function LevelsChartShareButton({
       onClick={() => void handleShare()}
       className={
         toolbar
-          ? `flex flex-col items-center justify-center w-10 min-h-[2.75rem] rounded-md transition-colors hover:bg-white/[0.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`.trim()
+          ? `flex flex-col items-center justify-center w-14 min-h-[3rem] rounded-md transition-colors hover:bg-white/[0.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`.trim()
           : iconOnly
             ? `inline-flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-[1.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`.trim()
             : `inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`.trim()

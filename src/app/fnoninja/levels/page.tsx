@@ -77,6 +77,7 @@ import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareBu
 import { LevelsMarketMapShareButton } from "@/components/levels/LevelsMarketMapShareButton";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
+import { LevelsSlideshowDeepLink } from "@/components/levels/LevelsSlideshowDeepLink";
 import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughBridge";
 import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
@@ -1261,6 +1262,7 @@ export default function LevelsPage() {
     <main className={`${FNO_LEVELS_MAIN} min-w-0`} style={FNO_APP_SURFACE_STYLE}>
       <Suspense fallback={null}>
         <FnoNinjaLiveslideWalkthroughBridge onPrepare={prepareSlideshowWalkthrough} />
+        <LevelsSlideshowDeepLink onLiveslide={enterLiveslide} onFavslide={enterFavslide} />
       </Suspense>
       <div
         className={`${FNO_LEVELS_SHELL} flex-1 min-h-0 flex flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden`}

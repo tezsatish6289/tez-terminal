@@ -262,6 +262,7 @@ function ChartContent() {
                   className="flex-1 min-h-0 h-full w-full"
                   scope={scope}
                   symbol={symbol}
+                  levels={chartLevels}
                 />
               ) : showOutlook ? (
                 <NiftyOutlookChart

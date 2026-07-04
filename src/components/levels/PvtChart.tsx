@@ -7,11 +7,19 @@ import {
   createChart,
   CrosshairMode,
   LineSeries,
+  type CandlestickData,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { Loader2 } from "lucide-react";
+import { LevelsChartClusterBandLabels } from "@/components/levels/LevelsChartClusterBandLabels";
+import {
+  applyClusterSummaryPriceLines,
+  mergedPriceRange,
+} from "@/components/levels/native-chart-level-overlays";
+import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { computePvt, PVT_LOOKBACK_DAYS } from "@/lib/levels/pvt";
 import { epochUtcToChartIstSeconds } from "@/lib/market-hours";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
@@ -71,23 +79,31 @@ function toChartTime(epochSec: number): UTCTimestamp {
 export function PvtChart({
   scope,
   symbol,
+  levels,
   className,
   hideGuide = false,
 }: {
   scope: LevelsTvScope;
   symbol: string;
+  levels?: PublicLevels | null;
   className?: string;
   hideGuide?: boolean;
 }) {
+  const overlayRootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const pvtRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const priceLinesRef = useRef<IPriceLine[]>([]);
+  const levelsRef = useRef(levels);
+  const candleChartDataRef = useRef<CandlestickData[]>([]);
   const [candles, setCandles] = useState<DailyCandle[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [chartReady, setChartReady] = useState(false);
   const [range, setRange] = useState<PvtHistoryRange>("6M");
+
+  levelsRef.current = levels;
 
   useEffect(() => {
     setRange("6M");
@@ -129,7 +145,6 @@ export function PvtChart({
 
   const pvtSeries = useMemo(() => computePvt(displayCandles), [displayCandles]);
 
-  // Chart shell must stay mounted while loading — otherwise the ref is null and init never runs.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -169,6 +184,13 @@ export function PvtChart({
       0,
     );
 
+    candlesSeries.applyOptions({
+      autoscaleInfoProvider: () => {
+        const range = mergedPriceRange(candleChartDataRef.current, levelsRef.current);
+        return range ? { priceRange: range } : null;
+      },
+    });
+
     const pvtLine = chart.addSeries(
       LineSeries,
       {
@@ -197,6 +219,7 @@ export function PvtChart({
       chartRef.current = null;
       candleRef.current = null;
       pvtRef.current = null;
+      priceLinesRef.current = [];
       setChartReady(false);
     };
   }, []);
@@ -207,23 +230,25 @@ export function PvtChart({
     const chart = chartRef.current;
     if (!chartReady || !candleSeries || !pvtLine || !chart || displayCandles.length === 0) return;
 
-    candleSeries.setData(
-      displayCandles.map((c) => ({
-        time: toChartTime(c.time),
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-      })),
-    );
+    const candleData: CandlestickData[] = displayCandles.map((c) => ({
+      time: toChartTime(c.time),
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+    candleChartDataRef.current = candleData;
+
+    candleSeries.setData(candleData);
     pvtLine.setData(
       pvtSeries.map((p) => ({
         time: toChartTime(p.time),
         value: p.value,
       })),
     );
+    applyClusterSummaryPriceLines(candleSeries, priceLinesRef, levels);
     chart.timeScale().fitContent();
-  }, [chartReady, displayCandles, pvtSeries]);
+  }, [chartReady, displayCandles, pvtSeries, levels]);
 
   const shellStyle = hideGuide ? COMPACT_SHELL_STYLE : CHART_SHELL_STYLE;
   const guideFooter = hideGuide ? null : (
@@ -232,19 +257,29 @@ export function PvtChart({
         Price Volume Trend (PVT)
       </p>
       <p className="mt-1 text-[10px] leading-relaxed" style={{ color: "#64748b" }}>
-        Daily candles on top; PVT below resets to zero at the start of the selected window.
-        Rising PVT suggests volume-backed buying; falling PVT suggests distribution.
+        Daily candles with put/call cluster + max pain lines; PVT below resets to zero at the
+        start of the selected window.
       </p>
     </div>
   );
 
   const showOverlay = loading || Boolean(error) || displayCandles.length === 0;
+  const showClusterLabels = chartReady && !showOverlay && levels != null;
 
   return (
     <div className={className} style={shellStyle}>
       <PvtRangeToggle value={range} onChange={setRange} />
-      <div className="relative min-h-0 overflow-hidden">
+      <div ref={overlayRootRef} className="relative min-h-0 overflow-hidden">
         <div ref={containerRef} className="absolute inset-0" />
+        {showClusterLabels ? (
+          <LevelsChartClusterBandLabels
+            chartRef={chartRef}
+            seriesRef={candleRef}
+            containerRef={overlayRootRef}
+            levels={levels}
+            visible
+          />
+        ) : null}
         {showOverlay ? (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.45)]">
             {loading ? (

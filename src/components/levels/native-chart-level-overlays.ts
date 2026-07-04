@@ -220,6 +220,58 @@ function lineFocused(title: string, focus: LevelVisualFocus | null | undefined):
   return lineFocusedPart(title, focus);
 }
 
+function bandCenterPrice(
+  low: number | null | undefined,
+  high: number | null | undefined,
+): number | null {
+  if (low == null || high == null || !Number.isFinite(low) || !Number.isFinite(high)) return null;
+  return (low + high) / 2;
+}
+
+/** PVT chart: one line per put/call cluster + max pain (bands collapsed to center). */
+export function applyClusterSummaryPriceLines(
+  series: ISeriesApi<"Candlestick">,
+  priceLinesRef: { current: IPriceLine[] },
+  levels: PublicLevels | null | undefined,
+): void {
+  for (const line of priceLinesRef.current) series.removePriceLine(line);
+  priceLinesRef.current = [];
+  if (!levels) return;
+
+  const rawSpecs: PriceLineSpec[] = [];
+  const push = (
+    price: number | null | undefined,
+    color: string,
+    title: string,
+    style: LineStyle,
+    width: 1 | 2 | 3 | 4,
+    mergeOrder: number,
+  ) => {
+    if (price == null || !Number.isFinite(price)) return;
+    rawSpecs.push({ price, color, title, style, width, mergeOrder });
+  };
+
+  const putPrice = bandCenterPrice(levels.bullLow, levels.bullHigh);
+  const callPrice = bandCenterPrice(levels.bearLow, levels.bearHigh);
+
+  push(putPrice, LEVELS_ZONE_CHART.bull.line, "Put OI peak", LineStyle.Dashed, 2, 10);
+  push(callPrice, LEVELS_ZONE_CHART.bear.line, "Call OI peak", LineStyle.Dashed, 2, 11);
+  push(levels.poc, LEVELS_ZONE_CHART.maxPain.line, "Max Pain", LineStyle.Dashed, 2, 0);
+
+  for (const spec of mergeCoincidentPriceLines(rawSpecs, false)) {
+    priceLinesRef.current.push(
+      series.createPriceLine({
+        price: spec.price,
+        color: spec.color,
+        lineWidth: spec.width,
+        lineStyle: spec.style,
+        axisLabelVisible: false,
+        title: spec.title,
+      }),
+    );
+  }
+}
+
 export function applyLevelPriceLines(
   series: ISeriesApi<"Candlestick">,
   priceLinesRef: { current: IPriceLine[] },

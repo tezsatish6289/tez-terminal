@@ -768,6 +768,7 @@ export default function LevelsPage() {
             className="flex-1 min-h-0 h-full w-full"
             scope={inZoneActive.scope}
             symbol={inZoneActive.symbol}
+            levels={chartLevelsForView}
           />
         ) : showSlideshowOutlook ? (
           <NiftyOutlookChart

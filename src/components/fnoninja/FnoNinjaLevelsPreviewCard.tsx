@@ -181,6 +181,7 @@ export function FnoNinjaLevelsPreviewCard({
                 className="h-full w-full"
                 scope={target.scope}
                 symbol={target.symbol}
+                levels={levels}
                 hideGuide
               />
             ) : viewMode === "outlook" ? (

@@ -22,6 +22,7 @@ function HintRow({
   titleMuted,
   kbd,
   kbdHint,
+  href,
   onClick,
   ariaLabel,
   titleColor,
@@ -34,28 +35,27 @@ function HintRow({
   titleMuted?: string;
   kbd: string;
   kbdHint: string;
-  onClick: () => void;
+  href?: string;
+  onClick?: () => void;
   ariaLabel: string;
   titleColor?: string;
   helperColor?: string;
   kbdColor?: string;
 }) {
   const anchored = topPx != null && Number.isFinite(topPx);
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="absolute left-3 z-20 max-w-[min(100%,300px)] text-left rounded-md px-2.5 py-2 transition-opacity hover:opacity-100 pointer-events-auto"
-      style={{
-        top: anchored ? topPx : undefined,
-        bottom: anchored ? undefined : bottomPx,
-        opacity: 0.78,
-        backgroundColor: "rgba(6, 9, 18, 0.55)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        backdropFilter: "blur(4px)",
-      }}
-      aria-label={ariaLabel}
-    >
+  const className =
+    "absolute left-3 z-20 max-w-[min(100%,300px)] text-left rounded-md px-2.5 py-2 transition-opacity hover:opacity-100 pointer-events-auto";
+  const style = {
+    top: anchored ? topPx : undefined,
+    bottom: anchored ? undefined : bottomPx,
+    opacity: 0.78,
+    backgroundColor: "rgba(6, 9, 18, 0.55)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    backdropFilter: "blur(4px)",
+  } as const;
+
+  const body = (
+    <>
       <span
         className="block font-semibold leading-snug"
         style={{ fontSize: 14, color: titleColor ?? "rgba(241, 245, 249, 0.95)" }}
@@ -78,6 +78,33 @@ function HintRow({
         </kbd>{" "}
         or click here
       </span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`${className} no-underline`}
+        style={style}
+        aria-label={ariaLabel}
+      >
+        {body}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={className}
+      style={style}
+      aria-label={ariaLabel}
+    >
+      {body}
     </button>
   );
 }
@@ -151,7 +178,8 @@ export function LevelsChartShortcuts({
     titleMuted?: string;
     kbd: string;
     kbdHint: string;
-    onClick: () => void;
+    href?: string;
+    onClick?: () => void;
     ariaLabel: string;
     titleColor?: string;
     helperColor?: string;
@@ -164,7 +192,7 @@ export function LevelsChartShortcuts({
     titleMuted: "— new tab",
     kbd: "T",
     kbdHint: "Press",
-    onClick: () => openTradingViewChart(webChartUrl),
+    href: webChartUrl,
     ariaLabel: "Open this chart on TradingView in a new tab. Press T or click.",
   });
 
@@ -214,6 +242,7 @@ export function LevelsChartShortcuts({
             titleMuted={row.titleMuted}
             kbd={row.kbd}
             kbdHint={row.kbdHint}
+            href={row.href}
             onClick={row.onClick}
             ariaLabel={row.ariaLabel}
             titleColor={row.titleColor}

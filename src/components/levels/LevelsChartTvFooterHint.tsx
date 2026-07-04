@@ -38,10 +38,11 @@ export function LevelsChartTvFooterHint({
     : "Support & Resistance Derived from option chain data";
 
   return (
-    <button
-      type="button"
-      onClick={() => openTradingViewChart(webChartUrl)}
-      className="absolute bottom-[28px] left-0 z-20 hidden md:flex justify-center px-3 pointer-events-auto"
+    <a
+      href={webChartUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="absolute bottom-[28px] left-0 z-20 hidden md:flex justify-center px-3 pointer-events-auto no-underline"
       style={{ right: rightInsetPx }}
       aria-label="Open full chart on TradingView in a new tab. Press T or click."
     >
@@ -63,6 +64,6 @@ export function LevelsChartTvFooterHint({
           This is for informational purposes only. Not financial advice.
         </span>
       </span>
-    </button>
+    </a>
   );
 }

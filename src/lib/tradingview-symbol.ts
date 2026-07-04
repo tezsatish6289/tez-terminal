@@ -35,9 +35,8 @@ export type TradingViewChartVariant = "signal" | "embed";
 
 /**
  * Link to tradingview.com/chart (levels "Press T" / open full chart).
- * The colon in EXCHANGE:SYMBOL must stay literal — URLSearchParams encodes it
- * to %3A and TradingView's chart router mis-reads that as part of the ticker
- * (e.g. NSE%3AMPHASIS → invalid "3AMPHASIS").
+ * Built via URLSearchParams so copy-paste and <a href> get a well-formed query string.
+ * Indian symbols use in.tradingview.com (NSE/BSE/MCX).
  */
 export function buildTradingViewWebChartUrl(tvSymbol: string, interval: string): string {
   const sym = tvSymbol.trim().toUpperCase();
@@ -49,7 +48,10 @@ export function buildTradingViewWebChartUrl(tvSymbol: string, interval: string):
     sym.startsWith("NSE_") ||
     sym.startsWith("BSE_");
   const origin = india ? "https://in.tradingview.com" : "https://www.tradingview.com";
-  return `${origin}/chart/?symbol=${sym}&interval=${encodeURIComponent(tf)}`;
+  const u = new URL("/chart/", origin);
+  u.searchParams.set("symbol", sym);
+  u.searchParams.set("interval", tf);
+  return u.toString();
 }
 
 /**

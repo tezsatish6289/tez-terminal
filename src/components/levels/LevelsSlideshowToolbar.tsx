@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { openTradingViewChart } from "@/lib/levels/open-tradingview-chart";
 import { LevelsBubblesToolbar } from "@/components/levels/LevelsBubblesToolbar";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import type { LevelsSlideCtaVariant } from "@/components/levels/LevelsSlideshowCta";
@@ -149,7 +148,7 @@ export function LevelsSlideshowToolbar({
         id: "tv",
         label: "TradingView",
         kbd: "T",
-        onClick: () => openTradingViewChart(chartShortcuts.webChartUrl),
+        href: chartShortcuts.webChartUrl,
         tone: "default-muted",
         ariaLabel: "Open this chart on TradingView in a new tab. Press T or click.",
       });

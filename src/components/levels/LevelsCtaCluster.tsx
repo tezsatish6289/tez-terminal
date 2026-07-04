@@ -15,6 +15,8 @@ export interface LevelsCtaAction {
   label: string;
   kbd?: string;
   onClick?: () => void;
+  /** External link — renders as <a target="_blank"> (reliable vs window.open). */
+  href?: string;
   title?: string;
   ariaLabel?: string;
   static?: boolean;
@@ -219,11 +221,28 @@ function CtaPill({
     </>
   );
 
-  if (action.static || !action.onClick) {
+  if (action.static || (!action.onClick && !action.href)) {
     return (
       <span className={className} style={style} title={action.title}>
         {labelEl}
       </span>
+    );
+  }
+
+  if (action.href) {
+    return (
+      <a
+        href={action.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={action.onClick}
+        title={action.title}
+        aria-label={action.ariaLabel ?? action.label}
+        className={`${className} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+        style={style}
+      >
+        {labelEl}
+      </a>
     );
   }
 

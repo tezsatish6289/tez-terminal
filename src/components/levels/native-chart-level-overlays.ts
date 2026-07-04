@@ -143,6 +143,7 @@ export interface PriceLineSpec {
   width: 1 | 2 | 3 | 4;
   /** Lower = listed first when titles merge at the same price. */
   mergeOrder: number;
+  axisLabelTextColor?: string;
 }
 
 /** One axis label per price — e.g. "Max Pain · Put OI" when both pin to 900. */
@@ -178,6 +179,7 @@ export function mergeCoincidentPriceLines(
       style: primary.style,
       width: Math.max(...group.map((g) => g.width)) as 1 | 2 | 3 | 4,
       mergeOrder: primary.mergeOrder,
+      axisLabelTextColor: group.find((g) => g.axisLabelTextColor)?.axisLabelTextColor,
     });
   }
   return merged.sort((a, b) => b.price - a.price);
@@ -295,9 +297,10 @@ export function applyLevelPriceLines(
     style: LineStyle,
     width: 1 | 2 | 3 | 4,
     mergeOrder: number,
+    axisLabelTextColor?: string,
   ) => {
     if (price == null || !Number.isFinite(price)) return;
-    rawSpecs.push({ price, color, title, style, width, mergeOrder });
+    rawSpecs.push({ price, color, title, style, width, mergeOrder, axisLabelTextColor });
   };
 
   push(levels.bearHigh, LEVELS_ZONE_CHART.bear.line, "Resistance H", LineStyle.Dashed, 1, 20);
@@ -312,7 +315,15 @@ export function applyLevelPriceLines(
       11,
     );
   }
-  push(anchors.bearSl, LEVELS_ZONE_CHART.bear.lineInv, "Resistance Break", LineStyle.Dotted, 2, 30);
+  push(
+    anchors.bearSl,
+    LEVELS_ZONE_CHART.bear.lineInv,
+    "Resistance Break",
+    LineStyle.Dotted,
+    2,
+    30,
+    "#ffffff",
+  );
   if (includeClusterPeaks) {
     push(levels.poc, LEVELS_ZONE_CHART.maxPain.line, "Max Pain", LineStyle.Dashed, 2, 0);
   }
@@ -328,7 +339,15 @@ export function applyLevelPriceLines(
       10,
     );
   }
-  push(anchors.bullSl, LEVELS_ZONE_CHART.bull.lineInv, "Support Break", LineStyle.Dotted, 2, 31);
+  push(
+    anchors.bullSl,
+    LEVELS_ZONE_CHART.bull.lineInv,
+    "Support Break",
+    LineStyle.Dotted,
+    2,
+    31,
+    "#ffffff",
+  );
 
   for (const spec of mergeCoincidentPriceLines(rawSpecs, compactTitles)) {
     const focused = lineFocused(spec.title, visualFocus);
@@ -345,6 +364,9 @@ export function applyLevelPriceLines(
         lineStyle: spec.style,
         axisLabelVisible: true,
         title: spec.title,
+        ...(spec.axisLabelTextColor
+          ? { axisLabelTextColor: spec.axisLabelTextColor }
+          : {}),
       }),
     );
   }

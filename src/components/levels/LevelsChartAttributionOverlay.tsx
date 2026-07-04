@@ -133,7 +133,8 @@ export function LevelsChartAttributionOverlay({
   const showTv = showTradingView && Boolean(tvUrl);
   const showBrandRow = showBrand || showTv;
   const plotRight = Math.max(8, rightInsetPx + 6);
-  const useFooterRow = variant === "trend" && showBrandRow && showMethodology;
+  const useFooterRow =
+    (variant === "trend" || variant === "intraday") && showBrandRow && showMethodology;
 
   if (!showBrandRow && !showMethodology) return null;
 
@@ -144,7 +145,7 @@ export function LevelsChartAttributionOverlay({
     >
       {useFooterRow ? (
         <div
-          className={`absolute left-2 sm:left-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2 ${FOOTER_ROW_BOTTOM_CLASS.trend}`}
+          className={`absolute left-2 sm:left-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2 ${FOOTER_ROW_BOTTOM_CLASS[variant]}`}
           style={{ right: plotRight }}
         >
           <div className="justify-self-start min-w-0">

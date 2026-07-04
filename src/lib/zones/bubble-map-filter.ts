@@ -2,18 +2,26 @@ import type { BubbleTone } from "@/lib/zones/bubble-tone";
 import { BUBBLE_TONE_STYLE } from "@/lib/zones/bubble-tone";
 
 /** Active filter on the market bubbles map (replaces All / Bullish / Bearish). */
-export type BubbleMapFilter = "all" | "IN_BULL" | "NEAR_BULL" | "IN_BEAR" | "NEAR_BEAR" | "UNSCANNED";
+export type BubbleMapFilter =
+  | "all"
+  | "IN_BULL"
+  | "NEAR_BULL"
+  | "IN_BEAR"
+  | "NEAR_BEAR"
+  | "AT_POC"
+  | "UNSCANNED";
 
 export const BUBBLE_MAP_FILTER_KEYS: Exclude<BubbleMapFilter, "all">[] = [
   "IN_BULL",
   "NEAR_BULL",
   "IN_BEAR",
   "NEAR_BEAR",
+  "AT_POC",
   "UNSCANNED",
 ];
 
-/** Slideshow strip — zone setups only (no neutral / awaiting scan). */
-export type SlideshowMapFilter = Exclude<BubbleMapFilter, "UNSCANNED">;
+/** Slideshow strip — zone setups only (no max pain / neutral / awaiting scan). */
+export type SlideshowMapFilter = Exclude<BubbleMapFilter, "UNSCANNED" | "AT_POC">;
 
 export const SLIDESHOW_MAP_FILTER_KEYS: Exclude<SlideshowMapFilter, "all">[] = [
   "IN_BULL",
@@ -56,6 +64,7 @@ export function countBubbleMapFilters(
     NEAR_BULL: 0,
     IN_BEAR: 0,
     NEAR_BEAR: 0,
+    AT_POC: 0,
     UNSCANNED: 0,
   };
   for (const it of items) {
@@ -71,6 +80,9 @@ export function countBubbleMapFilters(
         break;
       case "NEAR_BEAR":
         out.NEAR_BEAR += 1;
+        break;
+      case "AT_POC":
+        out.AT_POC += 1;
         break;
       case "UNSCANNED":
         out.UNSCANNED += 1;

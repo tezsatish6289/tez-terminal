@@ -12,6 +12,7 @@ const INDEX_BUBBLE_RADIUS = 84;
 const STOCK_RADIUS = {
   unscanned: 26,
   neutral: 30,
+  atPoc: 38,
   near: 40,
   inZone: 48,
 } as const;
@@ -22,6 +23,7 @@ export function bubbleRadius(scope: "index" | "stock", tone: BubbleTone): number
   if (tone === "ILLIQUID" || tone === "NEUTRAL") return STOCK_RADIUS.neutral;
   if (tone === "IN_BULL" || tone === "IN_BEAR") return STOCK_RADIUS.inZone;
   if (tone === "NEAR_BULL" || tone === "NEAR_BEAR") return STOCK_RADIUS.near;
+  if (tone === "AT_POC") return STOCK_RADIUS.atPoc;
   return STOCK_RADIUS.neutral;
 }
 
@@ -284,6 +286,8 @@ export function bubbleStackZIndex(scope: "index" | "stock", tone: BubbleTone): n
     case "NEAR_BULL":
     case "NEAR_BEAR":
       return scope === "index" ? 170 : 160;
+    case "AT_POC":
+      return scope === "index" ? 140 : 130;
     case "NEUTRAL":
     case "ILLIQUID":
       return scope === "index" ? 90 : 50;

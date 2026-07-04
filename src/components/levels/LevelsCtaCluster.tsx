@@ -27,6 +27,8 @@ export interface LevelsCtaAction {
     | "bull-muted"
     | "bear"
     | "bear-muted"
+    | "maxpain"
+    | "maxpain-muted"
     | "paused"
     | "paused-muted";
   /** Dotted ring for near-zone filters (matches bubble map). */
@@ -68,6 +70,20 @@ function pillStyle(tone: LevelsCtaAction["tone"]): {
         border: "rgba(248, 113, 113, 0.16)",
         text: "rgba(252, 165, 165, 0.55)",
         countText: "rgba(248, 113, 113, 0.45)",
+      };
+    case "maxpain":
+      return {
+        fill: "rgba(120, 53, 15, 0.42)",
+        border: "rgba(245, 158, 11, 0.42)",
+        text: "#fde68a",
+        countText: "rgba(252, 211, 77, 0.85)",
+      };
+    case "maxpain-muted":
+      return {
+        fill: "rgba(120, 53, 15, 0.12)",
+        border: "rgba(245, 158, 11, 0.18)",
+        text: "rgba(253, 230, 138, 0.55)",
+        countText: "rgba(252, 211, 77, 0.45)",
       };
     case "paused":
       return {
@@ -144,6 +160,21 @@ function filterPillStyle(tone: LevelsCtaAction["tone"]): ReturnType<typeof pillS
         border: "rgba(248, 113, 113, 0.42)",
         text: "rgba(252, 165, 165, 0.92)",
         countText: "rgba(248, 113, 113, 0.78)",
+      };
+    case "maxpain":
+      return {
+        fill: "rgba(120, 53, 15, 0.58)",
+        border: "#f59e0b",
+        text: "#fffbeb",
+        countText: "#fde68a",
+        glow: "0 0 14px rgba(245, 158, 11, 0.35)",
+      };
+    case "maxpain-muted":
+      return {
+        fill: "rgba(120, 53, 15, 0.18)",
+        border: "rgba(245, 158, 11, 0.42)",
+        text: "rgba(253, 230, 138, 0.92)",
+        countText: "rgba(252, 211, 77, 0.78)",
       };
     case "default-muted":
       return {

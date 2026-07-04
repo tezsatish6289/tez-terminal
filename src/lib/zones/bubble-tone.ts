@@ -13,6 +13,7 @@ export type BubbleTone =
   | "IN_BEAR"
   | "NEAR_BULL"
   | "NEAR_BEAR"
+  | "AT_POC"
   | "NEUTRAL"
   | "ILLIQUID"
   | "UNSCANNED";
@@ -81,6 +82,17 @@ export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
     textColor: "#f8fafc",
     textMutedColor: "#cbd5e1",
   },
+  AT_POC: {
+    solid: false,
+    fill: BUBBLE_CORE_FILL,
+    glow: "0 0 16px rgba(245, 158, 11, 0.32), inset 0 0 10px rgba(245, 158, 11, 0.06)",
+    border: "rgba(245, 158, 11, 0.92)",
+    borderStyle: "solid",
+    borderWidth: 3,
+    label: "At Max Pain",
+    textColor: "#fde68a",
+    textMutedColor: "#fcd34d",
+  },
   NEUTRAL: {
     solid: false,
     fill: "rgba(30, 41, 59, 0.7)",
@@ -130,9 +142,28 @@ export function deriveBubbleTone(bands: ZoneBands, scanned: boolean): BubbleTone
   return nearestBandKind(bands, spot) === "bull" ? "NEAR_BULL" : "NEAR_BEAR";
 }
 
+/** Default tolerance for "spot sitting at max pain" — same 0.5% used for NEAR. */
+export const AT_POC_TOLERANCE_PCT = 0.005;
+
 /**
- * Bubble-map + slideshow strip tone: geographic zone position, gated by min 2:1 POC RR.
- * Fails RR → NEUTRAL (grey “between zones”) so filter counts match qualified setups only.
+ * True when spot is parked at max pain (within {@link AT_POC_TOLERANCE_PCT}).
+ * Display-only signal for the bubble map — never gates a trade setup or SR audit.
+ */
+export function isAtMaxPain(
+  bands: ZoneBands,
+  poc?: number | null,
+  tolerancePct = AT_POC_TOLERANCE_PCT,
+): boolean {
+  const spot = bands.spot;
+  if (spot == null || !Number.isFinite(spot) || spot <= 0) return false;
+  if (poc == null || !Number.isFinite(poc) || poc <= 0) return false;
+  return Math.abs(spot - poc) <= spot * tolerancePct;
+}
+
+/**
+ * Bubble-map tone: geographic zone position, gated by min 2:1 POC RR.
+ * A qualified zone tone always wins. Otherwise (would be NEUTRAL), a symbol whose
+ * spot sits at max pain surfaces as AT_POC ("At Max Pain") instead of grey neutral.
  */
 export function deriveBubbleDisplayTone(
   bands: ZoneBands,
@@ -149,8 +180,11 @@ export function deriveBubbleDisplayTone(
     geo === "NEAR_BULL" ||
     geo === "NEAR_BEAR"
   ) {
-    if (!bubbleTonePassesMinRR(geo, bands, poc, bandOffset, oi)) return "NEUTRAL";
+    if (bubbleTonePassesMinRR(geo, bands, poc, bandOffset, oi)) return geo;
+    // Failed the RR gate → drops to neutral, unless spot is parked at max pain.
+    return isAtMaxPain(bands, poc) ? "AT_POC" : "NEUTRAL";
   }
+  if (geo === "NEUTRAL" && isAtMaxPain(bands, poc)) return "AT_POC";
   return geo;
 }
 
@@ -182,6 +216,10 @@ export function resolveBubbleVisual(
 
   if (tone === "NEAR_BULL" || tone === "NEAR_BEAR") {
     return { ...base, borderWidth: 4, borderStyle: "dotted" };
+  }
+
+  if (tone === "AT_POC") {
+    return { ...base, borderWidth: 4 };
   }
 
   return base;

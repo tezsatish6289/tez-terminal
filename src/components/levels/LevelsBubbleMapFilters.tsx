@@ -15,6 +15,7 @@ function filterTone(
   active: boolean,
 ): LevelsCtaAction["tone"] {
   if (key === "all") return active ? "default" : "default-muted";
+  if (key === "AT_POC") return active ? "maxpain" : "maxpain-muted";
   const isBull = key === "IN_BULL" || key === "NEAR_BULL";
   if (active) return isBull ? "bull" : key === "UNSCANNED" ? "default" : "bear";
   if (isBull) return "bull-muted";

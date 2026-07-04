@@ -260,6 +260,9 @@ function ChartContent() {
                   className="flex-1 min-h-0 h-full w-full"
                   scope={scope}
                   symbol={symbol}
+                  levels={chartLevels}
+                  webChartUrl={config.webChartUrl}
+                  showAttribution
                 />
               ) : showPvt && scope ? (
                 <PvtChart
@@ -267,12 +270,15 @@ function ChartContent() {
                   scope={scope}
                   symbol={symbol}
                   levels={chartLevels}
+                  webChartUrl={config.webChartUrl}
                 />
               ) : showOutlook ? (
                 <NiftyOutlookChart
                   className="flex-1 min-h-0 h-full w-full"
                   levels={levels}
                   spot={levels?.spot ?? null}
+                  webChartUrl={config.webChartUrl}
+                  showAttribution
                 />
               ) : (
                 <LevelsTradingViewChart

@@ -1,5 +1,9 @@
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import { fmtInr, levelsSummary } from "@/lib/levels/levels-share";
+import {
+  chartAttributionHeadline,
+  chartAttributionMeta,
+} from "@/lib/levels/chart-attribution-copy";
+import { levelsSummary } from "@/lib/levels/levels-share";
 
 const BRAND = {
   bg: "#070d1a",
@@ -39,7 +43,7 @@ export async function compositeChartShareImage(
   if (w < 120 || h < 120) return null;
 
   const scale = Math.min(2, Math.max(1, 1200 / w));
-  const footerH = 76;
+  const footerH = 92;
   const outW = Math.round(w * scale);
   const outH = Math.round(h * scale + footerH * scale);
 
@@ -88,10 +92,24 @@ export async function compositeChartShareImage(
   ctx.fillText("FNONINJA", textX, footerTop + pad + 28 * scale);
 
   const summary = levelsSummary(opts.levels);
+  const attribution = chartAttributionHeadline("intraday");
+  const attributionMeta = chartAttributionMeta(opts.levels);
+  let footerLineY = footerTop + pad + 44 * scale;
   if (summary) {
     ctx.fillStyle = BRAND.muted;
     ctx.font = `500 ${10 * scale}px system-ui, sans-serif`;
-    ctx.fillText(summary, textX, footerTop + pad + 44 * scale);
+    ctx.fillText(summary, textX, footerLineY);
+    footerLineY += 14 * scale;
+  }
+
+  ctx.fillStyle = BRAND.muted;
+  ctx.font = `500 ${9 * scale}px system-ui, sans-serif`;
+  ctx.fillText(attribution, textX, footerLineY);
+  if (attributionMeta) {
+    footerLineY += 12 * scale;
+    ctx.fillStyle = "rgba(100,116,139,0.95)";
+    ctx.font = `500 ${8 * scale}px system-ui, sans-serif`;
+    ctx.fillText(attributionMeta, textX, footerLineY);
   }
 
   ctx.fillStyle = BRAND.muted;

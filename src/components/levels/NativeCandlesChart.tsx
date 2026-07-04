@@ -33,7 +33,7 @@ import {
   type LevelVisualFocus,
   zoneSlAnchors,
 } from "@/components/levels/native-chart-level-overlays";
-import { LevelsChartBrandWatermark } from "@/components/levels/LevelsChartBrandWatermark";
+import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
 import { LevelsChartCandleTypeBadge } from "@/components/levels/LevelsChartCandleTypeBadge";
 import { LevelsChartFocusGlow } from "@/components/levels/LevelsChartFocusGlow";
 import { compositeChartShareImage } from "@/lib/levels/chart-share-image";
@@ -763,7 +763,16 @@ export const NativeCandlesChart = forwardRef<
           visible={chartReady}
         />
       ) : null}
-      {showBrandWatermark && chartReady ? <LevelsChartBrandWatermark /> : null}
+      {showBrandWatermark && chartReady ? (
+        <LevelsChartAttributionOverlay
+          variant="intraday"
+          levels={levels}
+          webChartUrl={webChartUrl}
+          showTradingView
+          rightInsetPx={priceScaleMinWidth()}
+          visible={chartReady}
+        />
+      ) : null}
       {candleTypeLabel && chartReady ? (
         <LevelsChartCandleTypeBadge label={candleTypeLabel} />
       ) : null}

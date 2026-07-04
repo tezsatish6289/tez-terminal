@@ -15,6 +15,7 @@ import {
 } from "lightweight-charts";
 import { Loader2 } from "lucide-react";
 import { LevelsChartClusterBandLabels } from "@/components/levels/LevelsChartClusterBandLabels";
+import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
 import { LevelsChartCandleTypeBadge } from "@/components/levels/LevelsChartCandleTypeBadge";
 import {
   applyClusterSummaryPriceLines,
@@ -114,13 +115,17 @@ export function PvtChart({
   scope,
   symbol,
   levels: levelsProp,
+  webChartUrl,
   className,
+  showAttribution = true,
 }: {
   scope: LevelsTvScope;
   symbol: string;
   /** Optional parent levels — PVT also fetches its own when mounted. */
   levels?: PublicLevels | null;
+  webChartUrl?: string;
   className?: string;
+  showAttribution?: boolean;
 }) {
   const overlayRootRef = useRef<HTMLDivElement>(null);
   const candleContainerRef = useRef<HTMLDivElement>(null);
@@ -347,10 +352,30 @@ export function PvtChart({
   return (
     <div className={className} style={COMPACT_SHELL_STYLE}>
       <PvtRangeToggle value={range} onChange={setRange} />
-      <div className="flex flex-col flex-1 min-h-0 gap-2">
+      <div className="relative flex flex-col flex-1 min-h-0 gap-2">
+        {showAttribution && candlesReady ? (
+          <LevelsChartAttributionOverlay
+            variant="trend"
+            levels={effectiveLevels}
+            showBrand
+            showMethodology={false}
+            showTradingView={false}
+            className="!absolute inset-0 z-[20]"
+          />
+        ) : null}
         <div ref={overlayRootRef} className="relative flex-1 min-h-0 overflow-hidden">
           <div ref={candleContainerRef} className="absolute inset-0" />
           {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candles" /> : null}
+          {showAttribution && candlesReady ? (
+            <LevelsChartAttributionOverlay
+              variant="trend"
+              levels={effectiveLevels}
+              webChartUrl={webChartUrl}
+              showBrand={false}
+              showMethodology
+              showTradingView={Boolean(webChartUrl)}
+            />
+          ) : null}
           {showClusterLabels ? (
             <LevelsChartClusterBandLabels
               chartRef={candleChartRef}

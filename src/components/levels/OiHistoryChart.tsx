@@ -15,6 +15,8 @@ import {
   oiWallGlowStrength,
   type OiWallSide,
 } from "@/lib/levels/oi-wall-line-width";
+import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
 
 /** Daily candle from /api/freedombot/levels/candles?interval=D. */
 interface DailyCandle {
@@ -99,12 +101,18 @@ export function OiHistoryChart({
   symbol,
   className,
   hideGuide = false,
+  levels,
+  webChartUrl,
+  showAttribution = false,
 }: {
   scope: LevelsTvScope;
   symbol: string;
   className?: string;
   /** Hide Put/Call wall legend footer (e.g. homepage showcase). */
   hideGuide?: boolean;
+  levels?: PublicLevels | null;
+  webChartUrl?: string;
+  showAttribution?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 320, h: 240 });
@@ -248,8 +256,13 @@ export function OiHistoryChart({
 
   const guide = <HistoryChartGuide bullLine={bull.line} bearLine={bear.line} maxPainColor={mp} />;
 
-  const shellStyle = hideGuide ? COMPACT_SHELL_STYLE : CHART_SHELL_STYLE;
-  const guideFooter = hideGuide ? null : <div className={GUIDE_FOOTER_CLASS}>{guide}</div>;
+  const useOverlayAttribution = showAttribution;
+  const shellStyle =
+    hideGuide || useOverlayAttribution ? COMPACT_SHELL_STYLE : CHART_SHELL_STYLE;
+  const guideFooter =
+    hideGuide || useOverlayAttribution ? null : (
+      <div className={GUIDE_FOOTER_CLASS}>{guide}</div>
+    );
 
   const historyLoading = loading || (!error && !rows.length);
 
@@ -426,6 +439,14 @@ export function OiHistoryChart({
           )}
         </div>
         )}
+        {useOverlayAttribution ? (
+          <LevelsChartAttributionOverlay
+            variant="history"
+            levels={levels}
+            webChartUrl={webChartUrl}
+            showTradingView={Boolean(webChartUrl)}
+          />
+        ) : null}
       </div>
       {guideFooter}
     </div>

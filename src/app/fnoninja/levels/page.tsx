@@ -779,6 +779,9 @@ export default function LevelsPage() {
             className="flex-1 min-h-0 h-full w-full"
             scope={inZoneActive.scope}
             symbol={inZoneActive.symbol}
+            levels={chartLevelsForView}
+            webChartUrl={activeTv.webChartUrl}
+            showAttribution
           />
         ) : showSlideshowPvt && inZoneActive ? (
           <PvtChart
@@ -786,12 +789,15 @@ export default function LevelsPage() {
             scope={inZoneActive.scope}
             symbol={inZoneActive.symbol}
             levels={chartLevelsForView}
+            webChartUrl={activeTv.webChartUrl}
           />
         ) : showSlideshowOutlook ? (
           <NiftyOutlookChart
             className="flex-1 min-h-0 h-full w-full"
             levels={activeChartLevels}
             spot={chartLevelsForView?.spot ?? activeChartLevels?.spot ?? null}
+            webChartUrl={activeTv.webChartUrl}
+            showAttribution
           />
         ) : (
           <LevelsTradingViewChart

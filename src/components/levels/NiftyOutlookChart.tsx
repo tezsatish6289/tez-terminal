@@ -14,6 +14,7 @@ import {
   formatClusterDelta,
   formatClusterStrike,
 } from "@/lib/levels/format-cluster-size";
+import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
 
 const PAD_DEFAULT = { top: 18, right: 18, bottom: 40, left: 60 };
 const PAD_COMPACT = { top: 6, right: 6, bottom: 16, left: 28 };
@@ -41,12 +42,16 @@ export function NiftyOutlookChart({
   spot,
   className,
   compact = false,
+  webChartUrl,
+  showAttribution = false,
 }: {
   levels: PublicLevels | null;
   spot: number | null;
   className?: string;
   /** Smaller padding and fewer labels — for learn hub card previews. */
   compact?: boolean;
+  webChartUrl?: string;
+  showAttribution?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 420 });
@@ -438,7 +443,7 @@ export function NiftyOutlookChart({
       {/* Legend */}
       {!compact ? (
         <div
-          className="absolute top-2 right-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px]"
+          className="absolute top-2 left-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] max-w-[min(55%,14rem)]"
           style={{ color: "#94a3b8" }}
         >
           <LegendChip color={bull.line} label="Support" />
@@ -446,6 +451,14 @@ export function NiftyOutlookChart({
           <LegendChip color={maxPainColor} label="Max pain" />
           <span style={{ opacity: 0.7 }}>← confident · speculative →</span>
         </div>
+      ) : null}
+      {showAttribution ? (
+        <LevelsChartAttributionOverlay
+          variant="outlook"
+          levels={levels}
+          webChartUrl={webChartUrl}
+          showTradingView={Boolean(webChartUrl)}
+        />
       ) : null}
     </div>
   );

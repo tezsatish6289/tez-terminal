@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { openTradingViewChart } from "@/lib/levels/open-tradingview-chart";
 import {
   BLACKBOARD_CHALK,
   BLACKBOARD_CHALK_DIM,
@@ -268,7 +269,7 @@ export function LevelsCtaCluster({
 
       if ((e.key === "t" || e.key === "T") && chartKeys.webChartUrl) {
         e.preventDefault();
-        window.open(chartKeys.webChartUrl, "_blank", "noopener,noreferrer");
+        openTradingViewChart(chartKeys.webChartUrl);
         return;
       }
       if (e.key === "3" && chartKeys.showSqueeze && chartKeys.onSqueeze) {

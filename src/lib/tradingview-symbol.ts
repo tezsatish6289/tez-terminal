@@ -42,7 +42,14 @@ export type TradingViewChartVariant = "signal" | "embed";
 export function buildTradingViewWebChartUrl(tvSymbol: string, interval: string): string {
   const sym = tvSymbol.trim().toUpperCase();
   const tf = interval.trim() || "15";
-  return `https://www.tradingview.com/chart/?symbol=${sym}&interval=${encodeURIComponent(tf)}`;
+  const india =
+    sym.startsWith("NSE:") ||
+    sym.startsWith("BSE:") ||
+    sym.startsWith("MCX:") ||
+    sym.startsWith("NSE_") ||
+    sym.startsWith("BSE_");
+  const origin = india ? "https://in.tradingview.com" : "https://www.tradingview.com";
+  return `${origin}/chart/?symbol=${sym}&interval=${encodeURIComponent(tf)}`;
 }
 
 /**

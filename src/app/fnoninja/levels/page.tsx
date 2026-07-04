@@ -27,6 +27,7 @@ import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
 import { PvtChart } from "@/components/levels/PvtChart";
 import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
 import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook-keyboard";
+import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-shortcut";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
@@ -73,6 +74,7 @@ import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
 import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
+import { LevelsTradingViewOpenChip } from "@/components/levels/LevelsTradingViewOpenChip";
 import { LevelsMarketMapShareButton } from "@/components/levels/LevelsMarketMapShareButton";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
@@ -524,6 +526,11 @@ export default function LevelsPage() {
     { historyAvailable: true, onHistory: () => setSlideshowChartViewMode("history"), pvtAvailable: true, onPvt: () => setSlideshowChartViewMode("pvt") },
   );
 
+  useTradingViewChartShortcut(
+    activeTv?.webChartUrl ?? "",
+    isSlideView && Boolean(activeTv?.webChartUrl),
+  );
+
   /** Chart + news rail — stable for all native-candle slideshow symbols (not gated on levels load). */
   const slideshowNativeLayout = Boolean(
     isSlideView && activeTv?.nativeCandles && inZoneActive != null,
@@ -857,32 +864,37 @@ export default function LevelsPage() {
           ) : undefined
         }
         headerTrailing={
-          isFnoNinjaHost && isSlideView && inZoneActive && activeTicker ? (
+          isSlideView && inZoneActive && activeTicker ? (
             <div className="flex flex-wrap items-center gap-1.5 justify-end">
-              <LevelsSymbolShareButton
-                scope={inZoneActive.scope}
-                symbol={activeTicker}
-                label={slideshowSubtitleLine ?? inZoneActive.label}
-                levels={chartLevelsForView}
-                expiryKey={expiryScope ? selectedExpiryKey : null}
-                nativeChartRef={nativeChartRef}
-                iconOnly
-              />
-              <AskFynn
-                scope={inZoneActive.scope}
-                symbol={activeTicker}
-                label={slideshowSubtitleLine ?? inZoneActive.label}
-                iconOnly
-                onOpenChange={setFynnDrawerOpen}
-              />
-              <FnoNinjaFavslideToggle
-                scope={inZoneActive.scope}
-                symbol={activeTicker}
-                enabled
-                iconOnly
-                removeOnly={viewMode === "favslide"}
-                api={favslideApi}
-              />
+              <LevelsTradingViewOpenChip webChartUrl={activeTv.webChartUrl} />
+              {isFnoNinjaHost ? (
+                <>
+                  <LevelsSymbolShareButton
+                    scope={inZoneActive.scope}
+                    symbol={activeTicker}
+                    label={slideshowSubtitleLine ?? inZoneActive.label}
+                    levels={chartLevelsForView}
+                    expiryKey={expiryScope ? selectedExpiryKey : null}
+                    nativeChartRef={nativeChartRef}
+                    iconOnly
+                  />
+                  <AskFynn
+                    scope={inZoneActive.scope}
+                    symbol={activeTicker}
+                    label={slideshowSubtitleLine ?? inZoneActive.label}
+                    iconOnly
+                    onOpenChange={setFynnDrawerOpen}
+                  />
+                  <FnoNinjaFavslideToggle
+                    scope={inZoneActive.scope}
+                    symbol={activeTicker}
+                    enabled
+                    iconOnly
+                    removeOnly={viewMode === "favslide"}
+                    api={favslideApi}
+                  />
+                </>
+              ) : null}
             </div>
           ) : undefined
         }
@@ -1131,7 +1143,7 @@ export default function LevelsPage() {
           />
         ) : undefined
       }
-      chartShortcuts={isSlideView && !activeTv ? slideshowChartShortcuts : null}
+      chartShortcuts={isSlideView && activeTv ? slideshowChartShortcuts : null}
       favslideToggle={
         isFnoNinjaHost
           ? {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { openTradingViewChart } from "@/lib/levels/open-tradingview-chart";
 
 const ROW_GAP = 6;
 const ROW_HEIGHT = 52;
@@ -126,7 +127,7 @@ export function LevelsChartShortcuts({
 
       if ((e.key === "t" || e.key === "T") && webChartUrl) {
         e.preventDefault();
-        window.open(webChartUrl, "_blank", "noopener,noreferrer");
+        openTradingViewChart(webChartUrl);
         return;
       }
       if (e.key === "3" && showSqueeze && onSqueeze) {
@@ -163,7 +164,7 @@ export function LevelsChartShortcuts({
     titleMuted: "— new tab",
     kbd: "T",
     kbdHint: "Press",
-    onClick: () => window.open(webChartUrl, "_blank", "noopener,noreferrer"),
+    onClick: () => openTradingViewChart(webChartUrl),
     ariaLabel: "Open this chart on TradingView in a new tab. Press T or click.",
   });
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
+import { openTradingViewChart } from "@/lib/levels/open-tradingview-chart";
 import { levelsBubblesPagePathForHost } from "@/lib/levels/levels-chart-url";
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -65,7 +66,7 @@ export function LevelsChartPageToolbar({
         id: "tv",
         label: "TradingView",
         kbd: "T",
-        onClick: () => window.open(webChartUrl, "_blank", "noopener,noreferrer"),
+        onClick: () => openTradingViewChart(webChartUrl),
         tone: "default-muted" as const,
         ariaLabel: "Open this chart on TradingView in a new tab. Press T or click.",
       },

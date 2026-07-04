@@ -28,11 +28,13 @@ import {
 import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
 import { PvtChart } from "@/components/levels/PvtChart";
 import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook-keyboard";
+import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-shortcut";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { FNO_LEVELS_MAIN, FNO_LEVELS_SHELL } from "@/lib/fnoninja/responsive";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
 import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
+import { LevelsTradingViewOpenChip } from "@/components/levels/LevelsTradingViewOpenChip";
 import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
@@ -150,6 +152,8 @@ function ChartContent() {
     { historyAvailable: true, onHistory: () => setViewMode("history"), pvtAvailable: true, onPvt: () => setViewMode("pvt") },
   );
 
+  useTradingViewChartShortcut(config?.webChartUrl ?? "", Boolean(config?.webChartUrl));
+
   const companyName = useMemo(() => {
     if (scope === "stock") {
       return fnoCompanyName(symbol) ?? (label !== symbol ? label : null);
@@ -215,6 +219,7 @@ function ChartContent() {
           symbolSearch={
             showFavslideToggle && scope ? (
               <div className="flex items-center gap-2">
+                <LevelsTradingViewOpenChip webChartUrl={config.webChartUrl} />
                 <LevelsSymbolShareButton
                   scope={scope}
                   symbol={symbol}

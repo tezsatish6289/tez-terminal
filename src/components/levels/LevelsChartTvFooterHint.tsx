@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { openTradingViewChart } from "@/lib/levels/open-tradingview-chart";
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -25,7 +26,7 @@ export function LevelsChartTvFooterHint({
       if (isTypingTarget(e.target)) return;
       if ((e.key === "t" || e.key === "T") && webChartUrl) {
         e.preventDefault();
-        window.open(webChartUrl, "_blank", "noopener,noreferrer");
+        openTradingViewChart(webChartUrl);
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -39,7 +40,7 @@ export function LevelsChartTvFooterHint({
   return (
     <button
       type="button"
-      onClick={() => window.open(webChartUrl, "_blank", "noopener,noreferrer")}
+      onClick={() => openTradingViewChart(webChartUrl)}
       className="absolute bottom-[28px] left-0 z-20 hidden md:flex justify-center px-3 pointer-events-auto"
       style={{ right: rightInsetPx }}
       aria-label="Open full chart on TradingView in a new tab. Press T or click."

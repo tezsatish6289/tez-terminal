@@ -7,6 +7,7 @@ import { levelsTradingViewParams } from "../../src/lib/levels/tradingview-symbol
   assert.ok(url.includes("symbol=NSE:MPHASIS"), url);
   assert.ok(!url.includes("%3A"), url);
   assert.ok(url.includes("interval=15"), url);
+  assert.ok(url.includes("in.tradingview.com"), url);
 }
 
 {

@@ -174,6 +174,8 @@ export function AskFynn({
   symbol,
   label,
   iconOnly = false,
+  hideTrigger = false,
+  open: controlledOpen,
   onOpenChange,
 }: {
   scope: LevelsTvScope;
@@ -181,10 +183,16 @@ export function AskFynn({
   label?: string;
   /** Icon-only trigger — favslide / liveslide header. */
   iconOnly?: boolean;
+  /** Controlled open state — use with hideTrigger for an external toolbar button. */
+  open?: boolean;
+  /** Hide the default trigger button (toolbar / programmatic open). */
+  hideTrigger?: boolean;
   /** Notify parent (e.g. pause slideshow timer while open). */
   onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = isControlled ? controlledOpen : internalOpen;
   const [view, setView] = useState<AtlasView>("menu");
   const [loadingMode, setLoadingMode] = useState<FynnMode | null>(null);
   const [byMode, setByMode] = useState<Record<FynnMode, ModeState>>({
@@ -197,9 +205,9 @@ export function AskFynn({
     setByMode({ options: {}, futures: {} });
     setLoadingMode(null);
     setView("menu");
-    setOpen(false);
+    if (!isControlled) setInternalOpen(false);
     onOpenChange?.(false);
-  }, [scope, symbol, onOpenChange]);
+  }, [scope, symbol, onOpenChange, isControlled]);
 
   const ask = useCallback(
     async (target: FynnMode, force = false) => {
@@ -238,12 +246,12 @@ export function AskFynn({
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
-      setOpen(next);
+      if (!isControlled) setInternalOpen(next);
       onOpenChange?.(next);
       // Land on the request menu — fetch nothing until the user explicitly asks.
       if (next) setView("menu");
     },
-    [onOpenChange],
+    [isControlled, onOpenChange],
   );
 
   /** User picked an intent — only here do we (maybe) call the model. */
@@ -267,6 +275,7 @@ export function AskFynn({
 
   return (
     <>
+      {!hideTrigger ? (
       <button
         type="button"
         onClick={() => handleOpenChange(true)}
@@ -289,6 +298,7 @@ export function AskFynn({
         />
         {!iconOnly ? <span className="whitespace-nowrap">{ATLAS_LABEL}</span> : null}
       </button>
+      ) : null}
 
       <Sheet open={open} onOpenChange={handleOpenChange} modal={false}>
         <SheetContent

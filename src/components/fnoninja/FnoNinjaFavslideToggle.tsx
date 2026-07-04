@@ -16,6 +16,8 @@ export function FnoNinjaFavslideToggle({
   removeOnly = false,
   /** Icon-only trigger — favslide / liveslide header. */
   iconOnly = false,
+  /** Vertical chart toolbar — compact square control. */
+  variant = "default",
   /** Parent hook — keeps list in sync when toggling from /levels favslide. */
   api: externalApi,
 }: {
@@ -24,6 +26,7 @@ export function FnoNinjaFavslideToggle({
   enabled: boolean;
   removeOnly?: boolean;
   iconOnly?: boolean;
+  variant?: "default" | "toolbar";
   api?: FnoNinjaFavslideApi;
 }) {
   const internal = useFnoNinjaFavslide(enabled && !externalApi);
@@ -43,22 +46,30 @@ export function FnoNinjaFavslideToggle({
     else void api.toggle(scope, symbol);
   };
 
+  const toolbar = variant === "toolbar";
+
   return (
     <button
       type="button"
       disabled={busy || needsSignIn}
       onClick={handleClick}
       className={
-        iconOnly
-          ? "inline-flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-[1.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-          : "inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+        toolbar
+          ? "flex flex-col items-center justify-center w-10 min-h-[2.75rem] rounded-md transition-colors hover:bg-white/[0.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          : iconOnly
+            ? "inline-flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-[1.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            : "inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
       }
-      style={{
-        color: amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED,
-        backgroundColor: amber ? FNO_FAVSLIDE_CHIP.fillActive : "rgba(255,255,255,0.04)",
-        border: `1px solid ${amber ? FNO_FAVSLIDE_CHIP.borderActive : "rgba(148,163,184,0.22)"}`,
-        boxShadow: amber ? "0 0 14px rgba(251,191,36,0.2)" : undefined,
-      }}
+      style={
+        toolbar
+          ? undefined
+          : {
+              color: amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED,
+              backgroundColor: amber ? FNO_FAVSLIDE_CHIP.fillActive : "rgba(255,255,255,0.04)",
+              border: `1px solid ${amber ? FNO_FAVSLIDE_CHIP.borderActive : "rgba(148,163,184,0.22)"}`,
+              boxShadow: amber ? "0 0 14px rgba(251,191,36,0.2)" : undefined,
+            }
+      }
       title={
         needsSignIn
           ? "Sign in to use favslide"
@@ -77,18 +88,20 @@ export function FnoNinjaFavslideToggle({
     >
       {busy ? (
         <Loader2
-          className={iconOnly ? "h-4 w-4 animate-spin shrink-0" : "h-3.5 w-3.5 animate-spin shrink-0"}
+          className={
+            toolbar || iconOnly ? "h-[18px] w-[18px] animate-spin shrink-0" : "h-3.5 w-3.5 animate-spin shrink-0"
+          }
           style={{ color: amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED }}
         />
       ) : (
         <Star
-          className={iconOnly ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"}
+          className={toolbar || iconOnly ? "h-[18px] w-[18px] shrink-0" : "h-3.5 w-3.5 shrink-0"}
           style={{ color: amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED }}
           fill={amber ? FNO_FAVSLIDE_CHIP.text : "none"}
           strokeWidth={2}
         />
       )}
-      {!iconOnly ? (
+      {!iconOnly && !toolbar ? (
         <span className="whitespace-nowrap">
           {favorited ? "Remove from favslide" : "Add to favslide"}
         </span>

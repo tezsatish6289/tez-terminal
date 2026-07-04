@@ -17,12 +17,14 @@ export function LevelsChartShareButton({
   context,
   captureImage,
   iconOnly = false,
+  variant = "default",
   disabled = false,
   className = "",
 }: {
   context: LevelsShareContext;
   captureImage?: () => Promise<Blob | null>;
   iconOnly?: boolean;
+  variant?: "default" | "toolbar";
   disabled?: boolean;
   className?: string;
 }) {
@@ -83,30 +85,45 @@ export function LevelsChartShareButton({
     }
   }, [busy, disabled, captureImage, context]);
 
+  const toolbar = variant === "toolbar";
+
   return (
     <button
       type="button"
       disabled={busy || disabled}
       onClick={() => void handleShare()}
       className={
-        iconOnly
-          ? `inline-flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-[1.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`.trim()
-          : `inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`.trim()
+        toolbar
+          ? `flex flex-col items-center justify-center w-10 min-h-[2.75rem] rounded-md transition-colors hover:bg-white/[0.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`.trim()
+          : iconOnly
+            ? `inline-flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-[1.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`.trim()
+            : `inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${className}`.trim()
       }
-      style={{
-        color: "#bfdbfe",
-        backgroundColor: "rgba(59,130,246,0.1)",
-        border: "1px solid rgba(96,165,250,0.35)",
-      }}
+      style={
+        toolbar
+          ? undefined
+          : {
+              color: "#bfdbfe",
+              backgroundColor: "rgba(59,130,246,0.1)",
+              border: "1px solid rgba(96,165,250,0.35)",
+            }
+      }
       title="Share chart with FNONINJA link"
       aria-label={`Share ${context.title}`}
     >
       {busy ? (
-        <Loader2 className={iconOnly ? "h-4 w-4 animate-spin shrink-0" : "h-3.5 w-3.5 animate-spin shrink-0"} />
+        <Loader2
+          className={toolbar || iconOnly ? "h-[18px] w-[18px] animate-spin shrink-0" : "h-3.5 w-3.5 animate-spin shrink-0"}
+          style={{ color: "#60a5fa" }}
+        />
       ) : (
-        <Share2 className={iconOnly ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"} strokeWidth={2} />
+        <Share2
+          className={toolbar || iconOnly ? "h-[18px] w-[18px] shrink-0" : "h-3.5 w-3.5 shrink-0"}
+          style={{ color: "#94a3b8" }}
+          strokeWidth={1.75}
+        />
       )}
-      {!iconOnly ? <span className="whitespace-nowrap">Share</span> : null}
+      {!iconOnly && !toolbar ? <span className="whitespace-nowrap">Share</span> : null}
     </button>
   );
 }

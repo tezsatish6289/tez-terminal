@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "rea
 import { usePathname, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
-import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
@@ -14,7 +13,7 @@ import { isSlideshowZoneStale, SLIDESHOW_ZONE_TICK_MS } from "@/lib/levels/slide
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
-import { LevelsChartNewsSplit } from "@/components/levels/LevelsChartNewsSplit";
+import { LevelsChartSideToolbar } from "@/components/levels/LevelsChartSideToolbar";
 import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
 import {
   LevelsOutlookViewToggle,
@@ -26,9 +25,6 @@ import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook
 import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-shortcut";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { FNO_LEVELS_MAIN, FNO_LEVELS_SHELL } from "@/lib/fnoninja/responsive";
-import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
-import { AskFynn } from "@/components/fnoninja/AskFynn";
-import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
 import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
@@ -170,8 +166,6 @@ function ChartContent() {
     return null;
   }, [companyName, label, symbol]);
 
-  const showFavslideToggle = Boolean(scope) && Boolean(symbol);
-
   if ((!scope || !symbol) && error) {
     return (
       <main
@@ -216,23 +210,7 @@ function ChartContent() {
               daysToEarnings={levels?.daysToEarnings}
             />
           }
-          symbolSearch={
-            showFavslideToggle && scope ? (
-              <div className="flex items-center gap-2">
-                <LevelsSymbolShareButton
-                  scope={scope}
-                  symbol={symbol}
-                  label={subtitleLine ?? label}
-                  levels={chartLevels}
-                  expiryKey={selectedExpiryKey}
-                  nativeChartRef={nativeChartRef}
-                  iconOnly
-                />
-                <AskFynn scope={scope} symbol={symbol} label={subtitleLine ?? label} />
-                <FnoNinjaFavslideToggle scope={scope} symbol={symbol} enabled />
-              </div>
-            ) : undefined
-          }
+          symbolSearch={undefined}
         />
 
         {error ? (
@@ -241,23 +219,32 @@ function ChartContent() {
           </p>
         ) : null}
 
-        <LevelsChartNewsSplit
-          className="mt-1.5 sm:mt-2"
-          chart={
-            <>
-              <LevelsOutlookViewToggle
-                value={viewMode}
-                onChange={setViewMode}
-                trailing={
-                  showChartExpiryPicker ? (
-                    <LevelsChartExpiryPicker
-                      options={expiryOptions}
-                      value={selectedExpiryKey}
-                      onChange={setSelectedExpiryKey}
-                    />
-                  ) : undefined
-                }
+        <div className="mt-1.5 sm:mt-2 flex flex-col flex-1 min-h-0 min-w-0">
+          <LevelsOutlookViewToggle
+            value={viewMode}
+            onChange={setViewMode}
+            trailing={
+              showChartExpiryPicker ? (
+                <LevelsChartExpiryPicker
+                  options={expiryOptions}
+                  value={selectedExpiryKey}
+                  onChange={setSelectedExpiryKey}
+                />
+              ) : undefined
+            }
+          />
+          <div className="flex flex-1 min-h-0 min-w-0 mt-1">
+            {scope ? (
+              <LevelsChartSideToolbar
+                scope={scope}
+                symbol={symbol}
+                label={subtitleLine ?? label}
+                levels={chartLevels}
+                expiryKey={selectedExpiryKey}
+                nativeChartRef={nativeChartRef}
               />
+            ) : null}
+            <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
               {showHistory && scope ? (
                 <OiHistoryChart
                   className="flex-1 min-h-0 h-full w-full"
@@ -298,12 +285,9 @@ function ChartContent() {
                   onFullHistoryZoomChange={setChartFullHistory}
                 />
               )}
-            </>
-          }
-          news={
-            <LevelsNewsPanel scope={scope ?? "stock"} symbol={symbol} className="h-full" />
-          }
-        />
+            </div>
+          </div>
+        </div>
         </div>
       </div>
     </main>

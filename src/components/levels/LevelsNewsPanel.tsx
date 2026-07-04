@@ -51,7 +51,7 @@ function timeAgo(iso: string): string {
   return `${Math.round(hrs / 24)}d ago`;
 }
 
-function NewsSentimentBadge({ sentiment }: { sentiment: NewsSentiment }) {
+export function NewsSentimentBadge({ sentiment }: { sentiment: NewsSentiment }) {
   const style = SENTIMENT_DISPLAY[sentiment.label];
   return (
     <span

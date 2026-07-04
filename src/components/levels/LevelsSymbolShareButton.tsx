@@ -15,6 +15,7 @@ export function LevelsSymbolShareButton({
   expiryKey,
   nativeChartRef,
   iconOnly = false,
+  variant = "default",
   disabled = false,
 }: {
   scope: LevelsTvScope;
@@ -24,6 +25,7 @@ export function LevelsSymbolShareButton({
   expiryKey?: string | null;
   nativeChartRef?: React.RefObject<NativeCandlesChartHandle | null>;
   iconOnly?: boolean;
+  variant?: "default" | "toolbar";
   disabled?: boolean;
 }) {
   const context = useMemo(() => {
@@ -53,6 +55,7 @@ export function LevelsSymbolShareButton({
       context={context}
       captureImage={nativeChartRef ? captureImage : undefined}
       iconOnly={iconOnly}
+      variant={variant}
       disabled={disabled}
     />
   );

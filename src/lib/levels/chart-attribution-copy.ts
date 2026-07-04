@@ -5,8 +5,9 @@ export type ChartAttributionVariant = "intraday" | "trend" | "outlook" | "histor
 
 export function chartAttributionHeadline(variant: ChartAttributionVariant): string {
   switch (variant) {
-    case "intraday":
     case "trend":
+      return "Support/ Resistance/ Max Pain derived from Call/Put OI clusters";
+    case "intraday":
       return "Support & resistance from Put/Call OI clusters & Max Pain";
     case "outlook":
       return "Forward levels from option-chain positioning (Put/Call clusters & Max Pain)";
@@ -17,8 +18,12 @@ export function chartAttributionHeadline(variant: ChartAttributionVariant): stri
 
 export function chartAttributionMeta(
   levels: PublicLevels | null | undefined,
+  variant: ChartAttributionVariant = "intraday",
 ): string | null {
   const when = formatZonesUpdatedAt(levels?.computedAt);
+  if (variant === "trend") {
+    return when ? `Updated ${when}` : null;
+  }
   const expiry = levels?.zonesExpiry?.trim();
   const parts: string[] = [];
   if (when) parts.push(`Updated ${when}`);

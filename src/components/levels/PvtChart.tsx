@@ -56,6 +56,8 @@ const COMPACT_SHELL_STYLE = {
 
 const PVT_SECTION_HEIGHT = 156;
 const PVT_SECTION_HEADER_HEIGHT = 24;
+/** Gap between the last candle and the right price-axis labels. */
+const PVT_CHART_RIGHT_OFFSET = 14;
 
 const PVT_SECTION_SHELL_CLASS =
   "shrink-0 mx-0.5 rounded-xl border border-amber-500/30 bg-[#0a101c] overflow-hidden " +
@@ -94,6 +96,16 @@ function filterCandlesByRange(candles: DailyCandle[], range: PvtHistoryRange): D
   const last = candles[candles.length - 1]!.time;
   const cutoff = last - RANGE_CALENDAR_DAYS[range] * 86_400;
   return candles.filter((c) => c.time >= cutoff);
+}
+
+function applyPvtRightPadding(candleChart: IChartApi, pvtChart: IChartApi, barCount: number) {
+  if (barCount < 1) return;
+  const to = barCount - 1 + PVT_CHART_RIGHT_OFFSET;
+  const range = { from: 0, to };
+  candleChart.timeScale().applyOptions({ rightOffset: PVT_CHART_RIGHT_OFFSET });
+  pvtChart.timeScale().applyOptions({ rightOffset: PVT_CHART_RIGHT_OFFSET });
+  candleChart.timeScale().setVisibleLogicalRange(range);
+  pvtChart.timeScale().setVisibleLogicalRange(range);
 }
 
 function fmtPvt(v: number): string {
@@ -237,6 +249,7 @@ export function PvtChart({
         visible: false,
         timeVisible: false,
         secondsVisible: false,
+        rightOffset: PVT_CHART_RIGHT_OFFSET,
       },
     });
 
@@ -247,7 +260,7 @@ export function PvtChart({
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 4,
+        rightOffset: PVT_CHART_RIGHT_OFFSET,
       },
     });
 
@@ -336,6 +349,7 @@ export function PvtChart({
     applyClusterSummaryPriceLines(candleSeries, priceLinesRef, effectiveLevels);
     candleChart.timeScale().fitContent();
     pvtChart.timeScale().fitContent();
+    applyPvtRightPadding(candleChart, pvtChart, displayCandles.length);
   }, [chartReady, displayCandles, pvtSeries, effectiveLevels]);
 
   const candlesReady = !loading && !error && displayCandles.length > 0;

@@ -278,7 +278,9 @@ export function applyLevelPriceLines(
   levels: PublicLevels | null | undefined,
   visualFocus?: LevelVisualFocus | null,
   compactTitles = false,
+  opts?: { includeClusterPeaks?: boolean },
 ): void {
+  const includeClusterPeaks = opts?.includeClusterPeaks ?? true;
   for (const line of priceLinesRef.current) series.removePriceLine(line);
   priceLinesRef.current = [];
   if (!levels) return;
@@ -300,26 +302,32 @@ export function applyLevelPriceLines(
 
   push(levels.bearHigh, LEVELS_ZONE_CHART.bear.line, "Resistance H", LineStyle.Dashed, 1, 20);
   push(levels.bearLow, LEVELS_ZONE_CHART.bear.line, "Resistance L", LineStyle.Dashed, 1, 21);
-  push(
-    levels.callClusterStrike,
-    LEVELS_ZONE_CHART.bear.line,
-    "Call OI peak",
-    LineStyle.Dotted,
-    1,
-    11,
-  );
+  if (includeClusterPeaks) {
+    push(
+      levels.callClusterStrike,
+      LEVELS_ZONE_CHART.bear.line,
+      "Call OI peak",
+      LineStyle.Dotted,
+      1,
+      11,
+    );
+  }
   push(anchors.bearSl, LEVELS_ZONE_CHART.bear.lineInv, "Resistance Break", LineStyle.Dotted, 2, 30);
-  push(levels.poc, LEVELS_ZONE_CHART.maxPain.line, "Max Pain", LineStyle.Dashed, 2, 0);
+  if (includeClusterPeaks) {
+    push(levels.poc, LEVELS_ZONE_CHART.maxPain.line, "Max Pain", LineStyle.Dashed, 2, 0);
+  }
   push(levels.bullHigh, LEVELS_ZONE_CHART.bull.line, "Support H", LineStyle.Dashed, 1, 22);
   push(levels.bullLow, LEVELS_ZONE_CHART.bull.line, "Support L", LineStyle.Dashed, 1, 23);
-  push(
-    levels.putClusterStrike,
-    LEVELS_ZONE_CHART.bull.line,
-    "Put OI peak",
-    LineStyle.Dotted,
-    1,
-    10,
-  );
+  if (includeClusterPeaks) {
+    push(
+      levels.putClusterStrike,
+      LEVELS_ZONE_CHART.bull.line,
+      "Put OI peak",
+      LineStyle.Dotted,
+      1,
+      10,
+    );
+  }
   push(anchors.bullSl, LEVELS_ZONE_CHART.bull.lineInv, "Support Break", LineStyle.Dotted, 2, 31);
 
   for (const spec of mergeCoincidentPriceLines(rawSpecs, compactTitles)) {

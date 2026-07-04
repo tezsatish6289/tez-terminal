@@ -10,12 +10,16 @@ import { FNO_BG, FNO_LOGO_MARK } from "@/lib/fnoninja/theme";
 export function FnoNinjaLogoMark({
   size = 32,
   className,
+  square = false,
 }: {
   size?: number;
   className?: string;
+  /** Chart overlays: sharp square mark (no corner radius). */
+  square?: boolean;
 }) {
   const cx = FNO_LOGO_MARK_VIEWBOX / 2;
   const cy = FNO_LOGO_MARK_VIEWBOX / 2;
+  const markRx = square ? 0 : FNO_LOGO_MARK_RX;
 
   return (
     <svg
@@ -30,7 +34,7 @@ export function FnoNinjaLogoMark({
       <rect
         width={FNO_LOGO_MARK_VIEWBOX}
         height={FNO_LOGO_MARK_VIEWBOX}
-        rx={FNO_LOGO_MARK_RX}
+        rx={markRx}
         fill={FNO_LOGO_MARK}
       />
       <rect

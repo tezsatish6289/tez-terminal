@@ -116,6 +116,7 @@ export function LevelsTradingViewChart({
             onFullHistoryZoomChange={onFullHistoryZoomChange}
             onLastCloseChange={onLastCloseChange}
             candleTypeLabel="15M Candles"
+            showClusterPeaksOnAxis={false}
           />
         )}
       </div>

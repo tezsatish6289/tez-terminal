@@ -353,16 +353,6 @@ export function PvtChart({
     <div className={className} style={COMPACT_SHELL_STYLE}>
       <PvtRangeToggle value={range} onChange={setRange} />
       <div className="relative flex flex-col flex-1 min-h-0 gap-2">
-        {showAttribution && candlesReady ? (
-          <LevelsChartAttributionOverlay
-            variant="trend"
-            levels={effectiveLevels}
-            showBrand
-            showMethodology={false}
-            showTradingView={false}
-            className="!absolute inset-0 z-[20]"
-          />
-        ) : null}
         <div ref={overlayRootRef} className="relative flex-1 min-h-0 overflow-hidden">
           <div ref={candleContainerRef} className="absolute inset-0" />
           {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candles" /> : null}
@@ -371,8 +361,6 @@ export function PvtChart({
               variant="trend"
               levels={effectiveLevels}
               webChartUrl={webChartUrl}
-              showBrand={false}
-              showMethodology
               showTradingView={Boolean(webChartUrl)}
             />
           ) : null}

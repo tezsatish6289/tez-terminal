@@ -140,6 +140,9 @@ export const NativeCandlesChart = forwardRef<
     externalCandlesLoading?: boolean;
     /** Top-left badge, e.g. "15M Candles" on the intraday tab. */
     candleTypeLabel?: string;
+    /** Intraday: keep left OI pills; omit duplicate OI/max-pain tags on the right axis. */
+    showClusterBandLabels?: boolean;
+    showClusterPeaksOnAxis?: boolean;
   }
 >(function NativeCandlesChart(
   {
@@ -162,6 +165,8 @@ export const NativeCandlesChart = forwardRef<
     externalCandles,
     externalCandlesLoading = false,
     candleTypeLabel,
+    showClusterBandLabels = true,
+    showClusterPeaksOnAxis = true,
   },
   ref,
 ) {
@@ -238,6 +243,13 @@ export const NativeCandlesChart = forwardRef<
     });
   }
 
+  const showClusterPeaksOnAxisRef = useRef(showClusterPeaksOnAxis);
+  showClusterPeaksOnAxisRef.current = showClusterPeaksOnAxis;
+
+  function levelLineOpts() {
+    return { includeClusterPeaks: showClusterPeaksOnAxisRef.current };
+  }
+
   function refreshChartLayout() {
     const series = seriesRef.current;
     const n = candlesRef.current.length;
@@ -248,6 +260,7 @@ export const NativeCandlesChart = forwardRef<
       levelsRef.current,
       visualFocusRef.current,
       isNarrowChart(),
+      levelLineOpts(),
     );
     applyRightPadding(n);
     if (fullHistoryZoomRef.current) applyFullHistoryZoom(n);
@@ -488,6 +501,7 @@ export const NativeCandlesChart = forwardRef<
       levelsRef.current,
       visualFocusRef.current,
       isNarrowChart(),
+      levelLineOpts(),
     );
     fitPriceScale();
     if (!isPoll) {
@@ -673,10 +687,11 @@ export const NativeCandlesChart = forwardRef<
       levels,
       visualFocus,
       isNarrowChart(),
+      levelLineOpts(),
     );
     fitPriceScale();
     applyRightPadding(candlesRef.current.length);
-  }, [levels, defaultFullHistory, symbol, visualFocus]);
+  }, [levels, defaultFullHistory, symbol, visualFocus, showClusterPeaksOnAxis]);
 
   const awaitingLevels =
     levelsLoading && (hideShortcuts || !hasDisplayedCandlesRef.current);
@@ -750,7 +765,7 @@ export const NativeCandlesChart = forwardRef<
         seriesRef={seriesRef}
         containerRef={containerRef}
         levels={levels}
-        visible={chartReady}
+        visible={chartReady && showClusterBandLabels}
         visualFocus={visualFocus}
       />
       {visualFocus && chartReady ? (

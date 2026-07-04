@@ -448,49 +448,52 @@ export function PvtChart({
     <div className={className} style={COMPACT_SHELL_STYLE}>
       <PvtRangeToggle value={range} onChange={setRange} />
       <div className="relative flex flex-col flex-1 min-h-0 gap-2">
-        <div ref={overlayRootRef} className="relative flex-1 min-h-0 overflow-hidden">
-          <div ref={candleContainerRef} className="absolute inset-0" />
-          {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candles" /> : null}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <div ref={overlayRootRef} className="relative min-h-0 flex-1 overflow-hidden">
+            <div ref={candleContainerRef} className="absolute inset-0" />
+            {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candles" /> : null}
+            {showClusterLabels ? (
+              <LevelsChartClusterBandLabels
+                chartRef={candleChartRef}
+                seriesRef={candleRef}
+                containerRef={overlayRootRef}
+                levels={effectiveLevels}
+                visible
+                showZoneRole
+              />
+            ) : null}
+            {showOverlay ? (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.45)]">
+                {loading ? (
+                  <>
+                    <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+                    <p className="text-sm" style={{ color: "#94a3b8" }}>
+                      {overlayMessage}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
+                    {overlayMessage}
+                  </p>
+                )}
+              </div>
+            ) : showZonesOverlay ? (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.35)]">
+                <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+                <p className="text-sm" style={{ color: "#94a3b8" }}>
+                  Loading option levels…
+                </p>
+              </div>
+            ) : null}
+          </div>
           {showAttribution && candlesReady ? (
             <LevelsChartAttributionOverlay
               variant="trend"
+              placement="below"
               levels={effectiveLevels}
               webChartUrl={webChartUrl}
               showTradingView={Boolean(webChartUrl)}
             />
-          ) : null}
-          {showClusterLabels ? (
-            <LevelsChartClusterBandLabels
-              chartRef={candleChartRef}
-              seriesRef={candleRef}
-              containerRef={overlayRootRef}
-              levels={effectiveLevels}
-              visible
-              showZoneRole
-            />
-          ) : null}
-          {showOverlay ? (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.45)]">
-              {loading ? (
-                <>
-                  <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
-                  <p className="text-sm" style={{ color: "#94a3b8" }}>
-                    {overlayMessage}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
-                  {overlayMessage}
-                </p>
-              )}
-            </div>
-          ) : showZonesOverlay ? (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.35)]">
-              <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
-              <p className="text-sm" style={{ color: "#94a3b8" }}>
-                Loading option levels…
-              </p>
-            </div>
           ) : null}
         </div>
 

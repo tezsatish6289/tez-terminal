@@ -127,7 +127,7 @@ function FooterRow({
 }) {
   const content = (
     <>
-      <div className="justify-self-start min-w-0">
+      <div className="justify-self-start min-w-0 pointer-events-auto">
         <BrandTradingViewRow showBrand={showBrand} showTv={showTv} tvUrl={tvUrl} />
       </div>
       <MethodologyNote headline={headline} meta={meta} />
@@ -138,7 +138,7 @@ function FooterRow({
   if (placement === "below") {
     return (
       <div
-        className={`pointer-events-none shrink-0 w-full px-2 sm:px-2.5 pt-1 pb-0.5 ${FOOTER_ROW_GRID_CLASS} ${className}`.trim()}
+        className={`shrink-0 w-full px-2 sm:px-2.5 pt-1 pb-0.5 ${FOOTER_ROW_GRID_CLASS} ${className}`.trim()}
         style={{ paddingRight: plotRight }}
       >
         {content}
@@ -148,7 +148,7 @@ function FooterRow({
 
   return (
     <div
-      className={`pointer-events-none absolute left-2 sm:left-2.5 ${FOOTER_ROW_GRID_CLASS} ${FOOTER_ROW_BOTTOM_CLASS[variant]} ${className}`.trim()}
+      className={`pointer-events-none absolute left-2 sm:left-2.5 z-[20] ${FOOTER_ROW_GRID_CLASS} ${FOOTER_ROW_BOTTOM_CLASS[variant]} ${className}`.trim()}
       style={{ right: plotRight }}
     >
       {content}
@@ -214,7 +214,7 @@ export function LevelsChartAttributionOverlay({
   if (placement === "below") {
     return (
       <div
-        className={`pointer-events-none shrink-0 w-full px-2 sm:px-2.5 pt-1 pb-0.5 ${className}`.trim()}
+        className={`shrink-0 w-full px-2 sm:px-2.5 pt-1 pb-0.5 ${className}`.trim()}
         style={{ paddingRight: plotRight }}
         aria-hidden={!showTv}
       >

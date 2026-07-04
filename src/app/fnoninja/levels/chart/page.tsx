@@ -152,7 +152,10 @@ function ChartContent() {
     { historyAvailable: true, onHistory: () => setViewMode("history"), pvtAvailable: true, onPvt: () => setViewMode("pvt") },
   );
 
-  useTradingViewChartShortcut(config?.webChartUrl ?? "", Boolean(config?.webChartUrl));
+  useTradingViewChartShortcut(
+    showPvt ? (config?.dailyWebChartUrl ?? config?.webChartUrl ?? "") : (config?.webChartUrl ?? ""),
+    Boolean(config?.webChartUrl),
+  );
 
   const companyName = useMemo(() => {
     if (scope === "stock") {
@@ -270,7 +273,7 @@ function ChartContent() {
                   scope={scope}
                   symbol={symbol}
                   levels={chartLevels}
-                  webChartUrl={config.webChartUrl}
+                  webChartUrl={config.dailyWebChartUrl}
                 />
               ) : showOutlook ? (
                 <NiftyOutlookChart

@@ -15,4 +15,5 @@ import { levelsTradingViewParams } from "../../src/lib/levels/tradingview-symbol
   assert.ok(cfg?.webChartUrl.includes("symbol=NSE:MPHASIS"), cfg?.webChartUrl);
   assert.ok(!cfg?.webChartUrl.includes("%3A"), cfg?.webChartUrl);
   assert.ok(cfg?.webChartUrl.includes("in.tradingview.com"), cfg?.webChartUrl);
+  assert.ok(cfg?.dailyWebChartUrl.includes("interval=D"), cfg?.dailyWebChartUrl);
 }

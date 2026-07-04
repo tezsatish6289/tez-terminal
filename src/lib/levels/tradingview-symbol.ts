@@ -16,6 +16,8 @@ export interface LevelsTvConfig {
   /** EXCHANGE:SYMBOL shown in UI + "Open on TV" link. */
   fullSymbol: string;
   webChartUrl: string;
+  /** Trend chart watermark / T shortcut — same symbol on daily candles. */
+  dailyWebChartUrl: string;
   /** NSE — native Dhan chart (no tezterminal embed). */
   indianMarket: boolean;
   /** Render native Dhan candlestick chart with zone overlays. */
@@ -26,6 +28,9 @@ export interface LevelsTvConfig {
 
 /** Default 15m — matches OI zone refresh cadence; less noise than 5m. */
 export const LEVELS_TV_INTERVAL = "15";
+
+/** Daily — Trend chart opens TV on 1D candles. */
+export const LEVELS_TV_DAILY_INTERVAL = "D";
 
 /** UI label for chart header (e.g. 15 → "15M", 60 → "1H"). */
 export function formatLevelsIntervalLabel(interval: string): string {
@@ -73,6 +78,7 @@ export function levelsTradingViewParams(
       interval: LEVELS_TV_INTERVAL,
       fullSymbol: full,
       webChartUrl: buildTradingViewWebChartUrl(full, LEVELS_TV_INTERVAL),
+      dailyWebChartUrl: buildTradingViewWebChartUrl(full, LEVELS_TV_DAILY_INTERVAL),
       indianMarket: true,
       nativeCandles: true,
       candlesScope: "index",
@@ -89,6 +95,7 @@ export function levelsTradingViewParams(
       interval: LEVELS_TV_INTERVAL,
       fullSymbol: full,
       webChartUrl: buildTradingViewWebChartUrl(fullSymbol("NSE", sym), LEVELS_TV_INTERVAL),
+      dailyWebChartUrl: buildTradingViewWebChartUrl(fullSymbol("NSE", sym), LEVELS_TV_DAILY_INTERVAL),
       indianMarket: true,
       nativeCandles: true,
       candlesScope: "stock",

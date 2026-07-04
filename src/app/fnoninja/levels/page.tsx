@@ -528,7 +528,9 @@ export default function LevelsPage() {
   );
 
   useTradingViewChartShortcut(
-    activeTv?.webChartUrl ?? "",
+    showSlideshowPvt
+      ? (activeTv?.dailyWebChartUrl ?? activeTv?.webChartUrl ?? "")
+      : (activeTv?.webChartUrl ?? ""),
     isSlideView && Boolean(activeTv?.webChartUrl),
   );
 
@@ -789,7 +791,7 @@ export default function LevelsPage() {
             scope={inZoneActive.scope}
             symbol={inZoneActive.symbol}
             levels={chartLevelsForView}
-            webChartUrl={activeTv.webChartUrl}
+            webChartUrl={activeTv.dailyWebChartUrl}
           />
         ) : showSlideshowOutlook ? (
           <NiftyOutlookChart

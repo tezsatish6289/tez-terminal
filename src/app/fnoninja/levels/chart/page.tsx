@@ -54,7 +54,7 @@ function ChartContent() {
   const [label, setLabel] = useState("");
   const [loading, setLoading] = useState(true);
   const [chartFullHistory, setChartFullHistory] = useState(true);
-  const [viewMode, setViewMode] = useState<LevelsViewMode>("chart");
+  const [viewMode, setViewMode] = useState<LevelsViewMode>("pvt");
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
   const [error, setError] = useState<string | null>(
     !scope || !symbol ? "Invalid chart link — open from the Market Bubbles map." : null,
@@ -132,17 +132,23 @@ function ChartContent() {
 
   useEffect(() => {
     setChartFullHistory(true);
-    const wantsHistory =
-      urlView === "history" && (scope === "index" || scope === "stock");
-    const wantsPvt =
-      urlView === "pvt" && (scope === "index" || scope === "stock");
-    setViewMode(wantsHistory ? "history" : wantsPvt ? "pvt" : "chart");
+    const canPickView = scope === "index" || scope === "stock";
+    if (!canPickView) {
+      setViewMode("pvt");
+      return;
+    }
+    if (urlView === "history") setViewMode("history");
+    else if (urlView === "chart") setViewMode("chart");
+    else if (urlView === "outlook") setViewMode("outlook");
+    else setViewMode("pvt");
   }, [config?.symbol, config?.exchange, config?.candlesScope, urlView, scope]);
 
   const showOutlook = viewMode === "outlook";
   const showHistory = viewMode === "history";
   const showPvt = viewMode === "pvt";
   const expiryPickerEnabled = expiryOptions && expiryOptions.length > 1;
+  const showChartExpiryPicker =
+    expiryPickerEnabled && (viewMode === "pvt" || viewMode === "chart");
 
   useChartOutlookKeyboardShortcuts(
     true,
@@ -234,15 +240,6 @@ function ChartContent() {
               </div>
             ) : undefined
           }
-          expiryPicker={
-            expiryPickerEnabled ? (
-              <LevelsChartExpiryPicker
-                options={expiryOptions}
-                value={selectedExpiryKey}
-                onChange={setSelectedExpiryKey}
-              />
-            ) : undefined
-          }
         />
 
         {error ? (
@@ -255,7 +252,19 @@ function ChartContent() {
           className="mt-1.5 sm:mt-2"
           chart={
             <>
-              <LevelsOutlookViewToggle value={viewMode} onChange={setViewMode} />
+              <LevelsOutlookViewToggle
+                value={viewMode}
+                onChange={setViewMode}
+                trailing={
+                  showChartExpiryPicker ? (
+                    <LevelsChartExpiryPicker
+                      options={expiryOptions}
+                      value={selectedExpiryKey}
+                      onChange={setSelectedExpiryKey}
+                    />
+                  ) : undefined
+                }
+              />
               {showHistory && scope ? (
                 <OiHistoryChart
                   className="flex-1 min-h-0 h-full w-full"

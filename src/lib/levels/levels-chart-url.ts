@@ -14,7 +14,7 @@ function levelsChartQuery(
     symbol: symbol.trim().toUpperCase(),
   });
   if (expiryKey) params.set("expiry", expiryKey);
-  if (view && view !== "chart") params.set("view", view);
+  if (view && view !== "pvt") params.set("view", view);
   return params.toString();
 }
 

@@ -3,6 +3,15 @@
 import { CalendarDays } from "lucide-react";
 import type { PublicLevelsExpiryOption } from "@/lib/levels/index-expiry-levels";
 
+const AMBER = {
+  label: "#fbbf24",
+  icon: "#f59e0b",
+  text: "#fef3c7",
+  border: "rgba(251, 191, 36, 0.55)",
+  bg: "rgba(120, 53, 15, 0.45)",
+  focusRing: "rgba(251, 191, 36, 0.5)",
+} as const;
+
 export function LevelsChartExpiryPicker({
   options,
   value,
@@ -23,18 +32,29 @@ export function LevelsChartExpiryPicker({
       className={`inline-flex items-center gap-1.5 min-w-0 ${className}`.trim()}
       title="Option chain expiry used for support & resistance bands"
     >
-      <CalendarDays className="h-3 w-3 shrink-0" style={{ color: "#64748b" }} aria-hidden />
-      <span className="text-[9px] font-bold uppercase tracking-[0.1em] shrink-0" style={{ color: "#64748b" }}>
+      <CalendarDays className="h-3.5 w-3.5 shrink-0" style={{ color: AMBER.icon }} aria-hidden />
+      <span
+        className="text-[9px] font-bold uppercase tracking-[0.1em] shrink-0"
+        style={{ color: AMBER.label }}
+      >
         Expiry
       </span>
       <select
         value={selected}
         onChange={(e) => onChange(e.target.value)}
-        className="min-w-0 max-w-[9.5rem] truncate rounded-md border px-2 py-0.5 text-[10px] font-semibold cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500/40"
+        className="min-w-0 max-w-[10rem] truncate rounded-full border px-2.5 py-1 text-[10px] font-bold cursor-pointer focus:outline-none focus:ring-2"
         style={{
-          color: "#e2e8f0",
-          backgroundColor: "rgba(15, 23, 42, 0.85)",
-          borderColor: "rgba(255,255,255,0.1)",
+          color: AMBER.text,
+          backgroundColor: AMBER.bg,
+          borderColor: AMBER.border,
+          boxShadow: "0 0 0 1px rgba(251, 191, 36, 0.12), inset 0 1px 0 rgba(251, 191, 36, 0.08)",
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.boxShadow = `0 0 0 2px ${AMBER.focusRing}`;
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.boxShadow =
+            "0 0 0 1px rgba(251, 191, 36, 0.12), inset 0 1px 0 rgba(251, 191, 36, 0.08)";
         }}
         aria-label="Select option chain expiry"
       >

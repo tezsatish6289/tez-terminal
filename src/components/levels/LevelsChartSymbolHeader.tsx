@@ -6,10 +6,7 @@ import {
   LevelsChartZoneMeta,
   type LevelsChartZoneMetaProps,
 } from "@/components/levels/LevelsChartZoneMeta";
-import {
-  formatLevelsChartMeta,
-  type LevelsTvConfig,
-} from "@/lib/levels/tradingview-symbol";
+import type { LevelsTvConfig } from "@/lib/levels/tradingview-symbol";
 
 /** Left column: symbol, company, interval · exchange (chart + slideshow chrome). */
 export function LevelsChartSymbolHeader({
@@ -62,12 +59,6 @@ export function LevelsChartSymbolHeader({
           {subtitle}
         </p>
       ) : null}
-      <p
-        className="text-[9px] font-bold uppercase tracking-[0.12em]"
-        style={{ color: "#64748b" }}
-      >
-        {formatLevelsChartMeta(config)}
-      </p>
       {zoneMeta ? <LevelsChartZoneMeta {...zoneMeta} /> : null}
       {expiryPicker ? <div className="mt-1">{expiryPicker}</div> : null}
     </div>

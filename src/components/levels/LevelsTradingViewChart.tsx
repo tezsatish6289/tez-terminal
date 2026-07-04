@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { NativeCandlesChart } from "@/components/levels/NativeCandlesChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import {
-  formatLevelsChartMeta,
-  type LevelsTvConfig,
-} from "@/lib/levels/tradingview-symbol";
+import type { LevelsTvConfig } from "@/lib/levels/tradingview-symbol";
 import { BLACKBOARD_FIELD_BORDER } from "@/lib/levels/cta-blackboard";
 
 /**
@@ -87,12 +84,6 @@ export function LevelsTradingViewChart({
               </p>
             )}
           </div>
-          <p
-            className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] shrink-0 text-right leading-snug pt-0.5"
-            style={{ color: "#64748b" }}
-          >
-            {formatLevelsChartMeta(config)}
-          </p>
         </div>
       ) : null}
       <div
@@ -124,6 +115,7 @@ export function LevelsTradingViewChart({
             showBrandWatermark={showBrandWatermark}
             onFullHistoryZoomChange={onFullHistoryZoomChange}
             onLastCloseChange={onLastCloseChange}
+            candleTypeLabel="15M candle"
           />
         )}
       </div>

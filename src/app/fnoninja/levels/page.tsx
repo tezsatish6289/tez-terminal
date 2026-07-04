@@ -204,7 +204,7 @@ export default function LevelsPage() {
   const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
   const [slideshowFilter, setSlideshowFilter] = useState<SlideshowMapFilter>("all");
   const [chartFullHistory, setChartFullHistory] = useState(false);
-  const [slideshowChartViewMode, setSlideshowChartViewMode] = useState<ChartPanelViewMode>("chart");
+  const [slideshowChartViewMode, setSlideshowChartViewMode] = useState<ChartPanelViewMode>("pvt");
   /** Last candle close per symbol — strip tiles match native chart price. */
   const [liveStripSpot, setLiveStripSpot] = useState<Record<string, number>>({});
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
@@ -508,6 +508,9 @@ export default function LevelsPage() {
 
   const chartLevelsForView = expiryScope ? expiryDisplayLevels : activeChartLevels;
   const expiryPickerEnabled = expiryOptions && expiryOptions.length > 1;
+  const showChartExpiryPicker =
+    expiryPickerEnabled &&
+    (slideshowChartViewMode === "pvt" || slideshowChartViewMode === "chart");
   const showSlideshowOutlook = isSlideView && slideshowChartViewMode === "outlook";
   const showSlideshowHistory =
     isSlideView &&
@@ -577,7 +580,7 @@ export default function LevelsPage() {
 
   useEffect(() => {
     setChartFullHistory(isSlideView);
-    setSlideshowChartViewMode("chart");
+    setSlideshowChartViewMode("pvt");
   }, [activeTv?.symbol, activeTv?.exchange, activeTv?.candlesScope, viewMode]);
 
   const goInZone = useCallback(
@@ -762,6 +765,15 @@ export default function LevelsPage() {
           <LevelsOutlookViewToggle
             value={slideshowChartViewMode}
             onChange={setSlideshowChartViewMode}
+            trailing={
+              showChartExpiryPicker ? (
+                <LevelsChartExpiryPicker
+                  options={expiryOptions}
+                  value={selectedExpiryKey}
+                  onChange={setSelectedExpiryKey}
+                />
+              ) : undefined
+            }
           />
         ) : null}
         {showSlideshowHistory && inZoneActive ? (
@@ -853,15 +865,6 @@ export default function LevelsPage() {
             atmIV={chartLevelsForView?.atmIV}
             daysToEarnings={chartLevelsForView?.daysToEarnings}
           />
-        }
-        expiryPicker={
-          expiryPickerEnabled ? (
-            <LevelsChartExpiryPicker
-              options={expiryOptions}
-              value={selectedExpiryKey}
-              onChange={setSelectedExpiryKey}
-            />
-          ) : undefined
         }
         headerTrailing={
           isSlideView && inZoneActive && activeTicker ? (

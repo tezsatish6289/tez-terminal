@@ -34,6 +34,7 @@ import {
   zoneSlAnchors,
 } from "@/components/levels/native-chart-level-overlays";
 import { LevelsChartBrandWatermark } from "@/components/levels/LevelsChartBrandWatermark";
+import { LevelsChartCandleTypeBadge } from "@/components/levels/LevelsChartCandleTypeBadge";
 import { LevelsChartFocusGlow } from "@/components/levels/LevelsChartFocusGlow";
 import { compositeChartShareImage } from "@/lib/levels/chart-share-image";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
@@ -137,6 +138,8 @@ export const NativeCandlesChart = forwardRef<
     /** When set, skip candle fetch and use parent-provided bars (e.g. learn page). */
     externalCandles?: CandlestickData[] | null;
     externalCandlesLoading?: boolean;
+    /** Top-left badge, e.g. "15M candle" on the intraday tab. */
+    candleTypeLabel?: string;
   }
 >(function NativeCandlesChart(
   {
@@ -158,6 +161,7 @@ export const NativeCandlesChart = forwardRef<
     visualFocus = null,
     externalCandles,
     externalCandlesLoading = false,
+    candleTypeLabel,
   },
   ref,
 ) {
@@ -759,6 +763,9 @@ export const NativeCandlesChart = forwardRef<
         />
       ) : null}
       {showBrandWatermark && chartReady ? <LevelsChartBrandWatermark /> : null}
+      {candleTypeLabel && chartReady ? (
+        <LevelsChartCandleTypeBadge label={candleTypeLabel} />
+      ) : null}
     </div>
   );
 });

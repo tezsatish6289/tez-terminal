@@ -52,11 +52,11 @@ export function FnoNinjaLevelsPreviewCard({
   bare?: boolean;
   className?: string;
 }) {
-  const [viewMode, setViewMode] = useState<LevelsViewMode>("chart");
+  const [viewMode, setViewMode] = useState<LevelsViewMode>("pvt");
 
-  // Reset to the Chart view whenever the previewed symbol changes.
+  // Reset to Trend Chart whenever the previewed symbol changes.
   useEffect(() => {
-    setViewMode("chart");
+    setViewMode("pvt");
   }, [target?.symbol, target?.scope]);
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export function FnoNinjaLevelsPreviewCard({
     const id = window.setInterval(() => {
       setViewMode((prev) => {
         const i = VIEW_ORDER.indexOf(prev);
-        return VIEW_ORDER[(i + 1) % VIEW_ORDER.length] ?? "chart";
+        return VIEW_ORDER[(i + 1) % VIEW_ORDER.length] ?? "pvt";
       });
     }, ROTATE_MS);
     return () => window.clearInterval(id);

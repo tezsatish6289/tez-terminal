@@ -15,6 +15,7 @@ import {
 } from "lightweight-charts";
 import { Loader2 } from "lucide-react";
 import { LevelsChartClusterBandLabels } from "@/components/levels/LevelsChartClusterBandLabels";
+import { LevelsChartCandleTypeBadge } from "@/components/levels/LevelsChartCandleTypeBadge";
 import {
   applyClusterSummaryPriceLines,
   mergedPriceRange,
@@ -61,7 +62,39 @@ const COMPACT_SHELL_STYLE = {
 const GUIDE_FOOTER_CLASS =
   "shrink-0 min-h-[5rem] border-t border-white/10 bg-[#070d1a] px-3 py-2.5 relative z-10";
 
-const PVT_PANE_HEIGHT = 140;
+const PVT_SECTION_HEIGHT = 156;
+const PVT_SECTION_HEADER_HEIGHT = 24;
+
+const PVT_SECTION_SHELL_CLASS =
+  "shrink-0 mx-0.5 rounded-xl border border-amber-500/30 bg-[#0a101c] overflow-hidden " +
+  "shadow-[0_-10px_32px_rgba(0,0,0,0.55),0_6px_18px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(251,191,36,0.14)] " +
+  "ring-1 ring-inset ring-amber-500/10";
+
+const CHART_BASE_OPTIONS = {
+  layout: {
+    background: { type: ColorType.Solid, color: "transparent" },
+    textColor: "#94a3b8",
+    fontSize: 11,
+  },
+  grid: {
+    vertLines: { color: "rgba(255,255,255,0.04)" },
+    horzLines: { color: "rgba(255,255,255,0.04)" },
+  },
+  crosshair: { mode: CrosshairMode.Normal },
+  rightPriceScale: { borderColor: "rgba(255,255,255,0.08)" },
+} as const;
+
+function linkVisibleRanges(source: IChartApi, target: IChartApi): () => void {
+  let syncing = false;
+  const handler = (range: { from: number; to: number } | null) => {
+    if (syncing || range == null) return;
+    syncing = true;
+    target.timeScale().setVisibleLogicalRange(range);
+    syncing = false;
+  };
+  source.timeScale().subscribeVisibleLogicalRangeChange(handler);
+  return () => source.timeScale().unsubscribeVisibleLogicalRangeChange(handler);
+}
 
 function filterCandlesByRange(candles: DailyCandle[], range: PvtHistoryRange): DailyCandle[] {
   if (!candles.length) return candles;
@@ -85,6 +118,80 @@ function levelsHaveBands(data: PublicLevels | null | undefined): boolean {
   return data != null && (data.bullLow != null || data.bearLow != null);
 }
 
+const PVT_TRENDLINE_LABEL_STYLE: React.CSSProperties = {
+  color: "#93c5fd",
+  backgroundColor: "rgba(8, 15, 30, 0.52)",
+  backdropFilter: "blur(8px)",
+  WebkitBackdropFilter: "blur(8px)",
+  border: "1px solid rgba(96, 165, 250, 0.35)",
+  boxShadow: "0 0 12px rgba(96, 165, 250, 0.15)",
+};
+
+/** Left-side tag anchored to the PVT line on the trend pane. */
+function PvtTrendlineLabel({
+  chartRef,
+  seriesRef,
+  containerRef,
+  lastValue,
+  visible,
+}: {
+  chartRef: React.RefObject<IChartApi | null>;
+  seriesRef: React.RefObject<ISeriesApi<"Line"> | null>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  lastValue: number | null;
+  visible: boolean;
+}) {
+  const [top, setTop] = useState<number | null>(null);
+
+  const updatePosition = useCallback(() => {
+    const series = seriesRef.current;
+    const container = containerRef.current;
+    if (!series || !container || !visible || lastValue == null) {
+      setTop(null);
+      return;
+    }
+    const y = series.priceToCoordinate(lastValue);
+    if (y == null) {
+      setTop(null);
+      return;
+    }
+    const height = container.clientHeight;
+    setTop(Math.min(Math.max(y, 14), height - 14));
+  }, [containerRef, lastValue, seriesRef, visible]);
+
+  useEffect(() => {
+    updatePosition();
+  }, [updatePosition]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !visible) return;
+
+    const ts = chart.timeScale();
+    ts.subscribeVisibleLogicalRangeChange(updatePosition);
+    const ro = containerRef.current ? new ResizeObserver(updatePosition) : null;
+    if (containerRef.current) ro?.observe(containerRef.current);
+
+    return () => {
+      ts.unsubscribeVisibleLogicalRangeChange(updatePosition);
+      ro?.disconnect();
+    };
+  }, [chartRef, containerRef, updatePosition, visible]);
+
+  if (top == null) return null;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[15]">
+      <div
+        className="absolute left-1.5 sm:left-3 -translate-y-1/2 rounded-md px-1.5 py-0.5 text-[9px] sm:text-[11px] font-bold leading-snug tracking-tight"
+        style={{ top, ...PVT_TRENDLINE_LABEL_STYLE }}
+      >
+        PVT Trendline
+      </div>
+    </div>
+  );
+}
+
 export function PvtChart({
   scope,
   symbol,
@@ -100,8 +207,11 @@ export function PvtChart({
   hideGuide?: boolean;
 }) {
   const overlayRootRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
+  const candleContainerRef = useRef<HTMLDivElement>(null);
+  const pvtSectionRef = useRef<HTMLDivElement>(null);
+  const pvtContainerRef = useRef<HTMLDivElement>(null);
+  const candleChartRef = useRef<IChartApi | null>(null);
+  const pvtChartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const pvtRef = useRef<ISeriesApi<"Line"> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
@@ -194,23 +304,25 @@ export function PvtChart({
   const pvtSeries = useMemo(() => computePvt(displayCandles), [displayCandles]);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    const candleEl = candleContainerRef.current;
+    const pvtEl = pvtContainerRef.current;
+    if (!candleEl || !pvtEl) return;
 
     setChartReady(false);
-    const chart = createChart(el, {
+    const candleChart = createChart(candleEl, {
+      ...CHART_BASE_OPTIONS,
       autoSize: true,
-      layout: {
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#94a3b8",
-        fontSize: 11,
+      timeScale: {
+        borderColor: "rgba(255,255,255,0.08)",
+        visible: false,
+        timeVisible: false,
+        secondsVisible: false,
       },
-      grid: {
-        vertLines: { color: "rgba(255,255,255,0.04)" },
-        horzLines: { color: "rgba(255,255,255,0.04)" },
-      },
-      crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: "rgba(255,255,255,0.08)" },
+    });
+
+    const pvtChart = createChart(pvtEl, {
+      ...CHART_BASE_OPTIONS,
+      autoSize: true,
       timeScale: {
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
@@ -219,18 +331,14 @@ export function PvtChart({
       },
     });
 
-    const candlesSeries = chart.addSeries(
-      CandlestickSeries,
-      {
-        upColor: "#16a34a",
-        downColor: "#dc2626",
-        borderUpColor: "#16a34a",
-        borderDownColor: "#dc2626",
-        wickUpColor: "#16a34a",
-        wickDownColor: "#dc2626",
-      },
-      0,
-    );
+    const candlesSeries = candleChart.addSeries(CandlestickSeries, {
+      upColor: "#16a34a",
+      downColor: "#dc2626",
+      borderUpColor: "#16a34a",
+      borderDownColor: "#dc2626",
+      wickUpColor: "#16a34a",
+      wickDownColor: "#dc2626",
+    });
 
     candlesSeries.applyOptions({
       autoscaleInfoProvider: () => {
@@ -239,32 +347,32 @@ export function PvtChart({
       },
     });
 
-    const pvtLine = chart.addSeries(
-      LineSeries,
-      {
-        color: "#60a5fa",
-        lineWidth: 2,
-        priceFormat: {
-          type: "custom",
-          formatter: fmtPvt,
-        },
+    const pvtLine = pvtChart.addSeries(LineSeries, {
+      color: "#60a5fa",
+      lineWidth: 2,
+      title: "PVT Trendline",
+      priceFormat: {
+        type: "custom",
+        formatter: fmtPvt,
       },
-      1,
-    );
+    });
 
-    const pvtPane = chart.panes()[1];
-    if (pvtPane) {
-      pvtPane.setHeight(PVT_PANE_HEIGHT);
-    }
+    const unlinkCandle = linkVisibleRanges(candleChart, pvtChart);
+    const unlinkPvt = linkVisibleRanges(pvtChart, candleChart);
 
-    chartRef.current = chart;
+    candleChartRef.current = candleChart;
+    pvtChartRef.current = pvtChart;
     candleRef.current = candlesSeries;
     pvtRef.current = pvtLine;
     setChartReady(true);
 
     return () => {
-      chart.remove();
-      chartRef.current = null;
+      unlinkCandle();
+      unlinkPvt();
+      candleChart.remove();
+      pvtChart.remove();
+      candleChartRef.current = null;
+      pvtChartRef.current = null;
       candleRef.current = null;
       pvtRef.current = null;
       priceLinesRef.current = [];
@@ -275,8 +383,18 @@ export function PvtChart({
   useEffect(() => {
     const candleSeries = candleRef.current;
     const pvtLine = pvtRef.current;
-    const chart = chartRef.current;
-    if (!chartReady || !candleSeries || !pvtLine || !chart || displayCandles.length === 0) return;
+    const candleChart = candleChartRef.current;
+    const pvtChart = pvtChartRef.current;
+    if (
+      !chartReady ||
+      !candleSeries ||
+      !pvtLine ||
+      !candleChart ||
+      !pvtChart ||
+      displayCandles.length === 0
+    ) {
+      return;
+    }
 
     const candleData: CandlestickData[] = displayCandles.map((c) => ({
       time: toChartTime(c.time),
@@ -295,7 +413,8 @@ export function PvtChart({
       })),
     );
     applyClusterSummaryPriceLines(candleSeries, priceLinesRef, effectiveLevels);
-    chart.timeScale().fitContent();
+    candleChart.timeScale().fitContent();
+    pvtChart.timeScale().fitContent();
   }, [chartReady, displayCandles, pvtSeries, effectiveLevels]);
 
   const shellStyle = hideGuide ? COMPACT_SHELL_STYLE : CHART_SHELL_STYLE;
@@ -321,44 +440,82 @@ export function PvtChart({
       ? "Loading option levels…"
       : error ?? "Not enough daily data for PVT.";
   const showClusterLabels = chartReady && candlesReady && zonesReady;
+  const lastPvtValue = pvtSeries.length > 0 ? pvtSeries[pvtSeries.length - 1]!.value : null;
+  const showPvtTrendlineLabel = chartReady && candlesReady && lastPvtValue != null;
 
   return (
     <div className={className} style={shellStyle}>
       <PvtRangeToggle value={range} onChange={setRange} />
-      <div ref={overlayRootRef} className="relative min-h-0 overflow-hidden">
-        <div ref={containerRef} className="absolute inset-0" />
-        {showClusterLabels ? (
-          <LevelsChartClusterBandLabels
-            chartRef={chartRef}
-            seriesRef={candleRef}
-            containerRef={overlayRootRef}
-            levels={effectiveLevels}
-            visible
-          />
-        ) : null}
-        {showOverlay ? (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.45)]">
-            {loading ? (
-              <>
-                <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
-                <p className="text-sm" style={{ color: "#94a3b8" }}>
+      <div className="flex flex-col flex-1 min-h-0 gap-2">
+        <div ref={overlayRootRef} className="relative flex-1 min-h-0 overflow-hidden">
+          <div ref={candleContainerRef} className="absolute inset-0" />
+          {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candle" /> : null}
+          {showClusterLabels ? (
+            <LevelsChartClusterBandLabels
+              chartRef={candleChartRef}
+              seriesRef={candleRef}
+              containerRef={overlayRootRef}
+              levels={effectiveLevels}
+              visible
+            />
+          ) : null}
+          {showOverlay ? (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.45)]">
+              {loading ? (
+                <>
+                  <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+                  <p className="text-sm" style={{ color: "#94a3b8" }}>
+                    {overlayMessage}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
                   {overlayMessage}
                 </p>
-              </>
-            ) : (
-              <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
-                {overlayMessage}
+              )}
+            </div>
+          ) : showZonesOverlay ? (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.35)]">
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+              <p className="text-sm" style={{ color: "#94a3b8" }}>
+                Loading option levels…
               </p>
-            )}
+            </div>
+          ) : null}
+        </div>
+
+        <div className={PVT_SECTION_SHELL_CLASS} style={{ height: PVT_SECTION_HEIGHT }}>
+          <div
+            className="flex items-center gap-2 px-2.5 border-b border-amber-500/25 bg-[#0c1424]/95"
+            style={{ height: PVT_SECTION_HEADER_HEIGHT }}
+          >
+            <span
+              className="text-[9px] font-bold uppercase tracking-[0.14em]"
+              style={{ color: "#fbbf24" }}
+            >
+              PVT Trendline
+            </span>
+            <span className="text-[9px] font-medium" style={{ color: "rgba(251, 191, 36, 0.55)" }}>
+              Price Volume Trend
+            </span>
           </div>
-        ) : showZonesOverlay ? (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-[rgba(0,0,0,0.35)]">
-            <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
-            <p className="text-sm" style={{ color: "#94a3b8" }}>
-              Loading option levels…
-            </p>
+          <div
+            ref={pvtSectionRef}
+            className="relative min-h-0 overflow-hidden"
+            style={{ height: PVT_SECTION_HEIGHT - PVT_SECTION_HEADER_HEIGHT }}
+          >
+            <div ref={pvtContainerRef} className="absolute inset-0" />
+            {showPvtTrendlineLabel ? (
+              <PvtTrendlineLabel
+                chartRef={pvtChartRef}
+                seriesRef={pvtRef}
+                containerRef={pvtSectionRef}
+                lastValue={lastPvtValue}
+                visible
+              />
+            ) : null}
           </div>
-        ) : null}
+        </div>
       </div>
       {guideFooter}
     </div>

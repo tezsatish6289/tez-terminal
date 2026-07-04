@@ -102,6 +102,60 @@ function MethodologyNote({
   );
 }
 
+const FOOTER_ROW_GRID_CLASS = "grid grid-cols-[1fr_auto_1fr] items-center gap-2";
+
+function FooterRow({
+  variant,
+  placement,
+  plotRight,
+  className,
+  showBrand,
+  showTv,
+  tvUrl,
+  headline,
+  meta,
+}: {
+  variant: ChartAttributionVariant;
+  placement: "overlay" | "below";
+  plotRight: number;
+  className: string;
+  showBrand: boolean;
+  showTv: boolean;
+  tvUrl: string;
+  headline: string;
+  meta: string | null;
+}) {
+  const content = (
+    <>
+      <div className="justify-self-start min-w-0">
+        <BrandTradingViewRow showBrand={showBrand} showTv={showTv} tvUrl={tvUrl} />
+      </div>
+      <MethodologyNote headline={headline} meta={meta} />
+      <div aria-hidden />
+    </>
+  );
+
+  if (placement === "below") {
+    return (
+      <div
+        className={`pointer-events-none shrink-0 w-full px-2 sm:px-2.5 pt-1 pb-0.5 ${FOOTER_ROW_GRID_CLASS} ${className}`.trim()}
+        style={{ paddingRight: plotRight }}
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`pointer-events-none absolute left-2 sm:left-2.5 ${FOOTER_ROW_GRID_CLASS} ${FOOTER_ROW_BOTTOM_CLASS[variant]} ${className}`.trim()}
+      style={{ right: plotRight }}
+    >
+      {content}
+    </div>
+  );
+}
+
 /** In-chart attribution: FNONINJA brand, methodology, and TradingView credit. */
 export function LevelsChartAttributionOverlay({
   variant,
@@ -113,6 +167,7 @@ export function LevelsChartAttributionOverlay({
   rightInsetPx = 0,
   visible = true,
   className = "",
+  placement = "overlay",
 }: {
   variant: ChartAttributionVariant;
   levels?: PublicLevels | null;
@@ -124,6 +179,8 @@ export function LevelsChartAttributionOverlay({
   rightInsetPx?: number;
   visible?: boolean;
   className?: string;
+  /** Below-chart row for panes with a visible time scale (intraday). */
+  placement?: "overlay" | "below";
 }) {
   if (!visible) return null;
 
@@ -138,42 +195,60 @@ export function LevelsChartAttributionOverlay({
 
   if (!showBrandRow && !showMethodology) return null;
 
+  if (useFooterRow) {
+    return (
+      <FooterRow
+        variant={variant}
+        placement={placement}
+        plotRight={plotRight}
+        className={className}
+        showBrand={showBrand}
+        showTv={showTv}
+        tvUrl={tvUrl}
+        headline={headline}
+        meta={meta}
+      />
+    );
+  }
+
+  if (placement === "below") {
+    return (
+      <div
+        className={`pointer-events-none shrink-0 w-full px-2 sm:px-2.5 pt-1 pb-0.5 ${className}`.trim()}
+        style={{ paddingRight: plotRight }}
+        aria-hidden={!showTv}
+      >
+        {showBrandRow ? (
+          <BrandTradingViewRow showBrand={showBrand} showTv={showTv} tvUrl={tvUrl} />
+        ) : null}
+        {showMethodology ? (
+          <div className="mt-1 flex justify-center">
+            <MethodologyNote headline={headline} meta={meta} />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div
       className={`pointer-events-none absolute inset-0 z-[12] ${className}`.trim()}
       aria-hidden={!showTv}
     >
-      {useFooterRow ? (
+      {showBrandRow ? (
+        <div className={`absolute left-2 sm:left-2.5 ${BRAND_BOTTOM_CLASS[variant]}`}>
+          <BrandTradingViewRow showBrand={showBrand} showTv={showTv} tvUrl={tvUrl} />
+        </div>
+      ) : null}
+
+      {showMethodology ? (
         <div
-          className={`absolute left-2 sm:left-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2 ${FOOTER_ROW_BOTTOM_CLASS[variant]}`}
+          className={`absolute left-2 flex justify-center px-2 ${METHODOLOGY_BOTTOM_CLASS[variant]} ${showBrandRow ? "pl-28 sm:pl-32" : ""}`}
           style={{ right: plotRight }}
         >
-          <div className="justify-self-start min-w-0">
-            <BrandTradingViewRow showBrand={showBrand} showTv={showTv} tvUrl={tvUrl} />
-          </div>
           <MethodologyNote headline={headline} meta={meta} />
-          <div aria-hidden />
         </div>
-      ) : (
-        <>
-          {showBrandRow ? (
-            <div
-              className={`absolute left-2 sm:left-2.5 ${BRAND_BOTTOM_CLASS[variant]}`}
-            >
-              <BrandTradingViewRow showBrand={showBrand} showTv={showTv} tvUrl={tvUrl} />
-            </div>
-          ) : null}
-
-          {showMethodology ? (
-            <div
-              className={`absolute left-2 flex justify-center px-2 ${METHODOLOGY_BOTTOM_CLASS[variant]} ${showBrandRow ? "pl-28 sm:pl-32" : ""}`}
-              style={{ right: plotRight }}
-            >
-              <MethodologyNote headline={headline} meta={meta} />
-            </div>
-          ) : null}
-        </>
-      )}
+      ) : null}
     </div>
   );
 }

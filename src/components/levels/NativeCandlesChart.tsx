@@ -714,82 +714,88 @@ export const NativeCandlesChart = forwardRef<
   return (
     <div
       ref={shareRootRef}
-      className="relative w-full h-full min-h-[180px] flex-1 max-md:touch-pan-y"
+      className="relative flex h-full min-h-0 w-full flex-1 flex-col max-md:touch-pan-y"
     >
-      <div
-        ref={containerRef}
-        className="absolute inset-0"
-        style={{
-          opacity: chartReady ? 1 : 0,
-          visibility: chartReady ? "visible" : "hidden",
-        }}
-      />
-      {showChartOverlay && (
+      <div className="relative min-h-0 flex-1">
         <div
-          className="absolute inset-0 flex items-center justify-center gap-2"
-          style={{ color: "#64748b", backgroundColor: "rgba(0,0,0,0.45)" }}
-        >
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-xs">
-            {awaitingLevels && !bootLoading && !swapping
-              ? `Loading ${symbol} levels…`
-              : `Loading ${symbol} chart…`}
-          </span>
-        </div>
-      )}
-      {!bootLoading && error && (
-        <div className="absolute inset-0 flex items-center justify-center px-4 text-center" style={{ color: "#64748b" }}>
-          <p className="text-xs">{error}</p>
-        </div>
-      )}
-      {!hideShortcuts ? (
-        <LevelsChartShortcuts
-          webChartUrl={webChartUrl}
-          resolveTopPx={resolveHintTopPx}
-          showSqueeze
-          squeezed={fullHistoryZoom}
-          onSqueeze={toggleHistoryZoom}
-          showSlideshowControl={showSlideshowControl}
-          slideshowPaused={slideshowPaused}
-          onToggleSlideshowPause={onToggleSlideshowPause}
+          ref={containerRef}
+          className="absolute inset-0"
+          style={{
+            opacity: chartReady ? 1 : 0,
+            visibility: chartReady ? "visible" : "hidden",
+          }}
         />
-      ) : hideTvFooterHint ? null : (
-        <LevelsChartTvFooterHint
-          webChartUrl={webChartUrl}
-          zonesExpiry={levels?.zonesExpiry}
-          rightInsetPx={priceScaleMinWidth()}
-        />
-      )}
-      <LevelsChartClusterBandLabels
-        chartRef={chartRef}
-        seriesRef={seriesRef}
-        containerRef={containerRef}
-        levels={levels}
-        visible={chartReady && showClusterBandLabels}
-        visualFocus={visualFocus}
-      />
-      {visualFocus && chartReady ? (
-        <LevelsChartFocusGlow
+        {showChartOverlay && (
+          <div
+            className="absolute inset-0 flex items-center justify-center gap-2"
+            style={{ color: "#64748b", backgroundColor: "rgba(0,0,0,0.45)" }}
+          >
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-xs">
+              {awaitingLevels && !bootLoading && !swapping
+                ? `Loading ${symbol} levels…`
+                : `Loading ${symbol} chart…`}
+            </span>
+          </div>
+        )}
+        {!bootLoading && error && (
+          <div
+            className="absolute inset-0 flex items-center justify-center px-4 text-center"
+            style={{ color: "#64748b" }}
+          >
+            <p className="text-xs">{error}</p>
+          </div>
+        )}
+        {!hideShortcuts ? (
+          <LevelsChartShortcuts
+            webChartUrl={webChartUrl}
+            resolveTopPx={resolveHintTopPx}
+            showSqueeze
+            squeezed={fullHistoryZoom}
+            onSqueeze={toggleHistoryZoom}
+            showSlideshowControl={showSlideshowControl}
+            slideshowPaused={slideshowPaused}
+            onToggleSlideshowPause={onToggleSlideshowPause}
+          />
+        ) : hideTvFooterHint ? null : (
+          <LevelsChartTvFooterHint
+            webChartUrl={webChartUrl}
+            zonesExpiry={levels?.zonesExpiry}
+            rightInsetPx={priceScaleMinWidth()}
+          />
+        )}
+        <LevelsChartClusterBandLabels
           chartRef={chartRef}
           seriesRef={seriesRef}
           containerRef={containerRef}
           levels={levels}
-          focus={visualFocus}
-          visible={chartReady}
+          visible={chartReady && showClusterBandLabels}
+          visualFocus={visualFocus}
         />
-      ) : null}
+        {visualFocus && chartReady ? (
+          <LevelsChartFocusGlow
+            chartRef={chartRef}
+            seriesRef={seriesRef}
+            containerRef={containerRef}
+            levels={levels}
+            focus={visualFocus}
+            visible={chartReady}
+          />
+        ) : null}
+        {candleTypeLabel && chartReady ? (
+          <LevelsChartCandleTypeBadge label={candleTypeLabel} />
+        ) : null}
+      </div>
       {showBrandWatermark && chartReady ? (
         <LevelsChartAttributionOverlay
           variant="intraday"
+          placement="below"
           levels={levels}
           webChartUrl={webChartUrl}
           showTradingView
           rightInsetPx={priceScaleMinWidth()}
           visible={chartReady}
         />
-      ) : null}
-      {candleTypeLabel && chartReady ? (
-        <LevelsChartCandleTypeBadge label={candleTypeLabel} />
       ) : null}
     </div>
   );

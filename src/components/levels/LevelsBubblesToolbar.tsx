@@ -14,6 +14,7 @@ export function LevelsBubblesToolbar({
   bubbleMapFilter,
   onBubbleMapFilterChange,
   bubbleFilterCounts,
+  maxPainVisibility,
   viewToggle,
   favslideToggle,
   shareTrailing,
@@ -21,6 +22,10 @@ export function LevelsBubblesToolbar({
   bubbleMapFilter: BubbleMapFilter;
   onBubbleMapFilterChange: (filter: BubbleMapFilter) => void;
   bubbleFilterCounts: Record<BubbleMapFilter, number>;
+  maxPainVisibility?: {
+    visible: boolean;
+    onToggle: () => void;
+  };
   viewToggle: {
     label: string;
     shortLabel?: string;
@@ -48,6 +53,7 @@ export function LevelsBubblesToolbar({
           filter={bubbleMapFilter}
           onFilterChange={onBubbleMapFilterChange}
           counts={bubbleFilterCounts}
+          maxPainVisibility={maxPainVisibility}
         />
 
         {favslideToggle ? (

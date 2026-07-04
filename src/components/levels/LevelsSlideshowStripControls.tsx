@@ -587,6 +587,10 @@ export function LevelsSlideshowStripControls({
     onToggle: () => void;
     /** Seconds until next symbol (shown under pause). */
     secondsRemaining?: number;
+    /** Why the timer is held (Atlas, Intraday, etc.). */
+    pauseReason?: string | null;
+    /** False when auto-pause cannot be cleared from the transport button (Atlas open). */
+    canResume?: boolean;
   };
   viewToggle?: {
     viewMode: LevelsStripViewMode;
@@ -753,7 +757,8 @@ export function LevelsSlideshowStripControls({
         <button
           type="button"
           onClick={slideshowControl.onToggle}
-          className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+          disabled={slideshowControl.paused && slideshowControl.canResume === false}
+          className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98] disabled:opacity-80 disabled:cursor-not-allowed`}
           style={{
             ...stripIconBoxStyle(slideshowControl.paused),
             ...(slideAccent && !slideshowControl.paused
@@ -765,13 +770,29 @@ export function LevelsSlideshowStripControls({
                       : "rgba(251,191,36,0.1)",
                 }
               : {}),
+            ...(slideshowControl.paused && slideshowControl.pauseReason
+              ? {
+                  border: "1px solid rgba(244,114,182,0.35)",
+                  background: "rgba(244,114,182,0.08)",
+                }
+              : {}),
           }}
           aria-label={
             slideshowControl.paused
-              ? "Resume slideshow — 60 second countdown per symbol. Press P or click."
+              ? slideshowControl.pauseReason
+                ? `Slideshow paused while viewing ${slideshowControl.pauseReason}. ${slideshowControl.canResume === false ? "Close Atlas to resume." : "Press P or click to return to Trend Chart."}`
+                : "Resume slideshow — 60 second countdown per symbol. Press P or click."
               : `Pause slideshow. ${Math.max(0, slideshowControl.secondsRemaining ?? 0)} seconds until next symbol. Press P or click.`
           }
-          title={slideshowControl.paused ? "Play slideshow" : "Pause slideshow"}
+          title={
+            slideshowControl.paused
+              ? slideshowControl.pauseReason
+                ? slideshowControl.canResume === false
+                  ? "Paused — close Atlas to resume"
+                  : "Paused — return to Trend Chart"
+                : "Play slideshow"
+              : "Pause slideshow"
+          }
           data-liveslide-tour="pause"
           data-favslide-tour="pause"
         >
@@ -784,7 +805,7 @@ export function LevelsSlideshowStripControls({
             />
           )}
           <span
-            className={`${LEVELS_STRIP_BOX_LABEL_CLASS} tabular-nums`}
+            className={`${LEVELS_STRIP_BOX_LABEL_CLASS} tabular-nums leading-tight`}
             style={{
               color: slideshowControl.paused
                 ? "#f472b6"
@@ -793,7 +814,9 @@ export function LevelsSlideshowStripControls({
             aria-live="polite"
           >
             {slideshowControl.paused
-              ? "Paused"
+              ? slideshowControl.pauseReason
+                ? `Paused · ${slideshowControl.pauseReason}`
+                : "Paused"
               : `${Math.max(0, slideshowControl.secondsRemaining ?? 0)}s`}
           </span>
         </button>

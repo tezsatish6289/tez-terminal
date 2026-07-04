@@ -32,6 +32,7 @@ import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
+import { SlideshowAutoPauseBanner } from "@/components/levels/SlideshowAutoPauseBanner";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
@@ -189,6 +190,17 @@ function resolveStockCompanyName(symbol: string, fallback?: string | null): stri
   return null;
 }
 
+function slideshowExplorePauseReason(
+  chartViewMode: ChartPanelViewMode,
+  atlasOpen: boolean,
+): string | null {
+  if (atlasOpen) return "Atlas";
+  if (chartViewMode === "chart") return "Intraday";
+  if (chartViewMode === "outlook") return "Outlook";
+  if (chartViewMode === "history") return "History";
+  return null;
+}
+
 export default function LevelsPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -200,6 +212,7 @@ export default function LevelsPage() {
   const [fynnDrawerOpen, setFynnDrawerOpen] = useState(false);
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
+  const [showMaxPainBubbles, setShowMaxPainBubbles] = useState(false);
   const [slideshowFilter, setSlideshowFilter] = useState<SlideshowMapFilter>("all");
   const [chartFullHistory, setChartFullHistory] = useState(false);
   const [slideshowChartViewMode, setSlideshowChartViewMode] = useState<ChartPanelViewMode>("pvt");
@@ -481,6 +494,35 @@ export default function LevelsPage() {
     });
   }, []);
 
+  const slideshowExploreHold = useMemo(
+    () =>
+      isSlideView
+        ? slideshowExplorePauseReason(slideshowChartViewMode, fynnDrawerOpen)
+        : null,
+    [isSlideView, slideshowChartViewMode, fynnDrawerOpen],
+  );
+
+  const slideshowTimerPaused = slideshowPaused || Boolean(slideshowExploreHold);
+
+  const handleSlideshowTransportClick = useCallback(() => {
+    if (inZoneCount <= 1) return;
+    if (slideshowExploreHold === "Atlas") return;
+    if (slideshowExploreHold) {
+      setSlideshowChartViewMode("pvt");
+      setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
+      return;
+    }
+    toggleSlideshowPause();
+  }, [inZoneCount, slideshowExploreHold, toggleSlideshowPause]);
+
+  const handleSlideshowChartViewChange = useCallback((mode: ChartPanelViewMode) => {
+    setSlideshowChartViewMode(mode);
+  }, []);
+
+  const handleFynnDrawerOpenChange = useCallback((open: boolean) => {
+    setFynnDrawerOpen(open);
+  }, []);
+
   const scheduleNote = "Updates Mon–Fri during market hours";
 
   const activeTv = useMemo(() => {
@@ -521,10 +563,15 @@ export default function LevelsPage() {
 
   useChartOutlookKeyboardShortcuts(
     true,
-    () => setSlideshowChartViewMode("chart"),
-    () => setSlideshowChartViewMode("outlook"),
+    () => handleSlideshowChartViewChange("chart"),
+    () => handleSlideshowChartViewChange("outlook"),
     isSlideView && !fynnDrawerOpen,
-    { historyAvailable: true, onHistory: () => setSlideshowChartViewMode("history"), pvtAvailable: true, onPvt: () => setSlideshowChartViewMode("pvt") },
+    {
+      historyAvailable: true,
+      onHistory: () => handleSlideshowChartViewChange("history"),
+      pvtAvailable: true,
+      onPvt: () => handleSlideshowChartViewChange("pvt"),
+    },
   );
 
   useTradingViewChartShortcut(
@@ -573,8 +620,8 @@ export default function LevelsPage() {
           squeezed: chartFullHistory,
           onSqueeze: () => nativeChartRef.current?.toggleHistoryZoom(),
           showSlideshowControl: slideshowEnabled,
-          slideshowPaused,
-          onToggleSlideshowPause: toggleSlideshowPause,
+          slideshowPaused: slideshowTimerPaused,
+          onToggleSlideshowPause: handleSlideshowTransportClick,
         }
       : null;
 
@@ -593,19 +640,19 @@ export default function LevelsPage() {
   }, [inZoneCurrent, slideshowFilter, viewMode]);
 
   useEffect(() => {
-    if (slideshowPaused || fynnDrawerOpen || !isSlideView || inZoneCount <= 1) return;
+    if (slideshowTimerPaused || !isSlideView || inZoneCount <= 1) return;
     const id = setInterval(() => {
       setSlideshowCountdown((c) => c - 1);
     }, 1000);
     return () => clearInterval(id);
-  }, [slideshowPaused, fynnDrawerOpen, viewMode, inZoneCount, inZoneCurrent, slideshowFilter]);
+  }, [slideshowTimerPaused, isSlideView, inZoneCount, inZoneCurrent, slideshowFilter]);
 
   useEffect(() => {
     if (slideshowCountdown > 0) return;
-    if (slideshowPaused || fynnDrawerOpen || !isSlideView || inZoneCount <= 1) return;
+    if (slideshowTimerPaused || !isSlideView || inZoneCount <= 1) return;
     setInZoneSlide((s) => (s + 1) % inZoneCount);
     setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
-  }, [slideshowCountdown, slideshowPaused, fynnDrawerOpen, viewMode, inZoneCount]);
+  }, [slideshowCountdown, slideshowTimerPaused, isSlideView, inZoneCount]);
 
   useEffect(() => {
     if (inZoneCount === 0) setInZoneSlide(0);
@@ -764,7 +811,7 @@ export default function LevelsPage() {
         {isSlideView ? (
           <LevelsOutlookViewToggle
             value={slideshowChartViewMode}
-            onChange={setSlideshowChartViewMode}
+            onChange={handleSlideshowChartViewChange}
             trailing={
               showChartExpiryPicker ? (
                 <LevelsChartExpiryPicker
@@ -775,6 +822,9 @@ export default function LevelsPage() {
               ) : undefined
             }
           />
+        ) : null}
+        {isSlideView && slideshowExploreHold ? (
+          <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
         ) : null}
         {showSlideshowHistory && inZoneActive ? (
           <OiHistoryChart
@@ -810,8 +860,8 @@ export default function LevelsPage() {
             levels={chartLevelsForView}
             loading={chartLevelsLoading}
             showSlideshowControl={slideshowEnabled}
-            slideshowPaused={slideshowPaused}
-            onToggleSlideshowPause={toggleSlideshowPause}
+            slideshowPaused={slideshowTimerPaused}
+            onToggleSlideshowPause={handleSlideshowTransportClick}
             hideChartShortcuts={isSlideView}
             defaultFullHistory={isSlideView}
             showHeader={!isSlideView}
@@ -891,7 +941,7 @@ export default function LevelsPage() {
                     symbol={activeTicker}
                     label={slideshowSubtitleLine ?? inZoneActive.label}
                     iconOnly
-                    onOpenChange={setFynnDrawerOpen}
+                    onOpenChange={handleFynnDrawerOpenChange}
                   />
                   <FnoNinjaFavslideToggle
                     scope={inZoneActive.scope}
@@ -1039,7 +1089,7 @@ export default function LevelsPage() {
           onNext={() => goInZone(1)}
           onGoTo={setInZoneSlide}
           slideshowAdvanceHint
-          slideshowPaused={slideshowPaused}
+          slideshowPaused={slideshowTimerPaused}
           showCarouselArrows={false}
         />
       ) : (
@@ -1059,7 +1109,7 @@ export default function LevelsPage() {
                   activeIndex={inZoneCurrent}
                   onGoTo={setInZoneSlide}
                   slideshowAdvanceHint
-                  slideshowPaused={slideshowPaused}
+                  slideshowPaused={slideshowTimerPaused}
                 />
               </div>
             ),
@@ -1074,6 +1124,10 @@ export default function LevelsPage() {
       bubbleMapFilter={bubbleMapFilter}
       onBubbleMapFilterChange={setBubbleMapFilter}
       bubbleFilterCounts={bubbleFilterCounts}
+      maxPainVisibility={{
+        visible: showMaxPainBubbles,
+        onToggle: () => setShowMaxPainBubbles((v) => !v),
+      }}
       slideshowFilter={viewMode === "liveslide" ? slideshowFilter : undefined}
       onSlideshowFilterChange={
         viewMode === "liveslide"
@@ -1100,10 +1154,12 @@ export default function LevelsPage() {
         showSlideshowStripTransport
           ? {
               enabled: true,
-              paused: inZoneCount <= 1 || slideshowPaused,
+              paused: inZoneCount <= 1 || slideshowTimerPaused,
               onToggle:
-                inZoneCount > 1 ? toggleSlideshowPause : () => {},
+                inZoneCount > 1 ? handleSlideshowTransportClick : () => {},
               secondsRemaining: slideshowCountdown,
+              pauseReason: slideshowExploreHold,
+              canResume: slideshowExploreHold !== "Atlas",
             }
           : undefined
       }
@@ -1186,6 +1242,7 @@ export default function LevelsPage() {
         onBubbleOpen={openBubbleChart}
         hasMarketData={Boolean(payload)}
         toneFilter={bubbleMapFilter}
+        showMaxPainBubbles={showMaxPainBubbles}
       />
     ) : (
       renderSlideshow()

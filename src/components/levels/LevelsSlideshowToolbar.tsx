@@ -44,6 +44,7 @@ export function LevelsSlideshowToolbar({
   bubbleMapFilter,
   onBubbleMapFilterChange,
   bubbleFilterCounts,
+  maxPainVisibility,
   slideshowFilter,
   onSlideshowFilterChange,
   slideshowFilterCounts,
@@ -60,6 +61,10 @@ export function LevelsSlideshowToolbar({
   bubbleMapFilter?: BubbleMapFilter;
   onBubbleMapFilterChange?: (filter: BubbleMapFilter) => void;
   bubbleFilterCounts?: Record<BubbleMapFilter, number>;
+  maxPainVisibility?: {
+    visible: boolean;
+    onToggle: () => void;
+  };
   slideshowFilter?: SlideshowMapFilter;
   onSlideshowFilterChange?: (filter: SlideshowMapFilter) => void;
   slideshowFilterCounts?: Record<SlideshowMapFilter, number>;
@@ -241,6 +246,7 @@ export function LevelsSlideshowToolbar({
         bubbleMapFilter={bubbleMapFilter}
         onBubbleMapFilterChange={onBubbleMapFilterChange}
         bubbleFilterCounts={bubbleFilterCounts}
+        maxPainVisibility={maxPainVisibility}
         viewToggle={viewToggle}
         favslideToggle={favslideToggle}
         shareTrailing={shareTrailing}

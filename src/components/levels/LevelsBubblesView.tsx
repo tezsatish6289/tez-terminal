@@ -12,6 +12,7 @@ import {
 } from "@/lib/levels/bubble-physics";
 import { pickEmbedMobileLayoutItems } from "@/lib/levels/embed-mobile-layout";
 import {
+  bubbleMapDisplayTone,
   deriveBubbleDisplayTone,
   resolveBubbleVisual,
   type BubbleTone,
@@ -85,6 +86,7 @@ export function LevelsBubblesView({
   onBubbleOpen,
   hasMarketData = true,
   toneFilter = "all",
+  showMaxPainBubbles = true,
   searchQuery = "",
   layoutActive = true,
   physicsIntensity = 1,
@@ -103,6 +105,8 @@ export function LevelsBubblesView({
   hasMarketData?: boolean;
   /** Map filter from toolbar (At Support, Near Support, …). */
   toneFilter?: BubbleMapFilter;
+  /** When false, max-pain symbols render as neutral grey unless the AT MAX PAIN filter is active. */
+  showMaxPainBubbles?: boolean;
   /** Search string from parent toolbar. */
   searchQuery?: string;
   /** When true, re-measure the container (e.g. broadcast map scene is visible). */
@@ -133,6 +137,10 @@ export function LevelsBubblesView({
   showcaseEmphasisRef.current = showcaseEmphasis;
   const showcaseSoloRef = useRef(showcaseSolo);
   showcaseSoloRef.current = showcaseSolo;
+  const showMaxPainRef = useRef(showMaxPainBubbles);
+  showMaxPainRef.current = showMaxPainBubbles;
+  const toneFilterRef = useRef(toneFilter);
+  toneFilterRef.current = toneFilter;
   const layoutScaleRef = useRef(layoutScale);
   layoutScaleRef.current = layoutScale;
   const embedMobileLayoutRef = useRef(embedMobileLayout);
@@ -186,6 +194,12 @@ export function LevelsBubblesView({
   );
 
   const toneCounts = useMemo(() => countBubbleMapFilters(items), [items]);
+
+  const paintTone = useCallback(
+    (tone: BubbleTone) =>
+      bubbleMapDisplayTone(tone, showMaxPainBubbles, toneFilter),
+    [showMaxPainBubbles, toneFilter],
+  );
 
   const showcaseActiveKey: BubbleToneSummaryKey | null =
     showcaseEmphasis === "IN_BULL" ||
@@ -262,7 +276,12 @@ export function LevelsBubblesView({
     });
 
     for (const n of nodesRef.current) {
-      n.r = layoutBubbleRadius(n.item.scope, n.item.tone, scale, mobileEmbed);
+      n.r = layoutBubbleRadius(
+        n.item.scope,
+        paintTone(n.item.tone),
+        scale,
+        mobileEmbed,
+      );
       if (!existing.has(n.id)) {
         n.vx = 0;
         n.vy = 0;
@@ -293,8 +312,13 @@ export function LevelsBubblesView({
         if (!el) continue;
         const matched =
           emphasisActive && bubbleMatchesMapFilter(n.item.tone, emphasis);
+        const displayTone = bubbleMapDisplayTone(
+          n.item.tone,
+          showMaxPainRef.current,
+          toneFilterRef.current,
+        );
         const targetR = (() => {
-          const baseR = layoutBubbleRadius(n.item.scope, n.item.tone, scale, mobileEmbed);
+          const baseR = layoutBubbleRadius(n.item.scope, displayTone, scale, mobileEmbed);
           if (!emphasisActive) return baseR;
           if (matched) {
             if (solo) {
@@ -330,7 +354,7 @@ export function LevelsBubblesView({
               ? "0.42"
               : "0.24";
         } else {
-          el.style.zIndex = String(bubbleStackZIndex(n.item.scope, n.item.tone));
+          el.style.zIndex = String(bubbleStackZIndex(n.item.scope, displayTone));
           el.style.opacity = "1";
         }
         el.style.transition = emphasisActive
@@ -354,7 +378,7 @@ export function LevelsBubblesView({
     rafRef.current = requestAnimationFrame(loop);
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale, embedMobileLayout]);
+  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale, embedMobileLayout, showMaxPainBubbles, toneFilter, paintTone]);
 
   const setBubbleRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) elRefs.current.set(id, el);
@@ -389,10 +413,11 @@ export function LevelsBubblesView({
           </div>
         ) : (
           filtered.map((item) => {
-            const style = resolveBubbleVisual(item.scope, item.tone);
+            const displayTone = paintTone(item.tone);
+            const style = resolveBubbleVisual(item.scope, displayTone);
             const r = layoutBubbleRadius(
               item.scope,
-              item.tone,
+              displayTone,
               layoutScale,
               embedMobileLayout,
             );
@@ -436,8 +461,8 @@ export function LevelsBubblesView({
                     transition:
                       "box-shadow 0.35s ease, background 0.35s ease, border-color 0.35s ease, border-width 0.35s ease",
                   }}
-                  aria-label={`${item.label}, ${style.label}`}
-                  title={`${item.label} · ${style.label} — click for chart`}
+                  aria-label={`${item.label}, ${displayTone === item.tone ? style.label : `At Max Pain (hidden) · ${style.label}`}`}
+                  title={`${item.label} · ${item.tone === "AT_POC" ? "At Max Pain" : style.label} — click for chart`}
                 >
                   <span
                     className="font-black leading-none text-center px-1 truncate max-w-[92%] pointer-events-none"

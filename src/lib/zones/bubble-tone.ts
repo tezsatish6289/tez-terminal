@@ -6,6 +6,7 @@ import {
   type ZoneBands,
 } from "@/lib/zones/zone-status";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
+import type { BubbleMapFilter } from "@/lib/zones/bubble-map-filter";
 
 /** Visual tone for the levels bubble map (splits generic NEAR by closest band). */
 export type BubbleTone =
@@ -85,10 +86,10 @@ export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
   AT_POC: {
     solid: false,
     fill: BUBBLE_CORE_FILL,
-    glow: "0 0 16px rgba(245, 158, 11, 0.32), inset 0 0 10px rgba(245, 158, 11, 0.06)",
+    glow: "0 0 12px rgba(245, 158, 11, 0.22)",
     border: "rgba(245, 158, 11, 0.92)",
     borderStyle: "solid",
-    borderWidth: 3,
+    borderWidth: 1,
     label: "At Max Pain",
     textColor: "#fde68a",
     textMutedColor: "#fcd34d",
@@ -219,8 +220,19 @@ export function resolveBubbleVisual(
   }
 
   if (tone === "AT_POC") {
-    return { ...base, borderWidth: 4 };
+    return scope === "index" ? { ...base, borderWidth: 3 } : base;
   }
 
   return base;
+}
+
+/** Map paint tone — demote max pain to neutral grey when the highlight toggle is off. */
+export function bubbleMapDisplayTone(
+  tone: BubbleTone,
+  showMaxPain: boolean,
+  filter: BubbleMapFilter = "all",
+): BubbleTone {
+  if (tone !== "AT_POC") return tone;
+  if (showMaxPain || filter === "AT_POC") return tone;
+  return "NEUTRAL";
 }

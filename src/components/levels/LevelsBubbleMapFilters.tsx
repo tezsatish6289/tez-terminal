@@ -2,6 +2,7 @@
 
 import { useMemo, type ReactNode } from "react";
 import { LevelsCtaCluster, type LevelsCtaAction } from "@/components/levels/LevelsCtaCluster";
+import { LevelsMaxPainBubbleToggle } from "@/components/levels/LevelsMaxPainBubbleToggle";
 import {
   BUBBLE_MAP_FILTER_KEYS,
   SLIDESHOW_MAP_FILTER_KEYS,
@@ -28,6 +29,10 @@ type BubbleMapFilterProps = {
   onFilterChange: (next: BubbleMapFilter) => void;
   counts: Record<BubbleMapFilter, number>;
   filterKeys?: typeof BUBBLE_MAP_FILTER_KEYS;
+  maxPainVisibility?: {
+    visible: boolean;
+    onToggle: () => void;
+  };
 };
 
 type SlideshowMapFilterProps = {
@@ -44,6 +49,7 @@ export function LevelsBubbleMapFilters({
   onFilterChange,
   counts,
   filterKeys = BUBBLE_MAP_FILTER_KEYS,
+  maxPainVisibility,
 }: BubbleMapFilterProps | SlideshowMapFilterProps) {
   const actions = useMemo((): LevelsCtaAction[] => {
     const opts: { key: BubbleMapFilter; label: string }[] = [
@@ -69,5 +75,28 @@ export function LevelsBubbleMapFilters({
     });
   }, [filter, onFilterChange, counts, filterKeys]);
 
-  return <LevelsCtaCluster actions={actions} align="start" variant="filter" />;
+  const atPocSplit = useMemo(() => {
+    if (!maxPainVisibility) return { before: actions, after: [] as LevelsCtaAction[] };
+    const idx = actions.findIndex((a) => a.id === "bubble-filter-AT_POC");
+    if (idx < 0) return { before: actions, after: [] as LevelsCtaAction[] };
+    return {
+      before: actions.slice(0, idx + 1),
+      after: actions.slice(idx + 1),
+    };
+  }, [actions, maxPainVisibility]);
+
+  return (
+    <div className="flex items-center gap-1 flex-nowrap w-max">
+      <LevelsCtaCluster actions={atPocSplit.before} align="start" variant="filter" />
+      {maxPainVisibility ? (
+        <LevelsMaxPainBubbleToggle
+          visible={maxPainVisibility.visible}
+          onToggle={maxPainVisibility.onToggle}
+        />
+      ) : null}
+      {atPocSplit.after.length > 0 ? (
+        <LevelsCtaCluster actions={atPocSplit.after} align="start" variant="filter" />
+      ) : null}
+    </div>
+  );
 }

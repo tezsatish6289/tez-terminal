@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { openTradingViewChart } from "@/lib/levels/open-tradingview-chart";
 import {
   BLACKBOARD_CHALK,
@@ -34,6 +35,11 @@ export interface LevelsCtaAction {
   /** Dotted ring for near-zone filters (matches bubble map). */
   ringStyle?: "solid" | "dotted";
   count?: number;
+  /** Inline show/hide control for max-pain highlights on the bubble map. */
+  maxPainHighlight?: {
+    visible: boolean;
+    onToggle: () => void;
+  };
 }
 
 function pillStyle(tone: LevelsCtaAction["tone"]): {
@@ -252,6 +258,35 @@ function CtaPill({
     </>
   );
 
+  const maxPainHighlightEl = action.maxPainHighlight ? (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        action.maxPainHighlight?.onToggle();
+      }}
+      className="inline-flex shrink-0 items-center justify-center pl-0.5 pr-2.5 -mr-0.5 rounded-full transition-opacity hover:opacity-80 active:scale-[0.96]"
+      style={{ color: text }}
+      aria-pressed={action.maxPainHighlight.visible}
+      aria-label={
+        action.maxPainHighlight.visible
+          ? "Hide max pain highlights on the bubble map"
+          : "Show max pain highlights on the bubble map"
+      }
+      title={
+        action.maxPainHighlight.visible
+          ? "Hide amber max pain rings"
+          : "Show amber max pain rings"
+      }
+    >
+      {action.maxPainHighlight.visible ? (
+        <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      ) : (
+        <EyeOff className="h-3.5 w-3.5 shrink-0 opacity-75" aria-hidden />
+      )}
+    </button>
+  ) : null;
+
   if (action.static || (!action.onClick && !action.href)) {
     return (
       <span className={className} style={style} title={action.title}>
@@ -274,6 +309,26 @@ function CtaPill({
       >
         {labelEl}
       </a>
+    );
+  }
+
+  if (action.maxPainHighlight) {
+    return (
+      <div
+        className={`${className} transition-colors hover:border-slate-400/40`}
+        style={style}
+        title={action.title}
+      >
+        <button
+          type="button"
+          onClick={action.onClick}
+          aria-label={action.ariaLabel ?? action.label}
+          className="inline-flex items-center gap-1.5 pl-0 -ml-0 active:scale-[0.98]"
+        >
+          {labelEl}
+        </button>
+        {maxPainHighlightEl}
+      </div>
     );
   }
 

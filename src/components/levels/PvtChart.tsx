@@ -11,6 +11,9 @@ import {
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
+  type LineData,
+  type MouseEventParams,
+  type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { Loader2 } from "lucide-react";
@@ -75,7 +78,10 @@ const CHART_BASE_OPTIONS = {
     vertLines: { color: "rgba(255,255,255,0.04)" },
     horzLines: { color: "rgba(255,255,255,0.04)" },
   },
-  crosshair: { mode: CrosshairMode.Normal },
+  crosshair: {
+    mode: CrosshairMode.Normal,
+    vertLine: { labelVisible: false },
+  },
   rightPriceScale: { borderColor: "rgba(255,255,255,0.08)" },
 } as const;
 
@@ -89,6 +95,64 @@ function linkVisibleRanges(source: IChartApi, target: IChartApi): () => void {
   };
   source.timeScale().subscribeVisibleLogicalRangeChange(handler);
   return () => source.timeScale().unsubscribeVisibleLogicalRangeChange(handler);
+}
+
+function priceAtTime(
+  rows: { time: Time; close?: number; value?: number }[],
+  time: Time,
+  pick: (row: { time: Time; close?: number; value?: number }) => number | undefined,
+): number | null {
+  const row = rows.find((entry) => entry.time === time);
+  const price = row ? pick(row) : undefined;
+  return price ?? null;
+}
+
+/** Keep crosshair (and the PVT time-axis date label) in sync across panes. */
+function linkCrosshairs(
+  candleChart: IChartApi,
+  candleSeries: ISeriesApi<"Candlestick">,
+  pvtChart: IChartApi,
+  pvtSeries: ISeriesApi<"Line">,
+  candleRowsRef: { current: CandlestickData[] },
+  pvtRowsRef: { current: LineData[] },
+): () => void {
+  let syncing = false;
+
+  const syncTarget = (
+    targetChart: IChartApi,
+    targetSeries: ISeriesApi<"Candlestick"> | ISeriesApi<"Line">,
+    param: MouseEventParams,
+    rows: { time: Time; close?: number; value?: number }[],
+    pick: (row: { time: Time; close?: number; value?: number }) => number | undefined,
+  ) => {
+    if (syncing) return;
+    syncing = true;
+    if (!param.time) {
+      targetChart.clearCrosshairPosition();
+    } else {
+      const price = priceAtTime(rows, param.time, pick);
+      if (price != null) {
+        targetChart.setCrosshairPosition(price, param.time, targetSeries);
+      } else {
+        targetChart.clearCrosshairPosition();
+      }
+    }
+    syncing = false;
+  };
+
+  const syncToPvt = (param: MouseEventParams) => {
+    syncTarget(pvtChart, pvtSeries, param, pvtRowsRef.current, (row) => row.value);
+  };
+  const syncToCandle = (param: MouseEventParams) => {
+    syncTarget(candleChart, candleSeries, param, candleRowsRef.current, (row) => row.close);
+  };
+
+  candleChart.subscribeCrosshairMove(syncToPvt);
+  pvtChart.subscribeCrosshairMove(syncToCandle);
+  return () => {
+    candleChart.unsubscribeCrosshairMove(syncToPvt);
+    pvtChart.unsubscribeCrosshairMove(syncToCandle);
+  };
 }
 
 function filterCandlesByRange(candles: DailyCandle[], range: PvtHistoryRange): DailyCandle[] {
@@ -148,6 +212,7 @@ export function PvtChart({
   const pvtRef = useRef<ISeriesApi<"Line"> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const candleChartDataRef = useRef<CandlestickData[]>([]);
+  const pvtChartDataRef = useRef<LineData[]>([]);
   const [candles, setCandles] = useState<DailyCandle[] | null>(null);
   const [fetchedLevels, setFetchedLevels] = useState<PublicLevels | null>(null);
   const [loading, setLoading] = useState(true);
@@ -256,10 +321,15 @@ export function PvtChart({
     const pvtChart = createChart(pvtEl, {
       ...CHART_BASE_OPTIONS,
       autoSize: true,
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { labelVisible: true },
+      },
       timeScale: {
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
+        minimumHeight: 28,
         rightOffset: PVT_CHART_RIGHT_OFFSET,
       },
     });
@@ -293,6 +363,14 @@ export function PvtChart({
 
     const unlinkCandle = linkVisibleRanges(candleChart, pvtChart);
     const unlinkPvt = linkVisibleRanges(pvtChart, candleChart);
+    const unlinkCrosshair = linkCrosshairs(
+      candleChart,
+      candlesSeries,
+      pvtChart,
+      pvtLine,
+      candleChartDataRef,
+      pvtChartDataRef,
+    );
 
     candleChartRef.current = candleChart;
     pvtChartRef.current = pvtChart;
@@ -303,6 +381,7 @@ export function PvtChart({
     return () => {
       unlinkCandle();
       unlinkPvt();
+      unlinkCrosshair();
       candleChart.remove();
       pvtChart.remove();
       candleChartRef.current = null;
@@ -338,14 +417,14 @@ export function PvtChart({
       close: c.close,
     }));
     candleChartDataRef.current = candleData;
+    const pvtData: LineData[] = pvtSeries.map((p) => ({
+      time: toChartTime(p.time),
+      value: p.value,
+    }));
+    pvtChartDataRef.current = pvtData;
 
     candleSeries.setData(candleData);
-    pvtLine.setData(
-      pvtSeries.map((p) => ({
-        time: toChartTime(p.time),
-        value: p.value,
-      })),
-    );
+    pvtLine.setData(pvtData);
     applyClusterSummaryPriceLines(candleSeries, priceLinesRef, effectiveLevels);
     candleChart.timeScale().fitContent();
     pvtChart.timeScale().fitContent();

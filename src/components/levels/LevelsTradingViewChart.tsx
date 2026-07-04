@@ -115,7 +115,7 @@ export function LevelsTradingViewChart({
             showBrandWatermark={showBrandWatermark}
             onFullHistoryZoomChange={onFullHistoryZoomChange}
             onLastCloseChange={onLastCloseChange}
-            candleTypeLabel="15M candle"
+            candleTypeLabel="15M Candles"
           />
         )}
       </div>

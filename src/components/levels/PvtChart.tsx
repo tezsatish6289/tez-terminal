@@ -47,20 +47,11 @@ const RANGE_CALENDAR_DAYS: Record<PvtHistoryRange, number> = {
   "6M": PVT_LOOKBACK_DAYS,
 };
 
-const CHART_SHELL_STYLE = {
-  display: "grid",
-  gridTemplateRows: "auto minmax(0, 1fr) auto",
-  minHeight: 0,
-} as const;
-
 const COMPACT_SHELL_STYLE = {
   display: "grid",
   gridTemplateRows: "auto minmax(0, 1fr)",
   minHeight: 0,
 } as const;
-
-const GUIDE_FOOTER_CLASS =
-  "shrink-0 min-h-[5rem] border-t border-white/10 bg-[#070d1a] px-3 py-2.5 relative z-10";
 
 const PVT_SECTION_HEIGHT = 156;
 const PVT_SECTION_HEADER_HEIGHT = 24;
@@ -118,97 +109,20 @@ function levelsHaveBands(data: PublicLevels | null | undefined): boolean {
   return data != null && (data.bullLow != null || data.bearLow != null);
 }
 
-const PVT_TRENDLINE_LABEL_STYLE: React.CSSProperties = {
-  color: "#93c5fd",
-  backgroundColor: "rgba(8, 15, 30, 0.52)",
-  backdropFilter: "blur(8px)",
-  WebkitBackdropFilter: "blur(8px)",
-  border: "1px solid rgba(96, 165, 250, 0.35)",
-  boxShadow: "0 0 12px rgba(96, 165, 250, 0.15)",
-};
-
-/** Left-side tag anchored to the PVT line on the trend pane. */
-function PvtTrendlineLabel({
-  chartRef,
-  seriesRef,
-  containerRef,
-  lastValue,
-  visible,
-}: {
-  chartRef: React.RefObject<IChartApi | null>;
-  seriesRef: React.RefObject<ISeriesApi<"Line"> | null>;
-  containerRef: React.RefObject<HTMLDivElement | null>;
-  lastValue: number | null;
-  visible: boolean;
-}) {
-  const [top, setTop] = useState<number | null>(null);
-
-  const updatePosition = useCallback(() => {
-    const series = seriesRef.current;
-    const container = containerRef.current;
-    if (!series || !container || !visible || lastValue == null) {
-      setTop(null);
-      return;
-    }
-    const y = series.priceToCoordinate(lastValue);
-    if (y == null) {
-      setTop(null);
-      return;
-    }
-    const height = container.clientHeight;
-    setTop(Math.min(Math.max(y, 14), height - 14));
-  }, [containerRef, lastValue, seriesRef, visible]);
-
-  useEffect(() => {
-    updatePosition();
-  }, [updatePosition]);
-
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart || !visible) return;
-
-    const ts = chart.timeScale();
-    ts.subscribeVisibleLogicalRangeChange(updatePosition);
-    const ro = containerRef.current ? new ResizeObserver(updatePosition) : null;
-    if (containerRef.current) ro?.observe(containerRef.current);
-
-    return () => {
-      ts.unsubscribeVisibleLogicalRangeChange(updatePosition);
-      ro?.disconnect();
-    };
-  }, [chartRef, containerRef, updatePosition, visible]);
-
-  if (top == null) return null;
-
-  return (
-    <div className="pointer-events-none absolute inset-0 z-[15]">
-      <div
-        className="absolute left-1.5 sm:left-3 -translate-y-1/2 rounded-md px-1.5 py-0.5 text-[9px] sm:text-[11px] font-bold leading-snug tracking-tight"
-        style={{ top, ...PVT_TRENDLINE_LABEL_STYLE }}
-      >
-        PVT Trendline
-      </div>
-    </div>
-  );
-}
-
 export function PvtChart({
   scope,
   symbol,
   levels: levelsProp,
   className,
-  hideGuide = false,
 }: {
   scope: LevelsTvScope;
   symbol: string;
   /** Optional parent levels — PVT also fetches its own when mounted. */
   levels?: PublicLevels | null;
   className?: string;
-  hideGuide?: boolean;
 }) {
   const overlayRootRef = useRef<HTMLDivElement>(null);
   const candleContainerRef = useRef<HTMLDivElement>(null);
-  const pvtSectionRef = useRef<HTMLDivElement>(null);
   const pvtContainerRef = useRef<HTMLDivElement>(null);
   const candleChartRef = useRef<IChartApi | null>(null);
   const pvtChartRef = useRef<IChartApi | null>(null);
@@ -350,7 +264,8 @@ export function PvtChart({
     const pvtLine = pvtChart.addSeries(LineSeries, {
       color: "#60a5fa",
       lineWidth: 2,
-      title: "PVT Trendline",
+      lastValueVisible: false,
+      priceLineVisible: false,
       priceFormat: {
         type: "custom",
         formatter: fmtPvt,
@@ -417,19 +332,6 @@ export function PvtChart({
     pvtChart.timeScale().fitContent();
   }, [chartReady, displayCandles, pvtSeries, effectiveLevels]);
 
-  const shellStyle = hideGuide ? COMPACT_SHELL_STYLE : CHART_SHELL_STYLE;
-  const guideFooter = hideGuide ? null : (
-    <div className={GUIDE_FOOTER_CLASS}>
-      <p className="text-[11px] font-semibold" style={{ color: "#cbd5e1" }}>
-        Trend Chart — Price Volume Trend (PVT)
-      </p>
-      <p className="mt-1 text-[10px] leading-relaxed" style={{ color: "#64748b" }}>
-        Daily candles with put/call cluster + max pain lines; PVT below resets to zero at the
-        start of the selected window.
-      </p>
-    </div>
-  );
-
   const candlesReady = !loading && !error && displayCandles.length > 0;
   const zonesReady = levelsHaveBands(effectiveLevels);
   const showOverlay = !candlesReady;
@@ -440,16 +342,14 @@ export function PvtChart({
       ? "Loading option levels…"
       : error ?? "Not enough daily data for PVT.";
   const showClusterLabels = chartReady && candlesReady && zonesReady;
-  const lastPvtValue = pvtSeries.length > 0 ? pvtSeries[pvtSeries.length - 1]!.value : null;
-  const showPvtTrendlineLabel = chartReady && candlesReady && lastPvtValue != null;
 
   return (
-    <div className={className} style={shellStyle}>
+    <div className={className} style={COMPACT_SHELL_STYLE}>
       <PvtRangeToggle value={range} onChange={setRange} />
       <div className="flex flex-col flex-1 min-h-0 gap-2">
         <div ref={overlayRootRef} className="relative flex-1 min-h-0 overflow-hidden">
           <div ref={candleContainerRef} className="absolute inset-0" />
-          {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candle" /> : null}
+          {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candles" /> : null}
           {showClusterLabels ? (
             <LevelsChartClusterBandLabels
               chartRef={candleChartRef}
@@ -500,24 +400,13 @@ export function PvtChart({
             </span>
           </div>
           <div
-            ref={pvtSectionRef}
             className="relative min-h-0 overflow-hidden"
             style={{ height: PVT_SECTION_HEIGHT - PVT_SECTION_HEADER_HEIGHT }}
           >
             <div ref={pvtContainerRef} className="absolute inset-0" />
-            {showPvtTrendlineLabel ? (
-              <PvtTrendlineLabel
-                chartRef={pvtChartRef}
-                seriesRef={pvtRef}
-                containerRef={pvtSectionRef}
-                lastValue={lastPvtValue}
-                visible
-              />
-            ) : null}
           </div>
         </div>
       </div>
-      {guideFooter}
     </div>
   );
 }

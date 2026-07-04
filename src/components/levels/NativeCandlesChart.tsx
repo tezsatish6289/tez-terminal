@@ -138,7 +138,7 @@ export const NativeCandlesChart = forwardRef<
     /** When set, skip candle fetch and use parent-provided bars (e.g. learn page). */
     externalCandles?: CandlestickData[] | null;
     externalCandlesLoading?: boolean;
-    /** Top-left badge, e.g. "15M candle" on the intraday tab. */
+    /** Top-left badge, e.g. "15M Candles" on the intraday tab. */
     candleTypeLabel?: string;
   }
 >(function NativeCandlesChart(

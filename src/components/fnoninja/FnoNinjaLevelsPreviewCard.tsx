@@ -182,7 +182,6 @@ export function FnoNinjaLevelsPreviewCard({
                 scope={target.scope}
                 symbol={target.symbol}
                 levels={levels}
-                hideGuide
               />
             ) : viewMode === "outlook" ? (
               <NiftyOutlookChart

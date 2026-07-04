@@ -16,7 +16,7 @@ export type OutlookConfidence = "high" | "medium" | "low";
 
 export interface OutlookCheckpoint {
   expiryKey: string;
-  /** Short axis label, e.g. `26 Jun`. */
+  /** Column header label, e.g. `7 July Expiry`. */
   label: string;
   daysFromToday: number;
   supportLow: number | null;
@@ -50,9 +50,9 @@ export interface OutlookSeries {
   priceMax: number;
 }
 
-const MONTH_ABBR = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
 /** `YYYY-MM-DD` → whole-day epoch number (timezone-agnostic, comparison only). */
@@ -66,12 +66,14 @@ function dayNumber(key: string): number | null {
   return Math.floor(Date.UTC(y, mo - 1, d) / 86_400_000);
 }
 
-function shortLabel(key: string): string {
+function expiryColumnLabel(key: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
   if (!m) return key;
   const day = Number(m[3]);
   const monIdx = Number(m[2]) - 1;
-  return `${day} ${MONTH_ABBR[monIdx] ?? m[2]}`;
+  const month = MONTH_NAMES[monIdx];
+  if (!month) return key;
+  return `${day} ${month} Expiry`;
 }
 
 /** Nearest expiry is solid; everything after fades — the honest reliability story. */
@@ -102,7 +104,7 @@ export function buildOutlookSeries(
     const daysFromToday = Math.max(expNum - todayNum, 0);
     checkpoints.push({
       expiryKey: slice.expiryKey,
-      label: shortLabel(istKey),
+      label: expiryColumnLabel(istKey),
       daysFromToday,
       supportLow: slice.bullLow,
       supportHigh: slice.bullHigh,
@@ -164,14 +166,4 @@ export function confidenceOpacity(c: OutlookConfidence): number {
 
 export function confidenceLabel(c: OutlookConfidence): string {
   return c === "high" ? "Confident" : c === "medium" ? "Softening" : "Speculative";
-}
-
-/** Footer line listing each expiry column on the Outlook chart. */
-export function formatOutlookExpiryMeta(
-  levels: PublicLevels | null | undefined,
-  spotOverride?: number | null,
-): string | null {
-  const series = buildOutlookSeries(levels, spotOverride);
-  if (!series?.checkpoints.length) return null;
-  return series.checkpoints.map((cp) => cp.label).join(" · ");
 }

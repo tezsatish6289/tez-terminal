@@ -1,6 +1,5 @@
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { formatZonesUpdatedAt } from "@/lib/levels/slideshow-zones";
-import { formatOutlookExpiryMeta } from "@/lib/levels/outlook-series";
 
 export type ChartAttributionVariant = "intraday" | "trend" | "outlook" | "history";
 
@@ -26,11 +25,7 @@ export function chartAttributionMeta(
     return when ? `Updated ${when}` : null;
   }
   if (variant === "outlook") {
-    const parts: string[] = [];
-    if (when) parts.push(`Updated ${when}`);
-    const expiries = formatOutlookExpiryMeta(levels, levels?.spot ?? null);
-    if (expiries) parts.push(`Columns: ${expiries}`);
-    return parts.length ? parts.join(" · ") : null;
+    return when ? `Updated ${when}` : null;
   }
   const expiry = levels?.zonesExpiry?.trim();
   const parts: string[] = [];

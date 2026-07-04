@@ -186,12 +186,23 @@ export function LevelsChartAttributionOverlay({
 
   const headline = chartAttributionHeadline(variant);
   const meta = chartAttributionMeta(levels, variant);
+  const displayHeadline =
+    (variant === "outlook" || variant === "history") && meta
+      ? `${headline} · ${meta}`
+      : headline;
+  const displayMeta =
+    variant === "outlook" || variant === "history" ? null : meta;
   const tvUrl = webChartUrl?.trim() ?? "";
   const showTv = showTradingView && Boolean(tvUrl);
   const showBrandRow = showBrand || showTv;
   const plotRight = Math.max(8, rightInsetPx + 6);
   const useFooterRow =
-    (variant === "trend" || variant === "intraday") && showBrandRow && showMethodology;
+    (variant === "trend" ||
+      variant === "intraday" ||
+      variant === "outlook" ||
+      variant === "history") &&
+    showBrandRow &&
+    showMethodology;
 
   if (!showBrandRow && !showMethodology) return null;
 
@@ -205,8 +216,8 @@ export function LevelsChartAttributionOverlay({
         showBrand={showBrand}
         showTv={showTv}
         tvUrl={tvUrl}
-        headline={headline}
-        meta={meta}
+        headline={displayHeadline}
+        meta={displayMeta}
       />
     );
   }

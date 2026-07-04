@@ -5,7 +5,6 @@ import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   buildOutlookSeries,
-  confidenceLabel,
   confidenceOpacity,
   type OutlookCheckpoint,
 } from "@/lib/levels/outlook-series";
@@ -16,8 +15,8 @@ import {
 } from "@/lib/levels/format-cluster-size";
 import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
 
-const PAD_DEFAULT = { top: 46, right: 18, bottom: 44, left: 60 };
-const PAD_COMPACT = { top: 28, right: 6, bottom: 20, left: 28 };
+const PAD_DEFAULT = { top: 38, right: 18, bottom: 36, left: 60 };
+const PAD_COMPACT = { top: 24, right: 6, bottom: 16, left: 28 };
 /** Max pain — dashed everywhere else on levels charts. */
 const MAX_PAIN_DASH = "6 4";
 /** Spot — distinct from amber max pain on this chart. */
@@ -26,6 +25,50 @@ const SPOT_ACCENT = "#38bdf8";
 
 function fmt(p: number): string {
   return Math.round(p).toLocaleString();
+}
+
+/** Keeps numeric labels readable when reference lines pass through them. */
+function legibleChartText(props: {
+  x: number;
+  y: number;
+  fill: string;
+  fontSize: number;
+  fontWeight?: number;
+  textAnchor?: "start" | "middle" | "end";
+  dominantBaseline?: "middle" | "auto" | "hanging" | "alphabetic";
+  opacity?: number;
+  children: string;
+}) {
+  const {
+    x,
+    y,
+    fill,
+    fontSize,
+    fontWeight = 700,
+    textAnchor = "middle",
+    dominantBaseline = "middle",
+    opacity = 1,
+    children,
+  } = props;
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor={textAnchor}
+      dominantBaseline={dominantBaseline}
+      fontSize={fontSize}
+      fontWeight={fontWeight}
+      fontFamily="ui-monospace, monospace"
+      fill={fill}
+      opacity={opacity}
+      paintOrder="stroke fill"
+      stroke="rgba(8, 13, 26, 0.94)"
+      strokeWidth={3}
+      strokeLinejoin="round"
+    >
+      {children}
+    </text>
+  );
 }
 
 interface Slot {
@@ -137,16 +180,13 @@ export function NiftyOutlookChart({
     return ticks;
   })();
 
-  function bandBlocks(
+  function bandBlockShapes(
     pick: (cp: OutlookCheckpoint) => {
       low: number | null;
       high: number | null;
       oi: number | null;
-      strike: number | null;
-      change: number | null;
     },
     color: string,
-    labelColor: string,
   ) {
     return slots.map((s, i) => {
       const v = pick(s.cp);
@@ -155,22 +195,9 @@ export function NiftyOutlookChart({
       const height = Math.max(yFor(v.low) - yTop, 1);
       const width = Math.max(s.x1 - s.x0, 0);
       const conf = confidenceOpacity(s.cp.confidence);
-      // Wall strength → heavier fill + thicker border for bigger OI clusters.
       const strength = v.oi != null && v.oi > 0 ? v.oi / maxOI : 0;
-      const sizeText = formatClusterContracts(v.oi);
-      const strikeText = formatClusterStrike(v.strike);
-      const label = sizeText
-        ? strikeText
-          ? `${sizeText} @ ${strikeText}`
-          : sizeText
-        : null;
-      const deltaText = formatClusterDelta(v.change);
-      const deltaColor = (v.change ?? 0) >= 0 ? "#86efac" : "#fca5a5";
-      const cx = s.x0 + width / 2;
-      const cy = yTop + height / 2;
-      const showDelta = deltaText != null && height >= 26 && width >= 52;
       return (
-        <g key={`${color}-${i}`}>
+        <g key={`${color}-shape-${i}`}>
           <rect
             x={s.x0}
             y={yTop}
@@ -189,36 +216,61 @@ export function NiftyOutlookChart({
             strokeWidth={1 + 2.2 * strength}
             opacity={conf * (0.35 + 0.55 * strength)}
           />
-          {label && height >= 13 && width >= 52 && (
-            <text
-              x={cx}
-              y={showDelta ? cy - 5 : cy}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={9}
-              fontWeight={700}
-              fontFamily="ui-monospace, monospace"
-              fill={labelColor}
-              opacity={Math.min(conf + 0.15, 1)}
-            >
-              {label}
-            </text>
-          )}
-          {showDelta && (
-            <text
-              x={cx}
-              y={cy + 7}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={8.5}
-              fontWeight={700}
-              fontFamily="ui-monospace, monospace"
-              fill={deltaColor}
-              opacity={Math.min(conf + 0.15, 1)}
-            >
-              {`${(v.change ?? 0) >= 0 ? "▲" : "▼"} ${deltaText.replace(/^[+−]/, "")} OI`}
-            </text>
-          )}
+        </g>
+      );
+    });
+  }
+
+  function bandBlockLabels(
+    pick: (cp: OutlookCheckpoint) => {
+      low: number | null;
+      high: number | null;
+      oi: number | null;
+      strike: number | null;
+      change: number | null;
+    },
+    labelColor: string,
+  ) {
+    return slots.map((s, i) => {
+      const v = pick(s.cp);
+      if (v.low == null || v.high == null) return null;
+      const yTop = yFor(v.high);
+      const height = Math.max(yFor(v.low) - yTop, 1);
+      const width = Math.max(s.x1 - s.x0, 0);
+      const conf = confidenceOpacity(s.cp.confidence);
+      const sizeText = formatClusterContracts(v.oi);
+      const strikeText = formatClusterStrike(v.strike);
+      const label = sizeText
+        ? strikeText
+          ? `${sizeText} @ ${strikeText}`
+          : sizeText
+        : null;
+      const deltaText = formatClusterDelta(v.change);
+      const deltaColor = (v.change ?? 0) >= 0 ? "#86efac" : "#fca5a5";
+      const cx = s.x0 + width / 2;
+      const cy = yTop + height / 2;
+      const showDelta = deltaText != null && height >= 26 && width >= 52;
+      if (!label || height < 13 || width < 52) return null;
+      return (
+        <g key={`${labelColor}-label-${i}`}>
+          {legibleChartText({
+            x: cx,
+            y: showDelta ? cy - 5 : cy,
+            fill: labelColor,
+            fontSize: 9,
+            opacity: Math.min(conf + 0.15, 1),
+            children: label,
+          })}
+          {showDelta
+            ? legibleChartText({
+                x: cx,
+                y: cy + 7,
+                fill: deltaColor,
+                fontSize: 8.5,
+                opacity: Math.min(conf + 0.15, 1),
+                children: `${(v.change ?? 0) >= 0 ? "▲" : "▼"} ${deltaText.replace(/^[+−]/, "")} OI`,
+              })
+            : null}
         </g>
       );
     });
@@ -306,28 +358,22 @@ export function NiftyOutlookChart({
           Today
         </text>
 
-        {/* Stepped resistance + support blocks (intensity = wall OI strength) */}
-        {bandBlocks(
+        {/* Stepped resistance + support blocks — shapes first, labels after reference lines */}
+        {bandBlockShapes(
           (cp) => ({
             low: cp.resistanceLow,
             high: cp.resistanceHigh,
             oi: cp.resistanceOI,
-            strike: cp.resistanceStrike,
-            change: cp.resistanceOIChange,
           }),
           bear.line,
-          bear.labelText,
         )}
-        {bandBlocks(
+        {bandBlockShapes(
           (cp) => ({
             low: cp.supportLow,
             high: cp.supportHigh,
             oi: cp.supportOI,
-            strike: cp.supportStrike,
-            change: cp.supportOIChange,
           }),
           bull.line,
-          bull.labelText,
         )}
 
         {/* Confidence fade overlay (far-right = least reliable) */}
@@ -340,7 +386,7 @@ export function NiftyOutlookChart({
           pointerEvents="none"
         />
 
-        {/* Stepped max-pain ladder: flat per slot, vertical step at each boundary */}
+        {/* Reference lines — below cluster labels */}
         {slots.map((s, i) =>
           s.cp.maxPain != null ? (
             <line
@@ -373,110 +419,11 @@ export function NiftyOutlookChart({
             />
           );
         })}
-        {slots.map((s, i) =>
-          s.cp.maxPain != null ? (
-            <g key={`mp-dot-${i}`}>
-              <circle
-                cx={s.x1}
-                cy={yFor(s.cp.maxPain)}
-                r={compact ? 2.5 : 3.5}
-                fill={maxPainColor}
-                opacity={confidenceOpacity(s.cp.confidence)}
-              />
-              {!compact ? (
-                <text
-                  x={s.x1}
-                  y={yFor(s.cp.maxPain) - 7}
-                  textAnchor="middle"
-                  fontSize={9}
-                  fontWeight={700}
-                  fontFamily="ui-monospace, monospace"
-                  fill={maxPainColor}
-                  opacity={confidenceOpacity(s.cp.confidence)}
-                >
-                  {fmt(s.cp.maxPain)}
-                </text>
-              ) : null}
-            </g>
-          ) : null,
-        )}
-
-        {/* Expiry column headers — on top so fade overlay does not wash them out */}
-        {slots.map((s, i) => {
-          const width = Math.max(s.x1 - s.x0, 0);
-          const cx = s.x0 + width / 2;
-          const headerH = compact ? 18 : 28;
-          const showHeader = width >= (compact ? 36 : 48);
-          const confColor =
-            s.cp.confidence === "high"
-              ? "#86efac"
-              : s.cp.confidence === "medium"
-                ? "#fcd34d"
-                : "#fca5a5";
-
-          if (!showHeader) return null;
-
-          return (
-            <g key={`col-hdr-${i}`}>
-              <rect
-                x={s.x0 + 2}
-                y={PAD.top + 3}
-                width={Math.max(width - 4, 0)}
-                height={headerH}
-                rx={5}
-                fill="rgba(8, 13, 26, 0.92)"
-                stroke="rgba(148,163,184,0.28)"
-              />
-              <text
-                x={cx}
-                y={PAD.top + (compact ? 11 : 14)}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={compact ? 8 : 10}
-                fontWeight={800}
-                fontFamily="ui-sans-serif, system-ui"
-                fill="#f1f5f9"
-              >
-                {s.cp.label}
-              </text>
-              {!compact ? (
-                <text
-                  x={cx}
-                  y={PAD.top + 26}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={7.5}
-                  fontWeight={600}
-                  fontFamily="ui-sans-serif, system-ui"
-                  fill={confColor}
-                >
-                  {confidenceLabel(s.cp.confidence)} · expiry
-                </text>
-              ) : null}
-              <text
-                x={cx}
-                y={h - PAD.bottom + (compact ? 11 : 14)}
-                textAnchor="middle"
-                fontSize={compact ? 7 : 9}
-                fontWeight={600}
-                fontFamily="ui-sans-serif, system-ui"
-                fill="#64748b"
-              >
-                {i === 0 ? `Now → ${s.cp.label}` : `→ ${s.cp.label}`}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Spot — white/sky line + price tag (distinct from amber max pain) */}
         {series.spot != null ? (
           (() => {
             const spotY = yFor(series.spot);
-            const tagW = compact ? 72 : 84;
-            const tagH = compact ? 20 : 24;
-            const tagX = w - PAD.right - tagW - 2;
             return (
-              <g key="spot-ref">
+              <g key="spot-lines">
                 <line
                   x1={PAD.left}
                   x2={w - PAD.right}
@@ -495,6 +442,101 @@ export function NiftyOutlookChart({
                   strokeWidth={compact ? 1.5 : 2}
                   opacity={0.95}
                 />
+              </g>
+            );
+          })()
+        ) : null}
+
+        {/* Cluster + max-pain labels on top of reference lines */}
+        {bandBlockLabels(
+          (cp) => ({
+            low: cp.resistanceLow,
+            high: cp.resistanceHigh,
+            oi: cp.resistanceOI,
+            strike: cp.resistanceStrike,
+            change: cp.resistanceOIChange,
+          }),
+          bear.labelText,
+        )}
+        {bandBlockLabels(
+          (cp) => ({
+            low: cp.supportLow,
+            high: cp.supportHigh,
+            oi: cp.supportOI,
+            strike: cp.supportStrike,
+            change: cp.supportOIChange,
+          }),
+          bull.labelText,
+        )}
+        {slots.map((s, i) =>
+          s.cp.maxPain != null ? (
+            <g key={`mp-dot-${i}`}>
+              <circle
+                cx={s.x1}
+                cy={yFor(s.cp.maxPain)}
+                r={compact ? 2.5 : 3.5}
+                fill={maxPainColor}
+                opacity={confidenceOpacity(s.cp.confidence)}
+              />
+              {!compact
+                ? legibleChartText({
+                    x: s.x1,
+                    y: yFor(s.cp.maxPain) - 7,
+                    fill: maxPainColor,
+                    fontSize: 9,
+                    opacity: confidenceOpacity(s.cp.confidence),
+                    children: fmt(s.cp.maxPain),
+                  })
+                : null}
+            </g>
+          ) : null,
+        )}
+
+        {/* Expiry column headers — on top so fade overlay does not wash them out */}
+        {slots.map((s, i) => {
+          const width = Math.max(s.x1 - s.x0, 0);
+          const cx = s.x0 + width / 2;
+          const headerH = compact ? 18 : 22;
+          const showHeader = width >= (compact ? 52 : 72);
+
+          if (!showHeader) return null;
+
+          return (
+            <g key={`col-hdr-${i}`}>
+              <rect
+                x={s.x0 + 2}
+                y={PAD.top + 3}
+                width={Math.max(width - 4, 0)}
+                height={headerH}
+                rx={5}
+                fill="rgba(8, 13, 26, 0.92)"
+                stroke="rgba(148,163,184,0.28)"
+              />
+              <text
+                x={cx}
+                y={PAD.top + 3 + headerH / 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={compact ? 7 : 8}
+                fontWeight={800}
+                fontFamily="ui-sans-serif, system-ui"
+                fill="#f1f5f9"
+              >
+                {s.cp.label}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Spot tag — after labels so the pill stays readable */}
+        {series.spot != null ? (
+          (() => {
+            const spotY = yFor(series.spot);
+            const tagW = compact ? 72 : 84;
+            const tagH = compact ? 20 : 24;
+            const tagX = w - PAD.right - tagW - 2;
+            return (
+              <g key="spot-ref">
                 <circle
                   cx={todayX + (compact ? 4 : 6)}
                   cy={spotY}
@@ -545,18 +587,13 @@ export function NiftyOutlookChart({
       {/* Legend */}
       {!compact ? (
         <div
-          className="absolute top-2 left-3 flex flex-col gap-1 text-[9px] max-w-[min(55%,16rem)]"
+          className="absolute top-2 left-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] max-w-[min(55%,16rem)]"
           style={{ color: "#94a3b8" }}
         >
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <LegendChip color={bull.line} label="Support" />
-            <LegendChip color={bear.line} label="Resistance" />
-            <LegendChip color={maxPainColor} label="Max pain" dashed />
-            <LegendChip color={SPOT_ACCENT} label="Spot" />
-          </div>
-          <span style={{ opacity: 0.82 }}>
-            Each column = one expiry&apos;s positioning · ← confident · speculative →
-          </span>
+          <LegendChip color={bull.line} label="Support" />
+          <LegendChip color={bear.line} label="Resistance" />
+          <LegendChip color={maxPainColor} label="Max pain" dashed />
+          <LegendChip color={SPOT_ACCENT} label="Spot" />
         </div>
       ) : null}
       {showAttribution ? (

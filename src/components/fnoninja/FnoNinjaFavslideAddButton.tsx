@@ -26,11 +26,14 @@ export function FnoNinjaFavslideAddButton({
   onAdded,
   needsSignIn = false,
   variant = "strip",
+  count,
 }: {
   api: FnoNinjaFavslideApi;
   onAdded?: (entry: { scope: LevelsTvScope; symbol: string }) => void;
   needsSignIn?: boolean;
   variant?: "strip" | "rail";
+  /** Favslide list size — shown beside Add in one box. */
+  count?: number;
 }) {
   const isRail = variant === "rail";
   const boxClass = isRail ? LEVELS_RAIL_CONTROL_BOX_CLASS : LEVELS_STRIP_ICON_BOX_CLASS;
@@ -89,16 +92,22 @@ export function FnoNinjaFavslideAddButton({
             border: `1px solid ${open ? "rgba(251,191,36,0.55)" : "rgba(251,191,36,0.35)"}`,
             boxShadow: "none",
           }}
-          aria-label={needsSignIn ? "Sign in to add to favslide" : "Add symbol to favslide"}
+          aria-label={
+            needsSignIn
+              ? "Sign in to add to favslide"
+              : count != null
+                ? `Add symbol to favslide, ${count} saved`
+                : "Add symbol to favslide"
+          }
           title={needsSignIn ? "Sign in to add to favslide" : "Search and add to favslide"}
-          data-favslide-tour="add"
+          data-favslide-tour={count != null ? "fav-count" : "add"}
         >
           <Plus className="h-3.5 w-3.5 shrink-0" style={{ color: FNO_FAVSLIDE_ACCENT }} strokeWidth={2.5} />
           <span
-            className={`${labelClass} uppercase`}
+            className={`${labelClass} uppercase tabular-nums${count != null ? " truncate" : ""}`}
             style={{ color: FNO_FAVSLIDE_ACCENT }}
           >
-            Add
+            {count != null ? `Add · ${count}` : "Add"}
           </span>
         </button>
       </PopoverTrigger>

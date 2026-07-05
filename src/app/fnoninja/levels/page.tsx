@@ -986,6 +986,7 @@ export default function LevelsPage() {
       <FnoNinjaFavslideAddButton
         api={favslideApi}
         needsSignIn={!favslideSignedIn}
+        count={slideListFiltered.length}
         onAdded={() => {
           setInZoneSlide(favslideEntries.length);
         }}
@@ -998,6 +999,7 @@ export default function LevelsPage() {
         api={favslideApi}
         needsSignIn={!favslideSignedIn}
         variant="rail"
+        count={slideListFiltered.length}
         onAdded={() => {
           setInZoneSlide(favslideEntries.length);
         }}
@@ -1346,6 +1348,7 @@ export default function LevelsPage() {
           <FnoNinjaFavslideAddButton
             api={favslideApi}
             needsSignIn={!favslideSignedIn}
+            count={slideListFiltered.length}
             onAdded={() => {
               setInZoneSlide(favslideEntries.length);
             }}

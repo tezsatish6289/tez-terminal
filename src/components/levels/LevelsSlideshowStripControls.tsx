@@ -437,6 +437,7 @@ function StripMapFilterIconBox({
   iconBoxClass = LEVELS_STRIP_ICON_BOX_CLASS,
   iconInnerClass = LEVELS_STRIP_ICON_INNER_CLASS,
   labelClass = LEVELS_STRIP_BOX_LABEL_CLASS,
+  listCount,
 }: {
   filter: SlideshowMapFilter;
   onChange: (filter: SlideshowMapFilter) => void;
@@ -446,6 +447,8 @@ function StripMapFilterIconBox({
   iconBoxClass?: string;
   iconInnerClass?: string;
   labelClass?: string;
+  /** Slideshow list size — shown beside filter label in one box. */
+  listCount?: number;
 }) {
   const [open, setOpen] = useState(false);
   const activeMeta =
@@ -472,16 +475,17 @@ function StripMapFilterIconBox({
                 }
               : {}),
           }}
-          aria-label={`Filter: ${filter === "all" ? "All" : BUBBLE_TONE_STYLE[filter].label}, ${counts[filter]} symbols`}
+          aria-label={`Filter: ${filter === "all" ? "All" : BUBBLE_TONE_STYLE[filter].label}, ${counts[filter]} symbols${listCount != null ? `, ${listCount} in slideshow` : ""}`}
           title="Filter zone setups"
           data-liveslide-tour="filter"
         >
           <Filter className="h-3.5 w-3.5 shrink-0" style={{ color: iconColor }} />
           <span
-            className={`${labelClass} uppercase`}
+            className={`${labelClass} uppercase tabular-nums${listCount != null ? " truncate" : ""}`}
             style={{ color: labelColor }}
           >
             {activeMeta.shortLabel}
+            {listCount != null ? ` · ${listCount}` : ""}
           </span>
         </button>
       </PopoverTrigger>
@@ -618,6 +622,18 @@ export function LevelsSlideshowStripControls({
         ? SLIDE_MODE_ACCENT.favslide
         : null;
 
+  const liveFilterWithCount =
+    Boolean(mapFilter) &&
+    slideModePill?.mode === "liveslide" &&
+    slideModePill.count != null;
+  const favAddWithCount =
+    slideModePill?.mode === "favslide" && stripTrailing != null;
+  const showSlideModePill =
+    slideModePill &&
+    (slideModePill.mode === "liveslide" || slideModePill.mode === "favslide") &&
+    !liveFilterWithCount &&
+    !favAddWithCount;
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (isTypingTarget(e.target)) return;
@@ -664,6 +680,7 @@ export function LevelsSlideshowStripControls({
           iconBoxClass={iconBoxClass}
           iconInnerClass={iconInnerClass}
           labelClass={labelClass}
+          listCount={liveFilterWithCount ? slideModePill?.count : undefined}
         />
       ) : showFilter ? (
       <Popover open={filterOpen} onOpenChange={setFilterOpen}>
@@ -749,11 +766,10 @@ export function LevelsSlideshowStripControls({
       </Popover>
       ) : null}
 
-      {slideModePill &&
-      (slideModePill.mode === "liveslide" || slideModePill.mode === "favslide") ? (
+      {showSlideModePill ? (
         <LevelsSlideModePill
-          mode={slideModePill.mode}
-          count={slideModePill.count}
+          mode={slideModePill!.mode as "liveslide" | "favslide"}
+          count={slideModePill!.count}
           boxClassName={iconBoxClass}
           inline={isVertical}
         />

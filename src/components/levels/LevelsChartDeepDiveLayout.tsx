@@ -43,7 +43,7 @@ export function LevelsChartDeepDiveLayout({
         {symbolRail}
         <div className="flex flex-1 min-h-0 min-w-0 mt-1.5 sm:mt-2">
           {symbolRailDesktop}
-          <div className="flex flex-col flex-1 min-h-0 min-w-0">
+          <div className="flex flex-col flex-1 min-h-0 min-w-0 pl-2 sm:pl-3">
             {chrome ? <div className="shrink-0 min-w-0">{chrome}</div> : null}
             {viewToggle}
             {banner}

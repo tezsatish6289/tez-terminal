@@ -71,14 +71,14 @@ export function fnoCommunityChatHref(pathname: string): string {
   return `${fnoAnalyticsHref(pathname)}?chat=1`;
 }
 
-/** Liveslide slideshow on the levels app. */
+/** Liveslide slideshow on the levels app — sticky `?view=` so refresh restores it. */
 export function fnoLiveslideHref(pathname: string): string {
-  return `${fnoAnalyticsHref(pathname)}?slide=liveslide`;
+  return `${fnoAnalyticsHref(pathname)}?view=liveslide`;
 }
 
-/** Favslide slideshow on the levels app. */
+/** Favslide slideshow on the levels app — sticky `?view=` so refresh restores it. */
 export function fnoFavslideHref(pathname: string): string {
-  return `${fnoAnalyticsHref(pathname)}?slide=favslide`;
+  return `${fnoAnalyticsHref(pathname)}?view=favslide`;
 }
 
 /** Levels app — fnoninja.com uses /levels; local dev uses /fnoninja/levels. */

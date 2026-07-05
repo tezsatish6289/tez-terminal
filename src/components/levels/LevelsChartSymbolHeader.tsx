@@ -38,17 +38,21 @@ export function LevelsChartSymbolHeader({
   return (
     <div className="min-w-0 flex-1 flex flex-col gap-0 leading-tight">
       <h1
-        className="text-base sm:text-lg font-black tracking-tight truncate"
+        className="text-base sm:text-lg font-black tracking-tight truncate leading-none"
         style={{ color: "#f8fafc" }}
       >
-        <span className="inline-flex items-center gap-1 min-w-0">
-          <span className="truncate">{symbol}</span>
+        <span className="inline-flex items-center gap-1.5 min-w-0">
+          <span className="truncate leading-none">{symbol}</span>
           {highConfidence ? (
-            <span title="NSE option chain" aria-label="NSE option chain data source">
-              <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "#34d399" }} />
+            <span
+              className="inline-flex shrink-0 items-center self-center"
+              title="NSE option chain"
+              aria-label="NSE option chain data source"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" style={{ color: "#34d399" }} />
             </span>
           ) : null}
-          {badge ? <span className="shrink-0">{badge}</span> : null}
+          {badge ? <span className="inline-flex shrink-0 items-center self-center">{badge}</span> : null}
         </span>
       </h1>
       {showSubtitle ? (

@@ -56,7 +56,7 @@ export function VolRegimeBadge({
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none tracking-wide ${style.className} ${className}`}
+      className={`inline-flex h-4 sm:h-[18px] items-center justify-center rounded-full border px-2 text-[10px] font-medium leading-none tracking-wide whitespace-nowrap ${style.className} ${className}`}
     >
       {label}
     </span>

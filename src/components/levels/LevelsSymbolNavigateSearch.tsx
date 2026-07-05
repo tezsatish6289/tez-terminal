@@ -15,12 +15,16 @@ export function LevelsSymbolNavigateSearch({
   currentSymbol,
   openInNewTab = false,
   layout = "compact",
+  placeholder = "Search symbol…",
+  ariaLabel = "Search index or F&O symbol",
 }: {
   currentScope?: LevelsTvScope;
   currentSymbol?: string;
   /** Open chart in a new tab instead of navigating in-place. */
   openInNewTab?: boolean;
   layout?: "compact" | "bar";
+  placeholder?: string;
+  ariaLabel?: string;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -73,8 +77,8 @@ export function LevelsSymbolNavigateSearch({
           setOpen(next.trim().length > 0);
           setActiveIndex(0);
         }}
-        placeholder="Search symbol or company…"
-        ariaLabel="Search index or F&O symbol"
+        placeholder={placeholder}
+        ariaLabel={ariaLabel}
         layout={layout}
         onFocus={() => {
           if (query.trim()) setOpen(true);

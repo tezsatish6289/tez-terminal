@@ -44,8 +44,8 @@ export function LevelsToolbarSearchInput({
       }
     >
       <Search
-        className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${
-          isBar ? "h-4 w-4 sm:h-[1.125rem] sm:w-[1.125rem]" : "h-3.5 w-3.5"
+        className={`absolute top-1/2 -translate-y-1/2 pointer-events-none ${
+          isBar ? "left-2.5 h-3.5 w-3.5" : "left-2.5 h-3.5 w-3.5"
         }`}
         style={{ color: BLACKBOARD_CHALK_DIM }}
       />
@@ -58,14 +58,14 @@ export function LevelsToolbarSearchInput({
         onBlur={onBlur}
         placeholder={placeholder}
         aria-label={ariaLabel}
-        className={`w-full outline-none placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-slate-400/30 ${
+        className={`w-full outline-none placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-slate-400/25 ${
           isBar
-            ? "h-9 sm:h-10 pl-9 pr-3 rounded-full text-xs sm:text-sm font-medium tracking-normal placeholder:font-normal"
+            ? "h-8 pl-8 pr-2.5 rounded-full text-[11px] font-normal tracking-normal placeholder:font-normal placeholder:text-slate-500"
             : `pl-8 pr-2.5 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full text-[9px] font-bold uppercase tracking-wide placeholder:font-semibold placeholder:normal-case placeholder:tracking-normal`
         }`}
         style={{
-          backgroundColor: BLACKBOARD_FIELD_BG,
-          border: BLACKBOARD_FIELD_BORDER,
+          backgroundColor: isBar ? "rgba(255,255,255,0.03)" : BLACKBOARD_FIELD_BG,
+          border: isBar ? "1px solid rgba(255,255,255,0.08)" : BLACKBOARD_FIELD_BORDER,
           color: BLACKBOARD_CHALK,
         }}
       />

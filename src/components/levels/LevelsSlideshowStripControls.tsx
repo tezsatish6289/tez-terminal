@@ -108,6 +108,7 @@ function BubblesMapIcon({ className, style }: { className?: string; style?: CSSP
 }
 
 import { SlideshowTransportIcon } from "@/components/levels/SlideshowTransportIcon";
+import { slideshowPauseShortHint } from "@/components/levels/SlideshowAutoPauseBanner";
 
 export type LevelsStripViewMode = "bubbles" | "liveslide" | "favslide";
 
@@ -775,7 +776,7 @@ export function LevelsSlideshowStripControls({
           aria-label={
             slideshowControl.paused
               ? slideshowControl.pauseReason
-                ? `Slideshow paused while viewing ${slideshowControl.pauseReason}. ${slideshowControl.canResume === false ? "Close Atlas to resume." : "Press P or click to return to Trend Chart."}`
+                ? `Slideshow paused while viewing ${slideshowControl.pauseReason}. ${slideshowControl.canResume === false ? `Close ${slideshowControl.pauseReason} to resume.` : "Press P or click to return to Trend Chart."}`
                 : "Resume slideshow — 60 second countdown per symbol. Press P or click."
               : `Pause slideshow. ${Math.max(0, slideshowControl.secondsRemaining ?? 0)} seconds until next symbol. Press P or click.`
           }
@@ -783,7 +784,7 @@ export function LevelsSlideshowStripControls({
             slideshowControl.paused
               ? slideshowControl.pauseReason
                 ? slideshowControl.canResume === false
-                  ? "Paused — close Atlas to resume"
+                  ? `Paused — ${slideshowPauseShortHint(slideshowControl.pauseReason)}`
                   : "Paused — return to Trend Chart"
                 : "Play slideshow"
               : "Pause slideshow"

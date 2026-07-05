@@ -1,6 +1,7 @@
 "use client";
 
 import { SlideshowTransportIcon } from "@/components/levels/SlideshowTransportIcon";
+import { slideshowPauseShortHint } from "@/components/levels/SlideshowAutoPauseBanner";
 
 /** Countdown / pause control embedded on the active slideshow symbol chip. */
 export function SlideshowChipTimer({
@@ -41,7 +42,7 @@ export function SlideshowChipTimer({
         paused
           ? pauseReason
             ? canResume === false
-              ? "Paused — close Atlas to resume"
+              ? `Paused — ${slideshowPauseShortHint(pauseReason)}`
               : "Paused — return to Trend Chart"
             : "Play slideshow"
           : "Pause slideshow"

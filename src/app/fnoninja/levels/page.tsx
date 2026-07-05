@@ -43,7 +43,8 @@ import {
   LevelsSlideshowSymbolRailDesktop,
   LevelsSlideshowSymbolRailMobile,
 } from "@/components/levels/LevelsSlideshowSymbolRail";
-import { SlideshowAutoPauseBanner } from "@/components/levels/SlideshowAutoPauseBanner";
+import { SlideshowAutoPauseBanner, isSlideshowOverlayPause } from "@/components/levels/SlideshowAutoPauseBanner";
+import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
@@ -202,8 +203,12 @@ function resolveStockCompanyName(symbol: string, fallback?: string | null): stri
 function slideshowExplorePauseReason(
   chartViewMode: ChartPanelViewMode,
   atlasOpen: boolean,
+  newsOpen: boolean,
+  chatOpen: boolean,
 ): string | null {
   if (atlasOpen) return "Atlas";
+  if (newsOpen) return "News";
+  if (chatOpen) return "Chat";
   if (chartViewMode === "chart") return "Intraday";
   if (chartViewMode === "outlook") return "Outlook";
   if (chartViewMode === "history") return "History";
@@ -219,6 +224,8 @@ export default function LevelsPage() {
   const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
   const [slideshowPaused, setSlideshowPaused] = useState(false);
   const [fynnDrawerOpen, setFynnDrawerOpen] = useState(false);
+  const [newsDrawerOpen, setNewsDrawerOpen] = useState(false);
+  const { open: chatDrawerOpen } = useChatPanel();
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
   const [showMaxPainBubbles, setShowMaxPainBubbles] = useState(false);
@@ -263,7 +270,10 @@ export default function LevelsPage() {
   const slideSignInGate = isSlideView;
 
   useEffect(() => {
-    if (!isSlideView) setFynnDrawerOpen(false);
+    if (!isSlideView) {
+      setFynnDrawerOpen(false);
+      setNewsDrawerOpen(false);
+    }
   }, [isSlideView]);
   const { user: slideAuthUser, isUserLoading: slideAuthLoading } = useUser();
 
@@ -506,16 +516,21 @@ export default function LevelsPage() {
   const slideshowExploreHold = useMemo(
     () =>
       isSlideView
-        ? slideshowExplorePauseReason(slideshowChartViewMode, fynnDrawerOpen)
+        ? slideshowExplorePauseReason(
+            slideshowChartViewMode,
+            fynnDrawerOpen,
+            newsDrawerOpen,
+            chatDrawerOpen,
+          )
         : null,
-    [isSlideView, slideshowChartViewMode, fynnDrawerOpen],
+    [isSlideView, slideshowChartViewMode, fynnDrawerOpen, newsDrawerOpen, chatDrawerOpen],
   );
 
   const slideshowTimerPaused = slideshowPaused || Boolean(slideshowExploreHold);
 
   const handleSlideshowTransportClick = useCallback(() => {
     if (inZoneCount <= 1) return;
-    if (slideshowExploreHold === "Atlas") return;
+    if (isSlideshowOverlayPause(slideshowExploreHold)) return;
     if (slideshowExploreHold) {
       setSlideshowChartViewMode("pvt");
       setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
@@ -543,6 +558,10 @@ export default function LevelsPage() {
 
   const handleFynnDrawerOpenChange = useCallback((open: boolean) => {
     setFynnDrawerOpen(open);
+  }, []);
+
+  const handleNewsDrawerOpenChange = useCallback((open: boolean) => {
+    setNewsDrawerOpen(open);
   }, []);
 
   const scheduleNote = "Updates Mon–Fri during market hours";
@@ -587,7 +606,7 @@ export default function LevelsPage() {
     true,
     () => handleSlideshowChartViewChange("chart"),
     () => handleSlideshowChartViewChange("outlook"),
-    isSlideView && !fynnDrawerOpen,
+    isSlideView && !fynnDrawerOpen && !newsDrawerOpen && !chatDrawerOpen,
     {
       historyAvailable: true,
       onHistory: () => handleSlideshowChartViewChange("history"),
@@ -966,7 +985,7 @@ export default function LevelsPage() {
           onToggle: inZoneCount > 1 ? handleSlideshowTransportClick : () => {},
           secondsRemaining: slideshowCountdown,
           pauseReason: slideshowExploreHold,
-          canResume: slideshowExploreHold !== "Atlas",
+          canResume: !isSlideshowOverlayPause(slideshowExploreHold),
         }
       : undefined;
 
@@ -1123,6 +1142,7 @@ export default function LevelsPage() {
               favslideApi={favslideApi}
               favslideRemoveOnly={viewMode === "favslide"}
               onAtlasOpenChange={handleFynnDrawerOpenChange}
+              onNewsOpenChange={handleNewsDrawerOpenChange}
               onNavigateBubbles={enterBubbles}
               onNavigateFavslide={enterFavslide}
               onNavigateLiveslide={enterLiveslide}

@@ -165,6 +165,7 @@ export function LevelsChartSideToolbar({
   favslideApi,
   favslideRemoveOnly = false,
   onAtlasOpenChange,
+  onNewsOpenChange,
   onNavigateBubbles,
   onNavigateFavslide,
   onNavigateLiveslide,
@@ -179,6 +180,7 @@ export function LevelsChartSideToolbar({
   favslideApi?: FnoNinjaFavslideApi;
   favslideRemoveOnly?: boolean;
   onAtlasOpenChange?: (open: boolean) => void;
+  onNewsOpenChange?: (open: boolean) => void;
   /** When set (levels slideshow), switch view in-place instead of router-only navigation. */
   onNavigateBubbles?: () => void;
   onNavigateFavslide?: () => void;
@@ -227,11 +229,20 @@ export function LevelsChartSideToolbar({
     [onAtlasOpenChange],
   );
 
+  const handleNewsOpenChange = useCallback(
+    (open: boolean) => {
+      setNewsOpen(open);
+      onNewsOpenChange?.(open);
+    },
+    [onNewsOpenChange],
+  );
+
   useEffect(() => {
     setNewsOpen(false);
     setAtlasOpen(false);
     onAtlasOpenChange?.(false);
-  }, [scope, symbol, onAtlasOpenChange]);
+    onNewsOpenChange?.(false);
+  }, [scope, symbol, onAtlasOpenChange, onNewsOpenChange]);
 
   const goToBubbles = useCallback(() => {
     if (onNavigateBubbles) {
@@ -285,7 +296,7 @@ export function LevelsChartSideToolbar({
         <ToolbarButton
           label="News"
           active={newsOpen}
-          onClick={() => setNewsOpen(true)}
+          onClick={() => handleNewsOpenChange(true)}
           title="Recent news and sentiment"
           dataAttrs={{
             "data-liveslide-tour": "news",
@@ -399,7 +410,7 @@ export function LevelsChartSideToolbar({
         </ToolbarHoverLabel>
       </aside>
 
-      <Sheet open={newsOpen} onOpenChange={setNewsOpen}>
+      <Sheet open={newsOpen} onOpenChange={handleNewsOpenChange}>
         <SheetContent
           side="right"
           className="w-full sm:max-w-md overflow-hidden border-l p-0 z-[210] !top-14 sm:!top-16 !bottom-0 !h-[calc(100dvh-3.5rem)] sm:!h-[calc(100dvh-4rem)] max-h-none"

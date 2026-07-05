@@ -390,7 +390,7 @@ function StripSearchIconBox({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`${iconBoxClass} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+          className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
           style={stripIconBoxStyle(open || hasQuery)}
           aria-label={hasQuery ? `Search: ${value}` : "Search symbols"}
           title="Search symbols"

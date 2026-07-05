@@ -12,7 +12,7 @@ import {
   LEVELS_RAIL_CONTROL_INNER_CLASS,
   LEVELS_RAIL_CONTROL_LABEL_CLASS,
 } from "@/components/levels/levels-symbol-strip";
-import { BLACKBOARD_FIELD_BG } from "@/lib/levels/cta-blackboard";
+import { BLACKBOARD_FIELD_BG, BLACKBOARD_FIELD_BORDER } from "@/lib/levels/cta-blackboard";
 import {
   filterLevelsSymbolCatalog,
   type LevelsSymbolEntry,

@@ -10,7 +10,6 @@ import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
 import { useAuth, useUser } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
-import { FnoNinjaNavLiveslideHelp } from "@/components/fnoninja/FnoNinjaNavLiveslideHelp";
 import { FnoNinjaNavSearch } from "@/components/fnoninja/FnoNinjaNavSearch";
 import {
   fnoAnalyticsHref,
@@ -158,9 +157,15 @@ export function FnoNinjaNav() {
             </Link>
           </div>
 
-          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-            {isLevelsApp ? <FnoNinjaNavLiveslideHelp /> : null}
-            {showNavSearch ? <FnoNinjaNavSearch /> : null}
+          {showNavSearch ? (
+            <div className="flex-1 min-w-0 flex justify-end pl-2 sm:pl-3">
+              <FnoNinjaNavSearch />
+            </div>
+          ) : (
+            <div className="flex-1 min-w-0" aria-hidden />
+          )}
+
+          <div className="flex items-center gap-2 flex-shrink-0">
             {!isLevelsApp && isFnoNinjaLandingPath(pathname) ? (
               <>
                 <div className="hidden md:block">

@@ -2,9 +2,12 @@
 
 import { CircleHelp } from "lucide-react";
 import { useLiveslideWalkthrough } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
+import { FNO_WALKTHROUGH_ENABLED } from "@/lib/fnoninja/walkthrough-enabled";
 
-/** In-app slideshow guide — nav icon, shown in liveslide and favslide only. */
+/** In-app slideshow guide — hidden until the tour UX is rebuilt. */
 export function FnoNinjaNavLiveslideHelp() {
+  if (!FNO_WALKTHROUGH_ENABLED) return null;
+
   const { open, levelsViewMode } = useLiveslideWalkthrough();
 
   if (levelsViewMode === "bubbles") return null;

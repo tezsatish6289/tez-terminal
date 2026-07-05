@@ -20,6 +20,7 @@ export function LevelsToolbarSearchInput({
   onFocus,
   onBlur,
   ariaLabel = "Search symbols",
+  layout = "compact",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -30,11 +31,22 @@ export function LevelsToolbarSearchInput({
   onFocus?: FocusEventHandler<HTMLInputElement>;
   onBlur?: FocusEventHandler<HTMLInputElement>;
   ariaLabel?: string;
+  /** Nav bar: full-width pill; compact: fixed-width toolbar chip. */
+  layout?: "compact" | "bar";
 }) {
+  const isBar = layout === "bar";
   return (
-    <div className={`relative shrink-0 w-[10.5rem] sm:w-[12rem] min-w-[9rem] ${className}`.trim()}>
+    <div
+      className={
+        isBar
+          ? `relative shrink-0 w-full min-w-0 ${className}`.trim()
+          : `relative shrink-0 w-[10.5rem] sm:w-[12rem] min-w-[9rem] ${className}`.trim()
+      }
+    >
       <Search
-        className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
+        className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${
+          isBar ? "h-4 w-4 sm:h-[1.125rem] sm:w-[1.125rem]" : "h-3.5 w-3.5"
+        }`}
         style={{ color: BLACKBOARD_CHALK_DIM }}
       />
       <input
@@ -46,7 +58,11 @@ export function LevelsToolbarSearchInput({
         onBlur={onBlur}
         placeholder={placeholder}
         aria-label={ariaLabel}
-        className={`w-full pl-8 pr-2.5 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full text-[9px] font-bold uppercase tracking-wide outline-none placeholder:text-slate-500 placeholder:font-semibold placeholder:normal-case placeholder:tracking-normal focus-visible:ring-1 focus-visible:ring-slate-400/30`}
+        className={`w-full outline-none placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-slate-400/30 ${
+          isBar
+            ? "h-9 sm:h-10 pl-9 pr-3 rounded-full text-xs sm:text-sm font-medium tracking-normal placeholder:font-normal"
+            : `pl-8 pr-2.5 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full text-[9px] font-bold uppercase tracking-wide placeholder:font-semibold placeholder:normal-case placeholder:tracking-normal`
+        }`}
         style={{
           backgroundColor: BLACKBOARD_FIELD_BG,
           border: BLACKBOARD_FIELD_BORDER,

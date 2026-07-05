@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { FnoNinjaLiveslideWalkthroughOverlay } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughOverlay";
+import { FNO_WALKTHROUGH_ENABLED } from "@/lib/fnoninja/walkthrough-enabled";
 
 type PrepareFn = () => void | Promise<void>;
 
@@ -58,7 +59,9 @@ export function FnoNinjaLiveslideWalkthroughProvider({ children }: { children: R
   return (
     <LiveslideWalkthroughContext.Provider value={value}>
       {children}
-      <FnoNinjaLiveslideWalkthroughOverlay isOpen={isOpen} onClose={close} mode={levelsViewMode} />
+      {FNO_WALKTHROUGH_ENABLED ? (
+        <FnoNinjaLiveslideWalkthroughOverlay isOpen={isOpen} onClose={close} mode={levelsViewMode} />
+      ) : null}
     </LiveslideWalkthroughContext.Provider>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowUpRight, Filter, Search, Star } from "lucide-react";
+import { ArrowUpRight, Filter, Star } from "lucide-react";
 import {
   FNO_FAVSLIDE_ACCENT,
   FNO_LIVESLIDE_ACCENT,
@@ -361,70 +361,28 @@ export function LevelsSlideViewSwitchGroup({
 
 /** Square box: return to bubbles map from slideshow. */
 
-function StripSearchIconBox({
+function StripSearchBar({
   value,
   onChange,
+  iconBoxClass = LEVELS_STRIP_ICON_BOX_CLASS,
 }: {
   value: string;
   onChange: (value: string) => void;
+  iconBoxClass?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const hasQuery = value.trim().length > 0;
-
-  useEffect(() => {
-    if (open) {
-      const t = window.setTimeout(() => inputRef.current?.focus(), 0);
-      return () => window.clearTimeout(t);
-    }
-  }, [open]);
-
-  const label = hasQuery
-    ? value.trim().length > 6
-      ? `${value.trim().slice(0, 5)}…`
-      : value.trim()
-    : "Search";
+  const isRail = iconBoxClass === LEVELS_RAIL_CONTROL_BOX_CLASS;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
-          style={stripIconBoxStyle(open || hasQuery)}
-          aria-label={hasQuery ? `Search: ${value}` : "Search symbols"}
-          title="Search symbols"
-        >
-          <Search
-            className="h-4 w-4"
-            style={{ color: hasQuery ? "#93c5fd" : BLACKBOARD_CHALK }}
-          />
-          <span
-            className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase truncate`}
-            style={{ color: hasQuery ? "#93c5fd" : BLACKBOARD_CHALK_DIM }}
-          >
-            {label}
-          </span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        sideOffset={6}
-        className="w-auto p-2 border-0 shadow-lg"
-        style={{
-          background: "rgba(12, 16, 26, 0.98)",
-          border: BLACKBOARD_FIELD_BORDER,
-        }}
-      >
-        <LevelsToolbarSearchInput
-          value={value}
-          onChange={onChange}
-          inputRef={inputRef}
-          className="w-[14rem] sm:w-[16rem]"
-          placeholder="Symbol or name…"
-        />
-      </PopoverContent>
-    </Popover>
+    <div className={isRail ? "w-full min-w-0" : "shrink-0 min-w-[10rem] sm:min-w-[12rem]"}>
+      <LevelsToolbarSearchInput
+        value={value}
+        onChange={onChange}
+        layout="bar"
+        placeholder="Search symbol…"
+        ariaLabel="Search symbols"
+        className={isRail ? "w-full" : "min-w-[10rem] sm:min-w-[12rem]"}
+      />
+    </div>
   );
 }
 
@@ -678,7 +636,11 @@ export function LevelsSlideshowStripControls({
       } ${className}`.trim()}
     >
       {search ? (
-        <StripSearchIconBox value={search.value} onChange={search.onChange} />
+        <StripSearchBar
+          value={search.value}
+          onChange={search.onChange}
+          iconBoxClass={iconBoxClass}
+        />
       ) : null}
 
       {mapFilter ? (

@@ -14,11 +14,13 @@ export function LevelsSymbolNavigateSearch({
   currentScope,
   currentSymbol,
   openInNewTab = false,
+  layout = "compact",
 }: {
   currentScope?: LevelsTvScope;
   currentSymbol?: string;
   /** Open chart in a new tab instead of navigating in-place. */
   openInNewTab?: boolean;
+  layout?: "compact" | "bar";
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -62,7 +64,7 @@ export function LevelsSymbolNavigateSearch({
   }, [activeIndex, matches, navigate]);
 
   return (
-    <div className="relative shrink-0">
+    <div className="relative shrink-0 w-full min-w-0">
       <LevelsToolbarSearchInput
         inputRef={inputRef}
         value={query}
@@ -71,8 +73,9 @@ export function LevelsSymbolNavigateSearch({
           setOpen(next.trim().length > 0);
           setActiveIndex(0);
         }}
-        placeholder="Search symbol…"
+        placeholder="Search symbol or company…"
         ariaLabel="Search index or F&O symbol"
+        layout={layout}
         onFocus={() => {
           if (query.trim()) setOpen(true);
         }}
@@ -107,7 +110,7 @@ export function LevelsSymbolNavigateSearch({
 
       {open && matches.length > 0 ? (
         <ul
-          className="absolute right-0 top-[calc(100%+4px)] z-50 w-[min(18rem,calc(100vw-1.5rem))] max-h-56 overflow-y-auto rounded-lg py-1 shadow-lg"
+          className={`absolute ${layout === "bar" ? "left-0" : "right-0"} top-[calc(100%+4px)] z-50 w-[min(18rem,calc(100vw-1.5rem))] max-h-56 overflow-y-auto rounded-lg py-1 shadow-lg`}
           style={{
             backgroundColor: "rgba(12, 16, 26, 0.98)",
             border: "1px solid rgba(226, 232, 240, 0.18)",

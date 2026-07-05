@@ -69,6 +69,7 @@ function ToolbarButton({
   children,
   title,
   dataAttrs,
+  unreadDot,
 }: {
   label: string;
   active?: boolean;
@@ -76,16 +77,19 @@ function ToolbarButton({
   children: ReactNode;
   title?: string;
   dataAttrs?: Record<string, string>;
+  /** Blue dot when there is unread activity (e.g. chat). */
+  unreadDot?: boolean;
 }) {
+  const showDot = unreadDot && !active;
   return (
     <ToolbarHoverLabel label={label}>
       <button
         type="button"
         onClick={onClick}
         title={title ?? label}
-        aria-label={label}
+        aria-label={showDot ? `${label}, new messages` : label}
         aria-pressed={active}
-        className={`flex flex-col items-center justify-center gap-0.5 ${TOOLBAR_WIDTH_CLASS} min-h-[3rem] rounded-md transition-colors hover:bg-white/[0.06] data-[active=true]:bg-white/[0.08] shrink-0`}
+        className={`relative flex flex-col items-center justify-center gap-0.5 ${TOOLBAR_WIDTH_CLASS} min-h-[3rem] rounded-md transition-colors hover:bg-white/[0.06] data-[active=true]:bg-white/[0.08] shrink-0`}
         data-active={active ? "true" : undefined}
         style={{
           color: active ? FNO_ACCENT : "#94a3b8",
@@ -93,6 +97,16 @@ function ToolbarButton({
         {...dataAttrs}
       >
         {children}
+        {showDot ? (
+          <span
+            className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full"
+            style={{
+              backgroundColor: FNO_ACCENT,
+              boxShadow: "0 0 0 2px rgba(8,15,30,0.95)",
+            }}
+            aria-hidden
+          />
+        ) : null}
       </button>
     </ToolbarHoverLabel>
   );
@@ -173,7 +187,8 @@ export function LevelsChartSideToolbar({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { open: chatOpen, setOpen: setChatOpen } = useChatPanel();
+  const { open: chatOpen, setOpen: setChatOpen, unreadCount } = useChatPanel();
+  const chatUnread = unreadCount && !chatOpen;
   const [newsOpen, setNewsOpen] = useState(false);
   const [atlasOpen, setAtlasOpen] = useState(false);
   const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
@@ -297,8 +312,9 @@ export function LevelsChartSideToolbar({
         <ToolbarButton
           label="Chat"
           active={chatOpen}
+          unreadDot={chatUnread}
           onClick={() => setChatOpen(true)}
-          title="Community chat"
+          title={chatUnread ? "Community chat — new messages" : "Community chat"}
         >
           <MessageCircle className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
         </ToolbarButton>

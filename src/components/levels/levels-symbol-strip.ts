@@ -27,3 +27,10 @@ export const LEVELS_STRIP_ICON_INNER_CLASS =
 /** Icon-box caption — max size that fits widest label (BUBBLES) with horizontal padding. */
 export const LEVELS_STRIP_BOX_LABEL_CLASS =
   "w-full px-1 text-center text-[10px] md:text-[13px] font-bold leading-none tracking-wide";
+
+/** Compact vertical rail controls beside the chart (inline icon + label). */
+export const LEVELS_RAIL_CONTROL_BOX_CLASS = "h-8 w-full shrink-0 rounded-md";
+export const LEVELS_RAIL_CONTROL_INNER_CLASS =
+  "flex flex-row items-center justify-center gap-1.5 px-2";
+export const LEVELS_RAIL_CONTROL_LABEL_CLASS =
+  "text-[10px] font-semibold leading-none uppercase tracking-wide";

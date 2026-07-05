@@ -27,6 +27,9 @@ import {
   LEVELS_STRIP_ICON_BOX_CLASS,
   LEVELS_STRIP_ICON_INNER_CLASS,
   LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS,
+  LEVELS_RAIL_CONTROL_BOX_CLASS,
+  LEVELS_RAIL_CONTROL_INNER_CLASS,
+  LEVELS_RAIL_CONTROL_LABEL_CLASS,
 } from "@/components/levels/levels-symbol-strip";
 
 const FILTER_OPTIONS: {
@@ -148,16 +151,20 @@ export function LevelsSlideModePill({
   mode,
   count,
   boxClassName = LEVELS_STRIP_ICON_BOX_CLASS,
+  inline = false,
 }: {
   mode: "liveslide" | "favslide";
   count?: number;
   boxClassName?: string;
+  inline?: boolean;
 }) {
   const isFav = mode === "favslide";
   const accent = SLIDE_MODE_ACCENT[mode];
+  const innerClass = inline ? LEVELS_RAIL_CONTROL_INNER_CLASS : LEVELS_STRIP_ICON_INNER_CLASS;
+  const labelClass = inline ? LEVELS_RAIL_CONTROL_LABEL_CLASS : LEVELS_STRIP_BOX_LABEL_CLASS;
   return (
     <span
-      className={`${boxClassName} ${LEVELS_STRIP_ICON_INNER_CLASS} shrink-0 cursor-default select-none`}
+      className={`${boxClassName} ${innerClass} shrink-0 cursor-default select-none`}
       style={{
         ...BLACKBOARD_WRAPPER,
         background: isFav ? "rgba(251,191,36,0.1)" : "rgba(37,99,235,0.1)",
@@ -181,7 +188,7 @@ export function LevelsSlideModePill({
         />
       )}
       <span
-        className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase font-black tracking-[0.12em]`}
+        className={`${labelClass}${inline ? "" : " uppercase font-black tracking-[0.12em]"}`}
         style={{ color: accent.color }}
       >
         {isFav
@@ -458,6 +465,8 @@ function StripMapFilterIconBox({
   slideAccent,
   stripMode,
   iconBoxClass = LEVELS_STRIP_ICON_BOX_CLASS,
+  iconInnerClass = LEVELS_STRIP_ICON_INNER_CLASS,
+  labelClass = LEVELS_STRIP_BOX_LABEL_CLASS,
 }: {
   filter: SlideshowMapFilter;
   onChange: (filter: SlideshowMapFilter) => void;
@@ -465,6 +474,8 @@ function StripMapFilterIconBox({
   slideAccent?: { color: string; border: string } | null;
   stripMode?: "liveslide" | "favslide";
   iconBoxClass?: string;
+  iconInnerClass?: string;
+  labelClass?: string;
 }) {
   const [open, setOpen] = useState(false);
   const activeMeta =
@@ -478,7 +489,7 @@ function StripMapFilterIconBox({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`${iconBoxClass} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+          className={`${iconBoxClass} ${iconInnerClass} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
           style={{
             ...stripIconBoxStyle(open || filtered),
             ...(slideAccent
@@ -495,9 +506,9 @@ function StripMapFilterIconBox({
           title="Filter zone setups"
           data-liveslide-tour="filter"
         >
-          <Filter className="h-4 w-4" style={{ color: iconColor }} />
+          <Filter className="h-3.5 w-3.5 shrink-0" style={{ color: iconColor }} />
           <span
-            className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
+            className={`${labelClass} uppercase`}
             style={{ color: labelColor }}
           >
             {activeMeta.shortLabel}
@@ -625,7 +636,9 @@ export function LevelsSlideshowStripControls({
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const isVertical = orientation === "vertical";
-  const iconBoxClass = isVertical ? "h-12 w-full rounded-lg" : LEVELS_STRIP_ICON_BOX_CLASS;
+  const iconBoxClass = isVertical ? LEVELS_RAIL_CONTROL_BOX_CLASS : LEVELS_STRIP_ICON_BOX_CLASS;
+  const iconInnerClass = isVertical ? LEVELS_RAIL_CONTROL_INNER_CLASS : LEVELS_STRIP_ICON_INNER_CLASS;
+  const labelClass = isVertical ? LEVELS_RAIL_CONTROL_LABEL_CLASS : LEVELS_STRIP_BOX_LABEL_CLASS;
   const activeMeta = FILTER_OPTIONS.find((o) => o.key === zoneFilter) ?? FILTER_OPTIONS[0];
   const stripMode = slideModePill?.mode ?? viewToggle?.viewMode;
   const slideAccent =
@@ -663,7 +676,7 @@ export function LevelsSlideshowStripControls({
     <div
       className={`flex gap-1.5 shrink-0 ${
         isVertical
-          ? "flex-col w-full"
+          ? "flex-col w-full gap-1"
           : `flex-row items-stretch ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`
       } ${className}`.trim()}
     >
@@ -679,13 +692,15 @@ export function LevelsSlideshowStripControls({
           slideAccent={slideAccent}
           stripMode={stripMode === "liveslide" || stripMode === "favslide" ? stripMode : undefined}
           iconBoxClass={iconBoxClass}
+          iconInnerClass={iconInnerClass}
+          labelClass={labelClass}
         />
       ) : showFilter ? (
       <Popover open={filterOpen} onOpenChange={setFilterOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
-            className={`${iconBoxClass} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+            className={`${iconBoxClass} ${iconInnerClass} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
             style={{
               ...stripIconBoxStyle(filterOpen),
               ...(slideAccent
@@ -703,11 +718,11 @@ export function LevelsSlideshowStripControls({
             data-liveslide-tour="filter"
           >
             <Filter
-              className="h-4 w-4"
+              className="h-3.5 w-3.5 shrink-0"
               style={{ color: slideAccent?.color ?? activeMeta.activeText }}
             />
             <span
-              className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
+              className={`${labelClass} uppercase`}
               style={{ color: slideAccent?.color ?? BLACKBOARD_CHALK_DIM }}
             >
               {activeMeta.shortLabel}
@@ -770,6 +785,7 @@ export function LevelsSlideshowStripControls({
           mode={slideModePill.mode}
           count={slideModePill.count}
           boxClassName={iconBoxClass}
+          inline={isVertical}
         />
       ) : null}
 
@@ -778,7 +794,7 @@ export function LevelsSlideshowStripControls({
           type="button"
           onClick={slideshowControl.onToggle}
           disabled={slideshowControl.paused && slideshowControl.canResume === false}
-          className={`${iconBoxClass} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98] disabled:opacity-80 disabled:cursor-not-allowed`}
+          className={`${iconBoxClass} ${iconInnerClass} transition-colors hover:border-slate-400/40 active:scale-[0.98] disabled:opacity-80 disabled:cursor-not-allowed`}
           style={{
             ...stripIconBoxStyle(slideshowControl.paused),
             ...(slideAccent && !slideshowControl.paused
@@ -817,15 +833,16 @@ export function LevelsSlideshowStripControls({
           data-favslide-tour="pause"
         >
           {slideshowControl.paused ? (
-            <SlideshowTransportIcon mode="play" color="#f472b6" />
+            <SlideshowTransportIcon mode="play" color="#f472b6" className={isVertical ? "h-4 w-4" : "h-6 w-6"} />
           ) : (
             <SlideshowTransportIcon
               mode="pause"
               color={slideAccent?.color ?? BLACKBOARD_CHALK}
+              className={isVertical ? "h-4 w-4" : "h-6 w-6"}
             />
           )}
           <span
-            className={`${LEVELS_STRIP_BOX_LABEL_CLASS} tabular-nums leading-tight`}
+            className={`${labelClass} tabular-nums leading-tight${isVertical ? " truncate" : ""}`}
             style={{
               color: slideshowControl.paused
                 ? "#f472b6"

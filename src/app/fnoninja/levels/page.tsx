@@ -964,19 +964,30 @@ export default function LevelsPage() {
             count: slideListFiltered.length,
           }
         : undefined,
-    stripTrailing:
-      viewMode === "favslide" && isFnoNinjaHost ? (
-        <div className="w-full [&_button]:md:w-full [&_button]:md:h-12">
-          <FnoNinjaFavslideAddButton
-            api={favslideApi}
-            needsSignIn={!favslideSignedIn}
-            onAdded={() => {
-              setInZoneSlide(favslideEntries.length);
-            }}
-          />
-        </div>
-      ) : undefined,
   };
+
+  const favslideAddTrailing =
+    viewMode === "favslide" && isFnoNinjaHost ? (
+      <FnoNinjaFavslideAddButton
+        api={favslideApi}
+        needsSignIn={!favslideSignedIn}
+        onAdded={() => {
+          setInZoneSlide(favslideEntries.length);
+        }}
+      />
+    ) : undefined;
+
+  const favslideAddTrailingRail =
+    viewMode === "favslide" && isFnoNinjaHost ? (
+      <FnoNinjaFavslideAddButton
+        api={favslideApi}
+        needsSignIn={!favslideSignedIn}
+        variant="rail"
+        onAdded={() => {
+          setInZoneSlide(favslideEntries.length);
+        }}
+      />
+    ) : undefined;
 
   const slideshowSymbolRailTourAttrs = {
     "data-liveslide-tour": "strip",
@@ -991,6 +1002,7 @@ export default function LevelsPage() {
           <LevelsSlideshowStripControls
             {...slideshowStripControlProps}
             orientation="horizontal"
+            stripTrailing={favslideAddTrailing}
           />
         }
         symbolList={
@@ -1014,6 +1026,7 @@ export default function LevelsPage() {
           <LevelsSlideshowStripControls
             {...slideshowStripControlProps}
             orientation="vertical"
+            stripTrailing={favslideAddTrailingRail}
           />
         }
         symbolList={
@@ -1071,6 +1084,10 @@ export default function LevelsPage() {
               favslideApi={favslideApi}
               favslideRemoveOnly={viewMode === "favslide"}
               onAtlasOpenChange={handleFynnDrawerOpenChange}
+              onNavigateBubbles={enterBubbles}
+              onNavigateFavslide={enterFavslide}
+              onNavigateLiveslide={enterLiveslide}
+              showChatAndLearn
             />
           }
           footer={

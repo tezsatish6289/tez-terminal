@@ -38,7 +38,7 @@ export function LevelsSlideshowSymbolRailDesktop({
       style={{ backgroundColor: FNO_BG_CANVAS }}
       {...tourAttrs}
     >
-      <div className="shrink-0 flex flex-col gap-1.5 p-1.5 border-b border-white/[0.06]">
+      <div className="shrink-0 flex flex-col gap-1 p-1.5 border-b border-white/[0.06]">
         {controls}
       </div>
       <div className="flex flex-1 min-h-0 overflow-hidden p-1.5 pt-1">{symbolList}</div>

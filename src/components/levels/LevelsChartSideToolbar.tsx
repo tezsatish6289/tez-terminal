@@ -151,6 +151,10 @@ export function LevelsChartSideToolbar({
   favslideApi,
   favslideRemoveOnly = false,
   onAtlasOpenChange,
+  onNavigateBubbles,
+  onNavigateFavslide,
+  onNavigateLiveslide,
+  showChatAndLearn = false,
   className = "",
 }: {
   scope: LevelsTvScope;
@@ -162,6 +166,12 @@ export function LevelsChartSideToolbar({
   favslideApi?: FnoNinjaFavslideApi;
   favslideRemoveOnly?: boolean;
   onAtlasOpenChange?: (open: boolean) => void;
+  /** When set (levels slideshow), switch view in-place instead of router-only navigation. */
+  onNavigateBubbles?: () => void;
+  onNavigateFavslide?: () => void;
+  onNavigateLiveslide?: () => void;
+  /** Favslide/liveslide only — standalone /levels/chart omits chat and learn. */
+  showChatAndLearn?: boolean;
   className?: string;
 }) {
   const router = useRouter();
@@ -212,6 +222,10 @@ export function LevelsChartSideToolbar({
   }, [scope, symbol, onAtlasOpenChange]);
 
   const goToBubbles = useCallback(() => {
+    if (onNavigateBubbles) {
+      onNavigateBubbles();
+      return;
+    }
     const path = levelsBubblesPagePathForHost(
       typeof window !== "undefined" ? window.location.hostname : "fnoninja.com",
     );
@@ -220,15 +234,23 @@ export function LevelsChartSideToolbar({
       return;
     }
     router.push(path);
-  }, [router]);
+  }, [router, onNavigateBubbles]);
 
   const goToFavslide = useCallback(() => {
+    if (onNavigateFavslide) {
+      onNavigateFavslide();
+      return;
+    }
     router.push(fnoFavslideHref(pathname));
-  }, [router, pathname]);
+  }, [router, pathname, onNavigateFavslide]);
 
   const goToLiveslide = useCallback(() => {
+    if (onNavigateLiveslide) {
+      onNavigateLiveslide();
+      return;
+    }
     router.push(fnoLiveslideHref(pathname));
-  }, [router, pathname]);
+  }, [router, pathname, onNavigateLiveslide]);
 
   const goToLearn = useCallback(() => {
     router.push(fnoLearnHref(pathname));
@@ -275,14 +297,16 @@ export function LevelsChartSideToolbar({
           <Sparkles className="h-[18px] w-[18px] shrink-0 fynn-sparkle-glow" strokeWidth={1.75} />
         </ToolbarButton>
 
-        <ToolbarButton
-          label="Chat"
-          active={chatOpen}
-          onClick={() => setChatOpen(true)}
-          title="Community chat"
-        >
-          <MessageCircle className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-        </ToolbarButton>
+        {showChatAndLearn ? (
+          <ToolbarButton
+            label="Chat"
+            active={chatOpen}
+            onClick={() => setChatOpen(true)}
+            title="Community chat"
+          >
+            <MessageCircle className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+          </ToolbarButton>
+        ) : null}
 
         <ToolbarButton
           label="Checklist"
@@ -343,13 +367,15 @@ export function LevelsChartSideToolbar({
           <ToolbarCircleLetter letter="L" />
         </ToolbarButton>
 
-        <ToolbarButton
-          label="Learn"
-          onClick={goToLearn}
-          title="Guides and tutorials"
-        >
-          <GraduationCap className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-        </ToolbarButton>
+        {showChatAndLearn ? (
+          <ToolbarButton
+            label="Learn"
+            onClick={goToLearn}
+            title="Guides and tutorials"
+          >
+            <GraduationCap className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+          </ToolbarButton>
+        ) : null}
 
         <ToolbarHoverLabel label="Share">
           <LevelsSymbolShareButton

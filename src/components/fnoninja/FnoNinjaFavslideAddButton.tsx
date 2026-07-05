@@ -8,6 +8,9 @@ import {
   LEVELS_STRIP_BOX_LABEL_CLASS,
   LEVELS_STRIP_ICON_BOX_CLASS,
   LEVELS_STRIP_ICON_INNER_CLASS,
+  LEVELS_RAIL_CONTROL_BOX_CLASS,
+  LEVELS_RAIL_CONTROL_INNER_CLASS,
+  LEVELS_RAIL_CONTROL_LABEL_CLASS,
 } from "@/components/levels/levels-symbol-strip";
 import { BLACKBOARD_FIELD_BORDER } from "@/lib/levels/cta-blackboard";
 import {
@@ -22,11 +25,17 @@ export function FnoNinjaFavslideAddButton({
   api,
   onAdded,
   needsSignIn = false,
+  variant = "strip",
 }: {
   api: FnoNinjaFavslideApi;
   onAdded?: (entry: { scope: LevelsTvScope; symbol: string }) => void;
   needsSignIn?: boolean;
+  variant?: "strip" | "rail";
 }) {
+  const isRail = variant === "rail";
+  const boxClass = isRail ? LEVELS_RAIL_CONTROL_BOX_CLASS : LEVELS_STRIP_ICON_BOX_CLASS;
+  const innerClass = isRail ? LEVELS_RAIL_CONTROL_INNER_CLASS : LEVELS_STRIP_ICON_INNER_CLASS;
+  const labelClass = isRail ? LEVELS_RAIL_CONTROL_LABEL_CLASS : LEVELS_STRIP_BOX_LABEL_CLASS;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -74,7 +83,7 @@ export function FnoNinjaFavslideAddButton({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-amber-400/40 active:scale-[0.98]`}
+          className={`${boxClass} ${innerClass} transition-colors hover:border-amber-400/40 active:scale-[0.98]`}
           style={{
             background: open ? "rgba(251,191,36,0.14)" : "rgba(251,191,36,0.08)",
             border: `1px solid ${open ? "rgba(251,191,36,0.55)" : "rgba(251,191,36,0.35)"}`,
@@ -84,9 +93,9 @@ export function FnoNinjaFavslideAddButton({
           title={needsSignIn ? "Sign in to add to favslide" : "Search and add to favslide"}
           data-favslide-tour="add"
         >
-          <Plus className="h-5 w-5" style={{ color: FNO_FAVSLIDE_ACCENT }} strokeWidth={2.5} />
+          <Plus className="h-3.5 w-3.5 shrink-0" style={{ color: FNO_FAVSLIDE_ACCENT }} strokeWidth={2.5} />
           <span
-            className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
+            className={`${labelClass} uppercase`}
             style={{ color: FNO_FAVSLIDE_ACCENT }}
           >
             Add

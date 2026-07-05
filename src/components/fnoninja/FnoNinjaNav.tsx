@@ -4,14 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, LogOut, Menu, MessageCircle, X } from "lucide-react";
+import { Loader2, LogOut, Menu, X } from "lucide-react";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
-import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { useAuth, useUser } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
-import { FnoNinjaNavLearn } from "@/components/fnoninja/FnoNinjaNavLearn";
 import { FnoNinjaNavLiveslideHelp } from "@/components/fnoninja/FnoNinjaNavLiveslideHelp";
 import { FnoNinjaNavSearch } from "@/components/fnoninja/FnoNinjaNavSearch";
 import {
@@ -104,8 +102,6 @@ export function FnoNinjaNav() {
   const isLevelsApp = isFnoNinjaLevelsPath(pathname);
   const productHomeHref = fnoProductHomeHref(pathname, !!user && !isUserLoading);
   const showNavSearch = !isFnoNinjaLandingPath(pathname);
-  const { toggle: toggleChat, open: chatOpen, unreadCount: chatUnread } = useChatPanel();
-  const showChatButton = !!user && !isFnoNinjaLandingPath(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -164,35 +160,7 @@ export function FnoNinjaNav() {
 
           <div className="ml-auto flex items-center gap-2 flex-shrink-0">
             {isLevelsApp ? <FnoNinjaNavLiveslideHelp /> : null}
-            <FnoNinjaNavLearn />
             {showNavSearch ? <FnoNinjaNavSearch /> : null}
-            {showChatButton ? (
-              <button
-                type="button"
-                onClick={toggleChat}
-                className="relative flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-lg transition-colors shrink-0 hover:text-white"
-                style={{
-                  color: chatOpen ? "#93c5fd" : "#94a3b8",
-                  border: `1px solid ${chatOpen ? "rgba(96,165,250,0.35)" : "rgba(90,140,220,0.15)"}`,
-                  backgroundColor: chatOpen ? "rgba(37,99,235,0.12)" : "rgba(37,99,235,0.06)",
-                }}
-                aria-label={chatUnread ? "Community chat, new messages" : "Community chat"}
-                aria-pressed={chatOpen}
-                title="Community chat"
-              >
-                <MessageCircle className="h-4 w-4 sm:h-[1.125rem] sm:w-[1.125rem]" />
-                {!chatOpen && chatUnread ? (
-                  <span
-                    className="absolute top-1 right-1 h-2 w-2 rounded-full"
-                    style={{
-                      backgroundColor: "#60a5fa",
-                      boxShadow: "0 0 0 2px rgba(8,15,30,0.95)",
-                    }}
-                    aria-hidden
-                  />
-                ) : null}
-              </button>
-            ) : null}
             {!isLevelsApp && isFnoNinjaLandingPath(pathname) ? (
               <>
                 <div className="hidden md:block">

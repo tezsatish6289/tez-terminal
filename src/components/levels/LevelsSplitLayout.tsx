@@ -249,7 +249,7 @@ export function LevelsSymbolList({
               key={entry.id}
               data-strip-index={i}
               onClick={() => onSelect(i)}
-              className="flex text-left shrink-0 w-full flex-col gap-1 px-2.5 py-2 transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-lg"
+              className="flex text-left shrink-0 w-full flex-col gap-0.5 px-2 py-1.5 transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-md"
               style={{
                 backgroundColor: active ? accent.bg : "rgba(255,255,255,0.02)",
                 border: `1px solid ${active ? (pulse ? accent.borderPulse : accent.border) : "rgba(255,255,255,0.05)"}`,

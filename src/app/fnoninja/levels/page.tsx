@@ -923,67 +923,6 @@ export default function LevelsPage() {
       />
     ) : null;
 
-  const slideshowDeepDiveBody =
-    slideshowDeepDiveLayout && inZoneActive && activeTicker ? (
-      <div
-        data-liveslide-tour="chart"
-        data-favslide-tour="chart"
-        className="flex flex-1 min-h-0 min-w-0 w-full flex-col max-md:touch-pan-y"
-      >
-        <LevelsChartDeepDiveLayout
-          chrome={slideshowChartChrome}
-          symbolRail={slideshowSymbolRailMobile}
-          symbolRailDesktop={slideshowSymbolRailDesktop}
-          viewToggle={
-            <LevelsOutlookViewToggle
-              value={slideshowChartViewMode}
-              onChange={handleSlideshowChartViewChange}
-              trailing={
-                showChartExpiryPicker ? (
-                  <LevelsChartExpiryPicker
-                    options={expiryOptions}
-                    value={selectedExpiryKey}
-                    onChange={setSelectedExpiryKey}
-                  />
-                ) : undefined
-              }
-            />
-          }
-          banner={
-            slideshowExploreHold ? (
-              <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
-            ) : undefined
-          }
-          toolbar={
-            <LevelsChartSideToolbar
-              scope={inZoneActive.scope}
-              symbol={activeTicker}
-              label={slideshowSubtitleLine ?? inZoneActive.label}
-              levels={chartLevelsForView}
-              expiryKey={expiryScope ? selectedExpiryKey : null}
-              nativeChartRef={nativeChartRef}
-              favslideApi={favslideApi}
-              favslideRemoveOnly={viewMode === "favslide"}
-              onAtlasOpenChange={handleFynnDrawerOpenChange}
-            />
-          }
-          footer={
-            <div data-liveslide-tour="footer" data-favslide-tour="footer">
-              <LevelsChartMetaFooter
-                slideCount={inZoneCount}
-                activeIndex={inZoneCurrent}
-                onGoTo={setInZoneSlide}
-                slideshowAdvanceHint
-                slideshowPaused={slideshowTimerPaused}
-              />
-            </div>
-          }
-        >
-          {slideshowChartPane}
-        </LevelsChartDeepDiveLayout>
-      </div>
-    ) : null;
-
   const slideshowStripAccent = viewMode === "favslide" ? "favslide" : "liveslide";
 
   const slideshowStripControlProps = {
@@ -1088,6 +1027,67 @@ export default function LevelsPage() {
           />
         }
       />
+    ) : null;
+
+  const slideshowDeepDiveBody =
+    slideshowDeepDiveLayout && inZoneActive && activeTicker ? (
+      <div
+        data-liveslide-tour="chart"
+        data-favslide-tour="chart"
+        className="flex flex-1 min-h-0 min-w-0 w-full flex-col max-md:touch-pan-y"
+      >
+        <LevelsChartDeepDiveLayout
+          chrome={slideshowChartChrome}
+          symbolRail={slideshowSymbolRailMobile}
+          symbolRailDesktop={slideshowSymbolRailDesktop}
+          viewToggle={
+            <LevelsOutlookViewToggle
+              value={slideshowChartViewMode}
+              onChange={handleSlideshowChartViewChange}
+              trailing={
+                showChartExpiryPicker ? (
+                  <LevelsChartExpiryPicker
+                    options={expiryOptions}
+                    value={selectedExpiryKey}
+                    onChange={setSelectedExpiryKey}
+                  />
+                ) : undefined
+              }
+            />
+          }
+          banner={
+            slideshowExploreHold ? (
+              <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
+            ) : undefined
+          }
+          toolbar={
+            <LevelsChartSideToolbar
+              scope={inZoneActive.scope}
+              symbol={activeTicker}
+              label={slideshowSubtitleLine ?? inZoneActive.label}
+              levels={chartLevelsForView}
+              expiryKey={expiryScope ? selectedExpiryKey : null}
+              nativeChartRef={nativeChartRef}
+              favslideApi={favslideApi}
+              favslideRemoveOnly={viewMode === "favslide"}
+              onAtlasOpenChange={handleFynnDrawerOpenChange}
+            />
+          }
+          footer={
+            <div data-liveslide-tour="footer" data-favslide-tour="footer">
+              <LevelsChartMetaFooter
+                slideCount={inZoneCount}
+                activeIndex={inZoneCurrent}
+                onGoTo={setInZoneSlide}
+                slideshowAdvanceHint
+                slideshowPaused={slideshowTimerPaused}
+              />
+            </div>
+          }
+        >
+          {slideshowChartPane}
+        </LevelsChartDeepDiveLayout>
+      </div>
     ) : null;
 
   const slideshowSymbolStrip =

@@ -45,6 +45,48 @@ const STRIP_ACCENT_STYLE: Record<
   },
 };
 
+const RUNNER_CHIP_IDLE = {
+  backgroundColor: "rgba(255,255,255,0.02)",
+  border: "1px solid rgba(255,255,255,0.05)",
+  transform: "scale(1)",
+  boxShadow: undefined as string | undefined,
+};
+
+/** Slideshow timer is the active-chip signal — skip heavy fill/glow/scale. */
+function runnerChipStyle(
+  active: boolean,
+  pulse: boolean,
+  accent: (typeof STRIP_ACCENT_STYLE)[LevelsStripAccent],
+  timerHighlightsActive: boolean,
+) {
+  if (timerHighlightsActive) {
+    return RUNNER_CHIP_IDLE;
+  }
+  return {
+    backgroundColor: active ? accent.bg : RUNNER_CHIP_IDLE.backgroundColor,
+    border: `1px solid ${active ? (pulse ? accent.borderPulse : accent.border) : "rgba(255,255,255,0.05)"}`,
+    transform: pulse ? "scale(1.04)" : active ? "scale(1.01)" : "scale(1)",
+    boxShadow: pulse ? accent.glow : active ? accent.glowSoft : undefined,
+  };
+}
+
+function runnerChipStyleVertical(
+  active: boolean,
+  pulse: boolean,
+  accent: (typeof STRIP_ACCENT_STYLE)[LevelsStripAccent],
+  timerHighlightsActive: boolean,
+) {
+  if (timerHighlightsActive) {
+    return RUNNER_CHIP_IDLE;
+  }
+  return {
+    backgroundColor: active ? accent.bg : RUNNER_CHIP_IDLE.backgroundColor,
+    border: `1px solid ${active ? (pulse ? accent.borderPulse : accent.border) : "rgba(255,255,255,0.05)"}`,
+    transform: pulse ? "scale(1.02)" : active ? "scale(1.01)" : "scale(1)",
+    boxShadow: pulse ? accent.glow : active ? accent.glowSoft : undefined,
+  };
+}
+
 /** Map vertical wheel to horizontal scroll on desktop trackpads/mice. */
 function useHorizontalWheelScroll(ref: RefObject<HTMLDivElement | null>, enabled: boolean) {
   useEffect(() => {
@@ -148,10 +190,12 @@ export function LevelsSymbolList({
 
   const isRunnerStrip = runnerMode && layout === "horizontal";
   const isVerticalRunner = runnerMode && layout === "vertical";
+  const timerHighlightsActive = Boolean(slideshowTimer?.enabled);
   useHorizontalWheelScroll(scrollRef, isRunnerStrip);
 
   useEffect(() => {
     if (!isRunnerStrip && !isVerticalRunner) return;
+    if (timerHighlightsActive) return;
 
     const container = scrollRef.current;
     const tile = container?.querySelector(
@@ -169,7 +213,7 @@ export function LevelsSymbolList({
       const id = window.setTimeout(() => setRunnerPulse(false), 700);
       return () => window.clearTimeout(id);
     }
-  }, [activeIndex, isRunnerStrip, isVerticalRunner, entries.length]);
+  }, [activeIndex, isRunnerStrip, isVerticalRunner, entries.length, timerHighlightsActive]);
 
   if (!entries.length) {
     return (
@@ -207,12 +251,7 @@ export function LevelsSymbolList({
                 data-strip-index={i}
                 onClick={() => onSelect(i)}
                 className="flex text-left shrink-0 h-full min-w-[4.75rem] max-w-[7.25rem] snap-center md:min-w-[9.5rem] md:max-w-[11rem] max-md:flex-col max-md:justify-center max-md:gap-0.5 max-md:py-1 max-md:px-2 flex-col gap-1 px-3 py-2 transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-lg"
-                style={{
-                  backgroundColor: active ? accent.bg : "rgba(255,255,255,0.02)",
-                  border: `1px solid ${active ? (pulse ? accent.borderPulse : accent.border) : "rgba(255,255,255,0.05)"}`,
-                  transform: pulse ? "scale(1.04)" : active ? "scale(1.01)" : "scale(1)",
-                  boxShadow: pulse ? accent.glow : active ? accent.glowSoft : undefined,
-                }}
+                style={runnerChipStyle(active, pulse, accent, timerHighlightsActive)}
               >
                 <div className="md:hidden flex flex-col justify-center min-w-0 w-full gap-0.5">
                   <span
@@ -290,12 +329,7 @@ export function LevelsSymbolList({
               data-strip-index={i}
               onClick={() => onSelect(i)}
               className="flex text-left shrink-0 w-full flex-col gap-0.5 px-2 py-1.5 transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-md"
-              style={{
-                backgroundColor: active ? accent.bg : "rgba(255,255,255,0.02)",
-                border: `1px solid ${active ? (pulse ? accent.borderPulse : accent.border) : "rgba(255,255,255,0.05)"}`,
-                transform: pulse ? "scale(1.02)" : active ? "scale(1.01)" : "scale(1)",
-                boxShadow: pulse ? accent.glow : active ? accent.glowSoft : undefined,
-              }}
+              style={runnerChipStyleVertical(active, pulse, accent, timerHighlightsActive)}
             >
               {(entry.sublabel || entry.trailing || renderChipTimer(active)) && (
                 <div className="flex items-center justify-between gap-1 w-full min-w-0">

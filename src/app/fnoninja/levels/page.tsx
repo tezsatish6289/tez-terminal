@@ -28,6 +28,11 @@ import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
 import { PvtChart } from "@/components/levels/PvtChart";
 import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
+import {
+  getSlideshowLevelsCache,
+  prefetchSlideshowLevels,
+  primeSlideshowLevelsCache,
+} from "@/lib/levels/slideshow-levels-cache";
 import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook-keyboard";
 import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-shortcut";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
@@ -682,6 +687,7 @@ export default function LevelsPage() {
     ) => {
       try {
         const json = await fetchSymbolLevels(scope, symbol, { slideshow: true });
+        primeSlideshowLevelsCache(scope, symbol, json.data);
         if (updateActiveChart && json.data) {
           setInZoneChartData(json.data);
         }
@@ -692,6 +698,14 @@ export default function LevelsPage() {
     },
     [load],
   );
+
+  /** Prefetch the next slideshow symbol during the 60s countdown. */
+  useEffect(() => {
+    if (!isSlideView || inZoneCount <= 1) return;
+    const next = slideListFiltered[(inZoneCurrent + 1) % inZoneCount];
+    if (next?.scope !== "stock" && next?.scope !== "index") return;
+    void prefetchSlideshowLevels(next.scope, next.symbol);
+  }, [isSlideView, inZoneCount, inZoneCurrent, slideListFiltered]);
 
   useEffect(() => {
     if (!inZoneActive) {
@@ -720,25 +734,31 @@ export default function LevelsPage() {
       setInZoneChartLoading(false);
       return;
     }
+
+    const cached = getSlideshowLevelsCache(inZoneActive.scope, inZoneActive.symbol);
     let cancelled = false;
-    setInZoneChartLoading(true);
+
     if (symbolChanged) {
-      setInZoneChartData(null);
+      if (cached !== undefined) {
+        setInZoneChartData(cached);
+        setInZoneChartLoading(false);
+      } else {
+        setInZoneChartData(null);
+        setInZoneChartLoading(true);
+      }
     }
-    void fetchSymbolLevels(inZoneActive.scope, inZoneActive.symbol, { slideshow: true })
-      .then((json) => {
-        if (!cancelled) setInZoneChartData(json.data);
-      })
-      .catch(() => {
-        if (!cancelled) setInZoneChartData(null);
-      })
-      .finally(() => {
-        if (!cancelled) setInZoneChartLoading(false);
-      });
+
+    void prefetchSlideshowLevels(inZoneActive.scope, inZoneActive.symbol).then((data) => {
+      if (!cancelled && chartLevelsSymbolRef.current === activeKey) {
+        setInZoneChartData(data);
+        setInZoneChartLoading(false);
+      }
+    });
+
     return () => {
       cancelled = true;
     };
-  }, [inZoneActive?.scope, inZoneActive?.symbol, inZoneActive?.data, inZoneCurrent, viewMode]);
+  }, [inZoneActive?.scope, inZoneActive?.symbol, inZoneActive?.data, inZoneCurrent, viewMode, isSlideView]);
 
   /** Keep slideshow symbols on a ≤5m zone refresh cadence (one symbol per tick). */
   useEffect(() => {

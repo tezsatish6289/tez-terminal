@@ -454,24 +454,35 @@ function StripMapFilterIconBox({
   const activeMeta =
     MAP_FILTER_OPTIONS.find((o) => o.key === filter) ?? MAP_FILTER_OPTIONS[0];
   const filtered = filter !== "all";
-  const iconColor = slideAccent?.color ?? activeMeta.activeText;
-  const labelColor = slideAccent?.color ?? (filtered ? activeMeta.activeText : BLACKBOARD_CHALK_DIM);
+  const subtleRail = listCount != null;
+  const iconColor = subtleRail
+    ? "rgba(96,165,250,0.55)"
+    : slideAccent?.color ?? activeMeta.activeText;
+  const labelColor = subtleRail
+    ? "#94a3b8"
+    : slideAccent?.color ?? (filtered ? activeMeta.activeText : BLACKBOARD_CHALK_DIM);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`${iconBoxClass} ${iconInnerClass} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+          className={`${iconBoxClass} ${iconInnerClass} transition-colors hover:border-slate-400/30 active:scale-[0.98]`}
           style={{
             ...stripIconBoxStyle(open || filtered),
-            ...(slideAccent
+            ...(slideAccent && !subtleRail
               ? {
                   border: `1px solid ${slideAccent.border}`,
                   background:
                     stripMode === "liveslide"
                       ? "rgba(37,99,235,0.1)"
                       : "rgba(251,191,36,0.1)",
+                }
+              : {}),
+            ...(subtleRail
+              ? {
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.02)",
                 }
               : {}),
           }}

@@ -12,7 +12,7 @@ import {
   LEVELS_RAIL_CONTROL_INNER_CLASS,
   LEVELS_RAIL_CONTROL_LABEL_CLASS,
 } from "@/components/levels/levels-symbol-strip";
-import { BLACKBOARD_FIELD_BORDER } from "@/lib/levels/cta-blackboard";
+import { BLACKBOARD_FIELD_BG } from "@/lib/levels/cta-blackboard";
 import {
   filterLevelsSymbolCatalog,
   type LevelsSymbolEntry,
@@ -86,10 +86,10 @@ export function FnoNinjaFavslideAddButton({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`${boxClass} ${innerClass} transition-colors hover:border-amber-400/40 active:scale-[0.98]`}
+          className={`${boxClass} ${innerClass} transition-colors hover:border-white/12 active:scale-[0.98]`}
           style={{
-            background: open ? "rgba(251,191,36,0.14)" : "rgba(251,191,36,0.08)",
-            border: `1px solid ${open ? "rgba(251,191,36,0.55)" : "rgba(251,191,36,0.35)"}`,
+            background: open ? "rgba(251,191,36,0.08)" : BLACKBOARD_FIELD_BG,
+            border: open ? "1px solid rgba(251,191,36,0.28)" : "1px solid rgba(255,255,255,0.08)",
             boxShadow: "none",
           }}
           aria-label={
@@ -102,10 +102,14 @@ export function FnoNinjaFavslideAddButton({
           title={needsSignIn ? "Sign in to add to favslide" : "Search and add to favslide"}
           data-favslide-tour={count != null ? "fav-count" : "add"}
         >
-          <Plus className="h-3.5 w-3.5 shrink-0" style={{ color: FNO_FAVSLIDE_ACCENT }} strokeWidth={2.5} />
+          <Plus
+            className="h-3.5 w-3.5 shrink-0"
+            style={{ color: open ? FNO_FAVSLIDE_ACCENT : "rgba(251,191,36,0.55)" }}
+            strokeWidth={2.5}
+          />
           <span
             className={`${labelClass} uppercase tabular-nums${count != null ? " truncate" : ""}`}
-            style={{ color: FNO_FAVSLIDE_ACCENT }}
+            style={{ color: open ? FNO_FAVSLIDE_ACCENT : "#94a3b8" }}
           >
             {count != null ? `Add · ${count}` : "Add"}
           </span>

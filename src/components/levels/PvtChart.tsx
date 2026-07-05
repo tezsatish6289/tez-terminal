@@ -85,10 +85,14 @@ const CHART_BASE_OPTIONS = {
   rightPriceScale: { borderColor: "rgba(255,255,255,0.08)" },
 } as const;
 
-function linkVisibleRanges(source: IChartApi, target: IChartApi): () => void {
+function linkVisibleRanges(
+  source: IChartApi,
+  target: IChartApi,
+  pauseRef: { current: boolean },
+): () => void {
   let syncing = false;
   const handler = (range: { from: number; to: number } | null) => {
-    if (syncing || range == null) return;
+    if (syncing || pauseRef.current || range == null) return;
     syncing = true;
     target.timeScale().setVisibleLogicalRange(range);
     syncing = false;
@@ -162,14 +166,34 @@ function filterCandlesByRange(candles: DailyCandle[], range: PvtHistoryRange): D
   return candles.filter((c) => c.time >= cutoff);
 }
 
-function applyPvtRightPadding(candleChart: IChartApi, pvtChart: IChartApi, barCount: number) {
+function applyPvtRightPadding(
+  candleChart: IChartApi,
+  pvtChart: IChartApi,
+  barCount: number,
+  pauseRef: { current: boolean },
+) {
   if (barCount < 1) return;
   const to = barCount - 1 + PVT_CHART_RIGHT_OFFSET;
   const range = { from: 0, to };
-  candleChart.timeScale().applyOptions({ rightOffset: PVT_CHART_RIGHT_OFFSET });
-  pvtChart.timeScale().applyOptions({ rightOffset: PVT_CHART_RIGHT_OFFSET });
-  candleChart.timeScale().setVisibleLogicalRange(range);
-  pvtChart.timeScale().setVisibleLogicalRange(range);
+  pauseRef.current = true;
+  try {
+    candleChart.timeScale().applyOptions({ rightOffset: PVT_CHART_RIGHT_OFFSET });
+    pvtChart.timeScale().applyOptions({ rightOffset: PVT_CHART_RIGHT_OFFSET });
+    candleChart.timeScale().setVisibleLogicalRange(range);
+    pvtChart.timeScale().setVisibleLogicalRange(range);
+  } finally {
+    pauseRef.current = false;
+  }
+}
+
+function viewportShowsFullHistory(
+  candleChart: IChartApi,
+  barCount: number,
+): boolean {
+  const visible = candleChart.timeScale().getVisibleLogicalRange();
+  if (!visible) return false;
+  const expectedTo = barCount - 1 + PVT_CHART_RIGHT_OFFSET;
+  return visible.from <= 1 && visible.to >= expectedTo - 2;
 }
 
 function fmtPvt(v: number): string {
@@ -213,6 +237,8 @@ export function PvtChart({
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const candleChartDataRef = useRef<CandlestickData[]>([]);
   const pvtChartDataRef = useRef<LineData[]>([]);
+  const displayBarCountRef = useRef(0);
+  const rangeSyncPausedRef = useRef(false);
   const [candles, setCandles] = useState<DailyCandle[] | null>(null);
   const [fetchedLevels, setFetchedLevels] = useState<PublicLevels | null>(null);
   const [loading, setLoading] = useState(true);
@@ -300,6 +326,32 @@ export function PvtChart({
 
   const pvtSeries = useMemo(() => computePvt(displayCandles), [displayCandles]);
 
+  const refreshPvtChartViewport = useCallback(() => {
+    const candleChart = candleChartRef.current;
+    const pvtChart = pvtChartRef.current;
+    const barCount = displayBarCountRef.current;
+    if (!candleChart || !pvtChart || barCount < 1) return false;
+    applyPvtRightPadding(candleChart, pvtChart, barCount, rangeSyncPausedRef);
+    return viewportShowsFullHistory(candleChart, barCount);
+  }, []);
+
+  const schedulePvtChartViewport = useCallback(() => {
+    let attempts = 0;
+    const tryApply = () => {
+      const ok = refreshPvtChartViewport();
+      if (!ok && ++attempts < 24) {
+        setTimeout(tryApply, 50);
+      }
+    };
+    requestAnimationFrame(() => {
+      tryApply();
+      requestAnimationFrame(tryApply);
+    });
+  }, [refreshPvtChartViewport]);
+
+  const scheduleViewportRef = useRef(schedulePvtChartViewport);
+  scheduleViewportRef.current = schedulePvtChartViewport;
+
   useEffect(() => {
     const candleEl = candleContainerRef.current;
     const pvtEl = pvtContainerRef.current;
@@ -361,8 +413,8 @@ export function PvtChart({
       },
     });
 
-    const unlinkCandle = linkVisibleRanges(candleChart, pvtChart);
-    const unlinkPvt = linkVisibleRanges(pvtChart, candleChart);
+    const unlinkCandle = linkVisibleRanges(candleChart, pvtChart, rangeSyncPausedRef);
+    const unlinkPvt = linkVisibleRanges(pvtChart, candleChart, rangeSyncPausedRef);
     const unlinkCrosshair = linkCrosshairs(
       candleChart,
       candlesSeries,
@@ -378,7 +430,13 @@ export function PvtChart({
     pvtRef.current = pvtLine;
     setChartReady(true);
 
+    const ro = new ResizeObserver(() => {
+      if (displayBarCountRef.current >= 1) scheduleViewportRef.current();
+    });
+    ro.observe(candleEl);
+
     return () => {
+      ro.disconnect();
       unlinkCandle();
       unlinkPvt();
       unlinkCrosshair();
@@ -396,16 +454,7 @@ export function PvtChart({
   useEffect(() => {
     const candleSeries = candleRef.current;
     const pvtLine = pvtRef.current;
-    const candleChart = candleChartRef.current;
-    const pvtChart = pvtChartRef.current;
-    if (
-      !chartReady ||
-      !candleSeries ||
-      !pvtLine ||
-      !candleChart ||
-      !pvtChart ||
-      displayCandles.length === 0
-    ) {
+    if (!chartReady || !candleSeries || !pvtLine || displayCandles.length === 0) {
       return;
     }
 
@@ -425,13 +474,24 @@ export function PvtChart({
 
     candleSeries.setData(candleData);
     pvtLine.setData(pvtData);
+    displayBarCountRef.current = displayCandles.length;
+    schedulePvtChartViewport();
+  }, [chartReady, displayCandles, pvtSeries, schedulePvtChartViewport]);
+
+  /** Levels load after candles (common when remounting from History) — update overlays only. */
+  useEffect(() => {
+    const candleSeries = candleRef.current;
+    if (!chartReady || !candleSeries || displayBarCountRef.current < 1) return;
     applyClusterSummaryPriceLines(candleSeries, priceLinesRef, effectiveLevels, {
       showAxisLabels: true,
     });
-    candleChart.timeScale().fitContent();
-    pvtChart.timeScale().fitContent();
-    applyPvtRightPadding(candleChart, pvtChart, displayCandles.length);
-  }, [chartReady, displayCandles, pvtSeries, effectiveLevels]);
+    schedulePvtChartViewport();
+  }, [chartReady, effectiveLevels, schedulePvtChartViewport]);
+
+  useEffect(() => {
+    if (!chartReady || displayBarCountRef.current < 1) return;
+    schedulePvtChartViewport();
+  }, [chartReady, schedulePvtChartViewport]);
 
   const candlesReady = !loading && !error && displayCandles.length > 0;
   const zonesReady = levelsHaveBands(effectiveLevels);

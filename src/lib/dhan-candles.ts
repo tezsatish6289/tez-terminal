@@ -336,10 +336,24 @@ async function getDailyCandlesCached(
   segment: DhanCandleSegment,
   days = DAILY_LOOKBACK_DAYS,
 ): Promise<CandleResult> {
-  const key = `${cacheKey}:D`;
+  const key = `${cacheKey}:D:${days}`;
   const cached = candleCache.get(key);
   if (cached && Date.now() - cached.fetchedAt < DAILY_CACHE_TTL_MS) {
     return { ok: true, candles: cached.candles };
+  }
+
+  // Reuse a longer cached series when a shorter window is requested.
+  const dailyPrefix = `${cacheKey}:D:`;
+  for (const [cacheEntryKey, entry] of candleCache.entries()) {
+    if (!cacheEntryKey.startsWith(dailyPrefix)) continue;
+    const cachedDays = Number(cacheEntryKey.slice(dailyPrefix.length));
+    if (
+      Number.isFinite(cachedDays) &&
+      cachedDays >= days &&
+      Date.now() - entry.fetchedAt < DAILY_CACHE_TTL_MS
+    ) {
+      return { ok: true, candles: entry.candles };
+    }
   }
 
   let promise = inflight.get(key);

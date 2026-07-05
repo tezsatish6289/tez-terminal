@@ -34,7 +34,7 @@ export function LevelsSlideshowSymbolRailDesktop({
 }) {
   return (
     <aside
-      className="hidden md:flex flex-col shrink-0 w-[min(13.5rem,20vw)] max-w-[15rem] min-h-0 border-r border-white/[0.06]"
+      className="hidden md:flex flex-col shrink-0 self-stretch w-[min(13.5rem,20vw)] max-w-[15rem] min-h-0 border-r border-white/[0.06]"
       style={{ backgroundColor: FNO_BG_CANVAS }}
       {...tourAttrs}
     >

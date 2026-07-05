@@ -1087,7 +1087,6 @@ export default function LevelsPage() {
               onNavigateBubbles={enterBubbles}
               onNavigateFavslide={enterFavslide}
               onNavigateLiveslide={enterLiveslide}
-              showChatAndLearn
             />
           }
           footer={

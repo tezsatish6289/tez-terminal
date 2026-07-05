@@ -26,21 +26,41 @@ export function LevelsChartDeepDiveLayout({
   children: ReactNode;
   className?: string;
 }) {
+  const chartPane = (
+    <>
+      <div className="flex flex-1 min-h-0 min-w-0 mt-1">
+        {toolbar}
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">{children}</div>
+      </div>
+      {footer ? <div className="shrink-0 min-w-0 mt-1 max-md:pb-1">{footer}</div> : null}
+    </>
+  );
+
+  /** Slideshow: full-height symbol rail; header + tabs align with toolbar left edge. */
+  if (symbolRailDesktop) {
+    return (
+      <div className={`flex flex-col flex-1 min-h-0 min-w-0 w-full ${className}`.trim()}>
+        {symbolRail}
+        <div className="flex flex-1 min-h-0 min-w-0 mt-1.5 sm:mt-2">
+          {symbolRailDesktop}
+          <div className="flex flex-col flex-1 min-h-0 min-w-0">
+            {chrome ? <div className="shrink-0 min-w-0">{chrome}</div> : null}
+            {viewToggle}
+            {banner}
+            {chartPane}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex flex-col flex-1 min-h-0 min-w-0 w-full ${className}`.trim()}>
       {chrome ? <div className="shrink-0 min-w-0">{chrome}</div> : null}
       <div className="mt-1.5 sm:mt-2 flex flex-col flex-1 min-h-0 min-w-0">
         {viewToggle}
         {banner}
-        <div className="flex flex-col flex-1 min-h-0 min-w-0 mt-1">
-          {symbolRail}
-          <div className="flex flex-1 min-h-0 min-w-0">
-            {symbolRailDesktop}
-            {toolbar}
-            <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">{children}</div>
-          </div>
-        </div>
-        {footer ? <div className="shrink-0 min-w-0 mt-1 max-md:pb-1">{footer}</div> : null}
+        {chartPane}
       </div>
     </div>
   );

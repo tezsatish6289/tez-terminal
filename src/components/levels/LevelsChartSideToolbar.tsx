@@ -154,7 +154,6 @@ export function LevelsChartSideToolbar({
   onNavigateBubbles,
   onNavigateFavslide,
   onNavigateLiveslide,
-  showChatAndLearn = false,
   className = "",
 }: {
   scope: LevelsTvScope;
@@ -170,8 +169,6 @@ export function LevelsChartSideToolbar({
   onNavigateBubbles?: () => void;
   onNavigateFavslide?: () => void;
   onNavigateLiveslide?: () => void;
-  /** Favslide/liveslide only — standalone /levels/chart omits chat and learn. */
-  showChatAndLearn?: boolean;
   className?: string;
 }) {
   const router = useRouter();
@@ -297,16 +294,14 @@ export function LevelsChartSideToolbar({
           <Sparkles className="h-[18px] w-[18px] shrink-0 fynn-sparkle-glow" strokeWidth={1.75} />
         </ToolbarButton>
 
-        {showChatAndLearn ? (
-          <ToolbarButton
-            label="Chat"
-            active={chatOpen}
-            onClick={() => setChatOpen(true)}
-            title="Community chat"
-          >
-            <MessageCircle className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-          </ToolbarButton>
-        ) : null}
+        <ToolbarButton
+          label="Chat"
+          active={chatOpen}
+          onClick={() => setChatOpen(true)}
+          title="Community chat"
+        >
+          <MessageCircle className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+        </ToolbarButton>
 
         <ToolbarButton
           label="Checklist"
@@ -367,15 +362,13 @@ export function LevelsChartSideToolbar({
           <ToolbarCircleLetter letter="L" />
         </ToolbarButton>
 
-        {showChatAndLearn ? (
-          <ToolbarButton
-            label="Learn"
-            onClick={goToLearn}
-            title="Guides and tutorials"
-          >
-            <GraduationCap className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-          </ToolbarButton>
-        ) : null}
+        <ToolbarButton
+          label="Learn"
+          onClick={goToLearn}
+          title="Guides and tutorials"
+        >
+          <GraduationCap className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+        </ToolbarButton>
 
         <ToolbarHoverLabel label="Share">
           <LevelsSymbolShareButton

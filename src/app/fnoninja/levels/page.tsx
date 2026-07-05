@@ -17,6 +17,8 @@ import {
 } from "@/components/levels/LevelsBubblesView";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
+import { LevelsChartDeepDiveLayout } from "@/components/levels/LevelsChartDeepDiveLayout";
+import { LevelsChartSideToolbar } from "@/components/levels/LevelsChartSideToolbar";
 import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
 import {
   LevelsOutlookViewToggle,
@@ -30,7 +32,6 @@ import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook
 import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-shortcut";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
-import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { SlideshowAutoPauseBanner } from "@/components/levels/SlideshowAutoPauseBanner";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
@@ -71,9 +72,6 @@ import {
   type ZoneBands,
 } from "@/lib/zones/zone-status";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
-import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
-import { AskFynn } from "@/components/fnoninja/AskFynn";
-import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
 import { LevelsMarketMapShareButton } from "@/components/levels/LevelsMarketMapShareButton";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
@@ -582,10 +580,8 @@ export default function LevelsPage() {
     isSlideView && Boolean(activeTv?.webChartUrl),
   );
 
-  /** Chart + news rail — stable for all native-candle slideshow symbols (not gated on levels load). */
-  const slideshowNativeLayout = Boolean(
-    isSlideView && activeTv?.nativeCandles && inZoneActive != null,
-  );
+  /** Deep-dive chart body — matches /levels/chart (toolbar + full-width chart, no news rail). */
+  const slideshowDeepDiveLayout = Boolean(isSlideView && inZoneActive != null);
 
   const activeTicker = inZoneActive?.symbol ?? null;
 
@@ -802,6 +798,59 @@ export default function LevelsPage() {
     [slideListFiltered, liveStripSpot],
   );
 
+  const slideshowChartPane =
+    activeTv != null ? (
+      showSlideshowHistory && inZoneActive ? (
+        <OiHistoryChart
+          className="flex-1 min-h-0 h-full w-full"
+          scope={inZoneActive.scope}
+          symbol={inZoneActive.symbol}
+          levels={chartLevelsForView}
+          webChartUrl={activeTv.webChartUrl}
+          showAttribution
+        />
+      ) : showSlideshowPvt && inZoneActive ? (
+        <PvtChart
+          className="flex-1 min-h-0 h-full w-full"
+          scope={inZoneActive.scope}
+          symbol={inZoneActive.symbol}
+          levels={chartLevelsForView}
+          webChartUrl={activeTv.dailyWebChartUrl}
+        />
+      ) : showSlideshowOutlook ? (
+        <NiftyOutlookChart
+          className="flex-1 min-h-0 h-full w-full"
+          levels={activeChartLevels}
+          spot={chartLevelsForView?.spot ?? activeChartLevels?.spot ?? null}
+          webChartUrl={activeTv.webChartUrl}
+          showAttribution
+        />
+      ) : (
+        <LevelsTradingViewChart
+          className="flex-1 min-h-0 h-full w-full"
+          config={activeTv}
+          ticker={activeTicker ?? activeTv.symbol}
+          companyName={activeCompanyName ?? undefined}
+          levels={chartLevelsForView}
+          loading={chartLevelsLoading}
+          hideChartShortcuts={isSlideView}
+          hideTvFooterHint={isSlideView}
+          defaultFullHistory={isSlideView}
+          showHeader={false}
+          nativeChartRef={nativeChartRef}
+          onFullHistoryZoomChange={setChartFullHistory}
+          onLastCloseChange={activeTv?.nativeCandles ? handleChartLastClose : undefined}
+        />
+      )
+    ) : (
+      <div
+        className="flex flex-1 items-center justify-center rounded-xl text-center px-4"
+        style={{ border: "1px solid rgba(255,255,255,0.06)", color: "#64748b" }}
+      >
+        <p className="text-xs">No aligned setups to chart</p>
+      </div>
+    );
+
   const tvChartColumn =
     activeTv != null ? (
       <div
@@ -827,50 +876,7 @@ export default function LevelsPage() {
         {isSlideView && slideshowExploreHold ? (
           <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
         ) : null}
-        {showSlideshowHistory && inZoneActive ? (
-          <OiHistoryChart
-            className="flex-1 min-h-0 h-full w-full"
-            scope={inZoneActive.scope}
-            symbol={inZoneActive.symbol}
-            levels={chartLevelsForView}
-            webChartUrl={activeTv.webChartUrl}
-            showAttribution
-          />
-        ) : showSlideshowPvt && inZoneActive ? (
-          <PvtChart
-            className="flex-1 min-h-0 h-full w-full"
-            scope={inZoneActive.scope}
-            symbol={inZoneActive.symbol}
-            levels={chartLevelsForView}
-            webChartUrl={activeTv.dailyWebChartUrl}
-          />
-        ) : showSlideshowOutlook ? (
-          <NiftyOutlookChart
-            className="flex-1 min-h-0 h-full w-full"
-            levels={activeChartLevels}
-            spot={chartLevelsForView?.spot ?? activeChartLevels?.spot ?? null}
-            webChartUrl={activeTv.webChartUrl}
-            showAttribution
-          />
-        ) : (
-          <LevelsTradingViewChart
-            className="flex-1 min-h-0 h-full w-full"
-            config={activeTv}
-            ticker={activeTicker ?? activeTv.symbol}
-            companyName={activeCompanyName ?? undefined}
-            levels={chartLevelsForView}
-            loading={chartLevelsLoading}
-            showSlideshowControl={slideshowEnabled}
-            slideshowPaused={slideshowTimerPaused}
-            onToggleSlideshowPause={handleSlideshowTransportClick}
-            hideChartShortcuts={isSlideView}
-            defaultFullHistory={isSlideView}
-            showHeader={!isSlideView}
-            nativeChartRef={nativeChartRef}
-            onFullHistoryZoomChange={setChartFullHistory}
-            onLastCloseChange={activeTv?.nativeCandles ? handleChartLastClose : undefined}
-          />
-        )}
+        {slideshowChartPane}
       </div>
     ) : (
       <div
@@ -880,21 +886,6 @@ export default function LevelsPage() {
         <p className="text-xs">No aligned setups to chart</p>
       </div>
     );
-
-  const slideshowNews =
-    inZoneActive != null && activeTicker ? (
-      <div
-        data-liveslide-tour="news"
-        data-favslide-tour="news"
-        className="h-full min-h-0 max-md:h-auto max-md:min-h-[min(44dvh,400px)]"
-      >
-        <LevelsNewsPanel
-          scope={inZoneActive.scope}
-          symbol={activeTicker}
-          className="h-full max-md:h-auto"
-        />
-      </div>
-    ) : null;
 
   const viewToggleLabel =
     viewMode === "bubbles" ? "View Liveslide" : "View Bubbles map";
@@ -923,41 +914,67 @@ export default function LevelsPage() {
             daysToEarnings={chartLevelsForView?.daysToEarnings}
           />
         }
-        headerTrailing={
-          isSlideView && inZoneActive && activeTicker ? (
-            <div className="flex flex-wrap items-center gap-1.5 justify-end">
-              {isFnoNinjaHost ? (
-                <>
-                  <LevelsSymbolShareButton
-                    scope={inZoneActive.scope}
-                    symbol={activeTicker}
-                    label={slideshowSubtitleLine ?? inZoneActive.label}
-                    levels={chartLevelsForView}
-                    expiryKey={expiryScope ? selectedExpiryKey : null}
-                    nativeChartRef={nativeChartRef}
-                    iconOnly
-                  />
-                  <AskFynn
-                    scope={inZoneActive.scope}
-                    symbol={activeTicker}
-                    label={slideshowSubtitleLine ?? inZoneActive.label}
-                    iconOnly
-                    onOpenChange={handleFynnDrawerOpenChange}
-                  />
-                  <FnoNinjaFavslideToggle
-                    scope={inZoneActive.scope}
-                    symbol={activeTicker}
-                    enabled
-                    iconOnly
-                    removeOnly={viewMode === "favslide"}
-                    api={favslideApi}
-                  />
-                </>
-              ) : null}
-            </div>
-          ) : undefined
-        }
+        symbolSearch={undefined}
       />
+    ) : null;
+
+  const slideshowDeepDiveBody =
+    slideshowDeepDiveLayout && inZoneActive && activeTicker ? (
+      <div
+        data-liveslide-tour="chart"
+        data-favslide-tour="chart"
+        className="flex flex-1 min-h-0 min-w-0 w-full flex-col max-md:touch-pan-y"
+      >
+        <LevelsChartDeepDiveLayout
+          chrome={slideshowChartChrome}
+          viewToggle={
+            <LevelsOutlookViewToggle
+              value={slideshowChartViewMode}
+              onChange={handleSlideshowChartViewChange}
+              trailing={
+                showChartExpiryPicker ? (
+                  <LevelsChartExpiryPicker
+                    options={expiryOptions}
+                    value={selectedExpiryKey}
+                    onChange={setSelectedExpiryKey}
+                  />
+                ) : undefined
+              }
+            />
+          }
+          banner={
+            slideshowExploreHold ? (
+              <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
+            ) : undefined
+          }
+          toolbar={
+            <LevelsChartSideToolbar
+              scope={inZoneActive.scope}
+              symbol={activeTicker}
+              label={slideshowSubtitleLine ?? inZoneActive.label}
+              levels={chartLevelsForView}
+              expiryKey={expiryScope ? selectedExpiryKey : null}
+              nativeChartRef={nativeChartRef}
+              favslideApi={favslideApi}
+              favslideRemoveOnly={viewMode === "favslide"}
+              onAtlasOpenChange={handleFynnDrawerOpenChange}
+            />
+          }
+          footer={
+            <div data-liveslide-tour="footer" data-favslide-tour="footer">
+              <LevelsChartMetaFooter
+                slideCount={inZoneCount}
+                activeIndex={inZoneCurrent}
+                onGoTo={setInZoneSlide}
+                slideshowAdvanceHint
+                slideshowPaused={slideshowTimerPaused}
+              />
+            </div>
+          }
+        >
+          {slideshowChartPane}
+        </LevelsChartDeepDiveLayout>
+      </div>
     ) : null;
 
   const slideshowSymbolStrip =
@@ -987,16 +1004,20 @@ export default function LevelsPage() {
         list={opts?.listAboveChart ? <></> : list}
         levels={levels}
         news={opts?.news}
-        hideLevelsColumn={opts?.hideLevelsColumn ?? slideshowNativeLayout}
+        hideLevelsColumn={opts?.hideLevelsColumn ?? slideshowDeepDiveLayout}
         listAboveChart={opts?.listAboveChart}
-        chartChrome={opts?.listAboveChart ? slideshowChartChrome : undefined}
+        chartChrome={opts?.listAboveChart && !slideshowDeepDiveLayout ? slideshowChartChrome : undefined}
         chart={
-          <div className="flex flex-col flex-1 min-h-0 min-w-0 w-full max-md:touch-pan-y">
-            <div className="flex flex-1 min-h-0 min-w-0 w-full flex-col">{tvChartColumn}</div>
-            {opts?.chartFooter ? (
-              <div className="shrink-0 min-w-0 max-md:pb-1">{opts.chartFooter}</div>
-            ) : null}
-          </div>
+          slideshowDeepDiveLayout && slideshowDeepDiveBody ? (
+            slideshowDeepDiveBody
+          ) : (
+            <div className="flex flex-col flex-1 min-h-0 min-w-0 w-full max-md:touch-pan-y">
+              <div className="flex flex-1 min-h-0 min-w-0 w-full flex-col">{tvChartColumn}</div>
+              {opts?.chartFooter ? (
+                <div className="shrink-0 min-w-0 max-md:pb-1">{opts.chartFooter}</div>
+              ) : null}
+            </div>
+          )
         }
       />
       <LevelsDisclaimer scheduleNote={scheduleNote} />
@@ -1065,7 +1086,7 @@ export default function LevelsPage() {
 
     const chartSpot = chartLevelsForView?.spot ?? inZoneActive?.spot ?? null;
     return wrapSlideshowBody(
-      slideshowNativeLayout ? (
+      slideshowDeepDiveLayout ? (
         <></>
       ) : (
         <LevelsSymbolList
@@ -1075,7 +1096,7 @@ export default function LevelsPage() {
           layout="responsive"
         />
       ),
-      slideshowNativeLayout ? (
+      slideshowDeepDiveLayout ? (
         <></>
       ) : inZoneActive ? (
         <LevelsChartPanel
@@ -1098,22 +1119,10 @@ export default function LevelsPage() {
           <p className="text-xs">No selection</p>
         </div>
       ),
-      slideshowNativeLayout
+      slideshowDeepDiveLayout
         ? {
             hideLevelsColumn: true,
-            news: slideshowNews,
             listAboveChart: true,
-            chartFooter: (
-              <div data-liveslide-tour="footer" data-favslide-tour="footer">
-                <LevelsChartMetaFooter
-                  slideCount={inZoneCount}
-                  activeIndex={inZoneCurrent}
-                  onGoTo={setInZoneSlide}
-                  slideshowAdvanceHint
-                  slideshowPaused={slideshowTimerPaused}
-                />
-              </div>
-            ),
           }
         : undefined,
     );

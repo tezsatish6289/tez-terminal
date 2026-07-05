@@ -18,6 +18,7 @@ import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import type { FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import {
   Sheet,
   SheetContent,
@@ -67,12 +68,14 @@ function ToolbarButton({
   onClick,
   children,
   title,
+  dataAttrs,
 }: {
   label: string;
   active?: boolean;
   onClick?: () => void;
   children: ReactNode;
   title?: string;
+  dataAttrs?: Record<string, string>;
 }) {
   return (
     <ToolbarHoverLabel label={label}>
@@ -87,6 +90,7 @@ function ToolbarButton({
         style={{
           color: active ? FNO_ACCENT : "#94a3b8",
         }}
+        {...dataAttrs}
       >
         {children}
       </button>
@@ -144,6 +148,9 @@ export function LevelsChartSideToolbar({
   levels,
   expiryKey,
   nativeChartRef,
+  favslideApi,
+  favslideRemoveOnly = false,
+  onAtlasOpenChange,
   className = "",
 }: {
   scope: LevelsTvScope;
@@ -152,6 +159,9 @@ export function LevelsChartSideToolbar({
   levels?: PublicLevels | null;
   expiryKey?: string | null;
   nativeChartRef?: React.RefObject<NativeCandlesChartHandle | null>;
+  favslideApi?: FnoNinjaFavslideApi;
+  favslideRemoveOnly?: boolean;
+  onAtlasOpenChange?: (open: boolean) => void;
   className?: string;
 }) {
   const router = useRouter();
@@ -187,10 +197,19 @@ export function LevelsChartSideToolbar({
     void loadNewsSentiment();
   }, [loadNewsSentiment]);
 
+  const handleAtlasOpenChange = useCallback(
+    (open: boolean) => {
+      setAtlasOpen(open);
+      onAtlasOpenChange?.(open);
+    },
+    [onAtlasOpenChange],
+  );
+
   useEffect(() => {
     setNewsOpen(false);
     setAtlasOpen(false);
-  }, [scope, symbol]);
+    onAtlasOpenChange?.(false);
+  }, [scope, symbol, onAtlasOpenChange]);
 
   const goToBubbles = useCallback(() => {
     const path = levelsBubblesPagePathForHost(
@@ -234,6 +253,10 @@ export function LevelsChartSideToolbar({
           active={newsOpen}
           onClick={() => setNewsOpen(true)}
           title="Recent news and sentiment"
+          dataAttrs={{
+            "data-liveslide-tour": "news",
+            "data-favslide-tour": "news",
+          }}
         >
           {newsLoading ? (
             <Loader2 className="h-[18px] w-[18px] animate-spin shrink-0" strokeWidth={1.75} />
@@ -272,7 +295,16 @@ export function LevelsChartSideToolbar({
         <div className="my-0.5 h-px w-9 shrink-0 bg-white/[0.08]" aria-hidden />
 
         <ToolbarHoverLabel label="Favorite">
-          <FnoNinjaFavslideToggle scope={scope} symbol={symbol} enabled variant="toolbar" />
+          <div data-favslide-tour="remove">
+            <FnoNinjaFavslideToggle
+              scope={scope}
+              symbol={symbol}
+              enabled
+              variant="toolbar"
+              removeOnly={favslideRemoveOnly}
+              api={favslideApi}
+            />
+          </div>
         </ToolbarHoverLabel>
 
         <ToolbarButton
@@ -342,7 +374,7 @@ export function LevelsChartSideToolbar({
         label={label ?? undefined}
         hideTrigger
         open={atlasOpen}
-        onOpenChange={setAtlasOpen}
+        onOpenChange={handleAtlasOpenChange}
       />
     </>
   );

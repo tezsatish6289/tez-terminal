@@ -13,6 +13,7 @@ import { isSlideshowZoneStale, SLIDESHOW_ZONE_TICK_MS } from "@/lib/levels/slide
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
+import { LevelsChartDeepDiveLayout } from "@/components/levels/LevelsChartDeepDiveLayout";
 import { LevelsChartSideToolbar } from "@/components/levels/LevelsChartSideToolbar";
 import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
 import {
@@ -194,47 +195,50 @@ function ChartContent() {
     <main className={`${FNO_LEVELS_MAIN} min-w-0`} style={FNO_APP_SURFACE_STYLE}>
       <div className={`${FNO_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
         <div className={`${CHART_PAGE_SHELL} py-2 sm:py-2.5 overflow-hidden min-w-0`}>
-        <LevelsChartChrome
-          symbol={symbol}
-          subtitle={subtitleLine}
-          config={config}
-          nativeChartRef={nativeChartRef}
-          chartFullHistory={chartFullHistory}
-          hideToolbar
-          highConfidence={scope === "index" || isHighConfidenceLevels(levels)}
-          badge={
-            <VolRegimeBadge
-              flag={levels?.volRegime}
-              reason={levels?.volRegimeReason}
-              atmIV={levels?.atmIV}
-              daysToEarnings={levels?.daysToEarnings}
-            />
-          }
-          symbolSearch={undefined}
-        />
-
         {error ? (
           <p className="text-xs text-center shrink-0 mt-1" style={{ color: "#f87171" }}>
             {error}
           </p>
         ) : null}
 
-        <div className="mt-1.5 sm:mt-2 flex flex-col flex-1 min-h-0 min-w-0">
-          <LevelsOutlookViewToggle
-            value={viewMode}
-            onChange={setViewMode}
-            trailing={
-              showChartExpiryPicker ? (
-                <LevelsChartExpiryPicker
-                  options={expiryOptions}
-                  value={selectedExpiryKey}
-                  onChange={setSelectedExpiryKey}
+        <LevelsChartDeepDiveLayout
+          chrome={
+            <LevelsChartChrome
+              symbol={symbol}
+              subtitle={subtitleLine}
+              config={config}
+              nativeChartRef={nativeChartRef}
+              chartFullHistory={chartFullHistory}
+              hideToolbar
+              highConfidence={scope === "index" || isHighConfidenceLevels(levels)}
+              badge={
+                <VolRegimeBadge
+                  flag={levels?.volRegime}
+                  reason={levels?.volRegimeReason}
+                  atmIV={levels?.atmIV}
+                  daysToEarnings={levels?.daysToEarnings}
                 />
-              ) : undefined
-            }
-          />
-          <div className="flex flex-1 min-h-0 min-w-0 mt-1">
-            {scope ? (
+              }
+              symbolSearch={undefined}
+            />
+          }
+          viewToggle={
+            <LevelsOutlookViewToggle
+              value={viewMode}
+              onChange={setViewMode}
+              trailing={
+                showChartExpiryPicker ? (
+                  <LevelsChartExpiryPicker
+                    options={expiryOptions}
+                    value={selectedExpiryKey}
+                    onChange={setSelectedExpiryKey}
+                  />
+                ) : undefined
+              }
+            />
+          }
+          toolbar={
+            scope ? (
               <LevelsChartSideToolbar
                 scope={scope}
                 symbol={symbol}
@@ -243,51 +247,52 @@ function ChartContent() {
                 expiryKey={selectedExpiryKey}
                 nativeChartRef={nativeChartRef}
               />
-            ) : null}
-            <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
-              {showHistory && scope ? (
-                <OiHistoryChart
-                  className="flex-1 min-h-0 h-full w-full"
-                  scope={scope}
-                  symbol={symbol}
-                  levels={chartLevels}
-                  webChartUrl={config.webChartUrl}
-                  showAttribution
-                />
-              ) : showPvt && scope ? (
-                <PvtChart
-                  className="flex-1 min-h-0 h-full w-full"
-                  scope={scope}
-                  symbol={symbol}
-                  levels={chartLevels}
-                  webChartUrl={config.dailyWebChartUrl}
-                />
-              ) : showOutlook ? (
-                <NiftyOutlookChart
-                  className="flex-1 min-h-0 h-full w-full"
-                  levels={levels}
-                  spot={levels?.spot ?? null}
-                  webChartUrl={config.webChartUrl}
-                  showAttribution
-                />
-              ) : (
-                <LevelsTradingViewChart
-                  className="flex-1 min-h-0 h-full"
-                  config={config}
-                  ticker={symbol}
-                  levels={chartLevels}
-                  loading={loading}
-                  hideChartShortcuts
-                  hideTvFooterHint
-                  defaultFullHistory
-                  showHeader={false}
-                  nativeChartRef={nativeChartRef}
-                  onFullHistoryZoomChange={setChartFullHistory}
-                />
-              )}
-            </div>
-          </div>
-        </div>
+            ) : (
+              <></>
+            )
+          }
+        >
+          {showHistory && scope ? (
+            <OiHistoryChart
+              className="flex-1 min-h-0 h-full w-full"
+              scope={scope}
+              symbol={symbol}
+              levels={chartLevels}
+              webChartUrl={config.webChartUrl}
+              showAttribution
+            />
+          ) : showPvt && scope ? (
+            <PvtChart
+              className="flex-1 min-h-0 h-full w-full"
+              scope={scope}
+              symbol={symbol}
+              levels={chartLevels}
+              webChartUrl={config.dailyWebChartUrl}
+            />
+          ) : showOutlook ? (
+            <NiftyOutlookChart
+              className="flex-1 min-h-0 h-full w-full"
+              levels={levels}
+              spot={levels?.spot ?? null}
+              webChartUrl={config.webChartUrl}
+              showAttribution
+            />
+          ) : (
+            <LevelsTradingViewChart
+              className="flex-1 min-h-0 h-full"
+              config={config}
+              ticker={symbol}
+              levels={chartLevels}
+              loading={loading}
+              hideChartShortcuts
+              hideTvFooterHint
+              defaultFullHistory
+              showHeader={false}
+              nativeChartRef={nativeChartRef}
+              onFullHistoryZoomChange={setChartFullHistory}
+            />
+          )}
+        </LevelsChartDeepDiveLayout>
         </div>
       </div>
     </main>

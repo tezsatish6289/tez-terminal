@@ -68,7 +68,7 @@ export const FAVSLIDE_WALKTHROUGH_TOUR_STEPS: FavslideWalkthroughTourStep[] = [
     id: "remove",
     selector: '[data-favslide-tour="remove"]',
     title: "Remove from favslide",
-    body: "Done monitoring a symbol? Tap Remove from favslide on the chart header to drop it from your list.",
+    body: "Done monitoring a symbol? Tap Remove from favslide in the left toolbar to drop it from your list.",
     placement: "bottom",
   },
   {
@@ -82,7 +82,7 @@ export const FAVSLIDE_WALKTHROUGH_TOUR_STEPS: FavslideWalkthroughTourStep[] = [
     id: "news",
     selector: '[data-favslide-tour="news"]',
     title: "Recent news",
-    body: "Each slide includes an AI summary of recent headlines — read alongside the chart for your own interpretation.",
+    body: "Open Recent news from the left toolbar for an AI summary of recent headlines — read alongside the chart for your own interpretation.",
     placement: "left",
   },
   {

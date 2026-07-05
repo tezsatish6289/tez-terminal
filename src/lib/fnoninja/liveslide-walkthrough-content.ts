@@ -79,7 +79,7 @@ export const LIVESLIDE_WALKTHROUGH_TOUR_STEPS: LiveslideWalkthroughTourStep[] = 
     id: "news",
     selector: '[data-liveslide-tour="news"]',
     title: "Recent news",
-    body: "Each slide includes an AI summary of recent headlines with sentiment and citations — context to read alongside the chart, not a trade signal from us.",
+    body: "Open Recent news from the left toolbar for an AI summary of headlines with sentiment and citations — context to read alongside the chart, not a trade signal from us.",
     placement: "left",
   },
   {

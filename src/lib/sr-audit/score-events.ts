@@ -3,7 +3,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { getIndexCandles, getStockCandles } from "@/lib/dhan-candles";
 import { fetchDailyPvtPoints, PVT_ENTRY_WINDOW_SESSIONS } from "@/lib/levels/pvt-signal";
-import { pvtSlopeSince } from "@/lib/levels/pvt";
+import { pvtSlopeSince, pvtValueAt } from "@/lib/levels/pvt";
 import { snapshotEventCandles } from "@/lib/sr-audit/candle-snapshot";
 import {
   SR_AUDIT_META_DOC,
@@ -103,24 +103,28 @@ export async function scoreOpenSrZoneEvents(
       const scope = event.scope === "index" ? "index" : "stock";
 
       // ── Event-anchored PVT (daily candles, fetched once per event) ──────────
-      // entry = frozen leading read (set-once), current = entry→now (refreshed
-      // while open, cleared on resolve), exit = entry→resolvedAt (set at close).
+      // Real chart PVT levels: entryPvt (dip day) + currentPvt (now, refreshed
+      // while open, cleared on resolve) / exitPvt (resolution day, set at close).
+      // Plus the normalized entryPvtSlope (set-once) that feeds the setup score.
       const pvtPoints = await fetchDailyPvtPoints(scope, symbol);
       const entrySec = Math.floor(Date.parse(event.eventAt) / 1000);
-      const pvtSlopeAt = (opts?: { maxSessions?: number; untilTimeSec?: number }) =>
-        pvtPoints ? pvtSlopeSince(pvtPoints, entrySec, opts) : null;
       const pvtOpenPatch: Record<string, number | null> = {};
-      if (event.entryPvtSlope == null) {
-        const v = pvtSlopeAt({ maxSessions: PVT_ENTRY_WINDOW_SESSIONS });
-        if (v != null) pvtOpenPatch.entryPvtSlope = v;
+      if (pvtPoints) {
+        if (event.entryPvtSlope == null) {
+          const slope = pvtSlopeSince(pvtPoints, entrySec, { maxSessions: PVT_ENTRY_WINDOW_SESSIONS });
+          if (slope != null) pvtOpenPatch.entryPvtSlope = slope;
+        }
+        const entryPvt = pvtValueAt(pvtPoints, entrySec);
+        if (entryPvt != null) pvtOpenPatch.entryPvt = entryPvt;
+        const currentPvt = pvtPoints[pvtPoints.length - 1]?.value ?? null;
+        if (currentPvt != null) pvtOpenPatch.currentPvt = currentPvt;
       }
-      const currentPvtSlope = pvtSlopeAt();
-      if (currentPvtSlope != null) pvtOpenPatch.currentPvtSlope = currentPvtSlope;
       const resolvePvtPatch = (resolvedAtIso: string): Record<string, number | null> => {
-        const out: Record<string, number | null> = { currentPvtSlope: null };
-        const exitSec = Math.floor(Date.parse(resolvedAtIso) / 1000);
-        const exit = pvtSlopeAt({ untilTimeSec: exitSec });
-        if (exit != null) out.exitPvtSlope = exit;
+        const out: Record<string, number | null> = { currentPvt: null };
+        if (pvtPoints) {
+          const exitPvt = pvtValueAt(pvtPoints, Math.floor(Date.parse(resolvedAtIso) / 1000));
+          if (exitPvt != null) out.exitPvt = exitPvt;
+        }
         return out;
       };
 

@@ -50,19 +50,23 @@ export interface SrZoneEvent {
   /** Reward:risk on the active side at entry (cluster strike → max pain vs invalidation). */
   entryRr?: number | null;
   /**
-   * Event-anchored PVT confirmation (+1 accumulation … −1 distribution). All are
-   * normalized entry-anchored efficiency ratios (see pvtSlopeSince):
-   *   • entryPvtSlope   — entry → first few sessions (frozen, look-ahead-free);
-   *     feeds the setup-score calibration. All states.
-   *   • currentPvtSlope — entry → now; the live to-date read. Open events only
-   *     (cleared on resolve).
-   *   • exitPvtSlope    — entry → resolvedAt; the full realized confirmation.
-   *     Set once at resolution. Win/loss only.
-   * null when the daily-candle window is unavailable or too few sessions elapsed.
+   * Normalized entry-anchored PVT confirmation over the first few sessions after
+   * the dip (+1 accumulation … −1 distribution). Feeds the setup-score
+   * calibration only (the engine needs a −1…1 signal); not shown in the table.
    */
   entryPvtSlope?: number | null;
-  currentPvtSlope?: number | null;
-  exitPvtSlope?: number | null;
+  /**
+   * Real cumulative PVT indicator values (the levels the trend chart plots, over
+   * the ~6-month daily window). Read the move from the pair:
+   *   • entryPvt   — on the dip day. All states.
+   *   • currentPvt — latest bar (entry → now). Open events only (cleared on resolve).
+   *   • exitPvt    — on the resolution day. Set once at resolution. Win/loss only.
+   * The absolute level is window-relative, but rising vs the dip = bullish
+   * confirmation, falling = bearish. null when the daily-candle window is gone.
+   */
+  entryPvt?: number | null;
+  currentPvt?: number | null;
+  exitPvt?: number | null;
   levelsSource: PublicLevelsSource | null;
   statusAtEntry: "IN_BULL" | "IN_BEAR";
   state: SrEventState;

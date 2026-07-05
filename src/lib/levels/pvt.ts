@@ -113,6 +113,23 @@ export function pvtSlopeSince(
   return efficiency(slice);
 }
 
+/**
+ * Raw cumulative PVT value at the bar at/just before `atTimeSec` (epoch-seconds).
+ * This is the actual indicator level the trend chart plots — cumulative from the
+ * start of the fetched series. null when the series is empty or the time predates
+ * every bar. Use two of these (dip vs now/exit) to read the real move: the value
+ * itself is window-relative, but the *difference* between two anchors is not.
+ */
+export function pvtValueAt(points: PvtPoint[], atTimeSec: number): number | null {
+  if (points.length === 0 || !Number.isFinite(atTimeSec)) return null;
+  let idx = -1;
+  for (let i = 0; i < points.length; i++) {
+    if (points[i]!.time <= atTimeSec) idx = i;
+    else break;
+  }
+  return idx < 0 ? null : points[idx]!.value;
+}
+
 /** Signed efficiency ratio (net drift ÷ total absolute movement) of a PVT slice. */
 function efficiency(slice: PvtPoint[]): number | null {
   const net = slice[slice.length - 1]!.value - slice[0]!.value;

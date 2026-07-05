@@ -77,45 +77,54 @@ function scoreColor(v: number): string {
   return "#fca5a5";
 }
 
-/** Green = volume accumulating (+), red = distributing (−), grey = flat / n-a. */
-function pvtColor(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "#64748b";
-  if (v > 0.15) return "#86efac";
-  if (v < -0.15) return "#fca5a5";
-  return "#cbd5e1";
-}
-
-function pvtVal(v: number | null | undefined): string {
+/** Compact PVT level, matching the trend chart's M/K formatting. */
+function fmtPvtLevel(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  return (v > 0 ? "+" : "") + v.toFixed(2);
+  const abs = Math.abs(v);
+  const sign = v < 0 ? "−" : "";
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}${abs.toFixed(0)}`;
 }
 
-/** One labelled PVT slope (e.g. "entry +0.62"). */
-function PvtChip({ label, value }: { label: string; value: number | null | undefined }) {
+/** One labelled PVT level (e.g. "entry 1.2M"), optionally coloured by direction. */
+function PvtChip({
+  label,
+  value,
+  color = "#cbd5e1",
+}: {
+  label: string;
+  value: number | null | undefined;
+  color?: string;
+}) {
   return (
     <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
       <span className="text-[9px] uppercase text-slate-500">{label}</span>
-      <span className="font-mono tabular-nums text-[11px] font-bold" style={{ color: pvtColor(value) }}>
-        {pvtVal(value)}
+      <span className="font-mono tabular-nums text-[11px] font-bold" style={{ color }}>
+        {fmtPvtLevel(value)}
       </span>
     </span>
   );
 }
 
 /**
- * PVT lifecycle cell: entry (frozen leading read) plus the state's second anchor
- * — current (entry→now) while open, exit (entry→resolvedAt) once resolved.
+ * PVT lifecycle cell showing the real chart PVT levels: the dip-day value plus
+ * the state's second anchor — now (open) or exit (resolved). The second value is
+ * coloured green when PVT rose since the dip (accumulation → bullish) and red
+ * when it fell (distribution → bearish).
  */
 function PvtCell({ row, outcome }: { row: SrZoneEvent; outcome: string }) {
   const resolved = outcome === "win" || outcome === "loss";
+  const second = resolved ? row.exitPvt : row.currentPvt;
+  const entry = row.entryPvt;
+  let color = "#cbd5e1";
+  if (entry != null && second != null && Number.isFinite(entry) && Number.isFinite(second)) {
+    color = second > entry ? "#86efac" : second < entry ? "#fca5a5" : "#cbd5e1";
+  }
   return (
     <div className="flex flex-col gap-0.5">
-      <PvtChip label="entry" value={row.entryPvtSlope} />
-      {resolved ? (
-        <PvtChip label="exit" value={row.exitPvtSlope} />
-      ) : (
-        <PvtChip label="now" value={row.currentPvtSlope} />
-      )}
+      <PvtChip label="entry" value={entry} />
+      <PvtChip label={resolved ? "exit" : "now"} value={second} color={color} />
     </div>
   );
 }

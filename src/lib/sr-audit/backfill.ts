@@ -9,7 +9,7 @@ import {
 } from "@/lib/sr-audit/constants";
 import { analyzeCandlesForEvent } from "@/lib/sr-audit/score-logic";
 import { fetchDailyPvtPoints, PVT_ENTRY_WINDOW_SESSIONS } from "@/lib/levels/pvt-signal";
-import { pvtSlopeSince } from "@/lib/levels/pvt";
+import { pvtSlopeSince, pvtValueAt } from "@/lib/levels/pvt";
 import type { SrZoneEvent } from "@/lib/sr-audit/types";
 import { SR_ZONE_EVENT_CANDLES_COLLECTION } from "@/lib/sr-audit/constants";
 import { deriveZoneStatus } from "@/lib/zones/zone-status";
@@ -107,8 +107,9 @@ export async function backfillSrZoneEvents(
 
       // Event-anchored PVT (daily candles, ~6mo window). Set independently of the
       // intraday MFE/MAE analysis below so it lights up even for events whose
-      // 30-day intraday window has aged out of Dhan. entry = frozen leading read
-      // (all states); current = entry→now (open); exit = entry→resolvedAt (closed).
+      // 30-day intraday window has aged out of Dhan. Stores the real chart PVT
+      // levels (entryPvt + currentPvt/exitPvt) plus the normalized entryPvtSlope
+      // for the score. Resolved rows are frozen (set-once); open rows refresh.
       const pvtPoints = await fetchDailyPvtPoints(scope, symbol);
       if (pvtPoints) {
         const entrySec = Math.floor(Date.parse(event.eventAt) / 1000);
@@ -117,14 +118,15 @@ export async function backfillSrZoneEvents(
           maxSessions: PVT_ENTRY_WINDOW_SESSIONS,
         });
         if (entryPvtSlope != null) pvtPatch.entryPvtSlope = entryPvtSlope;
+        const entryPvt = pvtValueAt(pvtPoints, entrySec);
+        if (entryPvt != null) pvtPatch.entryPvt = entryPvt;
         if (event.state === "open") {
-          const currentPvtSlope = pvtSlopeSince(pvtPoints, entrySec);
-          if (currentPvtSlope != null) pvtPatch.currentPvtSlope = currentPvtSlope;
-        } else if (event.resolvedAt) {
-          const exitSec = Math.floor(Date.parse(event.resolvedAt) / 1000);
-          const exitPvtSlope = pvtSlopeSince(pvtPoints, entrySec, { untilTimeSec: exitSec });
-          if (exitPvtSlope != null) pvtPatch.exitPvtSlope = exitPvtSlope;
-          pvtPatch.currentPvtSlope = null; // resolved rows carry no live read
+          const currentPvt = pvtPoints[pvtPoints.length - 1]?.value ?? null;
+          if (currentPvt != null) pvtPatch.currentPvt = currentPvt;
+        } else if (event.resolvedAt && event.exitPvt == null) {
+          const exitPvt = pvtValueAt(pvtPoints, Math.floor(Date.parse(event.resolvedAt) / 1000));
+          if (exitPvt != null) pvtPatch.exitPvt = exitPvt;
+          pvtPatch.currentPvt = null; // resolved rows carry no live read
         }
         if (Object.keys(pvtPatch).length > 0) {
           await docSnap.ref.set({ ...pvtPatch, updatedAt: now }, { merge: true });

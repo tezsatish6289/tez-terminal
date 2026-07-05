@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { computePvt, pvtSlopeSignal, pvtSlopeSince } from "../../src/lib/levels/pvt";
+import { computePvt, pvtSlopeSignal, pvtSlopeSince, pvtValueAt } from "../../src/lib/levels/pvt";
 
 // Starts at zero on the first bar.
 {
@@ -198,4 +198,20 @@ import { computePvt, pvtSlopeSignal, pvtSlopeSince } from "../../src/lib/levels/
   ];
   // exit at 350 → end bar is t=300 (value 80): entry→exit monotonic → +1.
   assert.equal(pvtSlopeSince(pts, 100, { untilTimeSec: 350 }), 1);
+}
+
+// ── pvtValueAt (real chart level) ──────────────────────────────────────────
+{
+  const pts = [
+    { time: 100, value: 0 },
+    { time: 200, value: 1200 },
+    { time: 300, value: 900 },
+  ];
+  assert.equal(pvtValueAt(pts, 200), 1200); // exact bar
+  assert.equal(pvtValueAt(pts, 250), 1200); // snaps to bar at/just before
+  assert.equal(pvtValueAt(pts, 300), 900);
+  assert.equal(pvtValueAt(pts, 999), 900); // "now" → last bar
+  assert.equal(pvtValueAt(pts, 50), null); // predates all bars
+  assert.equal(pvtValueAt([], 100), null);
+  assert.equal(pvtValueAt(pts, Number.NaN), null);
 }

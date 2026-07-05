@@ -10,7 +10,6 @@ import {
   MessageCircle,
   Newspaper,
   Sparkles,
-  Star,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
@@ -287,7 +286,11 @@ export function LevelsChartSideToolbar({
           onClick={goToFavslide}
           title="Cycle your favourited stocks"
         >
-          <Star className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} style={{ color: FNO_FAVSLIDE_ACCENT }} />
+          <GalleryHorizontal
+            className="h-[18px] w-[18px] shrink-0"
+            strokeWidth={1.75}
+            style={{ color: FNO_FAVSLIDE_ACCENT }}
+          />
         </ToolbarButton>
 
         <ToolbarButton

@@ -4,14 +4,24 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { ZonePriceLadder, formatHeroPrice, type PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { LEVELS_SYMBOL_STRIP_SCROLL_CLASS } from "@/components/levels/levels-symbol-strip";
-import { FNO_BG_CANVAS, FNO_FAVSLIDE_ACCENT } from "@/lib/fnoninja/theme";
+import { SlideshowChipTimer } from "@/components/levels/SlideshowChipTimer";
+import { FNO_BG_CANVAS, FNO_FAVSLIDE_ACCENT, FNO_LIVESLIDE_ACCENT } from "@/lib/fnoninja/theme";
 import { LevelsChartNewsSplit } from "@/components/levels/LevelsChartNewsSplit";
 
 export type LevelsStripAccent = "liveslide" | "favslide";
 
 const STRIP_ACCENT_STYLE: Record<
   LevelsStripAccent,
-  { bg: string; border: string; borderPulse: string; glow: string; glowSoft: string; sublabel: string; sublabelBg: string }
+  {
+    bg: string;
+    border: string;
+    borderPulse: string;
+    glow: string;
+    glowSoft: string;
+    sublabel: string;
+    sublabelBg: string;
+    timer: string;
+  }
 > = {
   liveslide: {
     bg: "rgba(37,99,235,0.18)",
@@ -21,6 +31,7 @@ const STRIP_ACCENT_STYLE: Record<
     glowSoft: "0 0 10px rgba(59,130,246,0.15)",
     sublabel: "#93c5fd",
     sublabelBg: "rgba(59,130,246,0.1)",
+    timer: FNO_LIVESLIDE_ACCENT,
   },
   favslide: {
     bg: "rgba(251,191,36,0.14)",
@@ -30,6 +41,7 @@ const STRIP_ACCENT_STYLE: Record<
     glowSoft: "0 0 10px rgba(251,191,36,0.14)",
     sublabel: FNO_FAVSLIDE_ACCENT,
     sublabelBg: "rgba(251,191,36,0.12)",
+    timer: FNO_FAVSLIDE_ACCENT,
   },
 };
 
@@ -93,6 +105,7 @@ export function LevelsSymbolList({
   layout = "vertical",
   runnerMode = false,
   stripAccent = "liveslide",
+  slideshowTimer,
 }: {
   countLabel?: string;
   header?: ReactNode;
@@ -106,8 +119,29 @@ export function LevelsSymbolList({
   runnerMode?: boolean;
   /** Active tile ring color in horizontal runner strip. */
   stripAccent?: LevelsStripAccent;
+  /** Active chip: embed pause/countdown instead of a separate rail control. */
+  slideshowTimer?: {
+    enabled: boolean;
+    paused: boolean;
+    secondsRemaining: number;
+    pauseReason?: string | null;
+    canResume?: boolean;
+    onToggle: () => void;
+  };
 }) {
   const accent = STRIP_ACCENT_STYLE[stripAccent];
+
+  const renderChipTimer = (active: boolean) =>
+    active && slideshowTimer?.enabled ? (
+      <SlideshowChipTimer
+        paused={slideshowTimer.paused}
+        secondsRemaining={slideshowTimer.secondsRemaining}
+        pauseReason={slideshowTimer.pauseReason}
+        canResume={slideshowTimer.canResume}
+        accentColor={accent.timer}
+        onToggle={slideshowTimer.onToggle}
+      />
+    ) : null;
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevActiveRef = useRef(activeIndex);
   const [runnerPulse, setRunnerPulse] = useState(false);
@@ -187,7 +221,7 @@ export function LevelsSymbolList({
                   >
                     {entry.label}
                   </span>
-                  {(entry.spot != null && entry.currency) || entry.trailing ? (
+                  {(entry.spot != null && entry.currency) || entry.trailing || renderChipTimer(active) ? (
                     <div className="flex items-center justify-between gap-1 min-w-0">
                       {entry.spot != null && entry.currency ? (
                         <span
@@ -199,15 +233,18 @@ export function LevelsSymbolList({
                       ) : (
                         <span className="min-w-0 flex-1" />
                       )}
-                      {entry.trailing ? (
-                        <span className="shrink-0 scale-[0.88] origin-right">{entry.trailing}</span>
-                      ) : null}
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {entry.trailing ? (
+                          <span className="scale-[0.88] origin-right">{entry.trailing}</span>
+                        ) : null}
+                        {renderChipTimer(active)}
+                      </div>
                     </div>
                   ) : null}
                 </div>
                 <div className="hidden md:flex flex-col gap-1 w-full min-w-0">
-                  {(entry.sublabel || entry.trailing) && (
-                    <div className="flex items-center justify-between gap-2 w-full">
+                  {(entry.sublabel || entry.trailing || renderChipTimer(active)) && (
+                    <div className="flex items-center justify-between gap-1 w-full min-w-0">
                       {entry.sublabel ? (
                         <span
                           className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
@@ -218,7 +255,10 @@ export function LevelsSymbolList({
                       ) : (
                         <span />
                       )}
-                      {entry.trailing}
+                      <div className="flex items-center gap-0.5 shrink-0 min-w-0">
+                        {entry.trailing}
+                        {renderChipTimer(active)}
+                      </div>
                     </div>
                   )}
                   <span className="text-[13px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>
@@ -257,8 +297,8 @@ export function LevelsSymbolList({
                 boxShadow: pulse ? accent.glow : active ? accent.glowSoft : undefined,
               }}
             >
-              {(entry.sublabel || entry.trailing) && (
-                <div className="flex items-center justify-between gap-2 w-full min-w-0">
+              {(entry.sublabel || entry.trailing || renderChipTimer(active)) && (
+                <div className="flex items-center justify-between gap-1 w-full min-w-0">
                   {entry.sublabel ? (
                     <span
                       className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
@@ -269,7 +309,10 @@ export function LevelsSymbolList({
                   ) : (
                     <span />
                   )}
-                  {entry.trailing}
+                  <div className="flex items-center gap-0.5 shrink-0 min-w-0">
+                    {entry.trailing}
+                    {renderChipTimer(active)}
+                  </div>
                 </div>
               )}
               <span className="text-[12px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>

@@ -519,6 +519,19 @@ export default function LevelsPage() {
     toggleSlideshowPause();
   }, [inZoneCount, slideshowExploreHold, toggleSlideshowPause]);
 
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      if (el?.tagName === "INPUT" || el?.tagName === "TEXTAREA" || el?.isContentEditable) return;
+      if (e.key !== "p" && e.key !== "P") return;
+      if (!showSlideshowStripTransport || inZoneCount <= 1) return;
+      e.preventDefault();
+      handleSlideshowTransportClick();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showSlideshowStripTransport, inZoneCount, handleSlideshowTransportClick]);
+
   const handleSlideshowChartViewChange = useCallback((mode: ChartPanelViewMode) => {
     setSlideshowChartViewMode(mode);
   }, []);
@@ -925,6 +938,18 @@ export default function LevelsPage() {
 
   const slideshowStripAccent = viewMode === "favslide" ? "favslide" : "liveslide";
 
+  const slideshowChipTimer =
+    showSlideshowStripTransport && inZoneCount > 0
+      ? {
+          enabled: true,
+          paused: inZoneCount <= 1 || slideshowTimerPaused,
+          onToggle: inZoneCount > 1 ? handleSlideshowTransportClick : () => {},
+          secondsRemaining: slideshowCountdown,
+          pauseReason: slideshowExploreHold,
+          canResume: slideshowExploreHold !== "Atlas",
+        }
+      : undefined;
+
   const slideshowStripControlProps = {
     zoneFilter: "all" as const,
     onZoneFilterChange: () => {},
@@ -947,16 +972,6 @@ export default function LevelsPage() {
             counts: slideshowFilterCounts,
           }
         : undefined,
-    slideshowControl: showSlideshowStripTransport
-      ? {
-          enabled: true,
-          paused: inZoneCount <= 1 || slideshowTimerPaused,
-          onToggle: inZoneCount > 1 ? handleSlideshowTransportClick : () => {},
-          secondsRemaining: slideshowCountdown,
-          pauseReason: slideshowExploreHold,
-          canResume: slideshowExploreHold !== "Atlas",
-        }
-      : undefined,
     slideModePill:
       isSlideView
         ? {
@@ -1013,6 +1028,7 @@ export default function LevelsPage() {
             layout="horizontal"
             runnerMode
             stripAccent={slideshowStripAccent}
+            slideshowTimer={slideshowChipTimer}
           />
         }
       />
@@ -1037,6 +1053,7 @@ export default function LevelsPage() {
             layout="vertical"
             runnerMode
             stripAccent={slideshowStripAccent}
+            slideshowTimer={slideshowChipTimer}
           />
         }
       />
@@ -1115,6 +1132,7 @@ export default function LevelsPage() {
         layout="horizontal"
         runnerMode
         stripAccent={slideshowStripAccent}
+        slideshowTimer={slideshowChipTimer}
       />
     ) : null;
 
@@ -1223,6 +1241,7 @@ export default function LevelsPage() {
           activeIndex={inZoneCurrent}
           onSelect={setInZoneSlide}
           layout="responsive"
+          slideshowTimer={slideshowChipTimer}
         />
       ),
       slideshowDeepDiveLayout ? (
@@ -1289,19 +1308,7 @@ export default function LevelsPage() {
           </div>
         ) : undefined
       }
-      slideshowControl={
-        showSlideshowStripTransport
-          ? {
-              enabled: true,
-              paused: inZoneCount <= 1 || slideshowTimerPaused,
-              onToggle:
-                inZoneCount > 1 ? handleSlideshowTransportClick : () => {},
-              secondsRemaining: slideshowCountdown,
-              pauseReason: slideshowExploreHold,
-              canResume: slideshowExploreHold !== "Atlas",
-            }
-          : undefined
-      }
+      slideshowControl={undefined}
       slideModePill={
         isSlideView
           ? {

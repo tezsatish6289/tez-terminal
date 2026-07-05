@@ -47,6 +47,7 @@ export function FnoNinjaFavslideToggle({
   };
 
   const toolbar = variant === "toolbar";
+  const toolbarFavoritedStar = "#64748b";
 
   return (
     <button
@@ -91,13 +92,31 @@ export function FnoNinjaFavslideToggle({
           className={
             toolbar || iconOnly ? "h-[18px] w-[18px] animate-spin shrink-0" : "h-3.5 w-3.5 animate-spin shrink-0"
           }
-          style={{ color: amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED }}
+          style={{
+            color: toolbar && favorited ? toolbarFavoritedStar : amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED,
+          }}
         />
       ) : (
         <Star
           className={toolbar || iconOnly ? "h-[18px] w-[18px] shrink-0" : "h-3.5 w-3.5 shrink-0"}
-          style={{ color: amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED }}
-          fill={amber ? FNO_FAVSLIDE_CHIP.text : "none"}
+          style={{
+            color: toolbar
+              ? favorited
+                ? toolbarFavoritedStar
+                : FNO_MUTED
+              : amber
+                ? FNO_FAVSLIDE_CHIP.text
+                : FNO_MUTED,
+          }}
+          fill={
+            toolbar
+              ? favorited
+                ? toolbarFavoritedStar
+                : "none"
+              : amber
+                ? FNO_FAVSLIDE_CHIP.text
+                : "none"
+          }
           strokeWidth={2}
         />
       )}

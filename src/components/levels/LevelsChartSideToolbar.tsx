@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ClipboardList,
-  GalleryHorizontal,
   GraduationCap,
   Loader2,
   MessageCircle,
@@ -38,8 +37,6 @@ import {
 import {
   FNO_ACCENT,
   FNO_BG_CANVAS,
-  FNO_FAVSLIDE_ACCENT,
-  FNO_LIVESLIDE_ACCENT,
   FNO_MUTED,
 } from "@/lib/fnoninja/theme";
 
@@ -97,13 +94,18 @@ function ToolbarButton({
   );
 }
 
-function BubblesMapIcon({ className }: { className?: string }) {
+function ToolbarCircleLetter({ letter }: { letter: string }) {
   return (
-    <svg viewBox="0 0 20 20" className={className} aria-hidden fill="currentColor">
-      <circle cx="6.5" cy="10" r="3.65" />
-      <circle cx="14" cy="7" r="3.1" />
-      <circle cx="13.5" cy="14.5" r="2.55" />
-    </svg>
+    <span
+      className="flex h-[18px] w-[18px] items-center justify-center rounded-full border text-[10px] font-bold leading-none tabular-nums"
+      style={{
+        color: "#94a3b8",
+        borderColor: "rgba(148,163,184,0.4)",
+      }}
+      aria-hidden
+    >
+      {letter}
+    </span>
   );
 }
 
@@ -278,7 +280,7 @@ export function LevelsChartSideToolbar({
           onClick={goToBubbles}
           title="View Market Bubbles map"
         >
-          <BubblesMapIcon className="h-[18px] w-[18px] shrink-0" />
+          <ToolbarCircleLetter letter="B" />
         </ToolbarButton>
 
         <ToolbarButton
@@ -286,11 +288,7 @@ export function LevelsChartSideToolbar({
           onClick={goToFavslide}
           title="Cycle your favourited stocks"
         >
-          <GalleryHorizontal
-            className="h-[18px] w-[18px] shrink-0"
-            strokeWidth={1.75}
-            style={{ color: FNO_FAVSLIDE_ACCENT }}
-          />
+          <ToolbarCircleLetter letter="F" />
         </ToolbarButton>
 
         <ToolbarButton
@@ -298,7 +296,7 @@ export function LevelsChartSideToolbar({
           onClick={goToLiveslide}
           title="Cycle aligned market setups"
         >
-          <GalleryHorizontal className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} style={{ color: FNO_LIVESLIDE_ACCENT }} />
+          <ToolbarCircleLetter letter="L" />
         </ToolbarButton>
 
         <ToolbarButton

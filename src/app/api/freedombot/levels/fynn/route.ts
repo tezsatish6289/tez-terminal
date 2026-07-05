@@ -32,6 +32,7 @@ import {
 import { loadIvHistory } from "@/lib/iv-history";
 import { ivPercentile } from "@/lib/zones/vol-regime";
 import { fetchPvtSlope } from "@/lib/levels/pvt-signal";
+import { getOpenSrEventAnchorSec } from "@/lib/sr-audit/open-event-anchor";
 import {
   computeDirection,
   postureFromLegs,
@@ -274,8 +275,9 @@ function projectionFor(
 /**
  * Build the scorer's neutral inputs from the live context: reuses the zone-doc
  * fields, converts the wall OI deltas to day-over-day %, and layers in a
- * self-referential IV percentile from the symbol's IV history (best-effort).
- * News / PVT are not yet wired here — the engine renormalises over what's present.
+ * self-referential IV percentile from the symbol's IV history (best-effort) and
+ * an event-anchored PVT slope (measured from the symbol's open SR zone-entry).
+ * News is not wired here — the engine renormalises over whatever's present.
  */
 async function buildScoreInputs(
   ctx: FynnContext,
@@ -290,7 +292,9 @@ async function buildScoreInputs(
         return null;
       }
     })(),
-    fetchPvtSlope(ctx.scope, ctx.symbol),
+    // PVT anchored at the toe-dip: only meaningful if the symbol is sitting in a
+    // cluster (has an open SR event); otherwise it abstains.
+    fetchPvtSlope(ctx.scope, ctx.symbol, await getOpenSrEventAnchorSec(getAdminFirestore(), ctx.symbol)),
   ]);
   return scoreInputsFromFynnContext(ctx, {
     ivPercentile: ivPct,

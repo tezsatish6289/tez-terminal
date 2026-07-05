@@ -4,24 +4,31 @@
  * Fetches a symbol's daily candles (shared 30-min Dhan cache — same source the
  * PVT chart uses, so this piggybacks that cache entry rather than adding load),
  * computes the cumulative Price-Volume-Trend and reduces it to a normalised
- * slope in [-1, +1] via {@link pvtSlopeSignal}. Best-effort: any failure returns
- * null and the scorer simply renormalises over its remaining signals.
+ * slope in [-1, +1] anchored at the "toe-dip" (the SR zone-entry timestamp) via
+ * {@link pvtSlopeSince}. This measures whether volume has confirmed the thesis
+ * *since price entered the cluster* rather than over an arbitrary trailing
+ * window. Best-effort: no dip anchor (symbol not in a zone) or any failure
+ * returns null and the scorer renormalises over its remaining signals.
  */
 
 import "server-only";
 
 import { getIndexDailyCandles, getStockDailyCandles } from "@/lib/dhan-candles";
 import { normalizeIndexKey } from "@/lib/nse/dhan-index-ids";
-import { computePvt, pvtSlopeSignal, PVT_LOOKBACK_DAYS } from "@/lib/levels/pvt";
+import { computePvt, pvtSlopeSince, PVT_LOOKBACK_DAYS, type PvtPoint } from "@/lib/levels/pvt";
 
-/** Trading days used for the slope window (~4 weeks of sessions). */
-const PVT_SIGNAL_WINDOW = 20;
+/** Daily sessions after the dip used for the frozen entry-confirmation reading. */
+export const PVT_ENTRY_WINDOW_SESSIONS = 5;
 
-export async function fetchPvtSlope(
+/**
+ * The symbol's cumulative daily PVT series (~6mo), or null if unavailable. Fetch
+ * once per event and derive the entry / current / exit slopes with
+ * {@link pvtSlopeSince} rather than re-fetching per reading.
+ */
+export async function fetchDailyPvtPoints(
   scope: "stock" | "index",
   symbol: string,
-  window: number = PVT_SIGNAL_WINDOW,
-): Promise<number | null> {
+): Promise<PvtPoint[] | null> {
   try {
     const result =
       scope === "index"
@@ -31,8 +38,18 @@ export async function fetchPvtSlope(
           })()
         : await getStockDailyCandles(symbol, PVT_LOOKBACK_DAYS);
     if (!result || !result.ok || !result.candles.length) return null;
-    return pvtSlopeSignal(computePvt(result.candles), window);
+    return computePvt(result.candles);
   } catch {
     return null;
   }
+}
+
+export async function fetchPvtSlope(
+  scope: "stock" | "index",
+  symbol: string,
+  anchorTimeSec: number | null,
+): Promise<number | null> {
+  if (anchorTimeSec == null) return null; // no toe-dip → nothing to confirm
+  const pvt = await fetchDailyPvtPoints(scope, symbol);
+  return pvt ? pvtSlopeSince(pvt, anchorTimeSec) : null;
 }

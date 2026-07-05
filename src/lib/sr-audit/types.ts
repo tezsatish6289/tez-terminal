@@ -49,6 +49,20 @@ export interface SrZoneEvent {
   volRegimeFlag?: string | null;
   /** Reward:risk on the active side at entry (cluster strike → max pain vs invalidation). */
   entryRr?: number | null;
+  /**
+   * Event-anchored PVT confirmation (+1 accumulation … −1 distribution). All are
+   * normalized entry-anchored efficiency ratios (see pvtSlopeSince):
+   *   • entryPvtSlope   — entry → first few sessions (frozen, look-ahead-free);
+   *     feeds the setup-score calibration. All states.
+   *   • currentPvtSlope — entry → now; the live to-date read. Open events only
+   *     (cleared on resolve).
+   *   • exitPvtSlope    — entry → resolvedAt; the full realized confirmation.
+   *     Set once at resolution. Win/loss only.
+   * null when the daily-candle window is unavailable or too few sessions elapsed.
+   */
+  entryPvtSlope?: number | null;
+  currentPvtSlope?: number | null;
+  exitPvtSlope?: number | null;
   levelsSource: PublicLevelsSource | null;
   statusAtEntry: "IN_BULL" | "IN_BEAR";
   state: SrEventState;

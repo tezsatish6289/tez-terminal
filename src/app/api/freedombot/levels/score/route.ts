@@ -16,6 +16,7 @@ import { resolveZonesExpiryFromStored } from "@/lib/levels/zones-expiry-label";
 import { loadIvHistory } from "@/lib/iv-history";
 import { ivPercentile } from "@/lib/zones/vol-regime";
 import { fetchPvtSlope } from "@/lib/levels/pvt-signal";
+import { getOpenSrEventAnchorSec } from "@/lib/sr-audit/open-event-anchor";
 import {
   computeDirection,
   scoreDirectionalSetup,
@@ -97,7 +98,9 @@ export async function GET(request: NextRequest) {
         return null;
       }
     })(),
-    fetchPvtSlope(scope, symbol),
+    // PVT anchored at the toe-dip: only meaningful if the symbol is sitting in a
+    // cluster (has an open SR event); otherwise it abstains.
+    fetchPvtSlope(scope, symbol, await getOpenSrEventAnchorSec(db, symbol)),
   ]);
 
   const inputs: ScoreInputs = {

@@ -2,6 +2,8 @@ import "server-only";
 
 import type { Firestore } from "firebase-admin/firestore";
 import { getIndexCandles, getStockCandles } from "@/lib/dhan-candles";
+import { fetchDailyPvtPoints, PVT_ENTRY_WINDOW_SESSIONS } from "@/lib/levels/pvt-signal";
+import { pvtSlopeSince } from "@/lib/levels/pvt";
 import { snapshotEventCandles } from "@/lib/sr-audit/candle-snapshot";
 import {
   SR_AUDIT_META_DOC,
@@ -99,6 +101,29 @@ export async function scoreOpenSrZoneEvents(
 
     try {
       const scope = event.scope === "index" ? "index" : "stock";
+
+      // ── Event-anchored PVT (daily candles, fetched once per event) ──────────
+      // entry = frozen leading read (set-once), current = entry→now (refreshed
+      // while open, cleared on resolve), exit = entry→resolvedAt (set at close).
+      const pvtPoints = await fetchDailyPvtPoints(scope, symbol);
+      const entrySec = Math.floor(Date.parse(event.eventAt) / 1000);
+      const pvtSlopeAt = (opts?: { maxSessions?: number; untilTimeSec?: number }) =>
+        pvtPoints ? pvtSlopeSince(pvtPoints, entrySec, opts) : null;
+      const pvtOpenPatch: Record<string, number | null> = {};
+      if (event.entryPvtSlope == null) {
+        const v = pvtSlopeAt({ maxSessions: PVT_ENTRY_WINDOW_SESSIONS });
+        if (v != null) pvtOpenPatch.entryPvtSlope = v;
+      }
+      const currentPvtSlope = pvtSlopeAt();
+      if (currentPvtSlope != null) pvtOpenPatch.currentPvtSlope = currentPvtSlope;
+      const resolvePvtPatch = (resolvedAtIso: string): Record<string, number | null> => {
+        const out: Record<string, number | null> = { currentPvtSlope: null };
+        const exitSec = Math.floor(Date.parse(resolvedAtIso) / 1000);
+        const exit = pvtSlopeAt({ untilTimeSec: exitSec });
+        if (exit != null) out.exitPvtSlope = exit;
+        return out;
+      };
+
       const candleResult =
         scope === "index"
           ? await getIndexCandles(symbol, SR_SCORE_CANDLE_INTERVAL)
@@ -107,6 +132,7 @@ export async function scoreOpenSrZoneEvents(
         summary.failed += 1;
         await doc.ref.set(
           {
+            ...pvtOpenPatch,
             lastScoredAt: now,
             scoreError: candleResult.error ?? "no_candles",
             updatedAt: now,
@@ -119,7 +145,7 @@ export async function scoreOpenSrZoneEvents(
       const analysis = analyzeCandlesForEvent(event, candleResult.candles);
       if (!analysis) {
         summary.stillOpen += 1;
-        await doc.ref.set({ lastScoredAt: now, updatedAt: now }, { merge: true });
+        await doc.ref.set({ ...pvtOpenPatch, lastScoredAt: now, updatedAt: now }, { merge: true });
         continue;
       }
 
@@ -164,6 +190,7 @@ export async function scoreOpenSrZoneEvents(
       }
 
       const openPatch = {
+        ...pvtOpenPatch,
         maxFavorablePct: cumMfe,
         maxAdversePct: cumMae,
         hitPoc: stickyHitPoc,
@@ -186,6 +213,7 @@ export async function scoreOpenSrZoneEvents(
         await doc.ref.set(
           {
             ...openPatch,
+            ...resolvePvtPatch(analysis.invalidationHit.resolvedAt),
             state: "resolved",
             resolveReason: "invalidation",
             closeComment: closeCommentForReason("invalidation"),
@@ -208,6 +236,7 @@ export async function scoreOpenSrZoneEvents(
         await doc.ref.set(
           {
             ...openPatch,
+            ...resolvePvtPatch(now),
             state: "resolved",
             resolveReason: "zone_flip",
             closeComment: closeCommentForReason("zone_flip"),

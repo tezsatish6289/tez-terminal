@@ -77,6 +77,49 @@ function scoreColor(v: number): string {
   return "#fca5a5";
 }
 
+/** Green = volume accumulating (+), red = distributing (−), grey = flat / n-a. */
+function pvtColor(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "#64748b";
+  if (v > 0.15) return "#86efac";
+  if (v < -0.15) return "#fca5a5";
+  return "#cbd5e1";
+}
+
+function pvtVal(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  return (v > 0 ? "+" : "") + v.toFixed(2);
+}
+
+/** One labelled PVT slope (e.g. "entry +0.62"). */
+function PvtChip({ label, value }: { label: string; value: number | null | undefined }) {
+  return (
+    <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
+      <span className="text-[9px] uppercase text-slate-500">{label}</span>
+      <span className="font-mono tabular-nums text-[11px] font-bold" style={{ color: pvtColor(value) }}>
+        {pvtVal(value)}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * PVT lifecycle cell: entry (frozen leading read) plus the state's second anchor
+ * — current (entry→now) while open, exit (entry→resolvedAt) once resolved.
+ */
+function PvtCell({ row, outcome }: { row: SrZoneEvent; outcome: string }) {
+  const resolved = outcome === "win" || outcome === "loss";
+  return (
+    <div className="flex flex-col gap-0.5">
+      <PvtChip label="entry" value={row.entryPvtSlope} />
+      {resolved ? (
+        <PvtChip label="exit" value={row.exitPvtSlope} />
+      ) : (
+        <PvtChip label="now" value={row.currentPvtSlope} />
+      )}
+    </div>
+  );
+}
+
 const SCORE_BUCKETS = [
   { label: "0–49", min: 0, max: 49 },
   { label: "50–69", min: 50, max: 69 },
@@ -473,8 +516,9 @@ export default function SrAuditAdminPage() {
             ))}
           </div>
           <p className="text-[10px] text-slate-600 mt-3">
-            A well-calibrated score should show win rate rising left → right. Historical rows have no
-            news / PVT / IV-percentile signal, so scores here use levels, max-pain sign, IV regime and R:R only.
+            A well-calibrated score should show win rate rising left → right. Scores here use levels,
+            max-pain sign, IV regime, R:R and the backfilled entry PVT (first sessions after the dip);
+            news / IV-percentile aren&apos;t captured on historical rows.
           </p>
         </div>
 
@@ -539,6 +583,7 @@ export default function SrAuditAdminPage() {
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Symbol</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Side</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Score</th>
+                  <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">PVT</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Cluster</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Entered</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Max-pain hit</th>
@@ -557,13 +602,13 @@ export default function SrAuditAdminPage() {
               <tbody>
                 {loading && filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={14} className="px-3 py-8 text-center text-slate-500">
+                    <td colSpan={15} className="px-3 py-8 text-center text-slate-500">
                       <Loader2 className="h-5 w-5 animate-spin inline-block" />
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={14} className="px-3 py-8 text-center text-slate-500">
+                    <td colSpan={15} className="px-3 py-8 text-center text-slate-500">
                       {outcomeFilter === "win"
                         ? "No wins yet — they appear once an event reaches max pain or closes on zone flip."
                         : outcomeFilter === "loss"
@@ -625,6 +670,9 @@ export default function SrAuditAdminPage() {
                               </span>
                             );
                           })()}
+                        </td>
+                        <td className="px-3 py-2">
+                          <PvtCell row={row} outcome={status.outcome} />
                         </td>
                         <td className="px-3 py-2 font-mono tabular-nums text-slate-300 whitespace-nowrap">
                           {row.clusterStrike != null ? row.clusterStrike.toFixed(0) : "—"}

@@ -61,8 +61,9 @@ function daysToExpiryFromEvent(event: Pick<SrZoneEvent, "zonesExpiry" | "eventAt
  * Map a recorded SR-audit event to score inputs, using the levels captured AT
  * ENTRY. Support entries treat the put cluster as the active wall, resistance
  * entries the call cluster. Bands are derived from the stored bull/bear zones.
- * News / PVT / IV-percentile aren't captured on historical rows → left null
- * (the engine renormalises over present signals).
+ * PVT uses the backfilled early-window confirmation (`entryPvtSlope`); news /
+ * IV-percentile aren't captured on historical rows → left null (the engine
+ * renormalises over present signals).
  */
 export function scoreInputsFromSrEvent(event: SrZoneEvent): ScoreInputs {
   return {
@@ -84,6 +85,6 @@ export function scoreInputsFromSrEvent(event: SrZoneEvent): ScoreInputs {
     putOiChangePct: null,
     callOiChangePct: null,
     newsScore: null,
-    pvtSlope: null,
+    pvtSlope: event.entryPvtSlope ?? null,
   };
 }

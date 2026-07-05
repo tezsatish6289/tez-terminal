@@ -54,8 +54,8 @@ export const FAVSLIDE_WALKTHROUGH_TOUR_STEPS: FavslideWalkthroughTourStep[] = [
     id: "strip",
     selector: '[data-favslide-tour="strip"]',
     title: "Your watchlist strip",
-    body: "Every saved symbol appears here with its status badge. Click any tile to jump — or let the rotation bring each name to you.",
-    placement: "bottom",
+    body: "Every saved symbol appears in the left rail on desktop (or the strip above the chart on mobile). Click any tile to jump — or let the rotation bring each name to you.",
+    placement: "right",
   },
   {
     id: "chart",

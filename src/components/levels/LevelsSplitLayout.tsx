@@ -113,16 +113,21 @@ export function LevelsSymbolList({
   const [runnerPulse, setRunnerPulse] = useState(false);
 
   const isRunnerStrip = runnerMode && layout === "horizontal";
+  const isVerticalRunner = runnerMode && layout === "vertical";
   useHorizontalWheelScroll(scrollRef, isRunnerStrip);
 
   useEffect(() => {
-    if (!isRunnerStrip) return;
+    if (!isRunnerStrip && !isVerticalRunner) return;
 
     const container = scrollRef.current;
     const tile = container?.querySelector(
       `[data-strip-index="${activeIndex}"]`,
     ) as HTMLElement | null;
-    tile?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    tile?.scrollIntoView({
+      behavior: "smooth",
+      inline: isVerticalRunner ? "nearest" : "center",
+      block: isVerticalRunner ? "nearest" : "nearest",
+    });
 
     if (prevActiveRef.current !== activeIndex) {
       setRunnerPulse(true);
@@ -130,7 +135,7 @@ export function LevelsSymbolList({
       const id = window.setTimeout(() => setRunnerPulse(false), 700);
       return () => window.clearTimeout(id);
     }
-  }, [activeIndex, isRunnerStrip, entries.length]);
+  }, [activeIndex, isRunnerStrip, isVerticalRunner, entries.length]);
 
   if (!entries.length) {
     return (
@@ -229,6 +234,55 @@ export function LevelsSymbolList({
             );
           })}
         </div>
+      </div>
+    );
+  }
+
+  if (isVerticalRunner) {
+    return (
+      <div ref={scrollRef} className="h-full w-full min-h-0 overflow-y-auto overflow-x-hidden flex flex-col gap-1.5 pr-0.5 [scrollbar-width:thin]">
+        {entries.map((entry, i) => {
+          const active = i === activeIndex;
+          const pulse = active && runnerPulse;
+          return (
+            <button
+              key={entry.id}
+              data-strip-index={i}
+              onClick={() => onSelect(i)}
+              className="flex text-left shrink-0 w-full flex-col gap-1 px-2.5 py-2 transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-lg"
+              style={{
+                backgroundColor: active ? accent.bg : "rgba(255,255,255,0.02)",
+                border: `1px solid ${active ? (pulse ? accent.borderPulse : accent.border) : "rgba(255,255,255,0.05)"}`,
+                transform: pulse ? "scale(1.02)" : active ? "scale(1.01)" : "scale(1)",
+                boxShadow: pulse ? accent.glow : active ? accent.glowSoft : undefined,
+              }}
+            >
+              {(entry.sublabel || entry.trailing) && (
+                <div className="flex items-center justify-between gap-2 w-full min-w-0">
+                  {entry.sublabel ? (
+                    <span
+                      className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
+                      style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
+                    >
+                      {entry.sublabel}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  {entry.trailing}
+                </div>
+              )}
+              <span className="text-[12px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>
+                {entry.label}
+              </span>
+              {entry.spot != null && entry.currency && (
+                <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
+                  {formatHeroPrice(entry.spot, entry.currency)}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
     );
   }

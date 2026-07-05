@@ -7,6 +7,8 @@ export function LevelsChartDeepDiveLayout({
   chrome,
   viewToggle,
   toolbar,
+  symbolRail,
+  symbolRailDesktop,
   banner,
   footer,
   children,
@@ -15,6 +17,10 @@ export function LevelsChartDeepDiveLayout({
   chrome?: ReactNode;
   viewToggle: ReactNode;
   toolbar: ReactNode;
+  /** Slideshow: horizontal strip above chart row on mobile. */
+  symbolRail?: ReactNode;
+  /** Slideshow: vertical symbol rail left of toolbar on md+. */
+  symbolRailDesktop?: ReactNode;
   banner?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
@@ -26,9 +32,13 @@ export function LevelsChartDeepDiveLayout({
       <div className="mt-1.5 sm:mt-2 flex flex-col flex-1 min-h-0 min-w-0">
         {viewToggle}
         {banner}
-        <div className="flex flex-1 min-h-0 min-w-0 mt-1">
-          {toolbar}
-          <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">{children}</div>
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 mt-1">
+          {symbolRail}
+          <div className="flex flex-1 min-h-0 min-w-0">
+            {symbolRailDesktop}
+            {toolbar}
+            <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">{children}</div>
+          </div>
         </div>
         {footer ? <div className="shrink-0 min-w-0 mt-1 max-md:pb-1">{footer}</div> : null}
       </div>

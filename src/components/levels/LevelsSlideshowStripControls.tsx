@@ -147,15 +147,17 @@ const SLIDE_MODE_ACCENT: Record<"liveslide" | "favslide", { color: string; borde
 export function LevelsSlideModePill({
   mode,
   count,
+  boxClassName = LEVELS_STRIP_ICON_BOX_CLASS,
 }: {
   mode: "liveslide" | "favslide";
   count?: number;
+  boxClassName?: string;
 }) {
   const isFav = mode === "favslide";
   const accent = SLIDE_MODE_ACCENT[mode];
   return (
     <span
-      className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} shrink-0 cursor-default select-none`}
+      className={`${boxClassName} ${LEVELS_STRIP_ICON_INNER_CLASS} shrink-0 cursor-default select-none`}
       style={{
         ...BLACKBOARD_WRAPPER,
         background: isFav ? "rgba(251,191,36,0.1)" : "rgba(37,99,235,0.1)",
@@ -411,7 +413,7 @@ function StripSearchIconBox({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+          className={`${iconBoxClass} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
           style={stripIconBoxStyle(open || hasQuery)}
           aria-label={hasQuery ? `Search: ${value}` : "Search symbols"}
           title="Search symbols"
@@ -455,12 +457,14 @@ function StripMapFilterIconBox({
   counts,
   slideAccent,
   stripMode,
+  iconBoxClass = LEVELS_STRIP_ICON_BOX_CLASS,
 }: {
   filter: SlideshowMapFilter;
   onChange: (filter: SlideshowMapFilter) => void;
   counts: Record<SlideshowMapFilter, number>;
   slideAccent?: { color: string; border: string } | null;
   stripMode?: "liveslide" | "favslide";
+  iconBoxClass?: string;
 }) {
   const [open, setOpen] = useState(false);
   const activeMeta =
@@ -474,7 +478,7 @@ function StripMapFilterIconBox({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+          className={`${iconBoxClass} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
           style={{
             ...stripIconBoxStyle(open || filtered),
             ...(slideAccent
@@ -568,6 +572,7 @@ export function LevelsSlideshowStripControls({
   showFilter = true,
   stripTrailing,
   className = "",
+  orientation = "horizontal",
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -615,8 +620,12 @@ export function LevelsSlideshowStripControls({
   /** Extra icon boxes after Bubbles (e.g. favslide add). */
   stripTrailing?: React.ReactNode;
   className?: string;
+  /** Stack control tiles vertically in the symbol rail. */
+  orientation?: "horizontal" | "vertical";
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
+  const isVertical = orientation === "vertical";
+  const iconBoxClass = isVertical ? "h-12 w-full rounded-lg" : LEVELS_STRIP_ICON_BOX_CLASS;
   const activeMeta = FILTER_OPTIONS.find((o) => o.key === zoneFilter) ?? FILTER_OPTIONS[0];
   const stripMode = slideModePill?.mode ?? viewToggle?.viewMode;
   const slideAccent =
@@ -651,7 +660,13 @@ export function LevelsSlideshowStripControls({
   }, [slideshowControl, viewToggle, viewSwitchGroup]);
 
   return (
-    <div className={`flex items-stretch gap-1.5 shrink-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS} ${className}`.trim()}>
+    <div
+      className={`flex gap-1.5 shrink-0 ${
+        isVertical
+          ? "flex-col w-full"
+          : `flex-row items-stretch ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`
+      } ${className}`.trim()}
+    >
       {search ? (
         <StripSearchIconBox value={search.value} onChange={search.onChange} />
       ) : null}
@@ -663,13 +678,14 @@ export function LevelsSlideshowStripControls({
           counts={mapFilter.counts}
           slideAccent={slideAccent}
           stripMode={stripMode === "liveslide" || stripMode === "favslide" ? stripMode : undefined}
+          iconBoxClass={iconBoxClass}
         />
       ) : showFilter ? (
       <Popover open={filterOpen} onOpenChange={setFilterOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
-            className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+            className={`${iconBoxClass} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
             style={{
               ...stripIconBoxStyle(filterOpen),
               ...(slideAccent
@@ -750,7 +766,11 @@ export function LevelsSlideshowStripControls({
 
       {slideModePill &&
       (slideModePill.mode === "liveslide" || slideModePill.mode === "favslide") ? (
-        <LevelsSlideModePill mode={slideModePill.mode} count={slideModePill.count} />
+        <LevelsSlideModePill
+          mode={slideModePill.mode}
+          count={slideModePill.count}
+          boxClassName={iconBoxClass}
+        />
       ) : null}
 
       {slideshowControl?.enabled ? (
@@ -758,7 +778,7 @@ export function LevelsSlideshowStripControls({
           type="button"
           onClick={slideshowControl.onToggle}
           disabled={slideshowControl.paused && slideshowControl.canResume === false}
-          className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98] disabled:opacity-80 disabled:cursor-not-allowed`}
+          className={`${iconBoxClass} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98] disabled:opacity-80 disabled:cursor-not-allowed`}
           style={{
             ...stripIconBoxStyle(slideshowControl.paused),
             ...(slideAccent && !slideshowControl.paused

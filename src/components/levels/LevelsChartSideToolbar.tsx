@@ -311,6 +311,10 @@ export function LevelsChartSideToolbar({
           label="View bubble chart"
           onClick={goToBubbles}
           title="View Market Bubbles map"
+          dataAttrs={{
+            "data-liveslide-tour": "bubbles",
+            "data-favslide-tour": "bubbles",
+          }}
         >
           <ToolbarCircleLetter letter="B" />
         </ToolbarButton>
@@ -319,6 +323,10 @@ export function LevelsChartSideToolbar({
           label="Favslide"
           onClick={goToFavslide}
           title="Cycle your favourited stocks"
+          dataAttrs={{
+            "data-favslide-tour": "fav-switch",
+            "data-liveslide-tour": "fav-switch",
+          }}
         >
           <ToolbarCircleLetter letter="F" />
         </ToolbarButton>
@@ -327,6 +335,10 @@ export function LevelsChartSideToolbar({
           label="Liveslide"
           onClick={goToLiveslide}
           title="Cycle aligned market setups"
+          dataAttrs={{
+            "data-liveslide-tour": "live-switch",
+            "data-favslide-tour": "live-switch",
+          }}
         >
           <ToolbarCircleLetter letter="L" />
         </ToolbarButton>

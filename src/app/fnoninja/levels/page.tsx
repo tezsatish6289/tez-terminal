@@ -33,6 +33,11 @@ import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
+import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
+import {
+  LevelsSlideshowSymbolRailDesktop,
+  LevelsSlideshowSymbolRailMobile,
+} from "@/components/levels/LevelsSlideshowSymbolRail";
 import { SlideshowAutoPauseBanner } from "@/components/levels/SlideshowAutoPauseBanner";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
@@ -927,6 +932,8 @@ export default function LevelsPage() {
       >
         <LevelsChartDeepDiveLayout
           chrome={slideshowChartChrome}
+          symbolRail={slideshowSymbolRailMobile}
+          symbolRailDesktop={slideshowSymbolRailDesktop}
           viewToggle={
             <LevelsOutlookViewToggle
               value={slideshowChartViewMode}
@@ -977,15 +984,121 @@ export default function LevelsPage() {
       </div>
     ) : null;
 
-  const slideshowSymbolStrip =
+  const slideshowStripAccent = viewMode === "favslide" ? "favslide" : "liveslide";
+
+  const slideshowStripControlProps = {
+    zoneFilter: "all" as const,
+    onZoneFilterChange: () => {},
+    filterCounts: {
+      all: 0,
+      bull: 0,
+      bear: 0,
+      near_bull: 0,
+      near_bear: 0,
+    },
+    showFilter: false,
+    mapFilter:
+      viewMode === "liveslide" && slideshowFilterCounts
+        ? {
+            filter: slideshowFilter,
+            onChange: (filter: SlideshowMapFilter) => {
+              setSlideshowFilter(filter);
+              setInZoneSlide(0);
+            },
+            counts: slideshowFilterCounts,
+          }
+        : undefined,
+    slideshowControl: showSlideshowStripTransport
+      ? {
+          enabled: true,
+          paused: inZoneCount <= 1 || slideshowTimerPaused,
+          onToggle: inZoneCount > 1 ? handleSlideshowTransportClick : () => {},
+          secondsRemaining: slideshowCountdown,
+          pauseReason: slideshowExploreHold,
+          canResume: slideshowExploreHold !== "Atlas",
+        }
+      : undefined,
+    slideModePill:
+      isSlideView
+        ? {
+            mode: viewMode,
+            count: slideListFiltered.length,
+          }
+        : undefined,
+    stripTrailing:
+      viewMode === "favslide" && isFnoNinjaHost ? (
+        <div className="w-full [&_button]:md:w-full [&_button]:md:h-12">
+          <FnoNinjaFavslideAddButton
+            api={favslideApi}
+            needsSignIn={!favslideSignedIn}
+            onAdded={() => {
+              setInZoneSlide(favslideEntries.length);
+            }}
+          />
+        </div>
+      ) : undefined,
+  };
+
+  const slideshowSymbolRailTourAttrs = {
+    "data-liveslide-tour": "strip",
+    "data-favslide-tour": "strip",
+  };
+
+  const slideshowSymbolRailMobile =
     isSlideView && inZoneCount > 0 ? (
+      <LevelsSlideshowSymbolRailMobile
+        tourAttrs={slideshowSymbolRailTourAttrs}
+        controls={
+          <LevelsSlideshowStripControls
+            {...slideshowStripControlProps}
+            orientation="horizontal"
+          />
+        }
+        symbolList={
+          <LevelsSymbolList
+            entries={inZoneEntries}
+            activeIndex={inZoneCurrent}
+            onSelect={setInZoneSlide}
+            layout="horizontal"
+            runnerMode
+            stripAccent={slideshowStripAccent}
+          />
+        }
+      />
+    ) : null;
+
+  const slideshowSymbolRailDesktop =
+    isSlideView && inZoneCount > 0 ? (
+      <LevelsSlideshowSymbolRailDesktop
+        tourAttrs={slideshowSymbolRailTourAttrs}
+        controls={
+          <LevelsSlideshowStripControls
+            {...slideshowStripControlProps}
+            orientation="vertical"
+          />
+        }
+        symbolList={
+          <LevelsSymbolList
+            entries={inZoneEntries}
+            activeIndex={inZoneCurrent}
+            onSelect={setInZoneSlide}
+            layout="vertical"
+            runnerMode
+            stripAccent={slideshowStripAccent}
+          />
+        }
+      />
+    ) : null;
+
+  const slideshowSymbolStrip =
+    isSlideView && inZoneCount > 0 && !slideshowDeepDiveLayout ? (
       <LevelsSymbolList
         entries={inZoneEntries}
         activeIndex={inZoneCurrent}
         onSelect={setInZoneSlide}
         layout="horizontal"
         runnerMode
-        stripAccent={viewMode === "favslide" ? "favslide" : "liveslide"}
+        stripAccent={slideshowStripAccent}
       />
     ) : null;
 
@@ -1182,26 +1295,28 @@ export default function LevelsPage() {
           : undefined
       }
       viewSwitchGroup={
-        isSlideView
-          ? {
-              currentMode: viewMode === "favslide" ? "favslide" : "liveslide",
-              onBubbles: enterBubbles,
-              bubblesTitle: bubblesBackTitle,
-              ...(isFnoNinjaHost
-                ? viewMode === "favslide"
-                  ? {
-                      alternateMode: "liveslide" as const,
-                      onAlternate: enterLiveslide,
-                      alternateTitle: liveslideCtaTitle,
-                    }
-                  : {
-                      alternateMode: "favslide" as const,
-                      onAlternate: enterFavslide,
-                      alternateTitle: favslideCtaTitle,
-                    }
-                : {}),
-            }
-          : undefined
+        isSlideView && slideshowDeepDiveLayout && inZoneCount > 0
+          ? undefined
+          : isSlideView
+            ? {
+                currentMode: viewMode === "favslide" ? "favslide" : "liveslide",
+                onBubbles: enterBubbles,
+                bubblesTitle: bubblesBackTitle,
+                ...(isFnoNinjaHost
+                  ? viewMode === "favslide"
+                    ? {
+                        alternateMode: "liveslide" as const,
+                        onAlternate: enterLiveslide,
+                        alternateTitle: liveslideCtaTitle,
+                      }
+                    : {
+                        alternateMode: "favslide" as const,
+                        onAlternate: enterFavslide,
+                        alternateTitle: favslideCtaTitle,
+                      }
+                  : {}),
+              }
+            : undefined
       }
       stripTrailing={
         viewMode === "favslide" && isFnoNinjaHost ? (
@@ -1258,9 +1373,13 @@ export default function LevelsPage() {
       renderSlideshow()
     );
 
+  const hideTopSlideshowToolbar = isSlideView && slideshowDeepDiveLayout && inZoneCount > 0;
+
   const levelsWorkspace = (
     <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
-      <div className="shrink-0">{levelsSlideshowToolbar}</div>
+      {!hideTopSlideshowToolbar ? (
+        <div className="shrink-0">{levelsSlideshowToolbar}</div>
+      ) : null}
       <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
         {levelsMainPane}
       </div>

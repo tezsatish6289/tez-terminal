@@ -58,8 +58,8 @@ export const LIVESLIDE_WALKTHROUGH_TOUR_STEPS: LiveslideWalkthroughTourStep[] = 
     id: "strip",
     selector: '[data-liveslide-tour="strip"]',
     title: "Symbol strip",
-    body: "Every qualifying name sits here with its status badge. Click any tile to jump — or let the rotation bring each setup to you.",
-    placement: "bottom",
+    body: "Every qualifying name sits in the left rail on desktop (or the strip above the chart on mobile). Click any tile to jump — or let the rotation bring each setup to you.",
+    placement: "right",
   },
   {
     id: "chart",

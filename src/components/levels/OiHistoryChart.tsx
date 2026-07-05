@@ -48,7 +48,7 @@ interface Row {
 }
 
 const PAD = { top: 16, right: 16, bottom: 44, left: 56 };
-const CANDLE_COLOR = "#3b82f6";
+const CANDLE_COLOR = "#f8fafc";
 
 /** Dedicated footer row — chart SVG must never bleed into this zone. */
 const GUIDE_FOOTER_CLASS =
@@ -431,7 +431,7 @@ export function OiHistoryChart({
           highlightIndices={strikeMarkerIdx}
         />
 
-        {/* daily candles — solid blue, always above wall lines */}
+        {/* daily candles — solid white, always above wall lines */}
         {displayRows.map((r, i) => {
           const c = r.candle;
           if (!c) return null;

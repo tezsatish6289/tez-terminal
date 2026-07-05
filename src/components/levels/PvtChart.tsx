@@ -475,18 +475,24 @@ export function PvtChart({
     candleSeries.setData(candleData);
     pvtLine.setData(pvtData);
     displayBarCountRef.current = displayCandles.length;
+    if (levelsHaveBands(levelsRef.current)) {
+      applyClusterSummaryPriceLines(candleSeries, priceLinesRef, levelsRef.current, {
+        showAxisLabels: true,
+      });
+    }
     schedulePvtChartViewport();
   }, [chartReady, displayCandles, pvtSeries, schedulePvtChartViewport]);
 
   /** Levels load after candles (common when remounting from History) — update overlays only. */
   useEffect(() => {
     const candleSeries = candleRef.current;
-    if (!chartReady || !candleSeries || displayBarCountRef.current < 1) return;
+    if (!chartReady || !candleSeries || displayCandles.length === 0) return;
+    displayBarCountRef.current = displayCandles.length;
     applyClusterSummaryPriceLines(candleSeries, priceLinesRef, effectiveLevels, {
       showAxisLabels: true,
     });
     schedulePvtChartViewport();
-  }, [chartReady, effectiveLevels, schedulePvtChartViewport]);
+  }, [chartReady, effectiveLevels, displayCandles.length, schedulePvtChartViewport]);
 
   useEffect(() => {
     if (!chartReady || displayBarCountRef.current < 1) return;

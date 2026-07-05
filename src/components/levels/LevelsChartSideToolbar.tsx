@@ -127,6 +127,36 @@ function ToolbarCircleLetter({ letter }: { letter: string }) {
   );
 }
 
+interface AtlasScore {
+  composite: number;
+  directionLabel: "bullish" | "neutral" | "bearish";
+}
+
+function atlasScoreColor(v: number): string {
+  if (v >= 70) return "#86efac";
+  if (v >= 50) return "#fcd34d";
+  return "#fca5a5";
+}
+
+function AtlasScoreTag({ score }: { score: AtlasScore | null }) {
+  if (!score) {
+    return (
+      <span className="text-[7px] font-semibold uppercase tracking-wide leading-none" style={{ color: FNO_MUTED }}>
+        ···
+      </span>
+    );
+  }
+  return (
+    <span
+      className="text-[7px] font-bold tabular-nums leading-none"
+      style={{ color: atlasScoreColor(score.composite) }}
+      title={`Setup score ${score.composite}/100 · ${score.directionLabel}`}
+    >
+      {score.composite}
+    </span>
+  );
+}
+
 function NewsSentimentTag({ sentiment }: { sentiment: NewsSentiment | null }) {
   if (!sentiment) {
     return (
@@ -195,6 +225,7 @@ export function LevelsChartSideToolbar({
   const [atlasOpen, setAtlasOpen] = useState(false);
   const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
+  const [atlasScore, setAtlasScore] = useState<AtlasScore | null>(null);
 
   const loadNewsSentiment = useCallback(async () => {
     if (!symbol || (scope !== "stock" && scope !== "index")) return;
@@ -220,6 +251,25 @@ export function LevelsChartSideToolbar({
   useEffect(() => {
     void loadNewsSentiment();
   }, [loadNewsSentiment]);
+
+  const loadAtlasScore = useCallback(async () => {
+    if (!symbol || (scope !== "stock" && scope !== "index")) return;
+    setAtlasScore(null);
+    try {
+      const res = await fetch(
+        `/api/freedombot/levels/score?scope=${encodeURIComponent(scope)}&symbol=${encodeURIComponent(symbol)}`,
+        { cache: "no-store" },
+      );
+      const json = (await res.json()) as { ok?: boolean; score?: AtlasScore };
+      setAtlasScore(json.ok && json.score ? json.score : null);
+    } catch {
+      setAtlasScore(null);
+    }
+  }, [scope, symbol]);
+
+  useEffect(() => {
+    void loadAtlasScore();
+  }, [loadAtlasScore]);
 
   const handleAtlasOpenChange = useCallback(
     (open: boolean) => {
@@ -315,9 +365,10 @@ export function LevelsChartSideToolbar({
           label="Atlas AI"
           active={atlasOpen}
           onClick={() => setAtlasOpen(true)}
-          title="Atlas AI coach"
+          title="Atlas AI coach — setup score"
         >
           <Sparkles className="h-[18px] w-[18px] shrink-0 fynn-sparkle-glow" strokeWidth={1.75} />
+          <AtlasScoreTag score={atlasScore} />
         </ToolbarButton>
 
         <ToolbarButton

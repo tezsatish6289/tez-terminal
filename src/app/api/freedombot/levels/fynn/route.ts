@@ -29,6 +29,17 @@ import {
   type StrategyEconomics,
   type StrategyLeg,
 } from "@/lib/options/strategy-economics";
+import { loadIvHistory } from "@/lib/iv-history";
+import { ivPercentile } from "@/lib/zones/vol-regime";
+import { fetchPvtSlope } from "@/lib/levels/pvt-signal";
+import {
+  computeDirection,
+  postureFromLegs,
+  scoreStrategy,
+  type ScoreInputs,
+  type SetupScore,
+} from "@/lib/levels/strategy-score";
+import { scoreInputsFromFynnContext } from "@/lib/levels/strategy-score-adapters";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -53,6 +64,14 @@ function num(raw: unknown): number | null {
 function round(n: number | null): number | null {
   if (n == null) return null;
   return n >= 1000 ? Math.round(n) : Math.round(n * 100) / 100;
+}
+
+/** Day-over-day % change at a wall from its current OI + absolute contract delta. */
+function oiChangePct(oi: number | null, change: number | null): number | null {
+  if (oi == null || change == null) return null;
+  const prior = oi - change;
+  if (prior <= 0) return null;
+  return Math.round((change / prior) * 1000) / 10;
 }
 
 async function readDoc(path: string): Promise<Record<string, unknown> | null> {
@@ -252,6 +271,56 @@ function projectionFor(
   };
 }
 
+/**
+ * Build the scorer's neutral inputs from the live context: reuses the zone-doc
+ * fields, converts the wall OI deltas to day-over-day %, and layers in a
+ * self-referential IV percentile from the symbol's IV history (best-effort).
+ * News / PVT are not yet wired here — the engine renormalises over what's present.
+ */
+async function buildScoreInputs(
+  ctx: FynnContext,
+  raw: Record<string, unknown>,
+): Promise<ScoreInputs> {
+  const [ivPct, pvtSlope] = await Promise.all([
+    (async () => {
+      try {
+        const hist = await loadIvHistory(getAdminFirestore(), ctx.symbol);
+        return ivPercentile(hist.values, ctx.atmIV);
+      } catch {
+        return null;
+      }
+    })(),
+    fetchPvtSlope(ctx.scope, ctx.symbol),
+  ]);
+  return scoreInputsFromFynnContext(ctx, {
+    ivPercentile: ivPct,
+    putOiChangePct: oiChangePct(num(raw.bullOI), num(raw.bullOIChange)),
+    callOiChangePct: oiChangePct(num(raw.bearOI), num(raw.bearOIChange)),
+    pvtSlope,
+  });
+}
+
+/** Score one strategy: derive its vol posture from the legs + economics kind. */
+function scoreOneStrategy(
+  strategy: FynnPlan["strategies"][number],
+  economics: StrategyEconomics | null,
+  inputs: ScoreInputs,
+  direction: ReturnType<typeof computeDirection>,
+): SetupScore {
+  const posture = postureFromLegs(strategy.legs, economics?.kind ?? null);
+  const strikes = strategy.legs
+    .map((l) => l.strike)
+    .filter((k): k is number => typeof k === "number" && Number.isFinite(k));
+  return scoreStrategy({
+    stance: strategy.stance,
+    posture,
+    inputs,
+    strikes,
+    riskReward: economics?.riskReward ?? null,
+    direction,
+  });
+}
+
 export async function POST(request: NextRequest) {
   let body: { scope?: string; symbol?: string; mode?: string };
   try {
@@ -299,10 +368,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const { plan, label, cached, stale, source } = await getFynnPlan(context);
-    const strategies = plan.strategies.map((s) => ({
-      ...s,
-      economics: economicsForStrategy(s.legs, context),
-    }));
+    const scoreInputs = await buildScoreInputs(context, raw);
+    const direction = computeDirection(scoreInputs);
+    const strategies = plan.strategies
+      .map((s) => {
+        const economics = economicsForStrategy(s.legs, context);
+        return { ...s, economics, score: scoreOneStrategy(s, economics, scoreInputs, direction) };
+      })
+      // Rank by the deterministic composite (replaces the LLM's best-first order).
+      .sort((a, b) => b.score.composite - a.score.composite);
     const enriched = { ...plan, strategies };
     return NextResponse.json(
       {
@@ -310,6 +384,11 @@ export async function POST(request: NextRequest) {
         label,
         mode,
         plan: enriched,
+        setup: {
+          direction: direction.value,
+          directionLabel: direction.label,
+          topScore: strategies[0]?.score.composite ?? null,
+        },
         pricing: context.atmIV != null ? "estimated" : "unavailable",
         cached,
         stale: stale ?? false,

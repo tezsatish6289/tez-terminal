@@ -35,6 +35,15 @@ interface StrategyEconomics {
   scenario?: { label: string; pnl: number; rewardRisk?: number | null } | null;
 }
 
+interface StrategyScore {
+  composite: number;
+  direction: number;
+  directionLabel: "bullish" | "neutral" | "bearish";
+  posture: "long-vol" | "short-vol" | "directional" | "neutral-vol";
+  subScores: { direction: number; volFit: number; context: number };
+  reason: string;
+}
+
 interface FynnStrategy {
   name: string;
   stance: "bullish" | "bearish" | "neutral" | "volatility";
@@ -44,6 +53,7 @@ interface FynnStrategy {
   maxReward: string;
   invalidation: string;
   economics?: StrategyEconomics | null;
+  score?: StrategyScore | null;
 }
 
 interface FynnPlan {
@@ -160,6 +170,20 @@ const STANCE_COLOR: Record<FynnStrategy["stance"], string> = {
   bearish: "#f87171",
   neutral: "#94a3b8",
   volatility: "#c084fc",
+};
+
+/** Traffic-light colour for a 0–100 setup score. */
+function scoreColor(v: number): string {
+  if (v >= 70) return "#34d399";
+  if (v >= 50) return "#fcd34d";
+  return "#fca5a5";
+}
+
+const POSTURE_LABEL: Record<StrategyScore["posture"], string> = {
+  "long-vol": "Buys volatility",
+  "short-vol": "Sells volatility",
+  directional: "Directional (futures)",
+  "neutral-vol": "Vol-neutral",
 };
 
 const ATLAS_LABEL = "Atlas AI coach";
@@ -571,16 +595,20 @@ function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => vo
           return (
             <div key={`${s.name}-${i}`} className="rounded-xl p-3.5" style={CARD_STYLE}>
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-bold" style={{ color: FNO_TEXT }}>
-                  {s.name}
-                </p>
+                <div className="flex items-center gap-2 min-w-0">
+                  {s.score ? <ScoreBadge value={s.score.composite} rank={i} /> : null}
+                  <p className="text-sm font-bold truncate" style={{ color: FNO_TEXT }}>
+                    {s.name}
+                  </p>
+                </div>
                 <span
-                  className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                  className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0"
                   style={{ color: stanceColor, backgroundColor: `${stanceColor}1a` }}
                 >
                   {s.stance}
                 </span>
               </div>
+              {s.score ? <StrategyScoreView score={s.score} /> : null}
               <p className="mt-1.5 text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>
                 {s.whyNow}
               </p>
@@ -626,6 +654,60 @@ function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => vo
         </div>
       ) : null}
     </>
+  );
+}
+
+function ScoreBadge({ value, rank }: { value: number; rank: number }) {
+  const color = scoreColor(value);
+  return (
+    <span
+      className="inline-flex items-center justify-center h-7 min-w-[1.75rem] px-1.5 rounded-lg text-[13px] font-black tabular-nums shrink-0"
+      style={{ color, backgroundColor: `${color}1f`, border: `1px solid ${color}55` }}
+      title={`Setup score ${value}/100${rank === 0 ? " — top-ranked" : ""}`}
+    >
+      {value}
+    </span>
+  );
+}
+
+function SubScoreBar({ label, value }: { label: string; value: number }) {
+  const color = scoreColor(value);
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="w-8 text-[9px] font-bold uppercase tracking-wide" style={{ color: FNO_MUTED }}>
+        {label}
+      </span>
+      <span className="relative h-1.5 flex-1 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(148,163,184,0.18)" }}>
+        <span
+          className="absolute inset-y-0 left-0 rounded-full"
+          style={{ width: `${Math.max(2, value)}%`, backgroundColor: color }}
+        />
+      </span>
+      <span className="w-6 text-right text-[9px] font-semibold tabular-nums" style={{ color: "#cbd5e1" }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function StrategyScoreView({ score }: { score: StrategyScore }) {
+  return (
+    <div className="mt-2 rounded-lg px-2.5 py-2 space-y-1" style={{ background: FNO_CARD_BG, border: "1px solid rgba(96,165,250,0.18)" }}>
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: FNO_MUTED }}>
+          Setup score
+        </span>
+        <span className="text-[9px] font-semibold" style={{ color: FNO_MUTED }}>
+          {POSTURE_LABEL[score.posture]}
+        </span>
+      </div>
+      <SubScoreBar label="Dir" value={score.subScores.direction} />
+      <SubScoreBar label="Vol" value={score.subScores.volFit} />
+      <SubScoreBar label="Fit" value={score.subScores.context} />
+      <p className="text-[10px] leading-snug pt-0.5" style={{ color: "#94a3b8" }}>
+        {score.reason}
+      </p>
+    </div>
   );
 }
 

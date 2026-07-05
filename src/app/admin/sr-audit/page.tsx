@@ -6,6 +6,8 @@ import { SrStoryPublish } from "@/components/admin/SrStoryPublish";
 import { useUser } from "@/firebase";
 import { isAdminEmail } from "@/lib/admin-emails-client";
 import { srEventDisplayStatus, srEventOutcome } from "@/lib/sr-audit/pnl";
+import { scoreDirectionalSetup } from "@/lib/levels/strategy-score";
+import { scoreInputsFromSrEvent } from "@/lib/levels/strategy-score-adapters";
 import type { SrAuditSummary, SrZoneEvent } from "@/lib/sr-audit/types";
 import type { SuccessStoryCandidate } from "@/lib/videos/success-story";
 import { format } from "date-fns";
@@ -57,6 +59,29 @@ function pct(v: number | null | undefined, digits = 1): string {
   if (v == null || !Number.isFinite(v)) return "—";
   return `${v.toFixed(digits)}%`;
 }
+
+/**
+ * Composite setup score for a recorded event, using the SAME engine Atlas uses
+ * live — scored from the levels captured at entry. This is the calibration
+ * bridge: does a higher setup score line up with a better realised outcome?
+ */
+function eventScore(row: SrZoneEvent): number {
+  return scoreDirectionalSetup(row.side, scoreInputsFromSrEvent(row), {
+    riskReward: row.entryRr ?? null,
+  }).composite;
+}
+
+function scoreColor(v: number): string {
+  if (v >= 70) return "#86efac";
+  if (v >= 50) return "#fcd34d";
+  return "#fca5a5";
+}
+
+const SCORE_BUCKETS = [
+  { label: "0–49", min: 0, max: 49 },
+  { label: "50–69", min: 50, max: 69 },
+  { label: "70–100", min: 70, max: 100 },
+] as const;
 
 function StatCard({
   title,
@@ -297,6 +322,24 @@ export default function SrAuditAdminPage() {
     return rows;
   }, [events, sideFilter, outcomeFilter]);
 
+  /** Score-vs-outcome calibration over the filtered, resolved (win/loss) events. */
+  const calibration = useMemo(() => {
+    const buckets = SCORE_BUCKETS.map((b) => ({ ...b, win: 0, loss: 0 }));
+    for (const e of filtered) {
+      const outcome = srEventOutcome(e);
+      if (outcome !== "win" && outcome !== "loss") continue;
+      const sc = eventScore(e);
+      const bucket = buckets.find((b) => sc >= b.min && sc <= b.max);
+      if (!bucket) continue;
+      if (outcome === "win") bucket.win += 1;
+      else bucket.loss += 1;
+    }
+    return buckets.map((b) => {
+      const total = b.win + b.loss;
+      return { ...b, total, winRate: total > 0 ? (b.win / total) * 100 : null };
+    });
+  }, [filtered]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -398,6 +441,43 @@ export default function SrAuditAdminPage() {
           </div>
         ) : null}
 
+        <div
+          className="rounded-xl border p-4 mb-6"
+          style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(15,23,42,0.6)" }}
+        >
+          <div className="flex items-baseline justify-between gap-2 mb-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Setup score → outcome calibration
+            </p>
+            <p className="text-[10px] text-slate-500">
+              Win rate by Atlas score bucket (resolved events in view)
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {calibration.map((b) => (
+              <div
+                key={b.label}
+                className="rounded-lg p-3 border"
+                style={{ borderColor: `${scoreColor(b.max)}33`, background: "rgba(2,6,23,0.5)" }}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: scoreColor(b.max) }}>
+                  Score {b.label}
+                </p>
+                <p className="text-2xl font-black tabular-nums mt-1" style={{ color: scoreColor(b.max) }}>
+                  {b.winRate == null ? "—" : `${b.winRate.toFixed(0)}%`}
+                </p>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  {b.total > 0 ? `${b.win}W / ${b.loss}L · ${b.total} resolved` : "no resolved events"}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-600 mt-3">
+            A well-calibrated score should show win rate rising left → right. Historical rows have no
+            news / PVT / IV-percentile signal, so scores here use levels, max-pain sign, IV regime and R:R only.
+          </p>
+        </div>
+
         <div className="flex flex-wrap gap-2 mb-4">
           {(
             [
@@ -458,6 +538,7 @@ export default function SrAuditAdminPage() {
                 <tr className="border-b border-white/10 bg-white/[0.03]">
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Symbol</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Side</th>
+                  <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Score</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Cluster</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Entered</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Max-pain hit</th>
@@ -476,13 +557,13 @@ export default function SrAuditAdminPage() {
               <tbody>
                 {loading && filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-3 py-8 text-center text-slate-500">
+                    <td colSpan={14} className="px-3 py-8 text-center text-slate-500">
                       <Loader2 className="h-5 w-5 animate-spin inline-block" />
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-3 py-8 text-center text-slate-500">
+                    <td colSpan={14} className="px-3 py-8 text-center text-slate-500">
                       {outcomeFilter === "win"
                         ? "No wins yet — they appear once an event reaches max pain or closes on zone flip."
                         : outcomeFilter === "loss"
@@ -526,6 +607,24 @@ export default function SrAuditAdminPage() {
                             )}
                             {row.side}
                           </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          {(() => {
+                            const sc = eventScore(row);
+                            return (
+                              <span
+                                className="inline-flex items-center justify-center h-6 min-w-[1.75rem] px-1.5 rounded-md text-[11px] font-black tabular-nums"
+                                style={{
+                                  color: scoreColor(sc),
+                                  backgroundColor: `${scoreColor(sc)}1f`,
+                                  border: `1px solid ${scoreColor(sc)}44`,
+                                }}
+                                title={`Atlas setup score at entry: ${sc}/100`}
+                              >
+                                {sc}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-3 py-2 font-mono tabular-nums text-slate-300 whitespace-nowrap">
                           {row.clusterStrike != null ? row.clusterStrike.toFixed(0) : "—"}

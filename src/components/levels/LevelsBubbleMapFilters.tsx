@@ -5,10 +5,10 @@ import { LevelsCtaCluster, type LevelsCtaAction } from "@/components/levels/Leve
 import {
   BUBBLE_MAP_FILTER_KEYS,
   SLIDESHOW_MAP_FILTER_KEYS,
+  bubbleMapFilterLabel,
   type BubbleMapFilter,
   type SlideshowMapFilter,
 } from "@/lib/zones/bubble-map-filter";
-import { BUBBLE_TONE_STYLE } from "@/lib/zones/bubble-tone";
 
 function filterTone(
   key: BubbleMapFilter,
@@ -16,7 +16,7 @@ function filterTone(
 ): LevelsCtaAction["tone"] {
   if (key === "all") return active ? "default" : "default-muted";
   if (key === "AT_POC") return active ? "maxpain" : "maxpain-muted";
-  const isBull = key === "IN_BULL" || key === "NEAR_BULL";
+  const isBull = key === "BULLISH" || key === "IN_BULL" || key === "NEAR_BULL";
   if (active) return isBull ? "bull" : key === "UNSCANNED" ? "default" : "bear";
   if (isBull) return "bull-muted";
   if (key === "UNSCANNED") return "default-muted";
@@ -55,7 +55,7 @@ export function LevelsBubbleMapFilters({
       { key: "all", label: "All" },
       ...filterKeys.map((key) => ({
         key,
-        label: BUBBLE_TONE_STYLE[key].label,
+        label: bubbleMapFilterLabel(key),
       })),
     ];
     return opts.map(({ key, label }) => {

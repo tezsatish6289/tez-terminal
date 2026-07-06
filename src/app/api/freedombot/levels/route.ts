@@ -48,6 +48,7 @@ import {
   normalizeIndexKey,
 } from "@/lib/index-zones-on-demand";
 import { indexDocId } from "@/lib/index-zones-store";
+import { getConfirmedSignalsCached } from "@/lib/levels/confirmed-signal";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
@@ -301,10 +302,11 @@ export async function GET(request: NextRequest) {
     return getSingleStock(symbol, forceRefresh, slideshowPriority);
   }
 
-  const [indexDocs, stockAgg, fnoUniverse] = await Promise.all([
+  const [indexDocs, stockAgg, fnoUniverse, signals] = await Promise.all([
     Promise.all(INDEX_KEYS.map((k) => readDoc(`config/suggested_index_zones_${k}`))),
     readDoc(STOCK_AGGREGATE_DOC),
     loadFnoUniverse(getAdminFirestore()),
+    getConfirmedSignalsCached(getAdminFirestore()),
   ]);
 
   const indices = INDEX_KEYS.map((k, i) => {
@@ -354,7 +356,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json(
-    { indices, stocks, inZone, fnoUniverse: [...fnoUniverse], updatedAt: new Date().toISOString() },
+    { indices, stocks, inZone, signals, fnoUniverse: [...fnoUniverse], updatedAt: new Date().toISOString() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

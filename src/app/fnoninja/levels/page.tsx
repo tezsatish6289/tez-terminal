@@ -120,6 +120,7 @@ interface LevelsPayload {
   indices: RawItem[];
   stocks: StockListItem[];
   inZone: InZoneItem[];
+  signals?: Record<string, "bullish" | "bearish">;
   fnoUniverse?: string[];
   updatedAt: string;
 }
@@ -419,7 +420,14 @@ export default function LevelsPage() {
   /** Full F&O map — zone tones gated by 2:1 POC RR (bubble + slideshow). */
   const bubbleItems = useMemo(
     () =>
-      payload ? buildLevelsBubbleItems(payload.indices, stockBySymbol, payload.fnoUniverse) : [],
+      payload
+        ? buildLevelsBubbleItems(
+            payload.indices,
+            stockBySymbol,
+            payload.fnoUniverse,
+            payload.signals,
+          )
+        : [],
     [payload, stockBySymbol],
   );
 

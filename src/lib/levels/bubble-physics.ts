@@ -15,12 +15,14 @@ const STOCK_RADIUS = {
   atPoc: 38,
   near: 40,
   inZone: 48,
+  confirmed: 54,
 } as const;
 
 export function bubbleRadius(scope: "index" | "stock", tone: BubbleTone): number {
   if (scope === "index") return INDEX_BUBBLE_RADIUS;
   if (tone === "UNSCANNED") return STOCK_RADIUS.unscanned;
   if (tone === "ILLIQUID" || tone === "NEUTRAL") return STOCK_RADIUS.neutral;
+  if (tone === "BULLISH" || tone === "BEARISH") return STOCK_RADIUS.confirmed;
   if (tone === "IN_BULL" || tone === "IN_BEAR") return STOCK_RADIUS.inZone;
   if (tone === "NEAR_BULL" || tone === "NEAR_BEAR") return STOCK_RADIUS.near;
   if (tone === "AT_POC") return STOCK_RADIUS.atPoc;
@@ -280,6 +282,9 @@ export function isNearZoneTone(tone: BubbleTone): boolean {
 /** Paint order: zone setups above indices and neutral/unscanned stocks. */
 export function bubbleStackZIndex(scope: "index" | "stock", tone: BubbleTone): number {
   switch (tone) {
+    case "BULLISH":
+    case "BEARISH":
+      return scope === "index" ? 240 : 230;
     case "IN_BULL":
     case "IN_BEAR":
       return scope === "index" ? 210 : 200;

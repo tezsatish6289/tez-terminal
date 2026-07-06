@@ -13,6 +13,34 @@ import "server-only";
 import { getAdminFirestore } from "@/firebase/admin";
 import { ensureValidToken } from "@/lib/dhan-token";
 import { dhanIndexSecurityId } from "@/lib/nse/dhan-index-ids";
+import {
+  enrichDailyWithTodayMarketBar,
+  istDateKeyFromEpochSec,
+  istTodayKey,
+  type DhanMarketOhlcSnapshot,
+} from "@/lib/levels/daily-candle-live";
+import {
+  mergeDailyBars,
+  planDailyFetch,
+  sanitizeClosedBar,
+  sliceDailyByDays,
+  widenCoversFrom,
+} from "@/lib/levels/candle-store-core";
+import { intradayBarBoundary } from "@/lib/levels/intraday-session";
+import {
+  mergeIntradayBars,
+  planIntradayFetch,
+  sliceIntradayByDays,
+  splitClosedForming,
+  widenCoversFromSec,
+} from "@/lib/levels/intraday-store-core";
+import {
+  loadDailyStore,
+  loadIntradayStore,
+  saveDailyStore,
+  saveIntradayStore,
+} from "@/lib/levels/candle-store";
+import { createSingleFlightCache } from "@/lib/levels/result-cache";
 
 const DHAN_BASE_URL = "https://api.dhan.co/v2";
 const DHAN_TIMEOUT_MS = 12_000;
@@ -180,11 +208,12 @@ async function fetchDhanIntraday(
   securityId: number,
   interval: string,
   segment: DhanCandleSegment,
+  days: number = INTRADAY_LOOKBACK_DAYS,
 ): Promise<Candle[]> {
   const creds = await ensureValidToken();
   if (!creds) throw new Error("Dhan token unavailable");
 
-  const { fromDate, toDate } = dhanDateRange(INTRADAY_LOOKBACK_DAYS);
+  const { fromDate, toDate } = dhanDateRange(days);
   const body = JSON.stringify({
     securityId: String(securityId),
     exchangeSegment: segment.exchangeSegment,
@@ -378,6 +407,156 @@ async function getDailyCandlesCached(
   }
 }
 
+/** Live marketfeed snapshots — short TTL during the session. */
+const MARKET_OHLC_CACHE_TTL_MS = 60_000;
+const marketOhlcCache = new Map<string, { fetchedAt: number; snap: DhanMarketOhlcSnapshot | null }>();
+
+type MarketFeedSegment = "NSE_EQ" | "IDX_I";
+
+async function fetchDhanMarketSnapshot(
+  securityId: number,
+  feedSegment: MarketFeedSegment,
+  /** Quote includes volume (needed for stock PVT); OHLC is lighter for indices. */
+  useQuote: boolean,
+): Promise<DhanMarketOhlcSnapshot | null> {
+  const cacheKey = `${feedSegment}:${securityId}:${useQuote ? "quote" : "ohlc"}`;
+  const cached = marketOhlcCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < MARKET_OHLC_CACHE_TTL_MS) {
+    return cached.snap;
+  }
+
+  const creds = await ensureValidToken();
+  if (!creds) return null;
+
+  const path = useQuote ? "/marketfeed/quote" : "/marketfeed/ohlc";
+  const body = JSON.stringify({ [feedSegment]: [securityId] });
+
+  try {
+    await throttleIntraday();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DHAN_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(`${DHAN_BASE_URL}${path}`, {
+        method: "POST",
+        headers: {
+          "access-token": creds.apiKey,
+          "client-id": creds.apiSecret,
+          "Content-Type": "application/json",
+        },
+        body,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!res.ok) return null;
+
+    const json = (await res.json()) as {
+      status?: string;
+      data?: Record<string, Record<string, DhanMarketOhlcSnapshot>>;
+    };
+    const snap = json.data?.[feedSegment]?.[String(securityId)] ?? null;
+    marketOhlcCache.set(cacheKey, { fetchedAt: Date.now(), snap });
+    return snap;
+  } catch {
+    return null;
+  }
+}
+
+// ── Daily candles via shared Firestore store ────────────────────────
+
+/** Rolling cap of stored closed daily bars (~1.5y, covers all read windows). */
+const DAILY_STORE_CAP_BARS = 400;
+/** After a fetch that returns nothing new (holiday), wait before retrying. */
+const DAILY_STORE_BACKOFF_MS = 60 * 60 * 1000;
+/** Rolling cap of stored closed 15m bars (~30d ≈ 750 bars; headroom for wider). */
+const INTRADAY_STORE_CAP_BARS = 2000;
+/** Product intraday bar — only this interval uses the shared store. */
+const INTRADAY_STORE_INTERVAL = "15";
+
+// ── Assembled-result cache (Firestore-read + assembly coalescing) ───
+//
+// The store paths do a Firestore read + merge/slice per call. Under load that's
+// one read per viewer per poll. This process-global cache holds the assembled
+// CandleResult for a short window and single-flights concurrent misses, so
+// Firestore reads scale with symbols × (window / TTL), not with viewer count.
+// Freshness is unchanged in practice — the underlying Dhan fetch is itself
+// 60s-cached, so the forming bar is never staler than today's design.
+
+/** Forming bar moves intra-session; keep short. */
+const INTRADAY_RESULT_TTL_MS = 20 * 1000;
+/** Daily closed history changes once/day; only the live bar refreshes. */
+const DAILY_RESULT_TTL_MS = 30 * 1000;
+
+const candleResultCache = createSingleFlightCache<CandleResult>();
+
+/**
+ * Serve `produce()` through the short-lived, single-flighted result cache. Only
+ * successful (`ok`) results are cached; errors fall through so a transient
+ * failure isn't pinned for the whole TTL.
+ */
+function cachedCandleResult(
+  key: string,
+  ttlMs: number,
+  produce: () => Promise<CandleResult>,
+): Promise<CandleResult> {
+  return candleResultCache.get(key, ttlMs, produce, (r) => r.ok);
+}
+
+/**
+ * Serve daily candles from the shared Firestore store, hitting Dhan only to
+ * backfill or append newly-closed sessions, then merge today's live bar from
+ * the marketfeed snapshot. Falls back to a direct Dhan fetch if the store is
+ * cold and Dhan is reachable, and to the store (stale) if Dhan errors.
+ */
+async function getDailyCandlesStored(
+  cacheKey: string,
+  resolveSecurityId: () => Promise<number | null>,
+  segment: DhanCandleSegment,
+  days: number,
+  feedSegment: MarketFeedSegment,
+  useQuote: boolean,
+): Promise<CandleResult> {
+  const nowMs = Date.now();
+  const store = await loadDailyStore(cacheKey);
+  const plan = planDailyFetch(store, { days, nowMs, backoffMs: DAILY_STORE_BACKOFF_MS });
+
+  let bars = store.bars.slice();
+  let dhanErr: CandleResult | null = null;
+
+  if (plan.mode !== "none") {
+    const dhan = await getDailyCandlesCached(cacheKey, resolveSecurityId, segment, plan.fetchDays);
+    if (dhan.ok && dhan.candles.length) {
+      const merged = mergeDailyBars(store.bars, dhan.candles, DAILY_STORE_CAP_BARS);
+      const todayKey = istTodayKey(nowMs);
+      // Never persist the forming (today) bar — it comes live from marketfeed.
+      const closed = merged
+        .filter((b) => istDateKeyFromEpochSec(b.time) < todayKey)
+        .map(sanitizeClosedBar);
+      const updatedThrough = closed.length
+        ? istDateKeyFromEpochSec(closed[closed.length - 1]!.time)
+        : store.updatedThrough;
+      const coversFrom = widenCoversFrom(store.coversFrom, plan.fetchDays, nowMs);
+      await saveDailyStore(cacheKey, closed, updatedThrough, nowMs, coversFrom);
+      bars = closed;
+    } else {
+      dhanErr = dhan;
+    }
+  }
+
+  if (!bars.length) {
+    // Cold store and Dhan gave us nothing — surface the (error) result verbatim.
+    return dhanErr ?? { ok: false, candles: [], code: "no_data", error: "no daily candles" };
+  }
+
+  const sliced = sliceDailyByDays(bars, days, nowMs);
+  const securityId = await resolveSecurityId();
+  const snap = securityId != null ? await fetchDhanMarketSnapshot(securityId, feedSegment, useQuote) : null;
+  const candles = enrichDailyWithTodayMarketBar(sliced, snap, nowMs);
+  return dhanErr ? { ok: true, candles, stale: true } : { ok: true, candles };
+}
+
 // ── Public API ──────────────────────────────────────────────────────
 
 async function getCandlesCached(
@@ -385,9 +564,10 @@ async function getCandlesCached(
   resolveSecurityId: () => Promise<number | null>,
   segment: DhanCandleSegment,
   interval = "5",
+  days: number = INTRADAY_LOOKBACK_DAYS,
 ): Promise<CandleResult> {
   const tf = ALLOWED_INTERVALS.has(interval) ? interval : "5";
-  const key = `${cacheKey}:${tf}`;
+  const key = `${cacheKey}:${tf}:${days}`;
 
   const cached = candleCache.get(key);
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
@@ -401,7 +581,7 @@ async function getCandlesCached(
       if (securityId == null) {
         throw new Error(`No Dhan securityId for ${cacheKey}`);
       }
-      const candles = await fetchDhanIntraday(securityId, tf, segment);
+      const candles = await fetchDhanIntraday(securityId, tf, segment, days);
       candleCache.set(key, { candles, fetchedAt: Date.now() });
       return candles;
     })();
@@ -422,46 +602,124 @@ async function getCandlesCached(
   }
 }
 
+/**
+ * Serve 15m intraday candles from the shared Firestore store, hitting Dhan only
+ * for a short tail (forming bar + any newly-closed bars). Closed bars are
+ * immutable and never re-fetched; the forming bar is appended on read and never
+ * persisted. Zero Dhan calls when the market is closed and the store is current.
+ */
+async function getIntradayCandlesStored(
+  cacheKey: string,
+  resolveSecurityId: () => Promise<number | null>,
+  segment: DhanCandleSegment,
+  days: number,
+): Promise<CandleResult> {
+  const nowMs = Date.now();
+  const boundary = intradayBarBoundary(nowMs);
+  const store = await loadIntradayStore(cacheKey, INTRADAY_STORE_INTERVAL);
+  const plan = planIntradayFetch(store, boundary, { nowMs, lookbackDays: days });
+
+  let bars = store.bars.slice();
+  let forming: Candle | null = null;
+  let dhanErr: CandleResult | null = null;
+
+  if (plan.mode !== "none") {
+    const dhan = await getCandlesCached(
+      cacheKey,
+      resolveSecurityId,
+      segment,
+      INTRADAY_STORE_INTERVAL,
+      plan.fetchDays,
+    );
+    if (dhan.ok && dhan.candles.length) {
+      const { closed, forming: live } = splitClosedForming(dhan.candles, boundary);
+      const merged = mergeIntradayBars(store.bars, closed, INTRADAY_STORE_CAP_BARS);
+      const lastClosedSec = merged.length ? merged[merged.length - 1]!.time : store.lastClosedSec;
+      const coversFromSec = widenCoversFromSec(store.coversFromSec, plan.fetchDays, nowMs);
+      const changed =
+        merged.length !== store.bars.length ||
+        lastClosedSec !== store.lastClosedSec ||
+        coversFromSec !== store.coversFromSec;
+      if (changed) {
+        await saveIntradayStore(
+          cacheKey,
+          INTRADAY_STORE_INTERVAL,
+          merged,
+          lastClosedSec,
+          coversFromSec,
+          nowMs,
+        );
+      }
+      bars = merged;
+      forming = live;
+    } else {
+      dhanErr = dhan;
+    }
+  }
+
+  if (!bars.length && !forming) {
+    return dhanErr ?? { ok: false, candles: [], code: "no_data", error: "no intraday candles" };
+  }
+
+  const sliced = sliceIntradayByDays(bars, days, nowMs);
+  const last = sliced[sliced.length - 1];
+  const candles =
+    forming && (!last || last.time < forming.time) ? [...sliced, forming] : sliced;
+  return dhanErr ? { ok: true, candles, stale: true } : { ok: true, candles };
+}
+
 /** NSE F&O stock — NSE_EQ / EQUITY. */
 export async function getStockCandles(symbol: string, interval = "5"): Promise<CandleResult> {
   const upper = symbol.toUpperCase();
-  return getCandlesCached(
-    `EQ:${upper}`,
-    () => resolveDhanEquitySecurityId(upper),
-    { exchangeSegment: "NSE_EQ", instrument: "EQUITY" },
-    interval,
-  );
+  const segment: DhanCandleSegment = { exchangeSegment: "NSE_EQ", instrument: "EQUITY" };
+  const resolve = () => resolveDhanEquitySecurityId(upper);
+  if (interval === INTRADAY_STORE_INTERVAL) {
+    return cachedCandleResult(`intra:EQ:${upper}`, INTRADAY_RESULT_TTL_MS, () =>
+      getIntradayCandlesStored(`EQ:${upper}`, resolve, segment, INTRADAY_LOOKBACK_DAYS),
+    );
+  }
+  return getCandlesCached(`EQ:${upper}`, resolve, segment, interval);
 }
 
 /** NSE index (NIFTY, BANKNIFTY, …) — IDX_I / INDEX. */
 export async function getIndexCandles(symbol: string, interval = "5"): Promise<CandleResult> {
   const upper = symbol.toUpperCase();
-  return getCandlesCached(
-    `IDX:${upper}`,
-    async () => dhanIndexSecurityId(upper),
-    { exchangeSegment: "IDX_I", instrument: "INDEX" },
-    interval,
-  );
+  const segment: DhanCandleSegment = { exchangeSegment: "IDX_I", instrument: "INDEX" };
+  const resolve = async () => dhanIndexSecurityId(upper);
+  if (interval === INTRADAY_STORE_INTERVAL) {
+    return cachedCandleResult(`intra:IDX:${upper}`, INTRADAY_RESULT_TTL_MS, () =>
+      getIntradayCandlesStored(`IDX:${upper}`, resolve, segment, INTRADAY_LOOKBACK_DAYS),
+    );
+  }
+  return getCandlesCached(`IDX:${upper}`, resolve, segment, interval);
 }
 
-/** Daily OHLC for an F&O stock — feeds the levels "History mode" chart. */
+/** Daily OHLC for an F&O stock — feeds the levels Trend/History charts. */
 export async function getStockDailyCandles(symbol: string, days = DAILY_LOOKBACK_DAYS): Promise<CandleResult> {
   const upper = symbol.toUpperCase();
-  return getDailyCandlesCached(
-    `EQ:${upper}`,
-    () => resolveDhanEquitySecurityId(upper),
-    { exchangeSegment: "NSE_EQ", instrument: "EQUITY" },
-    days,
+  return cachedCandleResult(`daily:EQ:${upper}:${days}`, DAILY_RESULT_TTL_MS, () =>
+    getDailyCandlesStored(
+      `EQ:${upper}`,
+      () => resolveDhanEquitySecurityId(upper),
+      { exchangeSegment: "NSE_EQ", instrument: "EQUITY" },
+      days,
+      "NSE_EQ",
+      true, // quote → includes volume (needed for stock PVT)
+    ),
   );
 }
 
-/** Daily OHLC for an NSE index — feeds the levels "History mode" chart. */
+/** Daily OHLC for an NSE index — feeds the levels Trend/History charts. */
 export async function getIndexDailyCandles(symbol: string, days = DAILY_LOOKBACK_DAYS): Promise<CandleResult> {
   const upper = symbol.toUpperCase();
-  return getDailyCandlesCached(
-    `IDX:${upper}`,
-    async () => dhanIndexSecurityId(upper),
-    { exchangeSegment: "IDX_I", instrument: "INDEX" },
-    days,
+  return cachedCandleResult(`daily:IDX:${upper}:${days}`, DAILY_RESULT_TTL_MS, () =>
+    getDailyCandlesStored(
+      `IDX:${upper}`,
+      async () => dhanIndexSecurityId(upper),
+      { exchangeSegment: "IDX_I", instrument: "INDEX" },
+      days,
+      "IDX_I",
+      false, // ohlc is lighter for indices (no volume needed)
+    ),
   );
 }

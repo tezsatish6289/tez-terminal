@@ -18,7 +18,7 @@
  * ladder draws are exposed, under neutral key names.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { INDEX_KEYS, INDEX_SPECS } from "@/lib/index-options-zones";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
@@ -49,6 +49,7 @@ import {
 } from "@/lib/index-zones-on-demand";
 import { indexDocId } from "@/lib/index-zones-store";
 import { getConfirmedSignalsCached } from "@/lib/levels/confirmed-signal";
+import { createRefreshGuard } from "@/lib/levels/levels-refresh-guard";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
@@ -75,6 +76,15 @@ export const revalidate = 0;
 export const maxDuration = 60;
 
 const STOCK_AGGREGATE_DOC = "config/zone_status_stocks";
+
+/**
+ * Single-flight/throttle guards for the stale-while-revalidate path: when a
+ * cached ladder is renderable but stale, we serve it immediately and recompute
+ * in the background. These keep concurrent chart opens for the same symbol from
+ * stacking NSE recomputes. Module scope = one per server instance.
+ */
+const stockRefreshGuard = createRefreshGuard({ minIntervalMs: 15_000 });
+const indexRefreshGuard = createRefreshGuard({ minIntervalMs: 15_000 });
 
 function num(raw: unknown): number | null {
   if (typeof raw === "number" && Number.isFinite(raw)) return raw;
@@ -140,10 +150,17 @@ function withNseSource(data: PublicLevels | null): PublicLevels | null {
   return { ...data, levelsSource: "nse" };
 }
 
+/** True when the public ladder can render bands (at least one side). */
+function levelsHaveBandsData(data: PublicLevels | null): boolean {
+  return data != null && (data.bullLow != null || data.bearLow != null);
+}
+
 /**
- * Single-index ladder payload. Recomputes from NSE when multi-expiry slices are missing.
+ * Single-index ladder payload. Recomputes from NSE when multi-expiry slices are
+ * missing. Stale-while-revalidate: if a renderable ladder is cached, serve it
+ * immediately and refresh in the background (unless `explicitCompute`).
  */
-async function getSingleIndex(symbol: string, forceRefresh: boolean) {
+async function getSingleIndex(symbol: string, forceRefresh: boolean, explicitCompute: boolean) {
   const key = normalizeIndexKey(symbol);
   if (!key) {
     return NextResponse.json({ error: "Unknown index symbol" }, { status: 400 });
@@ -153,8 +170,29 @@ async function getSingleIndex(symbol: string, forceRefresh: boolean) {
   let data = withNseSource(sanitize(raw, { includeExpiries: true }));
   const cachedBeforeRefresh = data;
   const needsMultiExpiry = levelsNeedMultiExpiryRefresh(data);
+  const needsRecompute = forceRefresh || needsMultiExpiry;
 
-  if (forceRefresh || needsMultiExpiry) {
+  // Serve renderable cache now, recompute in the background — the chart paints
+  // instantly and its poll picks up the refreshed ladder shortly after.
+  if (needsRecompute && !explicitCompute && levelsHaveBandsData(data)) {
+    after(async () => {
+      await indexRefreshGuard.run(key, () => computeIndexZonesOnDemand(key));
+    });
+    return NextResponse.json(
+      {
+        symbol: key,
+        label: (typeof raw?.label === "string" && raw.label) || indexLevelsLabel(key),
+        data,
+        source: "cache",
+        computed: false,
+        stale: true,
+        refreshing: true,
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  if (needsRecompute) {
     await computeIndexZonesOnDemand(key);
     raw = await readDoc(indexDocId(key));
     data = withNseSource(sanitize(raw, { includeExpiries: true }));
@@ -225,7 +263,12 @@ interface StockAggregateEntry {
  * Single-stock ladder payload. Reads Firestore first; if missing, stale, or
  * without bands, runs an on-demand NSE compute (the planned click-to-fetch path).
  */
-async function getSingleStock(symbol: string, forceRefresh: boolean, slideshowPriority: boolean) {
+async function getSingleStock(
+  symbol: string,
+  forceRefresh: boolean,
+  slideshowPriority: boolean,
+  explicitCompute: boolean,
+) {
   const db = getAdminFirestore();
   const safe = normalizeStockSymbol(symbol);
   if (!(await isValidFnoSymbolDb(db, safe))) {
@@ -239,8 +282,30 @@ async function getSingleStock(symbol: string, forceRefresh: boolean, slideshowPr
     ? stockLevelsCacheFreshSlideshow(data?.computedAt) && stockLevelsLadderComplete(data)
     : stockLevelsCacheFresh(data?.computedAt) && stockLevelsLadderComplete(data);
   const needsMultiExpiry = stockLevelsNeedsMultiExpiryRefresh(data);
+  const needsRecompute = forceRefresh || !cachedFresh || needsMultiExpiry;
 
-  if (forceRefresh || !cachedFresh || needsMultiExpiry) {
+  // Stale-while-revalidate: a renderable (banded) ladder is served instantly and
+  // refreshed in the background, so the chart never blocks on a ~10–15s NSE
+  // recompute. The chart's own poll picks up the fresh ladder moments later.
+  if (needsRecompute && !explicitCompute && stockLevelsHasBands(data)) {
+    after(async () => {
+      await stockRefreshGuard.run(safe, () => computeStockZonesOnDemand(safe));
+    });
+    return NextResponse.json(
+      {
+        symbol: safe,
+        label: (typeof raw?.label === "string" && raw.label) || safe,
+        data,
+        source: "cache",
+        computed: false,
+        stale: true,
+        refreshing: true,
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  if (needsRecompute) {
     const result = await computeStockZonesOnDemand(safe);
     raw = await readDoc(stockDocId(safe));
     data = sanitize(raw, { includeExpiries: true });
@@ -293,13 +358,16 @@ export async function GET(request: NextRequest) {
   const params = new URL(request.url).searchParams;
   const symbol = params.get("symbol");
   if (symbol) {
-    const forceRefresh = params.get("refresh") === "1" || params.get("compute") === "1";
+    // `compute=1` = explicit "recompute now" (blocking); `refresh=1`/staleness
+    // are eligible for the non-blocking stale-while-revalidate path.
+    const explicitCompute = params.get("compute") === "1";
+    const forceRefresh = params.get("refresh") === "1" || explicitCompute;
     const scope = params.get("scope");
     if (scope === "index") {
-      return getSingleIndex(symbol, forceRefresh);
+      return getSingleIndex(symbol, forceRefresh, explicitCompute);
     }
     const slideshowPriority = params.get("slideshow") === "1";
-    return getSingleStock(symbol, forceRefresh, slideshowPriority);
+    return getSingleStock(symbol, forceRefresh, slideshowPriority, explicitCompute);
   }
 
   const [indexDocs, stockAgg, fnoUniverse, signals] = await Promise.all([

@@ -11,23 +11,32 @@ type SymbolLevelsResponse = {
   error?: string;
 };
 
-/** Fetch per-symbol levels with optional client retry when multi-expiry is still missing. */
+/**
+ * Fetch per-symbol levels with an optional client retry when multi-expiry is
+ * still missing. When `onPartial` is supplied, the first-pass result is handed
+ * back immediately (before the multi-expiry retry) so callers can paint the
+ * ladder without waiting on the second round-trip.
+ */
 export async function fetchSymbolLevels(
   scope: LevelsTvScope,
   symbol: string,
-  opts?: { slideshow?: boolean },
+  opts?: { slideshow?: boolean; onPartial?: (data: PublicLevels | null) => void },
 ): Promise<SymbolLevelsResponse> {
   const load = async (refresh: boolean) => {
-    const res = await fetch(symbolLevelsApiUrl(scope, symbol, { ...opts, refresh }), {
-      cache: "no-store",
-    });
+    const res = await fetch(
+      symbolLevelsApiUrl(scope, symbol, { slideshow: opts?.slideshow, refresh }),
+      { cache: "no-store" },
+    );
     const json = (await res.json()) as SymbolLevelsResponse & { error?: string };
     return { res, json };
   };
 
-  let { res, json } = await load(false);
-  if (res.ok && levelsNeedMultiExpiryRefresh(json.data)) {
-    ({ res, json } = await load(true));
+  const first = await load(false);
+  if (first.res.ok && levelsNeedMultiExpiryRefresh(first.json.data)) {
+    // Render the banded first-pass immediately; the retry only enriches expiries.
+    opts?.onPartial?.(first.json.data);
+    const second = await load(true);
+    return second.json;
   }
-  return json;
+  return first.json;
 }

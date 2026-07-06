@@ -265,7 +265,16 @@ export function PvtChart({
     async (opts?: { quiet?: boolean }) => {
       if (!opts?.quiet) setLevelsLoading(true);
       try {
-        const json = await fetchSymbolLevels(scope, symbol, { slideshow: true });
+        const json = await fetchSymbolLevels(scope, symbol, {
+          slideshow: true,
+          // Paint the banded first-pass right away so the overlay clears without
+          // waiting on the multi-expiry retry round-trip.
+          onPartial: opts?.quiet
+            ? undefined
+            : (data) => {
+                if (levelsHaveBands(data)) setFetchedLevels(data);
+              },
+        });
         setFetchedLevels(json.data);
       } catch {
         if (!opts?.quiet) setFetchedLevels(null);

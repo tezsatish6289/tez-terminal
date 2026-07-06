@@ -1,13 +1,27 @@
 /**
  * /api/cron/sr-audit-outcomes
  *
- * Hourly: score open SR zone events using Dhan klines until invalidation or zone flip.
- * Schedule on cron-job.org (e.g. every hour during market hours).
+ * Scores open SR zone events using Dhan klines (incl. event-anchored PVT) until
+ * invalidation or zone flip. The batch hits Dhan sequentially per open event, so
+ * it routinely exceeds cron-job.org's 30s HTTP cap.
+ *
+ * Schedule: hourly on cron-job.org (GET + key). Like suggest-stock-zones, the
+ * keyed GET returns 202 immediately and runs the batch in the background via
+ * after() (up to maxDuration/timeoutSeconds = 120s), guarded by a run-lock so
+ * hourly ticks can't overlap. cron-job.org reporting a 30s timeout is harmless —
+ * the work still completes.
+ *
+ *   GET ?key=CRON_SECRET       → 202, batch runs in background
+ *   GET ?key=…&sync=1          → waits for the full batch (debug; needs long timeout)
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { scoreOpenSrZoneEvents } from "@/lib/sr-audit/score-events";
+import {
+  releaseSrOutcomesRunLock,
+  scoreOpenSrZoneEvents,
+  tryAcquireSrOutcomesRunLock,
+} from "@/lib/sr-audit/score-events";
 import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
 
 export const dynamic = "force-dynamic";
@@ -32,12 +46,51 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  try {
-    const summary = await scoreOpenSrZoneEvents(getAdminFirestore());
-    return NextResponse.json({ success: true, ...summary });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("[sr-audit-outcomes]", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+  const db = getAdminFirestore();
+
+  // Debug/manual: wait for the full batch (needs a client with a long timeout).
+  if (searchParams.get("sync") === "1") {
+    try {
+      const summary = await scoreOpenSrZoneEvents(db);
+      return NextResponse.json({ success: true, mode: "sync", ...summary });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[sr-audit-outcomes] sync", msg);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
   }
+
+  const acquired = await tryAcquireSrOutcomesRunLock(db);
+  if (!acquired) {
+    return NextResponse.json({
+      success: true,
+      accepted: false,
+      skipped: "already_running",
+      hint: "Previous background batch still in progress. cron-job.org 30s timeout is OK — wait for next tick.",
+    });
+  }
+
+  after(async () => {
+    try {
+      const summary = await scoreOpenSrZoneEvents(db);
+      console.log("[sr-audit-outcomes] background batch done", JSON.stringify(summary));
+    } catch (e) {
+      console.error(
+        "[sr-audit-outcomes] background batch failed:",
+        e instanceof Error ? e.message : String(e),
+      );
+    } finally {
+      await releaseSrOutcomesRunLock(db);
+    }
+  });
+
+  return NextResponse.json(
+    {
+      success: true,
+      accepted: true,
+      mode: "background",
+      hint: "Batch runs after response (for cron-job.org 30s limit). Check sr_audit_meta or the SR-audit page.",
+    },
+    { status: 202 },
+  );
 }

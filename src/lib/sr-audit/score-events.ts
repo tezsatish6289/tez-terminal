@@ -24,8 +24,41 @@ import type { SrZoneEvent } from "@/lib/sr-audit/types";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 
 const AGGREGATE_DOC = "config/zone_status_stocks";
+const RUN_LOCK_DOC = "config/sr_outcomes_run_lock";
 
 export { analyzeCandlesForEvent } from "@/lib/sr-audit/score-logic";
+
+/**
+ * Prevent overlapping background batches. The scoring loop hits Dhan sequentially
+ * per open event, so a slow run must not have the next hourly tick pile on top.
+ */
+export async function tryAcquireSrOutcomesRunLock(
+  db: Firestore,
+  ttlMs = 115_000,
+): Promise<boolean> {
+  const ref = db.doc(RUN_LOCK_DOC);
+  const now = Date.now();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const untilMs = snap.exists
+      ? new Date(String((snap.data() as { until?: string }).until ?? 0)).getTime()
+      : 0;
+    if (untilMs > now) return false;
+    tx.set(ref, {
+      until: new Date(now + ttlMs).toISOString(),
+      startedAt: new Date(now).toISOString(),
+    });
+    return true;
+  });
+}
+
+export async function releaseSrOutcomesRunLock(db: Firestore): Promise<void> {
+  try {
+    await db.doc(RUN_LOCK_DOC).delete();
+  } catch {
+    /* best-effort */
+  }
+}
 
 interface AggregateRow {
   status?: ZoneStatus;

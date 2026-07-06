@@ -37,6 +37,7 @@ import { backfillOiHistory } from "@/lib/oi-history-backfill";
 import { cacheBhavcopyRange, cacheRecentBhavcopy } from "@/lib/oi-bhavcopy-backfill";
 import { appendDailyOiHistory } from "@/lib/oi-history-daily";
 import { loadOiHistory } from "@/lib/oi-history";
+import { warmExistingOiHistories } from "@/lib/oi-history-ensure";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -62,6 +63,12 @@ export async function GET(request: NextRequest) {
           console.log(
             `[oi-history] cacheDaily cached=${res.cached.join(",") || "-"} ` +
               `already=${res.alreadyCached.join(",") || "-"} missing=${res.missing.join(",") || "-"}`,
+          );
+          // Pre-materialize per-symbol series from the just-cached bhavcopy so a
+          // chart open is a single Firestore read (no on-event GCS probing).
+          const warm = await warmExistingOiHistories(db);
+          console.log(
+            `[oi-history] cacheDaily warmed symbols=${warm.symbols} updated=${warm.updated} fresh=${warm.fresh}`,
           );
         } catch (e) {
           console.error("[oi-history] cacheDaily background failed:", e instanceof Error ? e.message : String(e));

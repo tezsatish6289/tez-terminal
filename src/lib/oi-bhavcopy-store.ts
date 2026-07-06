@@ -88,6 +88,9 @@ export async function readDailySnapshot(dateKey: string): Promise<DailySnapshotM
 
 export async function writeDailySnapshot(dateKey: string, map: DailySnapshotMap): Promise<void> {
   await writeObject(dailySnapshotObject(dateKey), Buffer.from(JSON.stringify(map)), "application/json");
+  // Keep the in-process memo fresh so a just-cached day is served immediately
+  // (e.g. right after the cron writes it) instead of a stale 5-min "miss".
+  writeDayMemo(dateKey, map);
 }
 
 /** Read a cached raw bhavcopy zip from GCS (layer 2 source). */
@@ -116,13 +119,70 @@ export interface GetDailySnapshotOptions {
   fetchAttempts?: number;
 }
 
+// ── Process-global memo of resolved day snapshots ───────────────────
+//
+// A closed day's snapshot is immutable, so once we've read it from GCS we keep
+// it in memory: opening the History chart for many symbols reads the SAME day
+// files (each file covers every symbol), so the first cold load warms the rest.
+// Misses are cached briefly so a not-yet-published day isn't hammered but still
+// gets picked up soon after the cron caches it.
+
+interface DayMemoEntry {
+  map: DailySnapshotMap | null;
+  at: number;
+  present: boolean;
+}
+const daySnapshotMemo = new Map<string, DayMemoEntry>();
+const DAY_MEMO_MISS_TTL_MS = 5 * 60 * 1000;
+const DAY_MEMO_MAX = 500;
+
+function readDayMemo(dateKey: string, allowNse: boolean): DayMemoEntry | null {
+  const memo = daySnapshotMemo.get(dateKey);
+  if (!memo) return null;
+  if (memo.present) return memo; // immutable — always reusable
+  // A miss: reuse only briefly, and never when the caller may fetch live (NSE).
+  if (!allowNse && Date.now() - memo.at < DAY_MEMO_MISS_TTL_MS) return memo;
+  return null;
+}
+
+function writeDayMemo(dateKey: string, map: DailySnapshotMap | null): void {
+  if (daySnapshotMemo.size >= DAY_MEMO_MAX) {
+    // Evict oldest insertions (Map preserves insertion order).
+    const drop = daySnapshotMemo.size - DAY_MEMO_MAX + 1;
+    let i = 0;
+    for (const k of daySnapshotMemo.keys()) {
+      daySnapshotMemo.delete(k);
+      if (++i >= drop) break;
+    }
+  }
+  daySnapshotMemo.set(dateKey, { map, at: Date.now(), present: map != null });
+}
+
+/** Drop the in-memory day-snapshot memo (tests / after a forced re-cache). */
+export function clearDaySnapshotMemo(): void {
+  daySnapshotMemo.clear();
+}
+
 /**
  * Resolve the compact per-symbol snapshot for a trading day via the layered
  * cache. Returns null for non-trading days / when uncached and `allowNse` is off.
+ * Results are memoized in-process (closed days are immutable).
  */
 export async function getDailySnapshot(
   dateKey: string,
   opts: GetDailySnapshotOptions = {},
+): Promise<DailySnapshotMap | null> {
+  const memo = readDayMemo(dateKey, opts.allowNse === true);
+  if (memo) return memo.map;
+
+  const resolved = await resolveDailySnapshot(dateKey, opts);
+  writeDayMemo(dateKey, resolved);
+  return resolved;
+}
+
+async function resolveDailySnapshot(
+  dateKey: string,
+  opts: GetDailySnapshotOptions,
 ): Promise<DailySnapshotMap | null> {
   // Layer 1 — compact snapshot already cached.
   const cached = await readDailySnapshot(dateKey);

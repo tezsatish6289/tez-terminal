@@ -14,8 +14,9 @@
  */
 
 import "server-only";
-import type { Firestore } from "firebase-admin/firestore";
+import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { getDailySnapshot } from "@/lib/oi-bhavcopy-store";
+import { mapWithConcurrency } from "@/lib/async-pool";
 import {
   loadOiHistory,
   markOiHistoryCheckedThrough,
@@ -31,8 +32,8 @@ const PUBLISH_CUTOFF_MIN = 18 * 60; // 6:00 PM IST
 const MAX_INCREMENTAL_DAYS = 7;
 /** Max weekdays to probe on a cold start (≈6 months of sessions). */
 const MAX_COLD_PROBES = 130;
-/** Bail a cold start after this many consecutive empty probes (symbol not backfilled). */
-const COLD_MISS_BAIL = 6;
+/** Parallel GCS reads when filling gaps — day files are shared across symbols. */
+const OI_ENSURE_CONCURRENCY = 8;
 
 function istDate(now: number): Date {
   return new Date(now + IST_OFFSET_MS);
@@ -79,6 +80,17 @@ function incrementalDates(lastDate: string, expected: string, cap: number): stri
   return out;
 }
 
+/** The `cap` most recent weekday keys ending at `expected`, oldest→newest. Pure. */
+export function coldProbeDates(expected: string, cap: number): string[] {
+  const out: string[] = [];
+  let cursor = expected;
+  while (out.length < cap) {
+    if (!isWeekend(cursor)) out.push(cursor);
+    cursor = addDaysKey(cursor, -1);
+  }
+  return out.reverse();
+}
+
 export interface EnsureOiHistoryResult {
   entries: OiHistoryEntry[];
   lastDate: string | null;
@@ -116,35 +128,22 @@ export async function ensureOiHistory(
     };
   }
 
-  const batch: OiHistoryEntry[] = [];
+  // Which sessions to pull. Warm = the small forward gap; cold = the recent
+  // window the chart shows. Either way we read GCS ONLY — never NSE on a chart
+  // open (the daily cron is the sole NSE fetcher). Day files are shared across
+  // symbols and memoized in-process, so the first open warms the rest.
+  const dates = loaded.lastDate
+    ? incrementalDates(loaded.lastDate, expected, MAX_INCREMENTAL_DAYS)
+    : coldProbeDates(expected, MAX_COLD_PROBES);
 
-  if (loaded.lastDate) {
-    // Warm path — small forward gap. GCS first; tiny NSE backstop allowed.
-    const dates = incrementalDates(loaded.lastDate, expected, MAX_INCREMENTAL_DAYS);
-    for (const dateKey of dates) {
-      const map = await getDailySnapshot(dateKey, { allowNse: true });
-      const snap = map?.[sym];
-      if (snap) batch.push(snap);
-    }
-  } else {
-    // Cold start — fill backward from the GCS cache only (no NSE fan-out).
-    let cursor = expected;
-    let probes = 0;
-    let consecutiveMisses = 0;
-    while (probes < MAX_COLD_PROBES && consecutiveMisses < COLD_MISS_BAIL) {
-      if (!isWeekend(cursor)) {
-        probes++;
-        const map = await getDailySnapshot(cursor, { allowNse: false });
-        const snap = map?.[sym];
-        if (snap) {
-          batch.push(snap);
-          consecutiveMisses = 0;
-        } else {
-          consecutiveMisses++;
-        }
-      }
-      cursor = addDaysKey(cursor, -1);
-    }
+  const maps = await mapWithConcurrency(dates, OI_ENSURE_CONCURRENCY, (dateKey) =>
+    getDailySnapshot(dateKey, { allowNse: false }),
+  );
+
+  const batch: OiHistoryEntry[] = [];
+  for (const map of maps) {
+    const snap = map?.[sym];
+    if (snap) batch.push(snap);
   }
 
   if (!batch.length) {
@@ -179,4 +178,52 @@ export async function ensureOiHistory(
     fresh: false,
     needsBackfill: false,
   };
+}
+
+const OI_HISTORY_DOC_PREFIX = "oi_history_";
+/** Symbols warmed per batch by the daily cron. */
+const OI_WARM_CONCURRENCY = 8;
+
+export interface WarmOiHistoriesResult {
+  symbols: number;
+  updated: number;
+  fresh: number;
+}
+
+/**
+ * Pre-materialize every already-seeded symbol's OI series up to the latest
+ * completed session, so a chart open is a single Firestore read (never GCS
+ * probing). Meant to run in the daily cron *after* the bhavcopy is cached to
+ * GCS; reuses `ensureOiHistory` (GCS-only, memoized) so day files are read once
+ * and shared across all symbols. New/unseeded symbols are left to the (now-fast)
+ * lazy build on first open.
+ */
+export async function warmExistingOiHistories(
+  db: Firestore,
+  now: number = Date.now(),
+): Promise<WarmOiHistoriesResult> {
+  // Range-scan the `config` collection for `oi_history_*` doc IDs only.
+  const snap = await db
+    .collection("config")
+    .where(FieldPath.documentId(), ">=", OI_HISTORY_DOC_PREFIX)
+    .where(FieldPath.documentId(), "<", `${OI_HISTORY_DOC_PREFIX}\uf8ff`)
+    .select()
+    .get();
+
+  const symbols = snap.docs
+    .map((d) => d.id.slice(OI_HISTORY_DOC_PREFIX.length))
+    .filter((s) => s.length > 0);
+
+  const results = await mapWithConcurrency(symbols, OI_WARM_CONCURRENCY, (symbol) =>
+    ensureOiHistory(db, symbol, now).catch(() => null),
+  );
+
+  let updated = 0;
+  let fresh = 0;
+  for (const r of results) {
+    if (!r) continue;
+    if (r.added > 0) updated++;
+    else if (r.fresh) fresh++;
+  }
+  return { symbols: symbols.length, updated, fresh };
 }

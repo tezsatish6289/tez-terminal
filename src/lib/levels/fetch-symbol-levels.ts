@@ -4,10 +4,12 @@ import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { levelsNeedMultiExpiryRefresh } from "@/lib/levels/multi-expiry-levels";
 import { symbolLevelsApiUrl } from "@/lib/levels/symbol-levels-api";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
+import type { BubbleTone } from "@/lib/zones/bubble-tone";
 
 type SymbolLevelsResponse = {
   label?: string;
   data: PublicLevels | null;
+  displayTone?: BubbleTone;
   error?: string;
 };
 

@@ -50,6 +50,7 @@ import {
 import { indexDocId } from "@/lib/index-zones-store";
 import { getConfirmedSignalsCached } from "@/lib/levels/confirmed-signal";
 import { createRefreshGuard } from "@/lib/levels/levels-refresh-guard";
+import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
@@ -85,6 +86,27 @@ const STOCK_AGGREGATE_DOC = "config/zone_status_stocks";
  */
 const stockRefreshGuard = createRefreshGuard({ minIntervalMs: 15_000 });
 const indexRefreshGuard = createRefreshGuard({ minIntervalMs: 15_000 });
+
+const NO_STORE_HEADERS = { headers: { "Cache-Control": "no-store" } };
+
+async function jsonSingleSymbol(body: {
+  symbol: string;
+  label: string;
+  data: PublicLevels | null;
+  [key: string]: unknown;
+}) {
+  const signals = await getConfirmedSignalsCached(getAdminFirestore());
+  return NextResponse.json(
+    {
+      ...body,
+      displayTone: resolveSymbolDisplayTone(body.data, {
+        scanned: Boolean(body.data),
+        signal: signals[body.symbol] ?? null,
+      }),
+    },
+    NO_STORE_HEADERS,
+  );
+}
 
 function num(raw: unknown): number | null {
   if (typeof raw === "number" && Number.isFinite(raw)) return raw;
@@ -178,8 +200,7 @@ async function getSingleIndex(symbol: string, forceRefresh: boolean, explicitCom
     after(async () => {
       await indexRefreshGuard.run(key, () => computeIndexZonesOnDemand(key));
     });
-    return NextResponse.json(
-      {
+    return jsonSingleSymbol({
         symbol: key,
         label: (typeof raw?.label === "string" && raw.label) || indexLevelsLabel(key),
         data,
@@ -187,9 +208,7 @@ async function getSingleIndex(symbol: string, forceRefresh: boolean, explicitCom
         computed: false,
         stale: true,
         refreshing: true,
-      },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+      });
   }
 
   if (needsRecompute) {
@@ -197,37 +216,28 @@ async function getSingleIndex(symbol: string, forceRefresh: boolean, explicitCom
     raw = await readDoc(indexDocId(key));
     data = withNseSource(sanitize(raw, { includeExpiries: true }));
     if (data && (data.bullLow != null || data.bearLow != null) && data.poc != null) {
-      return NextResponse.json(
-        {
+      return jsonSingleSymbol({
           symbol: key,
           label: (typeof raw?.label === "string" && raw.label) || indexLevelsLabel(key),
           data,
           source: "live",
           computed: true,
-        },
-        { headers: { "Cache-Control": "no-store" } },
-      );
+        });
     }
     if (cachedBeforeRefresh && (cachedBeforeRefresh.bullLow != null || cachedBeforeRefresh.bearLow != null)) {
-      return NextResponse.json(
-        {
+      return jsonSingleSymbol({
           symbol: key,
           label: indexLevelsLabel(key),
           data: cachedBeforeRefresh,
           source: "cache",
           computed: false,
           stale: true,
-        },
-        { headers: { "Cache-Control": "no-store" } },
-      );
+        });
     }
   }
 
   const label = (typeof raw?.label === "string" && raw.label) || indexLevelsLabel(key);
-  return NextResponse.json(
-    { symbol: key, label, data, source: "cache", computed: false },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  return jsonSingleSymbol({ symbol: key, label, data, source: "cache", computed: false });
 }
 
 async function readDoc(path: string): Promise<Record<string, unknown> | null> {
@@ -291,8 +301,7 @@ async function getSingleStock(
     after(async () => {
       await stockRefreshGuard.run(safe, () => computeStockZonesOnDemand(safe));
     });
-    return NextResponse.json(
-      {
+    return jsonSingleSymbol({
         symbol: safe,
         label: (typeof raw?.label === "string" && raw.label) || safe,
         data,
@@ -300,9 +309,7 @@ async function getSingleStock(
         computed: false,
         stale: true,
         refreshing: true,
-      },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+      });
   }
 
   if (needsRecompute) {
@@ -310,48 +317,36 @@ async function getSingleStock(
     raw = await readDoc(stockDocId(safe));
     data = sanitize(raw, { includeExpiries: true });
     if (stockLevelsLadderComplete(data)) {
-      return NextResponse.json(
-        {
+      return jsonSingleSymbol({
           symbol: safe,
           label: (typeof raw?.label === "string" && raw.label) || safe,
           data,
           source: "live",
           computed: true,
-        },
-        { headers: { "Cache-Control": "no-store" } },
-      );
+        });
     }
     if (stockLevelsHasBands(cachedBeforeRefresh)) {
-      return NextResponse.json(
-        {
+      return jsonSingleSymbol({
           symbol: safe,
           label: (typeof raw?.label === "string" && raw.label) || safe,
           data: cachedBeforeRefresh,
           source: "cache",
           computed: false,
           stale: true,
-        },
-        { headers: { "Cache-Control": "no-store" } },
-      );
+        });
     }
-    return NextResponse.json(
-      {
+    return jsonSingleSymbol({
         symbol: safe,
         label: (typeof raw?.label === "string" && raw.label) || safe,
         data,
         source: "live",
         computed: result.ok,
         error: STOCK_LEVELS_PUBLIC_ERROR,
-      },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+      });
   }
 
   const label = (typeof raw?.label === "string" && raw.label) || safe;
-  return NextResponse.json(
-    { symbol: safe, label, data, source: "cache", computed: false },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  return jsonSingleSymbol({ symbol: safe, label, data, source: "cache", computed: false });
 }
 
 export async function GET(request: NextRequest) {

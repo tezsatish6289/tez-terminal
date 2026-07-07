@@ -9,6 +9,7 @@ import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewCha
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
+import { LevelsSymbolStatusBadge } from "@/components/levels/LevelsSymbolStatusBadge";
 import { isSlideshowZoneStale, SLIDESHOW_ZONE_TICK_MS } from "@/lib/levels/slideshow-zones";
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
@@ -29,6 +30,8 @@ import { FNO_LEVELS_MAIN, FNO_LEVELS_SHELL } from "@/lib/fnoninja/responsive";
 import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
+import type { BubbleTone } from "@/lib/zones/bubble-tone";
+import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 
 /** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
 const CHART_PAGE_SHELL = "w-full max-w-none flex flex-col flex-1 min-h-0";
@@ -42,6 +45,7 @@ function ChartContent() {
     scopeParam === "index" || scopeParam === "stock" ? scopeParam : null;
   const symbol = (searchParams.get("symbol") ?? "").trim().toUpperCase();
   const [levels, setLevels] = useState<PublicLevels | null>(null);
+  const [displayTone, setDisplayTone] = useState<BubbleTone | null>(null);
   const [label, setLabel] = useState("");
   const [loading, setLoading] = useState(true);
   const [chartFullHistory, setChartFullHistory] = useState(true);
@@ -82,11 +86,16 @@ function ChartContent() {
         if (!json.data && json.error) {
           setLabel(symbol);
           setLevels(null);
+          setDisplayTone(null);
           setError(json.error ?? "Could not load levels.");
           return;
         }
         setLabel(json.label ?? symbol);
         setLevels(json.data);
+        setDisplayTone(
+          json.displayTone ??
+            resolveSymbolDisplayTone(json.data, { scanned: Boolean(json.data) }),
+        );
         if (json.error && !(json.data?.bullLow != null || json.data?.bearLow != null)) {
           setError(json.error);
         }
@@ -94,6 +103,7 @@ function ChartContent() {
         if (!opts?.quiet) {
           setError("Could not load levels.");
           setLevels(null);
+          setDisplayTone(null);
         }
       } finally {
         if (!opts?.quiet) setLoading(false);
@@ -212,12 +222,17 @@ function ChartContent() {
               hideToolbar
               highConfidence={scope === "index" || isHighConfidenceLevels(levels)}
               badge={
-                <VolRegimeBadge
-                  flag={levels?.volRegime}
-                  reason={levels?.volRegimeReason}
-                  atmIV={levels?.atmIV}
-                  daysToEarnings={levels?.daysToEarnings}
-                />
+                <span className="inline-flex items-center gap-1">
+                  {displayTone ? (
+                    <LevelsSymbolStatusBadge tone={displayTone} size="header" />
+                  ) : null}
+                  <VolRegimeBadge
+                    flag={levels?.volRegime}
+                    reason={levels?.volRegimeReason}
+                    atmIV={levels?.atmIV}
+                    daysToEarnings={levels?.daysToEarnings}
+                  />
+                </span>
               }
               symbolSearch={undefined}
             />

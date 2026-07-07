@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense, type ReactNode } from "react";
-import { Loader2, TrendingUp, TrendingDown, Target } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { type PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   LevelsChartPanel,
@@ -38,6 +38,7 @@ import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook
 import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-shortcut";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
+import { LevelsSymbolStatusBadge } from "@/components/levels/LevelsSymbolStatusBadge";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
 import {
@@ -48,7 +49,6 @@ import { SlideshowAutoPauseBanner, isSlideshowOverlayPause } from "@/components/
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
-import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import {
@@ -78,11 +78,10 @@ import {
 } from "@/lib/zones/bubble-map-filter";
 import {
   deriveZoneStatus,
-  type ZoneDisplayKey,
   type ZoneStatus,
-  zoneStatusDisplayKey,
-  type ZoneBands,
 } from "@/lib/zones/zone-status";
+import type { BubbleTone } from "@/lib/zones/bubble-tone";
+import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { LevelsMarketMapShareButton } from "@/components/levels/LevelsMarketMapShareButton";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
@@ -128,51 +127,6 @@ interface LevelsPayload {
 }
 
 type LevelsViewMode = "bubbles" | "liveslide" | "favslide";
-
-const STATUS_META: Record<ZoneDisplayKey, { label: string; color: string; bg: string }> = {
-  IN_BULL: {
-    label: "At Support",
-    color: LEVELS_ZONE_CHART.bull.badgeText,
-    bg: LEVELS_ZONE_CHART.bull.badgeBg,
-  },
-  IN_BEAR: {
-    label: "At Resistance",
-    color: LEVELS_ZONE_CHART.bear.badgeText,
-    bg: LEVELS_ZONE_CHART.bear.badgeBg,
-  },
-  NEAR_BULL: {
-    label: "Near Support",
-    color: LEVELS_ZONE_CHART.bull.badgeText,
-    bg: LEVELS_ZONE_CHART.bull.bandFillSoft,
-  },
-  NEAR_BEAR: {
-    label: "Near Resistance",
-    color: LEVELS_ZONE_CHART.bear.badgeText,
-    bg: LEVELS_ZONE_CHART.bear.bandFillSoft,
-  },
-  NEUTRAL: { label: "Neutral", color: "#94a3b8", bg: "rgba(148,163,184,0.12)" },
-  ILLIQUID: { label: "No Data", color: "#64748b", bg: "rgba(100,116,139,0.1)" },
-};
-
-function StatusBadge({ bands }: { bands: ZoneBands }) {
-  const key = zoneStatusDisplayKey(bands);
-  const m = STATUS_META[key];
-  const Icon =
-    key === "IN_BULL" || key === "NEAR_BULL"
-      ? TrendingUp
-      : key === "IN_BEAR" || key === "NEAR_BEAR"
-        ? TrendingDown
-        : Target;
-  return (
-    <span
-      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wide shrink-0 max-w-[5.75rem] leading-tight text-right"
-      style={{ color: m.color, backgroundColor: m.bg }}
-    >
-      <Icon className="h-2.5 w-2.5 shrink-0" />
-      <span className="truncate">{m.label}</span>
-    </span>
-  );
-}
 
 function levelsHaveBands(data: PublicLevels | null | undefined): boolean {
   return data != null && (data.bullLow != null || data.bearLow != null);
@@ -441,6 +395,12 @@ export default function LevelsPage() {
     () => countBubbleMapFilters(bubbleItems),
     [bubbleItems],
   );
+
+  const bubbleToneByKey = useMemo(() => {
+    const m = new Map<string, BubbleTone>();
+    for (const it of bubbleItems) m.set(it.id, it.tone);
+    return m;
+  }, [bubbleItems]);
 
   const slideshowFilterCounts = useMemo(
     () => countSlideshowMapFilters(bubbleItems),
@@ -856,17 +816,23 @@ export default function LevelsPage() {
     () =>
       slideListFiltered.map((it) => {
         const id = `${it.scope}-${it.symbol}`;
-        const bands = bandsFromLevels(it.data, it.spot);
+        const tone =
+          bubbleToneByKey.get(id) ??
+          resolveSymbolDisplayTone(it.data, {
+            scanned: Boolean(it.data),
+            spotOverride: it.spot,
+            signal: payload?.signals?.[it.symbol] ?? null,
+          });
         return {
           id,
           label: it.label,
           sublabel: it.scope === "index" ? "Index" : "Stock",
           spot: liveStripSpot[id] ?? it.spot,
           currency: it.currency,
-          trailing: <StatusBadge bands={bands} />,
+          trailing: <LevelsSymbolStatusBadge tone={tone} />,
         };
       }),
-    [slideListFiltered, liveStripSpot],
+    [slideListFiltered, liveStripSpot, bubbleToneByKey, payload?.signals],
   );
 
   const slideshowChartPane =
@@ -967,6 +933,15 @@ export default function LevelsPage() {
   const chartHighConfidence =
     inZoneActive?.scope === "index" || isHighConfidenceLevels(chartLevelsForView);
 
+  const activeDisplayTone = inZoneActive
+    ? bubbleToneByKey.get(`${inZoneActive.scope}-${inZoneActive.symbol}`) ??
+      resolveSymbolDisplayTone(inZoneActive.data, {
+        scanned: Boolean(inZoneActive.data),
+        spotOverride: inZoneActive.spot,
+        signal: payload?.signals?.[inZoneActive.symbol] ?? null,
+      })
+    : null;
+
   const slideshowChartChrome =
     activeTv != null && activeTicker ? (
       <LevelsChartChrome
@@ -978,12 +953,17 @@ export default function LevelsPage() {
         hideToolbar
         highConfidence={chartHighConfidence}
         badge={
-          <VolRegimeBadge
-            flag={chartLevelsForView?.volRegime}
-            reason={chartLevelsForView?.volRegimeReason}
-            atmIV={chartLevelsForView?.atmIV}
-            daysToEarnings={chartLevelsForView?.daysToEarnings}
-          />
+          <span className="inline-flex items-center gap-1">
+            {activeDisplayTone ? (
+              <LevelsSymbolStatusBadge tone={activeDisplayTone} size="header" />
+            ) : null}
+            <VolRegimeBadge
+              flag={chartLevelsForView?.volRegime}
+              reason={chartLevelsForView?.volRegimeReason}
+              atmIV={chartLevelsForView?.atmIV}
+              daysToEarnings={chartLevelsForView?.daysToEarnings}
+            />
+          </span>
         }
         symbolSearch={undefined}
       />

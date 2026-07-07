@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Loader2, Newspaper, RefreshCw } from "lucide-react";
 import {
-  LEVELS_NEWS_WINDOW_DAYS,
   type LevelsNews,
   type NewsSentiment,
   type NewsSentimentLabel,
 } from "@/lib/levels/news-types";
+import { cachedLevelsNews, fetchLevelsNews } from "@/lib/levels/news-client-cache";
 
 const SENTIMENT_DISPLAY: Record<
   NewsSentimentLabel,
@@ -81,37 +81,56 @@ export function LevelsNewsPanel({
   symbol: string;
   className?: string;
 }) {
-  const [news, setNews] = useState<LevelsNews | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [news, setNews] = useState<LevelsNews | null>(() => cachedLevelsNews(scope, symbol));
+  const [loading, setLoading] = useState<boolean>(() => cachedLevelsNews(scope, symbol) == null);
   const [error, setError] = useState<string | null>(null);
 
+  // Manual retry/refresh: bypass the session cache and re-request from the server.
   const load = useCallback(async () => {
     if (!symbol) return;
     setLoading(true);
     setError(null);
-    try {
-      const res = await fetch(
-        `/api/freedombot/levels/news?scope=${encodeURIComponent(scope)}&symbol=${encodeURIComponent(symbol)}&window=${LEVELS_NEWS_WINDOW_DAYS}`,
-        { cache: "no-store" },
-      );
-      const json = (await res.json()) as { ok: boolean; news?: LevelsNews; error?: string };
-      if (!json.ok || !json.news) {
-        setError(json.error ?? "No news available");
-        setNews(null);
-      } else {
-        setNews(json.news);
-      }
-    } catch {
+    const fresh = await fetchLevelsNews(scope, symbol, { force: true });
+    if (fresh) {
+      setNews(fresh);
+      setError(null);
+    } else {
       setError("Could not load news");
       setNews(null);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   }, [scope, symbol]);
 
+  // Open / symbol change: serve the session cache instantly (no spinner), and
+  // only hit the network when we've never fetched this symbol this session.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!symbol) return;
+    let cancelled = false;
+    const cached = cachedLevelsNews(scope, symbol);
+    if (cached) {
+      setNews(cached);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    setNews(null);
+    setError(null);
+    setLoading(true);
+    void fetchLevelsNews(scope, symbol).then((fresh) => {
+      if (cancelled) return;
+      if (fresh) {
+        setNews(fresh);
+        setError(null);
+      } else {
+        setError("Could not load news");
+        setNews(null);
+      }
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [scope, symbol]);
 
   return (
     <section

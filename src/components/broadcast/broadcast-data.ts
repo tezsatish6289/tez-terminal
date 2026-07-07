@@ -10,12 +10,11 @@
 
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import type { LevelsNews } from "@/lib/levels/news-types";
-import { LEVELS_NEWS_WINDOW_DAYS } from "@/lib/levels/news-types";
+import { cachedLevelsNews, fetchLevelsNews } from "@/lib/levels/news-client-cache";
 
 type Scope = "stock" | "index";
 
 const levelsCache = new Map<string, PublicLevels>();
-const newsCache = new Map<string, LevelsNews>();
 const candlesWarmed = new Set<string>();
 const inflight = new Map<string, Promise<unknown>>();
 
@@ -58,52 +57,19 @@ export function cachedLevels(scope: Scope, symbol: string): PublicLevels | null 
   return levelsCache.get(`lv:${key(scope, symbol)}`) ?? null;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /**
- * AI-grounded recent news. Slowest call (15–25s cold) and it can fail outright
- * (rate-limit / timeout / transient 5xx). Retry with backoff so a transient
- * failure recovers and then caches, instead of leaving a symbol stuck.
+ * AI-grounded recent news, delegated to the shared session cache so the
+ * broadcast rail and the levels news drawer never double-fetch a symbol.
  */
 export async function fetchNews(
   scope: Scope,
   symbol: string,
 ): Promise<LevelsNews | null> {
-  const k = `nw:${key(scope, symbol)}`;
-  const cached = newsCache.get(k);
-  if (cached) return cached;
-
-  const existing = inflight.get(k) as Promise<LevelsNews | null> | undefined;
-  if (existing) return existing;
-
-  const p = (async () => {
-    const MAX_ATTEMPTS = 3;
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      try {
-        const res = await fetch(
-          `/api/freedombot/levels/news?scope=${encodeURIComponent(scope)}&symbol=${encodeURIComponent(symbol)}&window=${LEVELS_NEWS_WINDOW_DAYS}`,
-          { cache: "no-store" },
-        );
-        const json = (await res.json()) as { ok: boolean; news?: LevelsNews };
-        if (json.ok && json.news) {
-          newsCache.set(k, json.news);
-          return json.news;
-        }
-      } catch {
-        /* retry below */
-      }
-      if (attempt < MAX_ATTEMPTS - 1) await sleep(5000 + attempt * 4000);
-    }
-    return null;
-  })().finally(() => {
-    inflight.delete(k);
-  });
-  inflight.set(k, p);
-  return p;
+  return fetchLevelsNews(scope, symbol);
 }
 
 export function cachedNews(scope: Scope, symbol: string): LevelsNews | null {
-  return newsCache.get(`nw:${key(scope, symbol)}`) ?? null;
+  return cachedLevelsNews(scope, symbol);
 }
 
 /** Warm the candle server-cache (Dhan) once per symbol so the chart paints fast. */

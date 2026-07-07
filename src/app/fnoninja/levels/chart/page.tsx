@@ -301,7 +301,6 @@ function ChartContent() {
               loading={loading}
               hideChartShortcuts
               hideTvFooterHint
-              defaultFullHistory
               showHeader={false}
               nativeChartRef={nativeChartRef}
               onFullHistoryZoomChange={setChartFullHistory}

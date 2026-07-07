@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/chat/require-user";
 import { resolveChatAccess } from "@/lib/chat/access";
 import {
-  CHAT_QUICK_REACTIONS,
   canUserReactInRoom,
+  isAllowedChatEmoji,
   isKnownRoom,
 } from "@/lib/chat/constants";
 import { toggleMessageReaction } from "@/lib/chat/store";
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   if (!messageId) {
     return NextResponse.json({ error: "Missing messageId." }, { status: 400 });
   }
-  if (!(CHAT_QUICK_REACTIONS as readonly string[]).includes(emoji)) {
+  if (!isAllowedChatEmoji(emoji)) {
     return NextResponse.json({ error: "Invalid reaction." }, { status: 400 });
   }
   if (!canUserReactInRoom(roomId)) {

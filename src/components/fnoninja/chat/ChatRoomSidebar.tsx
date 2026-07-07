@@ -8,7 +8,9 @@ import {
   MessageSquare,
   type LucideIcon,
 } from "lucide-react";
+import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import { SUBSCRIBED_CHAT_ROOMS, type ChatRoom } from "@/lib/chat/constants";
+import { formatChatUnreadCount } from "@/lib/chat/unread-badge";
 import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 const ROOM_ICONS: Record<string, LucideIcon> = {
@@ -18,8 +20,6 @@ const ROOM_ICONS: Record<string, LucideIcon> = {
   offers: Gift,
   announcements: Megaphone,
 };
-
-const UNREAD_DOT_COLOR = "#60a5fa";
 
 interface ChatRoomSidebarProps {
   roomId: string;
@@ -41,7 +41,8 @@ export function ChatRoomSidebar({ roomId, onSelectRoom, unreadByRoom }: ChatRoom
     >
       {SUBSCRIBED_CHAT_ROOMS.map((room) => {
         const active = room.id === roomId;
-        const hasUnread = (unreadByRoom[room.id] ?? 0) > 0;
+        const unread = unreadByRoom[room.id] ?? 0;
+        const unreadLabel = formatChatUnreadCount(unread);
         return (
           <button
             key={room.id}
@@ -53,17 +54,12 @@ export function ChatRoomSidebar({ roomId, onSelectRoom, unreadByRoom }: ChatRoom
               border: active ? "1px solid rgba(96,165,250,0.25)" : "1px solid transparent",
             }}
             aria-current={active ? "page" : undefined}
-            aria-label={hasUnread ? `${room.name}, new messages` : room.name}
+            aria-label={
+              unreadLabel ? `${room.name}, ${unreadLabel} unread` : room.name
+            }
           >
-            {hasUnread ? (
-              <span
-                className="absolute right-2 top-2 h-2 w-2 rounded-full"
-                style={{
-                  backgroundColor: UNREAD_DOT_COLOR,
-                  boxShadow: "0 0 0 2px rgba(6,12,24,0.9)",
-                }}
-                aria-hidden
-              />
+            {unreadLabel ? (
+              <ChatUnreadBadge count={unread} size="sm" className="absolute right-1.5 top-1.5" />
             ) : null}
             <RoomIcon room={room} />
             <span

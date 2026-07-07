@@ -23,6 +23,7 @@ import {
   GENERAL_ROOM_ID,
   SUBSCRIBED_CHAT_ROOMS,
 } from "@/lib/chat/constants";
+import { sumChatUnreadCounts } from "@/lib/chat/unread-badge";
 
 const OPEN_STORAGE_KEY = "fnoninja-chat-open";
 const readKey = (uid: string, roomId: string) => `fnoninja-chat-read:${uid}:${roomId}`;
@@ -33,9 +34,9 @@ interface ChatPanelContextValue {
   toggle: () => void;
   roomId: string;
   setRoomId: (roomId: string) => void;
-  /** True when any subscribed channel has unread messages (nav dot). */
-  unreadCount: boolean;
-  /** Per-channel unread counts — sidebar shows a dot when > 0. */
+  /** Total unread messages across all subscribed rooms. */
+  totalUnreadCount: number;
+  /** Per-channel unread counts for the sidebar when the drawer is open. */
   unreadByRoom: Record<string, number>;
 }
 
@@ -57,8 +58,8 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
   openRef.current = open;
   roomIdRef.current = roomId;
 
-  const unreadCount = useMemo(
-    () => Object.values(unreadByRoom).some((n) => n > 0),
+  const totalUnreadCount = useMemo(
+    () => sumChatUnreadCounts(unreadByRoom),
     [unreadByRoom],
   );
 
@@ -166,8 +167,8 @@ export function ChatPanelProvider({ children }: { children: ReactNode }) {
   }, [db, user, canChat]);
 
   const value = useMemo(
-    () => ({ open, setOpen, toggle, roomId, setRoomId, unreadCount, unreadByRoom }),
-    [open, setOpen, toggle, roomId, setRoomId, unreadCount, unreadByRoom],
+    () => ({ open, setOpen, toggle, roomId, setRoomId, totalUnreadCount, unreadByRoom }),
+    [open, setOpen, toggle, roomId, setRoomId, totalUnreadCount, unreadByRoom],
   );
 
   return <ChatPanelContext.Provider value={value}>{children}</ChatPanelContext.Provider>;

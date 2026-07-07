@@ -6,7 +6,8 @@ import { Check, Flag, ImageIcon, Loader2, Pencil, Reply, RotateCw, Trash2, User,
 import type { ChatAttachment } from "@/lib/chat/types";
 import { format } from "date-fns";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
-import { CHAT_EDIT_WINDOW_MS, CHAT_QUICK_REACTIONS } from "@/lib/chat/constants";
+import { CHAT_EDIT_WINDOW_MS } from "@/lib/chat/constants";
+import { ChatEmojiGrid } from "@/components/fnoninja/chat/ChatEmojiGrid";
 import { isAllowedChatUrl } from "@/lib/chat/moderation";
 import type { ChatMessage } from "@/lib/chat/types";
 
@@ -241,7 +242,7 @@ export function MessageItem({
   return (
     <div
       data-mid={message.id}
-      className="group flex gap-2.5 px-3 py-2 transition-colors duration-700 hover:bg-white/[0.02]"
+      className="group relative flex gap-2.5 px-3 py-2 transition-colors duration-700 hover:bg-white/[0.02]"
       style={highlight ? { backgroundColor: "rgba(37,99,235,0.16)" } : undefined}
     >
       <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full" style={{ backgroundColor: "rgba(37,99,235,0.12)" }}>
@@ -364,24 +365,6 @@ export function MessageItem({
                     </button>
                   );
                 })}
-                {reactOpen ? (
-                  <div className="flex items-center gap-0.5 rounded-full px-1 py-0.5" style={{ backgroundColor: "rgba(255,255,255,0.06)" }}>
-                    {CHAT_QUICK_REACTIONS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() => {
-                          onReact(message.id, emoji);
-                          setReactOpen(false);
-                        }}
-                        className="rounded p-0.5 text-sm hover:bg-white/10"
-                        aria-label={`React with ${emoji}`}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
               </div>
             ) : null}
           </>
@@ -391,17 +374,29 @@ export function MessageItem({
       {zoom ? <Lightbox attachment={zoom} onClose={() => setZoom(null)} /> : null}
 
       {!editing && !pending ? (
-        <div className="flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="relative flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           {showReactions ? (
-            <button
-              type="button"
-              onClick={() => setReactOpen((o) => !o)}
-              className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300"
-              aria-label="Add reaction"
-              aria-pressed={reactOpen}
-            >
-              <span className="text-xs leading-none">😊</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setReactOpen((o) => !o)}
+                className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300"
+                aria-label="Add reaction"
+                aria-pressed={reactOpen}
+              >
+                <span className="text-xs leading-none">😊</span>
+              </button>
+              {reactOpen ? (
+                <ChatEmojiGrid
+                  className="absolute right-0 top-full z-20 mt-1 w-[17.5rem] max-w-[calc(100vw-2rem)]"
+                  cols={8}
+                  onPick={(emoji) => {
+                    onReact(message.id, emoji);
+                    setReactOpen(false);
+                  }}
+                />
+              ) : null}
+            </>
           ) : null}
           {canReply ? (
             <button type="button" onClick={() => onReply(message)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300" aria-label="Reply">

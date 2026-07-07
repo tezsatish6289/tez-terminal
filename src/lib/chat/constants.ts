@@ -106,10 +106,60 @@ export const CHAT_ROOMS: ChatRoom[] = [
   },
 ];
 
-/** Emoji reactions members can toggle on any message. */
-export const CHAT_QUICK_REACTIONS = ["👍", "🔥", "❤️", "👀", "🎉"] as const;
+/** Allowed chat emojis — composer inserts and message reactions share this set. */
+export const CHAT_EMOJIS = [
+  // Market & trading
+  "📈",
+  "📉",
+  "💹",
+  "🚀",
+  "🐂",
+  "🐻",
+  "📊",
+  "💰",
+  "💸",
+  "🎯",
+  "🔥",
+  "👀",
+  "⚡",
+  "🟢",
+  "🔴",
+  "✅",
+  "❌",
+  "⚠️",
+  "💯",
+  // Community
+  "🤝",
+  "👍",
+  "👎",
+  "🙏",
+  "💪",
+  "🧠",
+  "🙌",
+  "👏",
+  "❤️",
+  "🎉",
+  // Mood
+  "😂",
+  "😅",
+  "😎",
+  "🤔",
+  "😱",
+  "🥳",
+  "😴",
+  "🫡",
+] as const;
 
-export type ChatQuickReaction = (typeof CHAT_QUICK_REACTIONS)[number];
+export type ChatEmoji = (typeof CHAT_EMOJIS)[number];
+
+/** @deprecated Use CHAT_EMOJIS — kept for imports that referenced quick reactions. */
+export const CHAT_QUICK_REACTIONS = CHAT_EMOJIS;
+
+export type ChatQuickReaction = ChatEmoji;
+
+export function isAllowedChatEmoji(emoji: string): emoji is ChatEmoji {
+  return (CHAT_EMOJIS as readonly string[]).includes(emoji);
+}
 
 /** Rooms shown in the channel list for chat-enabled users. */
 export const SUBSCRIBED_CHAT_ROOMS = CHAT_ROOMS.filter((r) => r.autoSubscribe);

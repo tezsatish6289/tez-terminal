@@ -326,9 +326,8 @@ export function applyLevelPriceLines(
     30,
     "#ffffff",
   );
-  if (includeClusterPeaks) {
-    push(levels.poc, LEVELS_ZONE_CHART.maxPain.line, "Max Pain", LineStyle.Dashed, 2, 0);
-  }
+  // Max Pain line is always drawn — intraday hides OI peak axis tags, not this level.
+  push(levels.poc, LEVELS_ZONE_CHART.maxPain.line, "Max Pain", LineStyle.Dashed, 2, 0);
   push(levels.bullHigh, LEVELS_ZONE_CHART.bull.line, "Support H", LineStyle.Dashed, 1, 22);
   push(levels.bullLow, LEVELS_ZONE_CHART.bull.line, "Support L", LineStyle.Dashed, 1, 23);
   if (includeClusterPeaks) {

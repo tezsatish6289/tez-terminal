@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
+import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
@@ -80,7 +81,7 @@ function ToolbarButton({
   children,
   title,
   dataAttrs,
-  unreadDot,
+  unreadCount,
 }: {
   label: string;
   active?: boolean;
@@ -88,17 +89,17 @@ function ToolbarButton({
   children: ReactNode;
   title?: string;
   dataAttrs?: Record<string, string>;
-  /** Blue dot when there is unread activity (e.g. chat). */
-  unreadDot?: boolean;
+  /** Unread badge count (hidden when active). */
+  unreadCount?: number;
 }) {
-  const showDot = unreadDot && !active;
+  const showBadge = (unreadCount ?? 0) > 0 && !active;
   return (
     <ToolbarHoverLabel label={label}>
       <button
         type="button"
         onClick={onClick}
         title={title ?? label}
-        aria-label={showDot ? `${label}, new messages` : label}
+        aria-label={showBadge ? `${label}, ${unreadCount} unread` : label}
         aria-pressed={active}
         className={`relative ${LEVELS_CHART_TOOLBAR_BTN_CLASS} ${TOOLBAR_WIDTH_CLASS} data-[active=true]:bg-white/[0.08] shrink-0`}
         data-active={active ? "true" : undefined}
@@ -108,15 +109,8 @@ function ToolbarButton({
         {...dataAttrs}
       >
         {children}
-        {showDot ? (
-          <span
-            className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full"
-            style={{
-              backgroundColor: FNO_ACCENT,
-              boxShadow: "0 0 0 2px rgba(8,15,30,0.95)",
-            }}
-            aria-hidden
-          />
+        {showBadge ? (
+          <ChatUnreadBadge count={unreadCount!} className="absolute right-1 top-1" />
         ) : null}
       </button>
     </ToolbarHoverLabel>
@@ -231,8 +225,7 @@ export function LevelsChartSideToolbar({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { open: chatOpen, setOpen: setChatOpen, unreadCount } = useChatPanel();
-  const chatUnread = unreadCount && !chatOpen;
+  const { open: chatOpen, setOpen: setChatOpen, totalUnreadCount } = useChatPanel();
   const [newsOpen, setNewsOpen] = useState(false);
   const [atlasOpen, setAtlasOpen] = useState(false);
   const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
@@ -379,9 +372,13 @@ export function LevelsChartSideToolbar({
         <ToolbarButton
           label="Chat"
           active={chatOpen}
-          unreadDot={chatUnread}
+          unreadCount={chatOpen ? 0 : totalUnreadCount}
           onClick={() => setChatOpen(true)}
-          title={chatUnread ? "Community chat — new messages" : "Community chat"}
+          title={
+            totalUnreadCount > 0 && !chatOpen
+              ? `Community chat — ${totalUnreadCount} unread`
+              : "Community chat"
+          }
         >
           <MessageCircle className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
         </ToolbarButton>

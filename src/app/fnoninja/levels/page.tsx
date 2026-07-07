@@ -872,7 +872,6 @@ export default function LevelsPage() {
           loading={chartLevelsLoading}
           hideChartShortcuts={isSlideView}
           hideTvFooterHint={isSlideView}
-          defaultFullHistory={isSlideView}
           showHeader={false}
           nativeChartRef={nativeChartRef}
           onFullHistoryZoomChange={setChartFullHistory}
@@ -1422,20 +1421,13 @@ export default function LevelsPage() {
 
   const levelsMainPane =
     viewMode === "bubbles" ? (
-      <div className="relative flex flex-1 min-h-0 min-w-0 w-full">
-        <LevelsBubblesView
-          items={bubbleItems}
-          onBubbleOpen={openBubbleChart}
-          hasMarketData={Boolean(payload)}
-          toneFilter={bubbleMapFilter}
-          showMaxPainBubbles={showMaxPainBubbles}
-        />
-        <div className="absolute bottom-4 right-3 z-30 pointer-events-none sm:bottom-5 sm:right-4">
-          <div className="pointer-events-auto">
-            <LevelsGlobalChatTrigger />
-          </div>
-        </div>
-      </div>
+      <LevelsBubblesView
+        items={bubbleItems}
+        onBubbleOpen={openBubbleChart}
+        hasMarketData={Boolean(payload)}
+        toneFilter={bubbleMapFilter}
+        showMaxPainBubbles={showMaxPainBubbles}
+      />
     ) : (
       renderSlideshow()
     );
@@ -1487,6 +1479,7 @@ export default function LevelsPage() {
           levelsWorkspace
         )}
       </div>
+      {viewMode === "bubbles" && !loading ? <LevelsGlobalChatTrigger /> : null}
     </main>
   );
 }

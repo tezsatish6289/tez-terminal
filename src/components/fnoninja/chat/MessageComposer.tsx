@@ -32,6 +32,7 @@ import {
   LEVELS_SYMBOL_CATALOG,
   filterLevelsSymbolCatalog,
 } from "@/lib/levels/levels-symbol-catalog";
+import { ChatEmojiGrid } from "@/components/fnoninja/chat/ChatEmojiGrid";
 
 export interface ChatParticipant {
   id: string;
@@ -70,13 +71,6 @@ interface MessageComposerProps {
 let selectedIdSeq = 0;
 
 type Trigger = "$" | "@";
-
-const EMOJIS = [
-  "📈", "📉", "💹", "🚀", "🔥", "👀", "🎯", "💰",
-  "🤝", "👍", "👎", "🙏", "💪", "🧠", "⚡", "✅",
-  "❌", "⚠️", "🟢", "🔴", "😂", "😅", "😎", "🤔",
-  "😱", "🥳", "😴", "🫡", "💯", "🙌", "👏", "❤️",
-];
 
 interface Suggestion {
   /** Token inserted into the text, including the trigger (e.g. "$NIFTY", "@Satish"). */
@@ -400,28 +394,13 @@ export function MessageComposer({
       ) : null}
 
       {emojiOpen ? (
-        <div
-          className="absolute bottom-full left-3 right-3 mb-2 grid grid-cols-8 gap-1 rounded-xl p-2 shadow-2xl"
-          style={{
-            backgroundColor: "rgba(12,18,30,0.99)",
-            border: "1px solid rgba(90,140,220,0.22)",
+        <ChatEmojiGrid
+          className="absolute bottom-full left-3 right-3 mb-2"
+          onPick={(emoji) => {
+            insertAtCaret(emoji);
+            setEmojiOpen(false);
           }}
-        >
-          {EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-lg transition-colors hover:bg-white/10"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                insertAtCaret(emoji);
-              }}
-              aria-label={`Insert ${emoji}`}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
+        />
       ) : null}
 
       <div

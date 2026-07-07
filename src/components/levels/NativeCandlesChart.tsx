@@ -66,6 +66,13 @@ const RIGHT_PRICE_SCALE_MOBILE_SLIDESHOW_WIDTH = 96;
 const NARROW_CHART_MQ = "(max-width: 767px)";
 /** Default zoom: ~5 NSE sessions visible (15m ≈ 25 bars/day). */
 const DEFAULT_VISIBLE_BARS = 125;
+const DAY_SEC = 86_400;
+
+function trimApiCandlesToLookbackDays(candles: ApiCandle[], days: number): ApiCandle[] {
+  const fromSec = Math.floor(Date.now() / 1000) - days * DAY_SEC;
+  const trimmed = candles.filter((c) => c.time >= fromSec);
+  return trimmed.length > 0 ? trimmed : candles;
+}
 
 const BULL_BAND_STYLE = {
   lineVisible: false,
@@ -143,6 +150,10 @@ export const NativeCandlesChart = forwardRef<
     /** Intraday: keep left OI pills; omit duplicate OI/max-pain tags on the right axis. */
     showClusterBandLabels?: boolean;
     showClusterPeaksOnAxis?: boolean;
+    /** Intraday deep-dive: load and fit only the most recent N calendar days. */
+    intradayLookbackDays?: number;
+    /** Intraday: thin text-only Max Pain tag on the left (line always on chart). */
+    compactMaxPainLabel?: boolean;
   }
 >(function NativeCandlesChart(
   {
@@ -167,6 +178,8 @@ export const NativeCandlesChart = forwardRef<
     candleTypeLabel,
     showClusterBandLabels = true,
     showClusterPeaksOnAxis = true,
+    intradayLookbackDays,
+    compactMaxPainLabel = false,
   },
   ref,
 ) {
@@ -245,9 +258,17 @@ export const NativeCandlesChart = forwardRef<
 
   const showClusterPeaksOnAxisRef = useRef(showClusterPeaksOnAxis);
   showClusterPeaksOnAxisRef.current = showClusterPeaksOnAxis;
+  const intradayLookbackDaysRef = useRef(intradayLookbackDays);
+  intradayLookbackDaysRef.current = intradayLookbackDays;
 
   function levelLineOpts() {
     return { includeClusterPeaks: showClusterPeaksOnAxisRef.current };
+  }
+
+  function defaultVisibleBars(barCount: number): number {
+    const lookbackDays = intradayLookbackDaysRef.current;
+    if (lookbackDays != null) return barCount;
+    return DEFAULT_VISIBLE_BARS;
   }
 
   function refreshChartLayout() {
@@ -272,7 +293,8 @@ export const NativeCandlesChart = forwardRef<
     const ts = chartRef.current?.timeScale();
     if (!ts || barCount < 2) return;
     const offset = rightOffsetBars(barCount);
-    const from = Math.max(0, barCount - DEFAULT_VISIBLE_BARS);
+    const visibleBars = defaultVisibleBars(barCount);
+    const from = Math.max(0, barCount - visibleBars);
     ts.setVisibleLogicalRange({ from, to: barCount - 1 + offset });
     ts.applyOptions({ rightOffset: offset });
     fullHistoryZoomRef.current = false;
@@ -617,7 +639,11 @@ export const NativeCandlesChart = forwardRef<
           return;
         }
         fetchRetries = 0;
-        const data: CandlestickData[] = json.candles.map((c) => ({
+        const trimmed =
+          intradayLookbackDaysRef.current != null
+            ? trimApiCandlesToLookbackDays(json.candles, intradayLookbackDaysRef.current)
+            : json.candles;
+        const data: CandlestickData[] = trimmed.map((c) => ({
           time: epochUtcToChartIstSeconds(c.time) as UTCTimestamp,
           open: c.open,
           high: c.high,
@@ -672,7 +698,7 @@ export const NativeCandlesChart = forwardRef<
       if (retryTimer) clearTimeout(retryTimer);
       if (fetchRetryTimer) clearTimeout(fetchRetryTimer);
     };
-  }, [symbol, candlesScope, interval, defaultFullHistory]);
+  }, [symbol, candlesScope, interval, defaultFullHistory, intradayLookbackDays]);
 
   // Zone bands, lines, and vertical fit when levels arrive (same symbol).
   useEffect(() => {
@@ -771,6 +797,7 @@ export const NativeCandlesChart = forwardRef<
           levels={levels}
           visible={chartReady && showClusterBandLabels}
           visualFocus={visualFocus}
+          compactMaxPainLabel={compactMaxPainLabel}
         />
         {visualFocus && chartReady ? (
           <LevelsChartFocusGlow

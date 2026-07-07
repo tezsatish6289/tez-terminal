@@ -31,6 +31,7 @@ type LabelPos = {
   text: string;
   delta?: string | null;
   subtitle?: string | null;
+  textOnly?: boolean;
   style: React.CSSProperties;
   zIndex: number;
 };
@@ -48,6 +49,7 @@ function isMaxPainLabel(id: string): boolean {
 }
 
 function labelHeight(label: LabelPos): number {
+  if (label.textOnly) return 16;
   return label.subtitle ? 38 : 26;
 }
 
@@ -129,6 +131,11 @@ function formatExpiryShort(expiry: string | null | undefined): string | null {
   return `${day} ${monthName} expiry`;
 }
 
+const MAX_PAIN_TEXT_ONLY_STYLE: React.CSSProperties = {
+  color: LEVELS_ZONE_CHART.maxPain.labelText,
+  textShadow: "0 0 6px rgba(8, 15, 30, 0.85), 0 1px 2px rgba(0, 0, 0, 0.6)",
+};
+
 export function LevelsChartClusterBandLabels({
   chartRef,
   seriesRef,
@@ -137,6 +144,7 @@ export function LevelsChartClusterBandLabels({
   visible,
   visualFocus,
   showZoneRole = false,
+  compactMaxPainLabel = false,
 }: {
   chartRef: React.RefObject<IChartApi | null>;
   seriesRef: React.RefObject<ISeriesApi<"Candlestick"> | null>;
@@ -146,6 +154,8 @@ export function LevelsChartClusterBandLabels({
   visualFocus?: LevelVisualFocus | null;
   /** Trend chart: prefix Support / Resistance so OI pills are not lost inside Max Pain copy. */
   showZoneRole?: boolean;
+  /** Intraday: text-only Max Pain tag (line stays on chart; avoids pill overlap). */
+  compactMaxPainLabel?: boolean;
 }) {
   const [labels, setLabels] = useState<LabelPos[]>([]);
 
@@ -201,20 +211,28 @@ export function LevelsChartClusterBandLabels({
       const y = priceY(series, levels.poc);
       if (y != null) {
         const focused = labelFocused("maxPain", visualFocus);
+        const textOnly = compactMaxPainLabel;
+        const labelHeightPx = textOnly ? 16 : maxPainSubtitle ? 38 : 26;
         next.push({
           id: "maxPain",
-          top: clampTop(y, height, maxPainSubtitle ? 38 : 26),
+          top: clampTop(y, height, labelHeightPx),
           zIndex: LABEL_Z_INDEX.maxPain,
-          text: "Max Pain",
-          subtitle: maxPainSubtitle,
-          style: {
-            ...MAX_PAIN_LABEL_STYLE,
-            opacity: focused ? 1 : 0.72,
-            boxShadow: focused
-              ? "0 0 24px rgba(251,191,36,0.4), 0 0 12px rgba(8,15,30,0.5)"
-              : MAX_PAIN_LABEL_STYLE.boxShadow,
-            border: focused ? "1px solid rgba(251,191,36,0.5)" : "1px solid transparent",
-          },
+          text: textOnly && maxPainSubtitle ? `Max Pain · ${maxPainSubtitle}` : "Max Pain",
+          subtitle: textOnly ? null : maxPainSubtitle,
+          textOnly,
+          style: textOnly
+            ? {
+                ...MAX_PAIN_TEXT_ONLY_STYLE,
+                opacity: focused ? 1 : 0.82,
+              }
+            : {
+                ...MAX_PAIN_LABEL_STYLE,
+                opacity: focused ? 1 : 0.72,
+                boxShadow: focused
+                  ? "0 0 24px rgba(251,191,36,0.4), 0 0 12px rgba(8,15,30,0.5)"
+                  : MAX_PAIN_LABEL_STYLE.boxShadow,
+                border: focused ? "1px solid rgba(251,191,36,0.5)" : "1px solid transparent",
+              },
         });
       }
     }
@@ -243,7 +261,7 @@ export function LevelsChartClusterBandLabels({
     }
 
     setLabels(resolveLabelCollisions(next, height));
-  }, [containerRef, levels, seriesRef, showZoneRole, visible, visualFocus]);
+  }, [compactMaxPainLabel, containerRef, levels, seriesRef, showZoneRole, visible, visualFocus]);
 
   useEffect(() => {
     updatePositions();
@@ -275,6 +293,7 @@ export function LevelsChartClusterBandLabels({
           text={label.text}
           delta={label.delta}
           subtitle={label.subtitle}
+          textOnly={label.textOnly}
           style={label.style}
           zIndex={label.zIndex}
         />
@@ -294,6 +313,7 @@ function BandChartLabel({
   text,
   delta,
   subtitle,
+  textOnly = false,
   style,
   zIndex,
 }: {
@@ -301,9 +321,21 @@ function BandChartLabel({
   text: string;
   delta?: string | null;
   subtitle?: string | null;
+  textOnly?: boolean;
   style: React.CSSProperties;
   zIndex: number;
 }) {
+  if (textOnly) {
+    return (
+      <div
+        className="absolute left-1.5 sm:left-3 max-w-[min(72%,13rem)] -translate-y-1/2 text-[8px] sm:text-[9px] font-semibold leading-none tracking-tight whitespace-nowrap"
+        style={{ top, zIndex, ...style }}
+      >
+        {text}
+      </div>
+    );
+  }
+
   return (
     <div
       className="absolute left-1.5 sm:left-3 max-w-[min(68%,12rem)] max-md:max-w-[min(64%,10rem)] -translate-y-1/2 rounded-md px-1.5 py-0.5 max-md:px-1.5 max-md:py-0.5 text-[9px] sm:text-[10px] font-bold leading-snug tracking-tight whitespace-normal"

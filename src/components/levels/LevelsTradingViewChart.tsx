@@ -117,6 +117,8 @@ export function LevelsTradingViewChart({
             onLastCloseChange={onLastCloseChange}
             candleTypeLabel="15M Candles"
             showClusterPeaksOnAxis={false}
+            compactMaxPainLabel
+            intradayLookbackDays={7}
           />
         )}
       </div>

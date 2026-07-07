@@ -20,7 +20,6 @@ import { Loader2 } from "lucide-react";
 import { LevelsChartClusterBandLabels } from "@/components/levels/LevelsChartClusterBandLabels";
 import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
 import { LevelsChartCandleTypeBadge } from "@/components/levels/LevelsChartCandleTypeBadge";
-import { LevelsGlobalChatTrigger } from "@/components/levels/LevelsGlobalChatTrigger";
 import {
   applyClusterSummaryPriceLines,
   mergedPriceRange,
@@ -571,10 +570,6 @@ export function PvtChart({
               showTradingView={Boolean(webChartUrl)}
             />
           ) : null}
-        </div>
-
-        <div className="flex shrink-0 items-center justify-end px-1 py-0.5 min-h-[2.25rem]">
-          <LevelsGlobalChatTrigger />
         </div>
 
         <div className={PVT_SECTION_SHELL_CLASS} style={{ height: PVT_SECTION_HEIGHT }}>

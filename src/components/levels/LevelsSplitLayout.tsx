@@ -58,7 +58,7 @@ const RUNNER_CHIP_IDLE = {
   boxShadow: undefined as string | undefined,
 };
 
-/** Active chip with timer footer — glow + bright border; inactive tiles stay flat. */
+/** Active chip with timer — crisp 2px outline only (no glow or scale). */
 function runnerChipStyle(
   active: boolean,
   pulse: boolean,
@@ -67,10 +67,10 @@ function runnerChipStyle(
 ) {
   if (timerHighlightsActive && active) {
     return {
-      backgroundColor: accent.bg,
-      border: `1px solid ${accent.borderPulse}`,
-      transform: pulse ? "scale(1.02)" : "scale(1.01)",
-      boxShadow: `${accent.glow}, 0 0 0 1px ${accent.borderPulse}`,
+      backgroundColor: RUNNER_CHIP_IDLE.backgroundColor,
+      border: `2px solid ${accent.borderPulse}`,
+      transform: "scale(1)",
+      boxShadow: undefined,
     };
   }
   if (timerHighlightsActive) {
@@ -92,10 +92,10 @@ function runnerChipStyleVertical(
 ) {
   if (timerHighlightsActive && active) {
     return {
-      backgroundColor: accent.bg,
-      border: `1px solid ${accent.borderPulse}`,
-      transform: pulse ? "scale(1.02)" : "scale(1.01)",
-      boxShadow: `${accent.glow}, 0 0 0 1px ${accent.borderPulse}`,
+      backgroundColor: RUNNER_CHIP_IDLE.backgroundColor,
+      border: `2px solid ${accent.borderPulse}`,
+      transform: "scale(1)",
+      boxShadow: undefined,
     };
   }
   if (timerHighlightsActive) {
@@ -276,12 +276,12 @@ export function LevelsSymbolList({
                 key={entry.id}
                 data-strip-index={i}
                 onClick={() => onSelect(i)}
-                className="flex text-left shrink-0 h-full min-w-[4.75rem] max-w-[7.25rem] snap-center md:min-w-[9.5rem] md:max-w-[11rem] flex-col overflow-hidden transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-lg"
+                className="flex text-left shrink-0 h-full min-w-[4.75rem] max-w-[7.25rem] snap-center md:min-w-[9.5rem] md:max-w-[11rem] flex-col overflow-hidden transition-[background-color,border-color] duration-200 ease-out rounded-lg"
                 style={runnerChipStyle(active, pulse, accent, timerHighlightsActive)}
               >
                 <div
-                  className={`flex flex-col min-w-0 w-full flex-1 gap-0.5 sm:gap-1 px-2 py-1.5 sm:px-3 sm:py-2 ${
-                    showTimerFooter ? "justify-start" : "justify-center"
+                  className={`flex flex-col min-w-0 w-full flex-1 gap-1 px-2.5 py-2 sm:px-3 ${
+                    showTimerFooter ? "justify-start pb-1" : "justify-center"
                   }`}
                 >
                   <div className="md:hidden flex flex-col justify-center min-w-0 w-full gap-0.5">
@@ -361,12 +361,12 @@ export function LevelsSymbolList({
               key={entry.id}
               data-strip-index={i}
               onClick={() => onSelect(i)}
-              className={`flex text-left shrink-0 w-full flex-col overflow-hidden transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-md ${
-                showTimerFooter ? "min-h-[6.25rem]" : "gap-0.5 px-2 py-1.5"
+              className={`flex text-left shrink-0 w-full flex-col overflow-hidden transition-[background-color,border-color] duration-200 ease-out rounded-md ${
+                showTimerFooter ? "min-h-[6.25rem]" : "px-2 py-1.5"
               }`}
               style={runnerChipStyleVertical(active, pulse, accent, timerHighlightsActive)}
             >
-              <div className={`flex flex-col min-w-0 w-full flex-1 ${showTimerFooter ? "gap-1 px-2 py-2" : "gap-0.5"}`}>
+              <div className={`flex flex-col min-w-0 w-full flex-1 gap-1 ${showTimerFooter ? "px-2.5 py-2 pb-1" : ""}`}>
                 {(entry.sublabel || entry.trailing) && (
                   <div className="flex items-center justify-between gap-1 w-full min-w-0">
                     {entry.sublabel ? (

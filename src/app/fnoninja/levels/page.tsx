@@ -947,16 +947,7 @@ export default function LevelsPage() {
         {isSlideView && slideshowExploreHold ? (
           <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
         ) : null}
-        <div className="relative flex flex-1 min-h-0 min-w-0 w-full flex-col">
-          {isSlideView && !showSlideshowPvt ? (
-            <div className="absolute bottom-3 right-2 z-20 pointer-events-none">
-              <div className="pointer-events-auto">
-                <LevelsGlobalChatTrigger />
-              </div>
-            </div>
-          ) : null}
-          {slideshowChartPane}
-        </div>
+        {slideshowChartPane}
       </div>
     ) : (
       <div
@@ -1451,13 +1442,20 @@ export default function LevelsPage() {
 
   const levelsMainPane =
     viewMode === "bubbles" ? (
-      <LevelsBubblesView
-        items={bubbleItems}
-        onBubbleOpen={openBubbleChart}
-        hasMarketData={Boolean(payload)}
-        toneFilter={bubbleMapFilter}
-        showMaxPainBubbles={showMaxPainBubbles}
-      />
+      <div className="relative flex flex-1 min-h-0 min-w-0 w-full">
+        <LevelsBubblesView
+          items={bubbleItems}
+          onBubbleOpen={openBubbleChart}
+          hasMarketData={Boolean(payload)}
+          toneFilter={bubbleMapFilter}
+          showMaxPainBubbles={showMaxPainBubbles}
+        />
+        <div className="absolute bottom-4 right-3 z-30 pointer-events-none sm:bottom-5 sm:right-4">
+          <div className="pointer-events-auto">
+            <LevelsGlobalChatTrigger />
+          </div>
+        </div>
+      </div>
     ) : (
       renderSlideshow()
     );

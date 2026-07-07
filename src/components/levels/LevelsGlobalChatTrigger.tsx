@@ -4,35 +4,42 @@ import { MessageCircle } from "lucide-react";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { FNO_ACCENT } from "@/lib/fnoninja/theme";
 
-/** Global community chat — lives above the PVT panel (or chart corner on other views). */
-export function LevelsGlobalChatTrigger({ className = "" }: { className?: string }) {
+/** Floating chat on the Market Bubbles map only. */
+export function LevelsGlobalChatTrigger({
+  className = "",
+  variant = "floater",
+}: {
+  className?: string;
+  variant?: "floater";
+}) {
   const { open, setOpen, unreadCount } = useChatPanel();
   const chatUnread = unreadCount && !open;
+
+  if (variant !== "floater") return null;
 
   return (
     <button
       type="button"
       onClick={() => setOpen(true)}
-      className={`relative inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-1.5 transition-all hover:brightness-110 ${className}`.trim()}
+      className={`relative inline-flex h-12 w-12 items-center justify-center rounded-full border-2 transition-colors hover:brightness-110 ${className}`.trim()}
       style={{
-        borderColor: open ? "rgba(96,165,250,0.45)" : "rgba(255,255,255,0.14)",
-        backgroundColor: open ? "rgba(37,99,235,0.16)" : "rgba(255,255,255,0.04)",
-        color: open ? FNO_ACCENT : "#94a3b8",
+        borderColor: open ? FNO_ACCENT : "rgba(96,165,250,0.55)",
+        backgroundColor: open ? "rgba(37,99,235,0.22)" : "rgba(15,23,42,0.92)",
+        color: open ? FNO_ACCENT : "#93c5fd",
         boxShadow: open
-          ? "0 0 18px rgba(96,165,250,0.28), inset 0 1px 0 rgba(255,255,255,0.06)"
-          : "0 0 12px rgba(96,165,250,0.08), inset 0 1px 0 rgba(255,255,255,0.04)",
+          ? "0 0 0 3px rgba(96,165,250,0.18), 0 4px 14px rgba(0,0,0,0.45)"
+          : "0 0 0 3px rgba(96,165,250,0.12), 0 4px 14px rgba(0,0,0,0.4)",
       }}
       aria-label={chatUnread ? "Community chat, new messages" : "Community chat"}
       title={chatUnread ? "Community chat — new messages" : "Community chat"}
     >
-      <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-      <span className="text-[11px] font-semibold leading-none">Chat</span>
+      <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={2} />
       {chatUnread ? (
         <span
-          className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full"
+          className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full"
           style={{
             backgroundColor: FNO_ACCENT,
-            boxShadow: "0 0 0 2px rgba(8,15,30,0.95)",
+            boxShadow: "0 0 0 2px rgba(15,23,42,0.95)",
           }}
           aria-hidden
         />

@@ -5,10 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   GraduationCap,
   Loader2,
+  MessageCircle,
   Newspaper,
   Sparkles,
 } from "lucide-react";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
+import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
@@ -229,6 +231,8 @@ export function LevelsChartSideToolbar({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { open: chatOpen, setOpen: setChatOpen, unreadCount } = useChatPanel();
+  const chatUnread = unreadCount && !chatOpen;
   const [newsOpen, setNewsOpen] = useState(false);
   const [atlasOpen, setAtlasOpen] = useState(false);
   const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
@@ -370,6 +374,16 @@ export function LevelsChartSideToolbar({
         >
           <Sparkles className={`${TOOLBAR_ICON_CLASS} fynn-sparkle-glow`} strokeWidth={1.5} />
           <AtlasScoreTag score={atlasScore} />
+        </ToolbarButton>
+
+        <ToolbarButton
+          label="Chat"
+          active={chatOpen}
+          unreadDot={chatUnread}
+          onClick={() => setChatOpen(true)}
+          title={chatUnread ? "Community chat — new messages" : "Community chat"}
+        >
+          <MessageCircle className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
         </ToolbarButton>
 
         <div className="my-0.5 h-px w-10 shrink-0 bg-white/[0.08]" aria-hidden />

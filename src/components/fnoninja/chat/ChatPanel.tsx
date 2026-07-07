@@ -90,6 +90,22 @@ export function ChatPanel() {
     return Array.from(map.values());
   }, [allMessages, user?.uid]);
 
+  const handleReact = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!user) return;
+      try {
+        await toggleChatReaction(user, roomId, messageId, emoji);
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Reaction failed",
+          description: e instanceof Error ? e.message : "",
+        });
+      }
+    },
+    [user, roomId],
+  );
+
   if (!open || !user) return null;
 
   const revokePreviews = (m: ChatMessage | undefined) => {
@@ -239,22 +255,6 @@ export function ChatPanel() {
       toast({ variant: "destructive", title: "Report failed", description: e instanceof Error ? e.message : "" });
     }
   };
-
-  const handleReact = useCallback(
-    async (messageId: string, emoji: string) => {
-      if (!user) return;
-      try {
-        await toggleChatReaction(user, roomId, messageId, emoji);
-      } catch (e) {
-        toast({
-          variant: "destructive",
-          title: "Reaction failed",
-          description: e instanceof Error ? e.message : "",
-        });
-      }
-    },
-    [user, roomId],
-  );
 
   // Wait for BOTH the subscription status and the member doc before deciding
   // which gate to show — otherwise we briefly flash "Load plans" then "Accept

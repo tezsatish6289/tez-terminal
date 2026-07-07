@@ -18,78 +18,29 @@ import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { getDailySnapshot } from "@/lib/oi-bhavcopy-store";
 import { mapWithConcurrency } from "@/lib/async-pool";
 import {
+  coldProbeDates,
+  incrementalOiHistoryDates,
+  isOiHistorySeriesFresh,
+  lastCompletedTradingSession,
+} from "@/lib/oi-history-ensure-core";
+export {
+  coldProbeDates,
+  isOiHistorySeriesFresh,
+  lastCompletedTradingSession,
+} from "@/lib/oi-history-ensure-core";
+import {
   loadOiHistory,
-  markOiHistoryCheckedThrough,
   mergeOiSnapshots,
   saveOiHistory,
   type OiHistoryEntry,
 } from "@/lib/oi-history";
 
-const IST_OFFSET_MS = 5.5 * 3600_000;
-/** Bhavcopy is reliably published well before this IST minute-of-day. */
-const PUBLISH_CUTOFF_MIN = 18 * 60; // 6:00 PM IST
 /** Max trading days to fill in one incremental (warm) request. */
 const MAX_INCREMENTAL_DAYS = 7;
 /** Max weekdays to probe on a cold start (≈6 months of sessions). */
 const MAX_COLD_PROBES = 130;
 /** Parallel GCS reads when filling gaps — day files are shared across symbols. */
 const OI_ENSURE_CONCURRENCY = 8;
-
-function istDate(now: number): Date {
-  return new Date(now + IST_OFFSET_MS);
-}
-
-function keyOf(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function addDaysKey(dateKey: string, delta: number): string {
-  const d = new Date(`${dateKey}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + delta);
-  return keyOf(d);
-}
-
-function isWeekend(dateKey: string): boolean {
-  const dow = new Date(`${dateKey}T00:00:00Z`).getUTCDay();
-  return dow === 0 || dow === 6;
-}
-
-/**
- * The most recent trading session whose bhavcopy we'd expect to exist.
- * Best-effort (holidays handled downstream by an absent snapshot). Pure.
- */
-export function lastCompletedTradingSession(now: number = Date.now()): string {
-  const ist = istDate(now);
-  const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
-  let key = keyOf(ist);
-  // Today's file isn't out yet before the publish cutoff → step to yesterday.
-  if (mins < PUBLISH_CUTOFF_MIN) key = addDaysKey(key, -1);
-  // Walk back over weekends.
-  while (isWeekend(key)) key = addDaysKey(key, -1);
-  return key;
-}
-
-/** Weekday keys in (lastDate, expected], oldest→newest, capped. */
-function incrementalDates(lastDate: string, expected: string, cap: number): string[] {
-  const out: string[] = [];
-  let cursor = addDaysKey(lastDate, 1);
-  while (cursor <= expected && out.length < cap) {
-    if (!isWeekend(cursor)) out.push(cursor);
-    cursor = addDaysKey(cursor, 1);
-  }
-  return out;
-}
-
-/** The `cap` most recent weekday keys ending at `expected`, oldest→newest. Pure. */
-export function coldProbeDates(expected: string, cap: number): string[] {
-  const out: string[] = [];
-  let cursor = expected;
-  while (out.length < cap) {
-    if (!isWeekend(cursor)) out.push(cursor);
-    cursor = addDaysKey(cursor, -1);
-  }
-  return out.reverse();
-}
 
 export interface EnsureOiHistoryResult {
   entries: OiHistoryEntry[];
@@ -114,9 +65,7 @@ export async function ensureOiHistory(
   const loaded = await loadOiHistory(db, sym);
   const expected = lastCompletedTradingSession(now);
 
-  const isFresh =
-    (loaded.checkedThrough != null && loaded.checkedThrough >= expected) ||
-    (loaded.lastDate != null && loaded.lastDate >= expected);
+  const isFresh = isOiHistorySeriesFresh(loaded.lastDate, expected);
 
   if (isFresh) {
     return {
@@ -133,7 +82,7 @@ export async function ensureOiHistory(
   // open (the daily cron is the sole NSE fetcher). Day files are shared across
   // symbols and memoized in-process, so the first open warms the rest.
   const dates = loaded.lastDate
-    ? incrementalDates(loaded.lastDate, expected, MAX_INCREMENTAL_DAYS)
+    ? incrementalOiHistoryDates(loaded.lastDate, expected, MAX_INCREMENTAL_DAYS)
     : coldProbeDates(expected, MAX_COLD_PROBES);
 
   const maps = await mapWithConcurrency(dates, OI_ENSURE_CONCURRENCY, (dateKey) =>
@@ -147,15 +96,16 @@ export async function ensureOiHistory(
   }
 
   if (!batch.length) {
-    // Nothing to add. Only mark fresh if we already had data (a true holiday gap);
-    // a cold-empty symbol stays unmarked so a later backfill can seed it.
+    // Nothing to add. Never mark `checkedThrough` past `lastDate` when the
+    // series still ends before `expected` — an empty batch usually means GCS
+    // hasn't cached those sessions yet (cron gap), not a holiday-only gap.
+    // Leaving the doc un-reconciled lets the next chart open / cron warm retry.
     if (loaded.lastDate) {
-      await markOiHistoryCheckedThrough(db, sym, expected);
       return {
         entries: loaded.entries,
         lastDate: loaded.lastDate,
         added: 0,
-        fresh: true,
+        fresh: isOiHistorySeriesFresh(loaded.lastDate, expected),
         needsBackfill: false,
       };
     }

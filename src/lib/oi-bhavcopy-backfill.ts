@@ -130,20 +130,20 @@ export async function cacheRecentBhavcopy(
   const missing: string[] = [];
 
   let key = lastCompletedTradingSession(now);
-  let filled = 0;
+  let tradingDaysScanned = 0;
   let guard = 0;
-  while (filled < maxDays && guard < maxDays * 3) {
+  // Scan back `maxDays` trading sessions regardless of whether the newest day
+  // is already cached — a gap (e.g. Jul 3–5 missing but Jul 6 present) must
+  // not short-circuit on the first `alreadyHad`.
+  while (tradingDaysScanned < maxDays && guard < maxDays * 4) {
     guard++;
     const d = new Date(`${key}T00:00:00Z`);
     if (!isWeekendDate(d)) {
+      tradingDaysScanned++;
       const res = await ensureBhavcopyCached(key, cookies);
-      if (res.alreadyHad) {
-        alreadyCached.push(key);
-        break; // older sessions already cached
-      }
-      if (res.cached) cached.push(key);
+      if (res.alreadyHad) alreadyCached.push(key);
+      else if (res.cached) cached.push(key);
       else missing.push(key); // holiday / not yet published
-      filled++;
     }
     d.setUTCDate(d.getUTCDate() - 1);
     key = keyOf(d);

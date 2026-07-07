@@ -4,9 +4,16 @@ export const SLIDESHOW_SLIDE_SECONDS = 60;
 /** Row height for horizontal symbol tiles + matching square icon controls. */
 export const LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS = "h-12 md:h-[4.75rem]";
 
+/** Taller strip row when the active chip carries a bottom timer bar. */
+export const LEVELS_SYMBOL_STRIP_TIMER_ROW_HEIGHT_CLASS =
+  "h-[4.75rem] sm:h-[6.5rem] md:h-[6.5rem]";
+
 /** Square filter / play-pause boxes — same height as symbol strip tiles. */
 export const LEVELS_STRIP_ICON_BOX_CLASS =
   "h-12 w-12 md:h-[4.75rem] md:w-[4.75rem] shrink-0 rounded-lg";
+
+export const LEVELS_STRIP_ICON_BOX_TIMER_CLASS =
+  "h-[4.75rem] w-[4.75rem] sm:h-[6.5rem] sm:w-[6.5rem] shrink-0 rounded-lg";
 
 /** Horizontal scroll for toolbar strips on narrow viewports. */
 export const LEVELS_MOBILE_HSTRIP_SCROLL_CLASS =

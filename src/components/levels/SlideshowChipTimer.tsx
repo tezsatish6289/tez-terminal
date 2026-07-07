@@ -11,6 +11,9 @@ export function SlideshowChipTimer({
   canResume = true,
   accentColor = "#60a5fa",
   onToggle,
+  variant = "inline",
+  footerBg,
+  footerBorder,
 }: {
   paused: boolean;
   secondsRemaining: number;
@@ -18,9 +21,14 @@ export function SlideshowChipTimer({
   canResume?: boolean;
   accentColor?: string;
   onToggle: () => void;
+  /** Footer spans chip width — used on the active liveslide/favslide tile. */
+  variant?: "inline" | "footer";
+  footerBg?: string;
+  footerBorder?: string;
 }) {
   const pausedColor = "#f472b6";
   const color = paused ? pausedColor : accentColor;
+  const footer = variant === "footer";
 
   return (
     <button
@@ -30,7 +38,23 @@ export function SlideshowChipTimer({
         onToggle();
       }}
       disabled={paused && canResume === false}
-      className="inline-flex items-center gap-0.5 shrink-0 rounded px-1 py-0.5 transition-colors hover:bg-white/[0.06] disabled:opacity-70 disabled:cursor-not-allowed"
+      className={
+        footer
+          ? "flex w-full items-center justify-center gap-2 min-h-[1.875rem] px-2 py-1.5 transition-colors hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed border-t"
+          : "inline-flex items-center gap-0.5 shrink-0 rounded px-1 py-0.5 transition-colors hover:bg-white/[0.06] disabled:opacity-70 disabled:cursor-not-allowed"
+      }
+      style={
+        footer
+          ? {
+              backgroundColor: paused
+                ? "rgba(244,114,182,0.12)"
+                : (footerBg ?? "rgba(255,255,255,0.06)"),
+              borderColor: paused
+                ? "rgba(244,114,182,0.28)"
+                : (footerBorder ?? "rgba(255,255,255,0.1)"),
+            }
+          : undefined
+      }
       aria-label={
         paused
           ? pauseReason
@@ -53,10 +77,14 @@ export function SlideshowChipTimer({
       <SlideshowTransportIcon
         mode={paused ? "play" : "pause"}
         color={color}
-        className="h-3.5 w-3.5 shrink-0"
+        className={footer ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"}
       />
       <span
-        className="text-[9px] font-bold tabular-nums leading-none uppercase"
+        className={
+          footer
+            ? "text-[11px] font-black tabular-nums leading-none uppercase tracking-wide"
+            : "text-[9px] font-bold tabular-nums leading-none uppercase"
+        }
         style={{ color }}
         aria-live="polite"
       >

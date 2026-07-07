@@ -91,6 +91,7 @@ import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/livesl
 import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { useUser } from "@/firebase";
+import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
 
 interface RawItem {
   symbol?: string;
@@ -268,7 +269,11 @@ export default function LevelsPage() {
   );
 
   const isSlideView = viewMode === "liveslide" || viewMode === "favslide";
-  const slideSignInGate = isSlideView;
+  const [localDevSlideBypass, setLocalDevSlideBypass] = useState(false);
+  useEffect(() => {
+    setLocalDevSlideBypass(bypassFnoNinjaSlideAuthForLocalDev());
+  }, []);
+  const slideSignInGate = isSlideView && !localDevSlideBypass;
 
   useEffect(() => {
     if (!isSlideView) {

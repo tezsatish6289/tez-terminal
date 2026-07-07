@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { FNO_BG_CANVAS } from "@/lib/fnoninja/theme";
+import { LEVELS_SYMBOL_STRIP_TIMER_ROW_HEIGHT_CLASS } from "@/components/levels/levels-symbol-strip";
 
 export function LevelsSlideshowSymbolRailMobile({
   controls,
@@ -18,7 +19,7 @@ export function LevelsSlideshowSymbolRailMobile({
       {...tourAttrs}
     >
       {controls}
-      <div className="min-w-0 h-12 sm:h-[4.75rem]">{symbolList}</div>
+      <div className={`min-w-0 ${LEVELS_SYMBOL_STRIP_TIMER_ROW_HEIGHT_CLASS}`}>{symbolList}</div>
     </div>
   );
 }

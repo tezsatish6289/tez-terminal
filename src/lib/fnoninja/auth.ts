@@ -26,3 +26,13 @@ export function requiresFnoNinjaChartAuth(pathname: string, hostname?: string): 
 export function requiresFnoNinjaLiveslideAuth(pathname: string, hostname?: string): boolean {
   return isFnoNinjaAppContext(pathname, hostname);
 }
+
+function isLocalDevHost(hostname?: string): boolean {
+  const h = (hostname ?? (typeof window !== "undefined" ? window.location.hostname : "")).toLowerCase();
+  return h === "localhost" || h === "127.0.0.1";
+}
+
+/** Local dev only — preview Liveslide/Favslide UI without Google sign-in. */
+export function bypassFnoNinjaSlideAuthForLocalDev(hostname?: string): boolean {
+  return process.env.NODE_ENV === "development" && isLocalDevHost(hostname);
+}

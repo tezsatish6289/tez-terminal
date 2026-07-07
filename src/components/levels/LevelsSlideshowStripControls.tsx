@@ -25,8 +25,10 @@ import type { PocDirectionFilter } from "@/lib/zones/zone-status";
 import {
   LEVELS_STRIP_BOX_LABEL_CLASS,
   LEVELS_STRIP_ICON_BOX_CLASS,
+  LEVELS_STRIP_ICON_BOX_TIMER_CLASS,
   LEVELS_STRIP_ICON_INNER_CLASS,
   LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS,
+  LEVELS_SYMBOL_STRIP_TIMER_ROW_HEIGHT_CLASS,
   LEVELS_RAIL_CONTROL_BOX_CLASS,
   LEVELS_RAIL_CONTROL_INNER_CLASS,
   LEVELS_RAIL_CONTROL_LABEL_CLASS,
@@ -580,11 +582,15 @@ export function LevelsSlideshowStripControls({
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const isVertical = orientation === "vertical";
-  const iconBoxClass = isVertical ? LEVELS_RAIL_CONTROL_BOX_CLASS : LEVELS_STRIP_ICON_BOX_CLASS;
+  const stripMode = slideModePill?.mode ?? viewToggle?.viewMode;
+  const iconBoxClass = isVertical
+    ? LEVELS_RAIL_CONTROL_BOX_CLASS
+    : stripMode === "liveslide" || stripMode === "favslide"
+      ? LEVELS_STRIP_ICON_BOX_TIMER_CLASS
+      : LEVELS_STRIP_ICON_BOX_CLASS;
   const iconInnerClass = isVertical ? LEVELS_RAIL_CONTROL_INNER_CLASS : LEVELS_STRIP_ICON_INNER_CLASS;
   const labelClass = isVertical ? LEVELS_RAIL_CONTROL_LABEL_CLASS : LEVELS_STRIP_BOX_LABEL_CLASS;
   const activeMeta = FILTER_OPTIONS.find((o) => o.key === zoneFilter) ?? FILTER_OPTIONS[0];
-  const stripMode = slideModePill?.mode ?? viewToggle?.viewMode;
   const slideAccent =
     stripMode === "liveslide"
       ? SLIDE_MODE_ACCENT.liveslide
@@ -628,12 +634,17 @@ export function LevelsSlideshowStripControls({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [slideshowControl, viewToggle, viewSwitchGroup]);
 
+  const stripRowHeightClass =
+    stripMode === "liveslide" || stripMode === "favslide"
+      ? LEVELS_SYMBOL_STRIP_TIMER_ROW_HEIGHT_CLASS
+      : LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS;
+
   return (
     <div
       className={`flex gap-1.5 shrink-0 ${
         isVertical
           ? "flex-col w-full gap-1"
-          : `flex-row items-stretch ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`
+          : `flex-row items-stretch ${stripRowHeightClass}`
       } ${className}`.trim()}
     >
       {search ? (

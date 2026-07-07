@@ -21,6 +21,8 @@ const STRIP_ACCENT_STYLE: Record<
     sublabel: string;
     sublabelBg: string;
     timer: string;
+    timerFooterBg: string;
+    timerFooterBorder: string;
   }
 > = {
   liveslide: {
@@ -32,6 +34,8 @@ const STRIP_ACCENT_STYLE: Record<
     sublabel: "#93c5fd",
     sublabelBg: "rgba(59,130,246,0.1)",
     timer: FNO_LIVESLIDE_ACCENT,
+    timerFooterBg: "rgba(37,99,235,0.22)",
+    timerFooterBorder: "rgba(96,165,250,0.38)",
   },
   favslide: {
     bg: "rgba(251,191,36,0.14)",
@@ -42,6 +46,8 @@ const STRIP_ACCENT_STYLE: Record<
     sublabel: FNO_FAVSLIDE_ACCENT,
     sublabelBg: "rgba(251,191,36,0.12)",
     timer: FNO_FAVSLIDE_ACCENT,
+    timerFooterBg: "rgba(251,191,36,0.16)",
+    timerFooterBorder: "rgba(252,211,77,0.38)",
   },
 };
 
@@ -173,14 +179,17 @@ export function LevelsSymbolList({
 }) {
   const accent = STRIP_ACCENT_STYLE[stripAccent];
 
-  const renderChipTimer = (active: boolean) =>
+  const renderChipTimerFooter = (active: boolean) =>
     active && slideshowTimer?.enabled ? (
       <SlideshowChipTimer
+        variant="footer"
         paused={slideshowTimer.paused}
         secondsRemaining={slideshowTimer.secondsRemaining}
         pauseReason={slideshowTimer.pauseReason}
         canResume={slideshowTimer.canResume}
         accentColor={accent.timer}
+        footerBg={accent.timerFooterBg}
+        footerBorder={accent.timerFooterBorder}
         onToggle={slideshowTimer.onToggle}
       />
     ) : null;
@@ -245,70 +254,77 @@ export function LevelsSymbolList({
           {entries.map((entry, i) => {
             const active = i === activeIndex;
             const pulse = active && runnerPulse;
+            const showTimerFooter = active && timerHighlightsActive;
             return (
               <button
                 key={entry.id}
                 data-strip-index={i}
                 onClick={() => onSelect(i)}
-                className="flex text-left shrink-0 h-full min-w-[4.75rem] max-w-[7.25rem] snap-center md:min-w-[9.5rem] md:max-w-[11rem] max-md:flex-col max-md:justify-center max-md:gap-0.5 max-md:py-1 max-md:px-2 flex-col gap-1 px-3 py-2 transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-lg"
+                className="flex text-left shrink-0 h-full min-w-[4.75rem] max-w-[7.25rem] snap-center md:min-w-[9.5rem] md:max-w-[11rem] flex-col overflow-hidden transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-lg"
                 style={runnerChipStyle(active, pulse, accent, timerHighlightsActive)}
               >
-                <div className="md:hidden flex flex-col justify-center min-w-0 w-full gap-0.5">
-                  <span
-                    className="text-[11px] font-bold leading-none truncate"
-                    style={{ color: "#e2e8f0" }}
-                  >
-                    {entry.label}
-                  </span>
-                  {(entry.spot != null && entry.currency) || entry.trailing || renderChipTimer(active) ? (
-                    <div className="flex items-center justify-between gap-1 min-w-0">
-                      {entry.spot != null && entry.currency ? (
-                        <span
-                          className="text-[9px] font-mono tabular-nums leading-none truncate min-w-0"
-                          style={{ color: "#94a3b8" }}
-                        >
-                          {formatHeroPrice(entry.spot, entry.currency)}
-                        </span>
-                      ) : (
-                        <span className="min-w-0 flex-1" />
-                      )}
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        {entry.trailing ? (
-                          <span className="scale-[0.88] origin-right">{entry.trailing}</span>
-                        ) : null}
-                        {renderChipTimer(active)}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-                <div className="hidden md:flex flex-col gap-1 w-full min-w-0">
-                  {(entry.sublabel || entry.trailing || renderChipTimer(active)) && (
-                    <div className="flex items-center justify-between gap-1 w-full min-w-0">
-                      {entry.sublabel ? (
-                        <span
-                          className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
-                          style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
-                        >
-                          {entry.sublabel}
-                        </span>
-                      ) : (
-                        <span />
-                      )}
-                      <div className="flex items-center gap-0.5 shrink-0 min-w-0">
-                        {entry.trailing}
-                        {renderChipTimer(active)}
-                      </div>
-                    </div>
-                  )}
-                  <span className="text-[13px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>
-                    {entry.label}
-                  </span>
-                  {entry.spot != null && entry.currency && (
-                    <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
-                      {formatHeroPrice(entry.spot, entry.currency)}
+                <div
+                  className={`flex flex-col min-w-0 w-full flex-1 gap-0.5 sm:gap-1 px-2 py-1.5 sm:px-3 sm:py-2 ${
+                    showTimerFooter ? "justify-start" : "justify-center"
+                  }`}
+                >
+                  <div className="md:hidden flex flex-col justify-center min-w-0 w-full gap-0.5">
+                    <span
+                      className="text-[11px] font-bold leading-none truncate"
+                      style={{ color: "#e2e8f0" }}
+                    >
+                      {entry.label}
                     </span>
-                  )}
+                    {(entry.spot != null && entry.currency) || entry.trailing ? (
+                      <div className="flex items-center justify-between gap-1 min-w-0">
+                        {entry.spot != null && entry.currency ? (
+                          <span
+                            className="text-[9px] font-mono tabular-nums leading-none truncate min-w-0"
+                            style={{ color: "#94a3b8" }}
+                          >
+                            {formatHeroPrice(entry.spot, entry.currency)}
+                          </span>
+                        ) : (
+                          <span className="min-w-0 flex-1" />
+                        )}
+                        {entry.trailing ? (
+                          <span className="scale-[0.88] origin-right shrink-0">{entry.trailing}</span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="hidden md:flex flex-col gap-1 w-full min-w-0 flex-1">
+                    {(entry.sublabel || entry.trailing) && (
+                      <div className="flex items-center justify-between gap-1 w-full min-w-0">
+                        {entry.sublabel ? (
+                          <span
+                            className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
+                            style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
+                          >
+                            {entry.sublabel}
+                          </span>
+                        ) : (
+                          <span />
+                        )}
+                        {entry.trailing ? (
+                          <div className="flex items-center gap-0.5 shrink-0 min-w-0">{entry.trailing}</div>
+                        ) : null}
+                      </div>
+                    )}
+                    <span
+                      className={`font-bold leading-tight truncate ${showTimerFooter ? "text-[14px]" : "text-[13px]"}`}
+                      style={{ color: "#e2e8f0" }}
+                    >
+                      {entry.label}
+                    </span>
+                    {entry.spot != null && entry.currency && (
+                      <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
+                        {formatHeroPrice(entry.spot, entry.currency)}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {renderChipTimerFooter(active)}
               </button>
             );
           })}
@@ -323,40 +339,48 @@ export function LevelsSymbolList({
         {entries.map((entry, i) => {
           const active = i === activeIndex;
           const pulse = active && runnerPulse;
+          const showTimerFooter = active && timerHighlightsActive;
           return (
             <button
               key={entry.id}
               data-strip-index={i}
               onClick={() => onSelect(i)}
-              className="flex text-left shrink-0 w-full flex-col gap-0.5 px-2 py-1.5 transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-md"
+              className={`flex text-left shrink-0 w-full flex-col overflow-hidden transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out rounded-md ${
+                showTimerFooter ? "min-h-[6.25rem]" : "gap-0.5 px-2 py-1.5"
+              }`}
               style={runnerChipStyleVertical(active, pulse, accent, timerHighlightsActive)}
             >
-              {(entry.sublabel || entry.trailing || renderChipTimer(active)) && (
-                <div className="flex items-center justify-between gap-1 w-full min-w-0">
-                  {entry.sublabel ? (
-                    <span
-                      className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
-                      style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
-                    >
-                      {entry.sublabel}
-                    </span>
-                  ) : (
-                    <span />
-                  )}
-                  <div className="flex items-center gap-0.5 shrink-0 min-w-0">
-                    {entry.trailing}
-                    {renderChipTimer(active)}
+              <div className={`flex flex-col min-w-0 w-full flex-1 ${showTimerFooter ? "gap-1 px-2 py-2" : "gap-0.5"}`}>
+                {(entry.sublabel || entry.trailing) && (
+                  <div className="flex items-center justify-between gap-1 w-full min-w-0">
+                    {entry.sublabel ? (
+                      <span
+                        className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
+                        style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
+                      >
+                        {entry.sublabel}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    {entry.trailing ? (
+                      <div className="flex items-center gap-0.5 shrink-0 min-w-0">{entry.trailing}</div>
+                    ) : null}
                   </div>
-                </div>
-              )}
-              <span className="text-[12px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>
-                {entry.label}
-              </span>
-              {entry.spot != null && entry.currency && (
-                <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
-                  {formatHeroPrice(entry.spot, entry.currency)}
+                )}
+                <span
+                  className={`font-bold leading-tight truncate ${showTimerFooter ? "text-[13px]" : "text-[12px]"}`}
+                  style={{ color: "#e2e8f0" }}
+                >
+                  {entry.label}
                 </span>
-              )}
+                {entry.spot != null && entry.currency && (
+                  <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
+                    {formatHeroPrice(entry.spot, entry.currency)}
+                  </span>
+                )}
+              </div>
+              {renderChipTimerFooter(active)}
             </button>
           );
         })}

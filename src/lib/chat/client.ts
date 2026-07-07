@@ -108,3 +108,18 @@ export async function reportChatMessage(
   });
   if (!res.ok) throw new Error(await parseError(res));
 }
+
+export async function toggleChatReaction(
+  user: User,
+  roomId: string,
+  messageId: string,
+  emoji: string,
+): Promise<Record<string, string[]>> {
+  const res = await authedFetch(user, "/api/chat/react", {
+    method: "POST",
+    body: JSON.stringify({ roomId, messageId, emoji }),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  const data = await res.json();
+  return (data.reactions ?? {}) as Record<string, string[]>;
+}

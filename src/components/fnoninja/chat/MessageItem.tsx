@@ -6,7 +6,7 @@ import { Check, Flag, ImageIcon, Loader2, Pencil, Reply, RotateCw, Trash2, User,
 import type { ChatAttachment } from "@/lib/chat/types";
 import { format } from "date-fns";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
-import { CHAT_EDIT_WINDOW_MS } from "@/lib/chat/constants";
+import { CHAT_EDIT_WINDOW_MS, CHAT_QUICK_REACTIONS } from "@/lib/chat/constants";
 import { isAllowedChatUrl } from "@/lib/chat/moderation";
 import type { ChatMessage } from "@/lib/chat/types";
 
@@ -89,12 +89,16 @@ function renderText(text: string) {
 interface MessageItemProps {
   message: ChatMessage;
   isOwn: boolean;
+  currentUid: string;
+  canReply: boolean;
+  canReact: boolean;
   onEdit: (id: string, text: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onReport: (message: ChatMessage) => void;
   onRetry: (id: string) => void;
   onDiscard: (id: string) => void;
   onReply: (message: ChatMessage) => void;
+  onReact: (messageId: string, emoji: string) => void;
   onJumpTo: (id: string) => void;
   highlight?: boolean;
 }
@@ -178,12 +182,16 @@ function Lightbox({ attachment, onClose }: { attachment: ChatAttachment; onClose
 export function MessageItem({
   message,
   isOwn,
+  currentUid,
+  canReply,
+  canReact,
   onEdit,
   onDelete,
   onReport,
   onRetry,
   onDiscard,
   onReply,
+  onReact,
   onJumpTo,
   highlight,
 }: MessageItemProps) {
@@ -191,9 +199,12 @@ export function MessageItem({
   const [draft, setDraft] = useState(message.text);
   const [busy, setBusy] = useState(false);
   const [zoom, setZoom] = useState<ChatAttachment | null>(null);
+  const [reactOpen, setReactOpen] = useState(false);
 
   const pending = message.clientStatus; // "sending" | "failed" | undefined
   const canEdit = isOwn && !pending && Date.now() - message.createdAt <= CHAT_EDIT_WINDOW_MS;
+  const reactionEntries = Object.entries(message.reactions ?? {}).filter(([, uids]) => uids.length > 0);
+  const showReactions = canReact && !pending;
 
   if (message.deleted) {
     return (
@@ -330,6 +341,49 @@ export function MessageItem({
                 </button>
               </div>
             ) : null}
+            {showReactions && (reactionEntries.length > 0 || reactOpen) ? (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                {reactionEntries.map(([emoji, uids]) => {
+                  const mine = uids.includes(currentUid);
+                  return (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => onReact(message.id, emoji)}
+                      className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] transition-colors hover:bg-white/10"
+                      style={{
+                        backgroundColor: mine ? "rgba(37,99,235,0.22)" : "rgba(255,255,255,0.06)",
+                        border: mine ? "1px solid rgba(96,165,250,0.35)" : "1px solid rgba(255,255,255,0.08)",
+                      }}
+                      aria-label={`${emoji} ${uids.length} reaction${uids.length === 1 ? "" : "s"}`}
+                    >
+                      <span>{emoji}</span>
+                      <span className="text-[10px] font-semibold" style={{ color: "#94a3b8" }}>
+                        {uids.length}
+                      </span>
+                    </button>
+                  );
+                })}
+                {reactOpen ? (
+                  <div className="flex items-center gap-0.5 rounded-full px-1 py-0.5" style={{ backgroundColor: "rgba(255,255,255,0.06)" }}>
+                    {CHAT_QUICK_REACTIONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          onReact(message.id, emoji);
+                          setReactOpen(false);
+                        }}
+                        className="rounded p-0.5 text-sm hover:bg-white/10"
+                        aria-label={`React with ${emoji}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </>
         )}
       </div>
@@ -338,9 +392,22 @@ export function MessageItem({
 
       {!editing && !pending ? (
         <div className="flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-          <button type="button" onClick={() => onReply(message)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300" aria-label="Reply">
-            <Reply className="h-3 w-3" />
-          </button>
+          {showReactions ? (
+            <button
+              type="button"
+              onClick={() => setReactOpen((o) => !o)}
+              className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300"
+              aria-label="Add reaction"
+              aria-pressed={reactOpen}
+            >
+              <span className="text-xs leading-none">😊</span>
+            </button>
+          ) : null}
+          {canReply ? (
+            <button type="button" onClick={() => onReply(message)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300" aria-label="Reply">
+              <Reply className="h-3 w-3" />
+            </button>
+          ) : null}
           {canEdit ? (
             <button type="button" onClick={() => setEditing(true)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300" aria-label="Edit message">
               <Pencil className="h-3 w-3" />

@@ -1,13 +1,22 @@
 "use client";
 
-import { ImageIcon, Megaphone, MessageSquare } from "lucide-react";
+import {
+  BarChart3,
+  Gift,
+  ImageIcon,
+  Megaphone,
+  MessageSquare,
+  type LucideIcon,
+} from "lucide-react";
 import { SUBSCRIBED_CHAT_ROOMS, type ChatRoom } from "@/lib/chat/constants";
 import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
-const ROOM_ICONS: Record<string, typeof Megaphone> = {
-  announcements: Megaphone,
+const ROOM_ICONS: Record<string, LucideIcon> = {
   general: MessageSquare,
+  charts: BarChart3,
   "pnl-screenshots": ImageIcon,
+  offers: Gift,
+  announcements: Megaphone,
 };
 
 const UNREAD_DOT_COLOR = "#60a5fa";
@@ -26,7 +35,7 @@ function RoomIcon({ room }: { room: ChatRoom }) {
 export function ChatRoomSidebar({ roomId, onSelectRoom, unreadByRoom }: ChatRoomSidebarProps) {
   return (
     <nav
-      className="flex w-[128px] shrink-0 flex-col gap-1 overflow-y-auto px-2 py-2"
+      className="flex w-[132px] shrink-0 flex-col gap-1 overflow-y-auto px-2 py-2"
       style={{ borderRight: `1px solid ${FNO_NAV_BORDER}`, backgroundColor: "rgba(6,12,24,0.6)" }}
       aria-label="Chat channels"
     >
@@ -44,9 +53,7 @@ export function ChatRoomSidebar({ roomId, onSelectRoom, unreadByRoom }: ChatRoom
               border: active ? "1px solid rgba(96,165,250,0.25)" : "1px solid transparent",
             }}
             aria-current={active ? "page" : undefined}
-            aria-label={
-              hasUnread ? `${room.name}, new messages` : room.name
-            }
+            aria-label={hasUnread ? `${room.name}, new messages` : room.name}
           >
             {hasUnread ? (
               <span
@@ -67,7 +74,7 @@ export function ChatRoomSidebar({ roomId, onSelectRoom, unreadByRoom }: ChatRoom
             </span>
             {room.adminOnlyPost ? (
               <span className="text-[9px] leading-none" style={{ color: "#64748b" }}>
-                Read-only
+                React only
               </span>
             ) : null}
           </button>

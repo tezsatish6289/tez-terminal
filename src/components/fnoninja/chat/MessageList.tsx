@@ -11,6 +11,8 @@ interface MessageListProps {
   messages: ChatMessage[];
   roomId: string;
   currentUid: string;
+  canReply: boolean;
+  canReact: boolean;
   loading: boolean;
   hasMore: boolean;
   loadingOlder: boolean;
@@ -21,12 +23,15 @@ interface MessageListProps {
   onRetry: (id: string) => void;
   onDiscard: (id: string) => void;
   onReply: (message: ChatMessage) => void;
+  onReact: (messageId: string, emoji: string) => void;
 }
 
 export function MessageList({
   messages,
   roomId,
   currentUid,
+  canReply,
+  canReact,
   loading,
   hasMore,
   loadingOlder,
@@ -37,6 +42,7 @@ export function MessageList({
   onRetry,
   onDiscard,
   onReply,
+  onReact,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -136,12 +142,16 @@ export function MessageList({
             key={m.id}
             message={m}
             isOwn={m.authorId === currentUid}
+            currentUid={currentUid}
+            canReply={canReply}
+            canReact={canReact}
             onEdit={onEdit}
             onDelete={onDelete}
             onReport={onReport}
             onRetry={onRetry}
             onDiscard={onDiscard}
             onReply={onReply}
+            onReact={onReact}
             onJumpTo={jumpToMessage}
             highlight={m.id === highlightId}
           />

@@ -115,11 +115,43 @@ export async function softDeleteMessage(
   await Promise.all([
     rtdbMsgRoot(roomId)
       .child(id)
-      .update({ deleted: true, deletedBy: by, text: "", mentions: [], attachments: null }),
+      .update({ deleted: true, deletedBy: by, text: "", mentions: [], attachments: null, reactions: null }),
     fsMsgCol(roomId)
       .doc(id)
       .update({ deleted: true, deletedBy: by, deletedAt: Date.now() }),
   ]);
+}
+
+/** Toggle the current user's reaction on a message; returns the updated map. */
+export async function toggleMessageReaction(
+  roomId: string,
+  messageId: string,
+  emoji: string,
+  uid: string,
+): Promise<Record<string, string[]>> {
+  const existing = await getMessage(roomId, messageId);
+  if (!existing || existing.deleted) {
+    throw new Error("Message not found.");
+  }
+
+  const reactions = { ...(existing.reactions ?? {}) };
+  const current = [...(reactions[emoji] ?? [])];
+  const idx = current.indexOf(uid);
+  if (idx >= 0) current.splice(idx, 1);
+  else current.push(uid);
+
+  if (current.length === 0) delete reactions[emoji];
+  else reactions[emoji] = current;
+
+  const hasReactions = Object.keys(reactions).length > 0;
+  const update = { reactions: hasReactions ? reactions : null };
+
+  await Promise.all([
+    rtdbMsgRoot(roomId).child(messageId).update(update),
+    fsMsgCol(roomId).doc(messageId).update(update),
+  ]);
+
+  return hasReactions ? reactions : {};
 }
 
 export async function hardDeleteMessage(roomId: string, id: string): Promise<void> {

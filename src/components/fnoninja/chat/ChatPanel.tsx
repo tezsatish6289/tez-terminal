@@ -13,6 +13,7 @@ import {
   editChatMessage,
   reportChatMessage,
   sendChatMessage,
+  toggleChatReaction,
   uploadChatImage,
 } from "@/lib/chat/client";
 import { CHAT_REPLY_SNIPPET_LENGTH, canUserPostInRoom, getChatRoom } from "@/lib/chat/constants";
@@ -21,6 +22,7 @@ import type { ChatAttachment, ChatMessage, ChatReplyRef } from "@/lib/chat/types
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { ChatRoomSidebar } from "@/components/fnoninja/chat/ChatRoomSidebar";
+import { ChatRoomInfo } from "@/components/fnoninja/chat/ChatRoomInfo";
 import { ChatDisclaimer } from "@/components/fnoninja/chat/ChatDisclaimer";
 import { ChatLockedState } from "@/components/fnoninja/chat/ChatLockedState";
 import { ChatTermsGate } from "@/components/fnoninja/chat/ChatTermsGate";
@@ -238,6 +240,22 @@ export function ChatPanel() {
     }
   };
 
+  const handleReact = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!user) return;
+      try {
+        await toggleChatReaction(user, roomId, messageId, emoji);
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Reaction failed",
+          description: e instanceof Error ? e.message : "",
+        });
+      }
+    },
+    [user, roomId],
+  );
+
   // Wait for BOTH the subscription status and the member doc before deciding
   // which gate to show — otherwise we briefly flash "Load plans" then "Accept
   // terms" on refresh as each source resolves independently.
@@ -288,7 +306,7 @@ export function ChatPanel() {
             {ready ? (
               <p className="truncate text-[10px]" style={{ color: "#64748b" }}>
                 {room?.adminOnlyPost && !isAdmin ? (
-                  "Read-only · team announcements"
+                  "React only · team posts"
                 ) : (
                   <span className="inline-flex items-center gap-1">
                     <Users className="h-2.5 w-2.5" /> {onlineCount} online
@@ -329,14 +347,7 @@ export function ChatPanel() {
               unreadByRoom={unreadByRoom}
             />
             <div className="flex min-w-0 flex-1 flex-col">
-              {room?.description ? (
-                <p
-                  className="shrink-0 px-3 py-2 text-[10px] leading-snug"
-                  style={{ color: "#64748b", borderBottom: `1px solid ${FNO_NAV_BORDER}` }}
-                >
-                  {room.description}
-                </p>
-              ) : null}
+              {room ? <ChatRoomInfo room={room} /> : null}
               {error ? (
                 <div className="px-3 py-2 text-[11px] text-rose-400">{error}</div>
               ) : null}
@@ -344,6 +355,8 @@ export function ChatPanel() {
                 messages={allMessages}
                 roomId={roomId}
                 currentUid={user.uid}
+                canReply={canPost}
+                canReact
                 loading={loading}
                 hasMore={hasMore}
                 loadingOlder={loadingOlder}
@@ -354,6 +367,7 @@ export function ChatPanel() {
                 onRetry={handleRetry}
                 onDiscard={handleDiscard}
                 onReply={handleReply}
+                onReact={handleReact}
               />
               {canPost ? (
                 <>
@@ -384,7 +398,7 @@ export function ChatPanel() {
                     paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))",
                   }}
                 >
-                  Product updates from the FNONINJA team. Only admins can post here.
+                  {room?.name ?? "This channel"} is team-only. You can read and react — only admins can post.
                 </div>
               )}
             </div>

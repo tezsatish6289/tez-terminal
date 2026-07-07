@@ -73,6 +73,8 @@ export interface ChatMessage {
   attachments?: ChatAttachment[];
   /** Set when this message is a reply to another message. */
   replyTo?: ChatReplyRef;
+  /** Emoji → list of user ids who reacted with that emoji. */
+  reactions?: Record<string, string[]>;
   /**
    * Client-only optimistic send state for outgoing messages (uploading in the
    * background). Never written to RTDB/Firestore. When set, attachment URLs are

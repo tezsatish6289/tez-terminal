@@ -342,6 +342,7 @@ export function ChatPanel() {
               ) : null}
               <MessageList
                 messages={allMessages}
+                roomId={roomId}
                 currentUid={user.uid}
                 loading={loading}
                 hasMore={hasMore}

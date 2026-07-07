@@ -9,6 +9,7 @@ const NEAR_BOTTOM_PX = 160;
 
 interface MessageListProps {
   messages: ChatMessage[];
+  roomId: string;
   currentUid: string;
   loading: boolean;
   hasMore: boolean;
@@ -24,6 +25,7 @@ interface MessageListProps {
 
 export function MessageList({
   messages,
+  roomId,
   currentUid,
   loading,
   hasMore,
@@ -56,6 +58,12 @@ export function MessageList({
 
   useEffect(() => () => window.clearTimeout(highlightTimer.current), []);
 
+  // Opening chat or switching rooms should land on the latest message.
+  useEffect(() => {
+    lastCountRef.current = 0;
+    setShowJump(false);
+  }, [roomId]);
+
   const jumpToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     setShowJump(false);
@@ -68,17 +76,23 @@ export function MessageList({
     if (nearBottom) setShowJump(false);
   };
 
-  // When new messages arrive: auto-scroll if the user is already near the bottom;
-  // otherwise surface a "New messages" pill instead of yanking them down.
+  // When new messages arrive: auto-scroll on first paint (open / room switch) or
+  // when the user is already near the bottom; otherwise show "New messages".
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    const grew = messages.length > lastCountRef.current;
+    if (!el || messages.length === 0) return;
+    const prev = lastCountRef.current;
+    const grew = messages.length > prev;
     lastCountRef.current = messages.length;
     if (!grew) return;
+
+    const isInitialLoad = prev === 0;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
-    if (nearBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isInitialLoad || nearBottom) {
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: isInitialLoad ? "auto" : "smooth" });
+      });
+      setShowJump(false);
     } else {
       setShowJump(true);
     }

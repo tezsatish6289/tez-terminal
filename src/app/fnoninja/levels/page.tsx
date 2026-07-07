@@ -441,7 +441,7 @@ export default function LevelsPage() {
     [bubbleItems],
   );
 
-  /** Slideshow strip — zone setups only (at/near support/resistance). */
+  /** Slideshow strip — confirmed signals + zone setups (at/near support/resistance). */
   const inZoneListFiltered = useMemo(() => {
     return bubbleItems
       .filter((it) => slideshowMatchesMapFilter(it.tone, slideshowFilter))
@@ -953,7 +953,7 @@ export default function LevelsPage() {
     );
 
   const viewToggleLabel =
-    viewMode === "bubbles" ? "View Liveslide" : "View Bubbles map";
+    viewMode === "bubbles" ? "Liveslide" : "View Bubbles map";
   const bubblesBackTitle = "Back to Market Bubbles map. Press B or click.";
   const liveslideCtaTitle = "Cycle aligned market setups. Press L or click.";
   const favslideCtaTitle = "Cycle your favourited stocks. Press F or click.";
@@ -1407,7 +1407,7 @@ export default function LevelsPage() {
       favslideToggle={
         isFnoNinjaHost
           ? {
-              label: "View favslide",
+              label: "Favslide",
               shortLabel: "Favslide",
               onClick: enterFavslide,
               title: favslideCtaTitle,

@@ -4,8 +4,13 @@ import { MessageCircle } from "lucide-react";
 import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 
+/** Bottom-right overlay on the bubble chart canvas (parent must be `relative`). */
 const FLOATER_POSITION_CLASS =
-  "fixed z-[170] bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] sm:bottom-6 sm:right-5";
+  "absolute z-30 bottom-4 right-4 sm:bottom-5 sm:right-5 touch-manipulation";
+
+/** 56×56px minimum touch target (WCAG-friendly). */
+const FLOATER_HIT_CLASS =
+  "inline-flex h-14 w-14 min-h-14 min-w-14 items-center justify-center rounded-full border-2";
 
 /** Floating chat on the Market Bubbles map only. */
 export function LevelsGlobalChatTrigger({
@@ -24,7 +29,7 @@ export function LevelsGlobalChatTrigger({
     <button
       type="button"
       onClick={() => setOpen(true)}
-      className={`${FLOATER_POSITION_CLASS} relative inline-flex h-12 w-12 items-center justify-center rounded-full border-2 transition-colors hover:brightness-110 ${className}`.trim()}
+      className={`${FLOATER_POSITION_CLASS} ${FLOATER_HIT_CLASS} relative transition-colors hover:brightness-110 active:scale-95 ${className}`.trim()}
       style={{
         borderColor: "rgba(96,165,250,0.55)",
         backgroundColor: "rgba(15,23,42,0.92)",
@@ -37,9 +42,9 @@ export function LevelsGlobalChatTrigger({
         showBadge ? `Community chat — ${totalUnreadCount} unread` : "Community chat"
       }
     >
-      <MessageCircle className="h-5 w-5 shrink-0" strokeWidth={2} />
+      <MessageCircle className="h-6 w-6 shrink-0" strokeWidth={2} />
       {showBadge ? (
-        <ChatUnreadBadge count={totalUnreadCount} className="absolute -right-1 -top-1" />
+        <ChatUnreadBadge count={totalUnreadCount} className="absolute -right-0.5 -top-0.5" />
       ) : null}
     </button>
   );

@@ -27,7 +27,6 @@ import {
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
 import { PvtChart } from "@/components/levels/PvtChart";
-import { LevelsGlobalChatTrigger } from "@/components/levels/LevelsGlobalChatTrigger";
 import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
 import {
   getSlideshowLevelsCache,
@@ -1427,6 +1426,7 @@ export default function LevelsPage() {
         hasMarketData={Boolean(payload)}
         toneFilter={bubbleMapFilter}
         showMaxPainBubbles={showMaxPainBubbles}
+        showChatFloater
       />
     ) : (
       renderSlideshow()
@@ -1479,7 +1479,6 @@ export default function LevelsPage() {
           levelsWorkspace
         )}
       </div>
-      {viewMode === "bubbles" && !loading ? <LevelsGlobalChatTrigger /> : null}
     </main>
   );
 }

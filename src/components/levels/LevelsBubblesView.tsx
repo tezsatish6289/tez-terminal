@@ -34,6 +34,7 @@ import { levelsFromStockRow } from "@/lib/zones/levels-actionable-list";
 import { matchesSlideshowSetup, type ZoneBands } from "@/lib/zones/zone-status";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 import { FNO_BUBBLE_MAP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
+import { LevelsGlobalChatTrigger } from "@/components/levels/LevelsGlobalChatTrigger";
 
 export interface LevelsBubbleItem {
   id: string;
@@ -100,6 +101,8 @@ export function LevelsBubblesView({
   layoutScale = 1,
   /** Landing iframe on mobile: fewer bubbles, zone stocks centered. */
   embedMobileLayout = false,
+  /** Market map page: bottom-right community chat floater over the canvas. */
+  showChatFloater = false,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
@@ -125,6 +128,7 @@ export function LevelsBubblesView({
   showcaseSolo?: boolean;
   layoutScale?: number;
   embedMobileLayout?: boolean;
+  showChatFloater?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
@@ -403,6 +407,7 @@ export function LevelsBubblesView({
           border: "1px solid rgba(255,255,255,0.08)",
         }}
       >
+        {showChatFloater ? <LevelsGlobalChatTrigger /> : null}
         {filtered.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <p className="text-xs text-center px-4" style={{ color: "#64748b" }}>

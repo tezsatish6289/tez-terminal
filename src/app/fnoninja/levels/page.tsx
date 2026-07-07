@@ -27,6 +27,7 @@ import {
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import { OiHistoryChart } from "@/components/levels/OiHistoryChart";
 import { PvtChart } from "@/components/levels/PvtChart";
+import { LevelsGlobalChatTrigger } from "@/components/levels/LevelsGlobalChatTrigger";
 import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
 import {
   getSlideshowLevelsCache,
@@ -946,7 +947,16 @@ export default function LevelsPage() {
         {isSlideView && slideshowExploreHold ? (
           <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
         ) : null}
-        {slideshowChartPane}
+        <div className="relative flex flex-1 min-h-0 min-w-0 w-full flex-col">
+          {isSlideView && !showSlideshowPvt ? (
+            <div className="absolute bottom-3 right-2 z-20 pointer-events-none">
+              <div className="pointer-events-auto">
+                <LevelsGlobalChatTrigger />
+              </div>
+            </div>
+          ) : null}
+          {slideshowChartPane}
+        </div>
       </div>
     ) : (
       <div

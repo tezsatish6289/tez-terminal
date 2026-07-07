@@ -40,7 +40,7 @@ export function SlideshowChipTimer({
       disabled={paused && canResume === false}
       className={
         footer
-          ? "flex w-full items-center justify-center gap-2 min-h-[1.875rem] px-2 py-1.5 transition-colors hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed border-t"
+          ? "flex w-full items-center justify-center gap-2.5 min-h-[2.125rem] px-3 py-2 transition-colors hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed border-t"
           : "inline-flex items-center gap-0.5 shrink-0 rounded px-1 py-0.5 transition-colors hover:bg-white/[0.06] disabled:opacity-70 disabled:cursor-not-allowed"
       }
       style={
@@ -82,7 +82,7 @@ export function SlideshowChipTimer({
       <span
         className={
           footer
-            ? "text-[11px] font-black tabular-nums leading-none uppercase tracking-wide"
+            ? "text-[11px] font-semibold tabular-nums leading-none tracking-normal normal-case"
             : "text-[9px] font-bold tabular-nums leading-none uppercase"
         }
         style={{ color }}
@@ -92,7 +92,9 @@ export function SlideshowChipTimer({
           ? pauseReason
             ? "Paused"
             : "Paused"
-          : `${Math.max(0, secondsRemaining)}s`}
+          : footer
+            ? `Next in ${Math.max(0, secondsRemaining)} sec`
+            : `${Math.max(0, secondsRemaining)}s`}
       </span>
     </button>
   );

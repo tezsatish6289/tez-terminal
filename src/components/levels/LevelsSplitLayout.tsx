@@ -58,13 +58,21 @@ const RUNNER_CHIP_IDLE = {
   boxShadow: undefined as string | undefined,
 };
 
-/** Slideshow timer is the active-chip signal — skip heavy fill/glow/scale. */
+/** Active chip with timer footer — glow + bright border; inactive tiles stay flat. */
 function runnerChipStyle(
   active: boolean,
   pulse: boolean,
   accent: (typeof STRIP_ACCENT_STYLE)[LevelsStripAccent],
   timerHighlightsActive: boolean,
 ) {
+  if (timerHighlightsActive && active) {
+    return {
+      backgroundColor: accent.bg,
+      border: `1px solid ${accent.borderPulse}`,
+      transform: pulse ? "scale(1.02)" : "scale(1.01)",
+      boxShadow: `${accent.glow}, 0 0 0 1px ${accent.borderPulse}`,
+    };
+  }
   if (timerHighlightsActive) {
     return RUNNER_CHIP_IDLE;
   }
@@ -82,6 +90,14 @@ function runnerChipStyleVertical(
   accent: (typeof STRIP_ACCENT_STYLE)[LevelsStripAccent],
   timerHighlightsActive: boolean,
 ) {
+  if (timerHighlightsActive && active) {
+    return {
+      backgroundColor: accent.bg,
+      border: `1px solid ${accent.borderPulse}`,
+      transform: pulse ? "scale(1.02)" : "scale(1.01)",
+      boxShadow: `${accent.glow}, 0 0 0 1px ${accent.borderPulse}`,
+    };
+  }
   if (timerHighlightsActive) {
     return RUNNER_CHIP_IDLE;
   }

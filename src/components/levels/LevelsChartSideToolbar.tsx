@@ -3,19 +3,21 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  ClipboardList,
   GraduationCap,
   Loader2,
-  MessageCircle,
   Newspaper,
   Sparkles,
 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
-import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
+import {
+  LEVELS_CHART_TOOLBAR_BTN_CLASS,
+  LEVELS_CHART_TOOLBAR_ICON_CLASS,
+  LEVELS_CHART_TOOLBAR_TAG_CLASS,
+  LEVELS_CHART_TOOLBAR_WIDTH_CLASS,
+} from "@/components/levels/levels-chart-toolbar";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import type { FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
@@ -41,7 +43,14 @@ import {
   FNO_MUTED,
 } from "@/lib/fnoninja/theme";
 
-const TOOLBAR_WIDTH_CLASS = "w-14";
+const TOOLBAR_WIDTH_CLASS = LEVELS_CHART_TOOLBAR_WIDTH_CLASS;
+const TOOLBAR_ICON_CLASS = LEVELS_CHART_TOOLBAR_ICON_CLASS;
+
+function sentimentToolbarLabel(label: NewsSentiment["label"]): string {
+  if (label === "bullish") return "Bullish";
+  if (label === "bearish") return "Bearish";
+  return "Neutral";
+}
 
 function ToolbarHoverLabel({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -89,7 +98,7 @@ function ToolbarButton({
         title={title ?? label}
         aria-label={showDot ? `${label}, new messages` : label}
         aria-pressed={active}
-        className={`relative flex flex-col items-center justify-center gap-0.5 ${TOOLBAR_WIDTH_CLASS} min-h-[3rem] rounded-md transition-colors hover:bg-white/[0.06] data-[active=true]:bg-white/[0.08] shrink-0`}
+        className={`relative ${LEVELS_CHART_TOOLBAR_BTN_CLASS} ${TOOLBAR_WIDTH_CLASS} data-[active=true]:bg-white/[0.08] shrink-0`}
         data-active={active ? "true" : undefined}
         style={{
           color: active ? FNO_ACCENT : "#94a3b8",
@@ -115,7 +124,7 @@ function ToolbarButton({
 function ToolbarCircleLetter({ letter }: { letter: string }) {
   return (
     <span
-      className="flex h-[18px] w-[18px] items-center justify-center rounded-full border text-[10px] font-bold leading-none tabular-nums"
+      className="flex h-[22px] w-[22px] items-center justify-center rounded-full border text-[11px] font-bold leading-none tabular-nums"
       style={{
         color: "#94a3b8",
         borderColor: "rgba(148,163,184,0.4)",
@@ -141,14 +150,14 @@ function atlasScoreColor(v: number): string {
 function AtlasScoreTag({ score }: { score: AtlasScore | null }) {
   if (!score) {
     return (
-      <span className="text-[7px] font-semibold uppercase tracking-wide leading-none" style={{ color: FNO_MUTED }}>
+      <span className={LEVELS_CHART_TOOLBAR_TAG_CLASS} style={{ color: FNO_MUTED }}>
         ···
       </span>
     );
   }
   return (
     <span
-      className="text-[7px] font-bold tabular-nums leading-none"
+      className={`${LEVELS_CHART_TOOLBAR_TAG_CLASS} tabular-nums`}
       style={{ color: atlasScoreColor(score.composite) }}
       title={`Setup score ${score.composite}/100 · ${score.directionLabel}`}
     >
@@ -160,7 +169,7 @@ function AtlasScoreTag({ score }: { score: AtlasScore | null }) {
 function NewsSentimentTag({ sentiment }: { sentiment: NewsSentiment | null }) {
   if (!sentiment) {
     return (
-      <span className="text-[7px] font-semibold uppercase tracking-wide leading-none" style={{ color: FNO_MUTED }}>
+      <span className={LEVELS_CHART_TOOLBAR_TAG_CLASS} style={{ color: FNO_MUTED }}>
         ···
       </span>
     );
@@ -171,13 +180,14 @@ function NewsSentimentTag({ sentiment }: { sentiment: NewsSentiment | null }) {
       : sentiment.label === "bearish"
         ? "#fca5a5"
         : "#94a3b8";
+  const label = sentimentToolbarLabel(sentiment.label);
   return (
     <span
-      className="max-w-[2.75rem] truncate text-[7px] font-bold tabular-nums leading-none"
+      className={LEVELS_CHART_TOOLBAR_TAG_CLASS}
       style={{ color: tone }}
-      title={`${sentiment.score} · ${sentiment.label}`}
+      title={`${label} · score ${sentiment.score}`}
     >
-      {sentiment.score}
+      {label}
     </span>
   );
 }
@@ -219,8 +229,6 @@ export function LevelsChartSideToolbar({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { open: chatOpen, setOpen: setChatOpen, unreadCount } = useChatPanel();
-  const chatUnread = unreadCount && !chatOpen;
   const [newsOpen, setNewsOpen] = useState(false);
   const [atlasOpen, setAtlasOpen] = useState(false);
   const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
@@ -329,17 +337,10 @@ export function LevelsChartSideToolbar({
     router.push(fnoLearnHref(pathname));
   }, [router, pathname]);
 
-  const handleChecklist = () => {
-    toast({
-      title: "Checklist",
-      description: "Trade checklist — coming soon.",
-    });
-  };
-
   return (
     <>
       <aside
-        className={`flex flex-col items-center gap-0.5 shrink-0 py-2 px-1 border-r border-white/[0.06] ${TOOLBAR_WIDTH_CLASS} ${className}`.trim()}
+        className={`flex flex-col items-center gap-1 shrink-0 py-2 px-1.5 border-r border-white/[0.06] ${TOOLBAR_WIDTH_CLASS} ${className}`.trim()}
         style={{ backgroundColor: FNO_BG_CANVAS }}
         aria-label="Chart tools"
       >
@@ -354,9 +355,9 @@ export function LevelsChartSideToolbar({
           }}
         >
           {newsLoading ? (
-            <Loader2 className="h-[18px] w-[18px] animate-spin shrink-0" strokeWidth={1.75} />
+            <Loader2 className={`${TOOLBAR_ICON_CLASS} animate-spin`} strokeWidth={1.5} />
           ) : (
-            <Newspaper className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+            <Newspaper className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
           )}
           <NewsSentimentTag sentiment={newsSentiment} />
         </ToolbarButton>
@@ -367,29 +368,11 @@ export function LevelsChartSideToolbar({
           onClick={() => setAtlasOpen(true)}
           title="Atlas AI coach — setup score"
         >
-          <Sparkles className="h-[18px] w-[18px] shrink-0 fynn-sparkle-glow" strokeWidth={1.75} />
+          <Sparkles className={`${TOOLBAR_ICON_CLASS} fynn-sparkle-glow`} strokeWidth={1.5} />
           <AtlasScoreTag score={atlasScore} />
         </ToolbarButton>
 
-        <ToolbarButton
-          label="Chat"
-          active={chatOpen}
-          unreadDot={chatUnread}
-          onClick={() => setChatOpen(true)}
-          title={chatUnread ? "Community chat — new messages" : "Community chat"}
-        >
-          <MessageCircle className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-        </ToolbarButton>
-
-        <ToolbarButton
-          label="Checklist"
-          onClick={handleChecklist}
-          title="Trade checklist (coming soon)"
-        >
-          <ClipboardList className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-        </ToolbarButton>
-
-        <div className="my-0.5 h-px w-9 shrink-0 bg-white/[0.08]" aria-hidden />
+        <div className="my-0.5 h-px w-10 shrink-0 bg-white/[0.08]" aria-hidden />
 
         <ToolbarHoverLabel label="Favorite">
           <div data-favslide-tour="remove">
@@ -445,7 +428,7 @@ export function LevelsChartSideToolbar({
           onClick={goToLearn}
           title="Guides and tutorials"
         >
-          <GraduationCap className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+          <GraduationCap className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
         </ToolbarButton>
 
         <ToolbarHoverLabel label="Share">

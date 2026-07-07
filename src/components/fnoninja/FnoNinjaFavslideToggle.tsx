@@ -5,6 +5,11 @@ import {
   useFnoNinjaFavslide,
   type FnoNinjaFavslideApi,
 } from "@/hooks/useFnoNinjaFavslide";
+import {
+  LEVELS_CHART_TOOLBAR_BTN_CLASS,
+  LEVELS_CHART_TOOLBAR_ICON_CLASS,
+  LEVELS_CHART_TOOLBAR_WIDTH_CLASS,
+} from "@/components/levels/levels-chart-toolbar";
 import { FNO_FAVSLIDE_CHIP, FNO_MUTED } from "@/lib/fnoninja/theme";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 
@@ -56,7 +61,7 @@ export function FnoNinjaFavslideToggle({
       onClick={handleClick}
       className={
         toolbar
-          ? "flex flex-col items-center justify-center w-14 min-h-[3rem] rounded-md transition-colors hover:bg-white/[0.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          ? `${LEVELS_CHART_TOOLBAR_BTN_CLASS} ${LEVELS_CHART_TOOLBAR_WIDTH_CLASS} disabled:opacity-50 disabled:cursor-not-allowed`
           : iconOnly
             ? "inline-flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-[1.06] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             : "inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
@@ -90,7 +95,9 @@ export function FnoNinjaFavslideToggle({
       {busy ? (
         <Loader2
           className={
-            toolbar || iconOnly ? "h-[18px] w-[18px] animate-spin shrink-0" : "h-3.5 w-3.5 animate-spin shrink-0"
+            toolbar || iconOnly
+              ? `${LEVELS_CHART_TOOLBAR_ICON_CLASS} animate-spin`
+              : "h-3.5 w-3.5 animate-spin shrink-0"
           }
           style={{
             color: toolbar && favorited ? toolbarFavoritedStar : amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED,
@@ -98,7 +105,7 @@ export function FnoNinjaFavslideToggle({
         />
       ) : (
         <Star
-          className={toolbar || iconOnly ? "h-[18px] w-[18px] shrink-0" : "h-3.5 w-3.5 shrink-0"}
+          className={toolbar || iconOnly ? LEVELS_CHART_TOOLBAR_ICON_CLASS : "h-3.5 w-3.5 shrink-0"}
           style={{
             color: toolbar
               ? favorited

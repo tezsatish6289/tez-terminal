@@ -8,8 +8,7 @@ import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandles
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
-import { LevelsSymbolStatusBadge } from "@/components/levels/LevelsSymbolStatusBadge";
+import type { LevelsChartStatusOverlayProps } from "@/components/levels/LevelsChartCornerStatusBlobs";
 import { isSlideshowZoneStale, SLIDESHOW_ZONE_TICK_MS } from "@/lib/levels/slideshow-zones";
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
@@ -31,6 +30,7 @@ import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
+import { withoutConfirmedSignalTone } from "@/lib/zones/bubble-tone";
 import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 
 /** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
@@ -72,6 +72,25 @@ function ChartContent() {
 
   const chartLevels =
     scope === "index" || scope === "stock" ? displayLevels : levels;
+
+  const chartStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
+    const lv = chartLevels ?? levels;
+    return {
+      statusTone: displayTone,
+      volRegime: lv?.volRegime,
+      volRegimeReason: lv?.volRegimeReason,
+      atmIV: lv?.atmIV,
+      daysToEarnings: lv?.daysToEarnings,
+    };
+  }, [chartLevels, displayTone, levels]);
+
+  /** PVT-confirmed Bullish/Bearish belongs on the trend chart only, not 15m intraday. */
+  const intradayStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
+    return {
+      ...chartStatusOverlay,
+      statusTone: withoutConfirmedSignalTone(chartStatusOverlay.statusTone),
+    };
+  }, [chartStatusOverlay]);
 
   const loadLevels = useCallback(
     async (opts?: { quiet?: boolean }) => {
@@ -221,20 +240,6 @@ function ChartContent() {
               chartFullHistory={chartFullHistory}
               hideToolbar
               highConfidence={scope === "index" || isHighConfidenceLevels(levels)}
-              badge={
-                <span className="inline-flex items-center gap-1">
-                  {displayTone ? (
-                    <LevelsSymbolStatusBadge tone={displayTone} size="header" />
-                  ) : null}
-                  <VolRegimeBadge
-                    flag={levels?.volRegime}
-                    reason={levels?.volRegimeReason}
-                    atmIV={levels?.atmIV}
-                    daysToEarnings={levels?.daysToEarnings}
-                  />
-                </span>
-              }
-              symbolSearch={undefined}
             />
           }
           viewToggle={
@@ -275,6 +280,7 @@ function ChartContent() {
               levels={chartLevels}
               webChartUrl={config.webChartUrl}
               showAttribution
+              statusOverlay={chartStatusOverlay}
             />
           ) : showPvt && scope ? (
             <PvtChart
@@ -283,6 +289,7 @@ function ChartContent() {
               symbol={symbol}
               levels={chartLevels}
               webChartUrl={config.dailyWebChartUrl}
+              statusOverlay={chartStatusOverlay}
             />
           ) : showOutlook ? (
             <NiftyOutlookChart
@@ -291,6 +298,7 @@ function ChartContent() {
               spot={levels?.spot ?? null}
               webChartUrl={config.webChartUrl}
               showAttribution
+              statusOverlay={chartStatusOverlay}
             />
           ) : (
             <LevelsTradingViewChart
@@ -304,6 +312,7 @@ function ChartContent() {
               showHeader={false}
               nativeChartRef={nativeChartRef}
               onFullHistoryZoomChange={setChartFullHistory}
+              statusOverlay={intradayStatusOverlay}
             />
           )}
         </LevelsChartDeepDiveLayout>

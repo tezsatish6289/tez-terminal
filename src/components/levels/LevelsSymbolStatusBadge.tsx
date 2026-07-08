@@ -78,24 +78,31 @@ export function LevelsSymbolStatusBadge({
   className = "",
 }: {
   tone: BubbleTone;
-  size?: "chip" | "header";
+  size?: "chip" | "header" | "chart";
   className?: string;
 }) {
   const m = TONE_BADGE_META[tone];
   const Icon = m.Icon;
   const compact = size === "chip";
+  const chart = size === "chart";
 
   return (
     <span
-      className={`inline-flex items-center gap-0.5 rounded-md font-bold uppercase tracking-wide shrink-0 leading-tight ${
-        compact
-          ? "px-1.5 py-0.5 text-[8px] max-w-[5.75rem] text-right"
-          : "px-2 py-0.5 text-[9px] sm:text-[10px]"
+      className={`inline-flex items-center gap-0.5 font-bold uppercase tracking-wide shrink-0 leading-tight ${
+        chart
+          ? "px-2.5 py-1 text-[10px] sm:text-[11px] rounded-lg gap-1"
+          : compact
+            ? "px-1.5 py-0.5 text-[8px] max-w-[5.75rem] text-right rounded-md"
+            : "px-2 py-0.5 text-[9px] sm:text-[10px] rounded-md"
       } ${className}`.trim()}
       style={{ color: m.color, backgroundColor: m.bg }}
       title={m.label}
     >
-      <Icon className={`${compact ? "h-2.5 w-2.5" : "h-3 w-3"} shrink-0`} />
+      <Icon
+        className={`${
+          chart ? "h-3.5 w-3.5 sm:h-4 sm:w-4" : compact ? "h-2.5 w-2.5" : "h-3 w-3"
+        } shrink-0`}
+      />
       <span className="truncate">{m.label}</span>
     </span>
   );

@@ -21,11 +21,19 @@ import { LevelsChartClusterBandLabels } from "@/components/levels/LevelsChartClu
 import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
 import { LevelsChartCandleTypeBadge } from "@/components/levels/LevelsChartCandleTypeBadge";
 import {
+  LevelsChartCornerStatusBlobs,
+  type LevelsChartStatusOverlayProps,
+} from "@/components/levels/LevelsChartCornerStatusBlobs";
+import {
   applyClusterSummaryPriceLines,
   mergedPriceRange,
 } from "@/components/levels/native-chart-level-overlays";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
+import { liveConfirmedSignalFromCandles } from "@/lib/levels/live-confirmed-signal";
+import type { ConfirmedSignalContext } from "@/lib/levels/confirmed-signal-core";
+import { applyConfirmedSignal, withoutConfirmedSignalTone } from "@/lib/zones/bubble-tone";
+import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 import { computePvt, PVT_LOOKBACK_DAYS } from "@/lib/levels/pvt";
 import {
   isSlideshowZoneStale,
@@ -218,6 +226,7 @@ export function PvtChart({
   webChartUrl,
   className,
   showAttribution = true,
+  statusOverlay,
 }: {
   scope: LevelsTvScope;
   symbol: string;
@@ -226,6 +235,7 @@ export function PvtChart({
   webChartUrl?: string;
   className?: string;
   showAttribution?: boolean;
+  statusOverlay?: LevelsChartStatusOverlayProps | null;
 }) {
   const overlayRootRef = useRef<HTMLDivElement>(null);
   const candleContainerRef = useRef<HTMLDivElement>(null);
@@ -241,6 +251,7 @@ export function PvtChart({
   const rangeSyncPausedRef = useRef(false);
   const [candles, setCandles] = useState<DailyCandle[] | null>(null);
   const [fetchedLevels, setFetchedLevels] = useState<PublicLevels | null>(null);
+  const [signalContext, setSignalContext] = useState<ConfirmedSignalContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [levelsLoading, setLevelsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -259,6 +270,7 @@ export function PvtChart({
   useEffect(() => {
     setRange("6M");
     setFetchedLevels(null);
+    setSignalContext(null);
   }, [scope, symbol]);
 
   const loadOptionLevels = useCallback(
@@ -276,6 +288,7 @@ export function PvtChart({
               },
         });
         setFetchedLevels(json.data);
+        setSignalContext(json.signalContext ?? null);
       } catch {
         if (!opts?.quiet) setFetchedLevels(null);
       } finally {
@@ -299,34 +312,41 @@ export function PvtChart({
     return () => clearInterval(id);
   }, [scope, symbol, effectiveLevels?.computedAt, loadOptionLevels]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setCandles(null);
-    (async () => {
+  const loadDailyCandles = useCallback(
+    async (opts?: { quiet?: boolean }) => {
+      if (!opts?.quiet) {
+        setLoading(true);
+        setError(null);
+        setCandles(null);
+      }
       try {
         const res = await fetch(
           `/api/freedombot/levels/candles?scope=${scope}&symbol=${encodeURIComponent(symbol)}&interval=D&days=${PVT_LOOKBACK_DAYS}`,
         );
         const json = (await res.json()) as { ok?: boolean; candles?: DailyCandle[]; error?: string };
-        if (cancelled) return;
         if (!json.ok || !json.candles?.length) {
-          setCandles([]);
-          setError(json.error ?? "Chart data isn't available for this symbol yet.");
+          if (!opts?.quiet) {
+            setCandles([]);
+            setError(json.error ?? "Chart data isn't available for this symbol yet.");
+          }
           return;
         }
         setCandles(json.candles);
+        if (!opts?.quiet) setError(null);
       } catch {
-        if (!cancelled) setError("Could not load PVT chart.");
+        if (!opts?.quiet) setError("Could not load PVT chart.");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!opts?.quiet) setLoading(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [scope, symbol]);
+    },
+    [scope, symbol],
+  );
+
+  useEffect(() => {
+    void loadDailyCandles();
+    const id = setInterval(() => void loadDailyCandles({ quiet: true }), 60_000);
+    return () => clearInterval(id);
+  }, [loadDailyCandles]);
 
   const displayCandles = useMemo(
     () => filterCandlesByRange(candles ?? [], range),
@@ -334,6 +354,27 @@ export function PvtChart({
   );
 
   const pvtSeries = useMemo(() => computePvt(displayCandles), [displayCandles]);
+
+  /** Live PVT signal from chart candles + dip anchor — no cron `currentPvt` lag. */
+  const liveStatusOverlay = useMemo((): LevelsChartStatusOverlayProps | null => {
+    if (!statusOverlay) return null;
+    const lv = effectiveLevels;
+    if (!signalContext || !candles?.length || !lv) return statusOverlay;
+
+    const liveSignal = liveConfirmedSignalFromCandles(signalContext, candles, {
+      spot: lv.spot ?? null,
+      putClusterStrike: lv.putClusterStrike ?? null,
+      callClusterStrike: lv.callClusterStrike ?? null,
+    });
+    const geoTone =
+      withoutConfirmedSignalTone(statusOverlay.statusTone) ??
+      resolveSymbolDisplayTone(lv, { scanned: true, signal: null });
+
+    return {
+      ...statusOverlay,
+      statusTone: applyConfirmedSignal(geoTone, liveSignal),
+    };
+  }, [statusOverlay, signalContext, candles, effectiveLevels]);
 
   const refreshPvtChartViewport = useCallback(() => {
     const candleChart = candleChartRef.current;
@@ -527,6 +568,9 @@ export function PvtChart({
           <div ref={overlayRootRef} className="relative min-h-0 flex-1 overflow-hidden">
             <div ref={candleContainerRef} className="absolute inset-0" />
             {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candles" /> : null}
+            {candlesReady && liveStatusOverlay ? (
+              <LevelsChartCornerStatusBlobs {...liveStatusOverlay} rightInsetPx={96} visible />
+            ) : null}
             {showClusterLabels ? (
               <LevelsChartClusterBandLabels
                 chartRef={candleChartRef}

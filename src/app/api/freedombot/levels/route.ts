@@ -48,7 +48,7 @@ import {
   normalizeIndexKey,
 } from "@/lib/index-zones-on-demand";
 import { indexDocId } from "@/lib/index-zones-store";
-import { getConfirmedSignalsCached } from "@/lib/levels/confirmed-signal";
+import { getConfirmedSignalsCached, getConfirmedSignalContextsCached } from "@/lib/levels/confirmed-signal";
 import { createRefreshGuard } from "@/lib/levels/levels-refresh-guard";
 import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
@@ -95,14 +95,20 @@ async function jsonSingleSymbol(body: {
   data: PublicLevels | null;
   [key: string]: unknown;
 }) {
-  const signals = await getConfirmedSignalsCached(getAdminFirestore());
+  const db = getAdminFirestore();
+  const [signals, signalContexts] = await Promise.all([
+    getConfirmedSignalsCached(db),
+    getConfirmedSignalContextsCached(db),
+  ]);
+  const sym = body.symbol.toUpperCase();
   return NextResponse.json(
     {
       ...body,
       displayTone: resolveSymbolDisplayTone(body.data, {
         scanned: Boolean(body.data),
-        signal: signals[body.symbol] ?? null,
+        signal: signals[sym] ?? null,
       }),
+      signalContext: signalContexts[sym] ?? null,
     },
     NO_STORE_HEADERS,
   );

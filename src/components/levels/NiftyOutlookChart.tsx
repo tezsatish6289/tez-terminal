@@ -14,6 +14,10 @@ import {
   formatClusterStrike,
 } from "@/lib/levels/format-cluster-size";
 import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
+import {
+  LevelsChartCornerStatusBlobs,
+  type LevelsChartStatusOverlayProps,
+} from "@/components/levels/LevelsChartCornerStatusBlobs";
 
 const PAD_DEFAULT = { top: 38, right: 18, bottom: 36, left: 60 };
 const PAD_COMPACT = { top: 24, right: 6, bottom: 16, left: 28 };
@@ -92,6 +96,7 @@ export function NiftyOutlookChart({
   compact = false,
   webChartUrl,
   showAttribution = false,
+  statusOverlay,
 }: {
   levels: PublicLevels | null;
   spot: number | null;
@@ -100,6 +105,7 @@ export function NiftyOutlookChart({
   compact?: boolean;
   webChartUrl?: string;
   showAttribution?: boolean;
+  statusOverlay?: LevelsChartStatusOverlayProps | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 420 });
@@ -278,6 +284,9 @@ export function NiftyOutlookChart({
 
   return (
     <div ref={containerRef} className={className} style={{ position: "relative" }}>
+      {statusOverlay && series ? (
+        <LevelsChartCornerStatusBlobs {...statusOverlay} rightInsetPx={PAD.right + 8} visible />
+      ) : null}
       <svg width={w} height={h} role="img" aria-label="Nifty Outlook ladder">
         <defs>
           <linearGradient id="outlook-fade" x1="0" y1="0" x2="1" y2="0">

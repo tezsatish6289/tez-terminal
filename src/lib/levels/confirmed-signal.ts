@@ -24,9 +24,17 @@ import { SR_ZONE_EVENTS_COLLECTION } from "@/lib/sr-audit/constants";
 import { stockDocId } from "@/lib/equity-zones-store";
 import { normalizeIndexKey } from "@/lib/index-zones-on-demand";
 import type { SrZoneEvent } from "@/lib/sr-audit/types";
-import { evalConfirmedSignal, type ConfirmedSignal } from "@/lib/levels/confirmed-signal-core";
+import {
+  evalConfirmedSignal,
+  type ConfirmedSignal,
+  type ConfirmedSignalContext,
+} from "@/lib/levels/confirmed-signal-core";
 
-export { evalConfirmedSignal, type ConfirmedSignal } from "@/lib/levels/confirmed-signal-core";
+export {
+  evalConfirmedSignal,
+  type ConfirmedSignal,
+  type ConfirmedSignalContext,
+} from "@/lib/levels/confirmed-signal-core";
 
 function n(raw: unknown): number | null {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
@@ -49,11 +57,17 @@ function currentZonePath(scope: "stock" | "index", symbol: string): string | nul
 /**
  * Build the symbol → signal map from currently-open SR events. Bounded by the
  * open-event count (tens), reading each symbol's current zone doc once (deduped).
+ *
+ * `contexts` carries the dip-anchored PVT level and cluster wall so the trend
+ * chart can re-evaluate with a live `currentPvt` from its already-fetched daily
+ * candles (today's OHLC included) — no extra Dhan calls.
  */
-export async function buildConfirmedSignals(
-  db: Firestore,
-): Promise<Record<string, ConfirmedSignal>> {
-  const out: Record<string, ConfirmedSignal> = {};
+export async function buildSignalBatch(db: Firestore): Promise<{
+  signals: Record<string, ConfirmedSignal>;
+  contexts: Record<string, ConfirmedSignalContext>;
+}> {
+  const signals: Record<string, ConfirmedSignal> = {};
+  const contexts: Record<string, ConfirmedSignalContext> = {};
   let snap;
   try {
     snap = await db
@@ -62,7 +76,7 @@ export async function buildConfirmedSignals(
       .limit(300)
       .get();
   } catch {
-    return out;
+    return { signals, contexts };
   }
 
   const docCache = new Map<string, Record<string, unknown> | null>();
@@ -81,8 +95,16 @@ export async function buildConfirmedSignals(
 
   for (const d of snap.docs) {
     const ev = d.data() as SrZoneEvent;
-    if (ev.entryPvt == null || ev.currentPvt == null) continue;
+    const sym = ev.symbol.toUpperCase();
     const originalCluster = originalClusterOf(ev);
+    if (ev.entryPvt != null && originalCluster != null) {
+      contexts[sym] = {
+        side: ev.side,
+        entryPvt: ev.entryPvt,
+        originalCluster,
+      };
+    }
+    if (ev.entryPvt == null || ev.currentPvt == null) continue;
     if (originalCluster == null) continue;
     const scope = ev.scope === "index" ? "index" : "stock";
     const path = currentZonePath(scope, ev.symbol);
@@ -99,20 +121,45 @@ export async function buildConfirmedSignals(
       currentPutStrike: n(raw.bullStrike),
       currentCallStrike: n(raw.bearStrike),
     });
-    if (sig) out[ev.symbol.toUpperCase()] = sig;
+    if (sig) signals[sym] = sig;
   }
 
-  return out;
+  return { signals, contexts };
+}
+
+/** @deprecated Use {@link buildSignalBatch} — kept for callers that only need the map. */
+export async function buildConfirmedSignals(
+  db: Firestore,
+): Promise<Record<string, ConfirmedSignal>> {
+  const { signals } = await buildSignalBatch(db);
+  return signals;
 }
 
 /** 30s TTL cache so concurrent 60s polls don't recompute per request. */
-let signalsCache: { at: number; data: Record<string, ConfirmedSignal> } | null = null;
+let signalBatchCache: {
+  at: number;
+  data: { signals: Record<string, ConfirmedSignal>; contexts: Record<string, ConfirmedSignalContext> };
+} | null = null;
+
+async function getSignalBatchCached(db: Firestore) {
+  if (signalBatchCache && Date.now() - signalBatchCache.at < 30_000) {
+    return signalBatchCache.data;
+  }
+  const data = await buildSignalBatch(db);
+  signalBatchCache = { at: Date.now(), data };
+  return data;
+}
 
 export async function getConfirmedSignalsCached(
   db: Firestore,
 ): Promise<Record<string, ConfirmedSignal>> {
-  if (signalsCache && Date.now() - signalsCache.at < 30_000) return signalsCache.data;
-  const data = await buildConfirmedSignals(db);
-  signalsCache = { at: Date.now(), data };
-  return data;
+  const { signals } = await getSignalBatchCached(db);
+  return signals;
+}
+
+export async function getConfirmedSignalContextsCached(
+  db: Firestore,
+): Promise<Record<string, ConfirmedSignalContext>> {
+  const { contexts } = await getSignalBatchCached(db);
+  return contexts;
 }

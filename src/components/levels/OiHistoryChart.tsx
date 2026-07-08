@@ -17,6 +17,10 @@ import {
 } from "@/lib/levels/oi-wall-line-width";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
+import {
+  LevelsChartCornerStatusBlobs,
+  type LevelsChartStatusOverlayProps,
+} from "@/components/levels/LevelsChartCornerStatusBlobs";
 
 /** Daily candle from /api/freedombot/levels/candles?interval=D. */
 interface DailyCandle {
@@ -143,6 +147,7 @@ export function OiHistoryChart({
   levels,
   webChartUrl,
   showAttribution = false,
+  statusOverlay,
 }: {
   scope: LevelsTvScope;
   symbol: string;
@@ -152,6 +157,7 @@ export function OiHistoryChart({
   levels?: PublicLevels | null;
   webChartUrl?: string;
   showAttribution?: boolean;
+  statusOverlay?: LevelsChartStatusOverlayProps | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 320, h: 240 });
@@ -380,6 +386,9 @@ export function OiHistoryChart({
       <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
       <div className="min-h-0 flex flex-col overflow-hidden">
         <div ref={containerRef} className="relative min-h-0 flex-1 overflow-hidden">
+        {statusOverlay ? (
+          <LevelsChartCornerStatusBlobs {...statusOverlay} rightInsetPx={14} visible />
+        ) : null}
         <svg
           width={w}
           height={h}

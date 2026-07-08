@@ -36,8 +36,8 @@ import {
 import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook-keyboard";
 import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-shortcut";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
-import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsSymbolStatusBadge } from "@/components/levels/LevelsSymbolStatusBadge";
+import type { LevelsChartStatusOverlayProps } from "@/components/levels/LevelsChartCornerStatusBlobs";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
 import {
@@ -80,6 +80,7 @@ import {
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
+import { withoutConfirmedSignalTone } from "@/lib/zones/bubble-tone";
 import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
@@ -833,6 +834,33 @@ export default function LevelsPage() {
     [slideListFiltered, liveStripSpot, bubbleToneByKey, payload?.signals],
   );
 
+  const activeDisplayTone = inZoneActive
+    ? bubbleToneByKey.get(`${inZoneActive.scope}-${inZoneActive.symbol}`) ??
+      resolveSymbolDisplayTone(inZoneActive.data, {
+        scanned: Boolean(inZoneActive.data),
+        spotOverride: inZoneActive.spot,
+        signal: payload?.signals?.[inZoneActive.symbol] ?? null,
+      })
+    : null;
+
+  const slideshowStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
+    const lv = chartLevelsForView;
+    return {
+      statusTone: activeDisplayTone,
+      volRegime: lv?.volRegime,
+      volRegimeReason: lv?.volRegimeReason,
+      atmIV: lv?.atmIV,
+      daysToEarnings: lv?.daysToEarnings,
+    };
+  }, [activeDisplayTone, chartLevelsForView]);
+
+  const slideshowIntradayStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
+    return {
+      ...slideshowStatusOverlay,
+      statusTone: withoutConfirmedSignalTone(slideshowStatusOverlay.statusTone),
+    };
+  }, [slideshowStatusOverlay]);
+
   const slideshowChartPane =
     activeTv != null ? (
       showSlideshowHistory && inZoneActive ? (
@@ -843,6 +871,7 @@ export default function LevelsPage() {
           levels={chartLevelsForView}
           webChartUrl={activeTv.webChartUrl}
           showAttribution
+          statusOverlay={slideshowStatusOverlay}
         />
       ) : showSlideshowPvt && inZoneActive ? (
         <PvtChart
@@ -851,6 +880,7 @@ export default function LevelsPage() {
           symbol={inZoneActive.symbol}
           levels={chartLevelsForView}
           webChartUrl={activeTv.dailyWebChartUrl}
+          statusOverlay={slideshowStatusOverlay}
         />
       ) : showSlideshowOutlook ? (
         <NiftyOutlookChart
@@ -859,6 +889,7 @@ export default function LevelsPage() {
           spot={chartLevelsForView?.spot ?? activeChartLevels?.spot ?? null}
           webChartUrl={activeTv.webChartUrl}
           showAttribution
+          statusOverlay={slideshowStatusOverlay}
         />
       ) : (
         <LevelsTradingViewChart
@@ -874,6 +905,7 @@ export default function LevelsPage() {
           nativeChartRef={nativeChartRef}
           onFullHistoryZoomChange={setChartFullHistory}
           onLastCloseChange={activeTv?.nativeCandles ? handleChartLastClose : undefined}
+          statusOverlay={slideshowIntradayStatusOverlay}
         />
       )
     ) : (
@@ -930,15 +962,6 @@ export default function LevelsPage() {
   const chartHighConfidence =
     inZoneActive?.scope === "index" || isHighConfidenceLevels(chartLevelsForView);
 
-  const activeDisplayTone = inZoneActive
-    ? bubbleToneByKey.get(`${inZoneActive.scope}-${inZoneActive.symbol}`) ??
-      resolveSymbolDisplayTone(inZoneActive.data, {
-        scanned: Boolean(inZoneActive.data),
-        spotOverride: inZoneActive.spot,
-        signal: payload?.signals?.[inZoneActive.symbol] ?? null,
-      })
-    : null;
-
   const slideshowChartChrome =
     activeTv != null && activeTicker ? (
       <LevelsChartChrome
@@ -949,20 +972,6 @@ export default function LevelsPage() {
         chartFullHistory={chartFullHistory}
         hideToolbar
         highConfidence={chartHighConfidence}
-        badge={
-          <span className="inline-flex items-center gap-1">
-            {activeDisplayTone ? (
-              <LevelsSymbolStatusBadge tone={activeDisplayTone} size="header" />
-            ) : null}
-            <VolRegimeBadge
-              flag={chartLevelsForView?.volRegime}
-              reason={chartLevelsForView?.volRegimeReason}
-              atmIV={chartLevelsForView?.atmIV}
-              daysToEarnings={chartLevelsForView?.daysToEarnings}
-            />
-          </span>
-        }
-        symbolSearch={undefined}
       />
     ) : null;
 

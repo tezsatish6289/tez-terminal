@@ -35,6 +35,10 @@ import {
 } from "@/components/levels/native-chart-level-overlays";
 import { LevelsChartAttributionOverlay } from "@/components/levels/LevelsChartAttributionOverlay";
 import { LevelsChartCandleTypeBadge } from "@/components/levels/LevelsChartCandleTypeBadge";
+import {
+  LevelsChartCornerStatusBlobs,
+  type LevelsChartStatusOverlayProps,
+} from "@/components/levels/LevelsChartCornerStatusBlobs";
 import { LevelsChartFocusGlow } from "@/components/levels/LevelsChartFocusGlow";
 import { compositeChartShareImage } from "@/lib/levels/chart-share-image";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
@@ -154,6 +158,8 @@ export const NativeCandlesChart = forwardRef<
     intradayLookbackDays?: number;
     /** Intraday: thin text-only Max Pain tag on the left (line always on chart). */
     compactMaxPainLabel?: boolean;
+    /** Bullish + IV regime blobs in the chart corner (not the page header). */
+    statusOverlay?: LevelsChartStatusOverlayProps | null;
   }
 >(function NativeCandlesChart(
   {
@@ -180,6 +186,7 @@ export const NativeCandlesChart = forwardRef<
     showClusterPeaksOnAxis = true,
     intradayLookbackDays,
     compactMaxPainLabel = false,
+    statusOverlay,
   },
   ref,
 ) {
@@ -811,6 +818,13 @@ export const NativeCandlesChart = forwardRef<
         ) : null}
         {candleTypeLabel && chartReady ? (
           <LevelsChartCandleTypeBadge label={candleTypeLabel} />
+        ) : null}
+        {chartReady && statusOverlay ? (
+          <LevelsChartCornerStatusBlobs
+            {...statusOverlay}
+            rightInsetPx={priceScaleMinWidth()}
+            visible={chartReady}
+          />
         ) : null}
       </div>
       {showBrandWatermark && chartReady ? (

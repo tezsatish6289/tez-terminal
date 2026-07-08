@@ -32,12 +32,14 @@ export function VolRegimeBadge({
   atmIV,
   daysToEarnings,
   className = "",
+  size = "header",
 }: {
   flag?: VolRegimeFlag | null;
   reason?: string | null;
   atmIV?: number | null;
   daysToEarnings?: number | null;
   className?: string;
+  size?: "header" | "chart";
 }) {
   if (!flag || flag === "UNKNOWN") return null;
   const style = STYLES[flag];
@@ -56,7 +58,11 @@ export function VolRegimeBadge({
   return (
     <span
       title={title}
-      className={`inline-flex h-4 sm:h-[18px] items-center justify-center rounded-full border px-2 text-[10px] font-medium leading-none tracking-wide whitespace-nowrap ${style.className} ${className}`}
+      className={`inline-flex items-center justify-center border font-medium leading-none tracking-wide whitespace-nowrap ${
+        size === "chart"
+          ? "h-6 sm:h-7 rounded-lg px-2.5 text-[10px] sm:text-[11px] font-semibold"
+          : "h-4 sm:h-[18px] rounded-full px-2 text-[10px]"
+      } ${style.className} ${className}`}
     >
       {label}
     </span>

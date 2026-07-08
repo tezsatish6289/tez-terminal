@@ -10,6 +10,14 @@
 
 export type ConfirmedSignal = "bullish" | "bearish";
 
+/** Dip-anchored reads from an open SR event — stable; `currentPvt` is derived live on the chart. */
+export type ConfirmedSignalContext = {
+  side: "support" | "resistance";
+  entryPvt: number;
+  /** OI wall price dipped at entry: put wall (support) / call wall (resistance). */
+  originalCluster: number;
+};
+
 /**
  * Evaluate the signal from pre-resolved inputs. The current opposite wall is
  * required: without it we can't confirm "room to target".

@@ -5,6 +5,7 @@ import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandles
 import { NativeCandlesChart } from "@/components/levels/NativeCandlesChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import type { LevelsTvConfig } from "@/lib/levels/tradingview-symbol";
+import type { LevelsChartStatusOverlayProps } from "@/components/levels/LevelsChartCornerStatusBlobs";
 import { BLACKBOARD_FIELD_BORDER } from "@/lib/levels/cta-blackboard";
 
 /**
@@ -28,6 +29,7 @@ export function LevelsTradingViewChart({
   hideTvFooterHint = true,
   showBrandWatermark = true,
   className = "",
+  statusOverlay,
 }: {
   config: LevelsTvConfig;
   /** NSE ticker / symbol (e.g. BANKINDIA, NIFTY). */
@@ -51,6 +53,7 @@ export function LevelsTradingViewChart({
   /** On-chart FNONINJA watermark. */
   showBrandWatermark?: boolean;
   className?: string;
+  statusOverlay?: LevelsChartStatusOverlayProps | null;
 }) {
   const [mounted, setMounted] = useState(false);
   const symbolTicker = ticker.trim() || config.symbol;
@@ -119,6 +122,7 @@ export function LevelsTradingViewChart({
             showClusterPeaksOnAxis={false}
             compactMaxPainLabel
             intradayLookbackDays={7}
+            statusOverlay={statusOverlay}
           />
         )}
       </div>

@@ -226,6 +226,18 @@ export function applyConfirmedSignal(
   return geoTone;
 }
 
+/** Confirmed PVT signal tones — only meaningful on the daily trend (PVT) chart. */
+export function isConfirmedSignalTone(tone: BubbleTone | null | undefined): boolean {
+  return tone === "BULLISH" || tone === "BEARISH";
+}
+
+/** Drop BULLISH/BEARISH for views where intraday price action is the focus. */
+export function withoutConfirmedSignalTone(
+  tone: BubbleTone | null | undefined,
+): BubbleTone | null {
+  return isConfirmedSignalTone(tone) ? null : (tone ?? null);
+}
+
 const INDEX_SILVER_RING = "rgba(192, 202, 214, 0.92)";
 
 /** Index bubbles are always largest; neutral indices use a silver ring. */

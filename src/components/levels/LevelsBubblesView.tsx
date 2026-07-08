@@ -407,7 +407,6 @@ export function LevelsBubblesView({
           border: "1px solid rgba(255,255,255,0.08)",
         }}
       >
-        {showChatFloater ? <LevelsGlobalChatTrigger /> : null}
         {filtered.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <p className="text-xs text-center px-4" style={{ color: "#64748b" }}>
@@ -492,6 +491,11 @@ export function LevelsBubblesView({
             );
           })
         )}
+        {showChatFloater ? (
+          <div className="pointer-events-none absolute inset-0 z-[280]">
+            <LevelsGlobalChatTrigger />
+          </div>
+        ) : null}
       </div>
     </div>
   );

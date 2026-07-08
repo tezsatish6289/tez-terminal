@@ -18,6 +18,7 @@ import {
 } from "firebase/database";
 import { useDatabase, useUser } from "@/firebase";
 import { useChatMember } from "@/hooks/use-chat-member";
+import { useSubscription } from "@/hooks/use-subscription";
 import {
   CHAT_UNREAD_WINDOW,
   GENERAL_ROOM_ID,
@@ -45,8 +46,16 @@ const ChatPanelContext = createContext<ChatPanelContextValue | undefined>(undefi
 export function ChatPanelProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
   const db = useDatabase();
+  const profile = useMemo(
+    () => ({ name: user?.displayName, email: user?.email, photo: user?.photoURL }),
+    [user?.displayName, user?.email, user?.photoURL],
+  );
+  const subscription = useSubscription(user?.uid, profile);
   const { member } = useChatMember();
-  const canChat = member?.canChat === true && member?.isBanned !== true;
+  const canChat =
+    member?.isBanned === true
+      ? false
+      : member?.canChat === true || subscription.isActive;
 
   const [open, setOpenState] = useState(false);
   const [roomId, setRoomIdState] = useState(GENERAL_ROOM_ID);

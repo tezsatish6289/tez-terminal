@@ -82,7 +82,6 @@ import {
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
 import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
-import { LevelsMarketMapShareButton } from "@/components/levels/LevelsMarketMapShareButton";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { LevelsViewUrlSync } from "@/components/levels/LevelsViewUrlSync";
@@ -1410,11 +1409,6 @@ export default function LevelsPage() {
         kbd: viewMode === "bubbles" ? "L" : "B",
         active: viewMode === "liveslide",
       }}
-      shareTrailing={
-        isFnoNinjaHost && viewMode === "bubbles" ? (
-          <LevelsMarketMapShareButton viewLabel="Market Bubbles" iconOnly />
-        ) : undefined
-      }
     />
   );
 

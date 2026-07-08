@@ -4,9 +4,12 @@ import { MessageCircle } from "lucide-react";
 import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 
+/** Above bubble physics layers (max z ~240). */
+const FLOATER_Z_CLASS = "z-[280]";
+
 /** Bottom-right overlay on the bubble chart canvas (parent must be `relative`). */
 const FLOATER_POSITION_CLASS =
-  "absolute z-30 bottom-4 right-4 sm:bottom-5 sm:right-5 touch-manipulation";
+  `absolute ${FLOATER_Z_CLASS} bottom-4 right-4 sm:bottom-5 sm:right-5 touch-manipulation pointer-events-auto`;
 
 /** 56×56px minimum touch target (WCAG-friendly). */
 const FLOATER_HIT_CLASS =
@@ -31,11 +34,11 @@ export function LevelsGlobalChatTrigger({
       onClick={() => setOpen(true)}
       className={`${FLOATER_POSITION_CLASS} ${FLOATER_HIT_CLASS} relative transition-colors hover:brightness-110 active:scale-95 ${className}`.trim()}
       style={{
-        borderColor: "rgba(96,165,250,0.55)",
-        backgroundColor: "rgba(15,23,42,0.92)",
+        borderColor: "rgba(96,165,250,0.65)",
+        backgroundColor: "rgba(15,23,42,0.96)",
         color: "#93c5fd",
         boxShadow:
-          "0 0 0 3px rgba(96,165,250,0.12), 0 8px 24px rgba(0,0,0,0.45)",
+          "0 0 0 3px rgba(96,165,250,0.22), 0 10px 28px rgba(0,0,0,0.55)",
       }}
       aria-label={showBadge ? `Community chat, ${totalUnreadCount} unread` : "Community chat"}
       title={

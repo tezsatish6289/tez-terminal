@@ -49,6 +49,7 @@ import {
 } from "@/lib/index-zones-on-demand";
 import { indexDocId } from "@/lib/index-zones-store";
 import { getConfirmedSignalsCached, getConfirmedSignalContextsCached } from "@/lib/levels/confirmed-signal";
+import { healSymbolCurrentPvt } from "@/lib/levels/heal-signal-pvt";
 import { createRefreshGuard } from "@/lib/levels/levels-refresh-guard";
 import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
@@ -364,6 +365,12 @@ export async function GET(request: NextRequest) {
     const explicitCompute = params.get("compute") === "1";
     const forceRefresh = params.get("refresh") === "1" || explicitCompute;
     const scope = params.get("scope");
+    // Self-heal this symbol's live PVT on its open SR event(s) so the bubble map
+    // / chips converge to the trend-chart truth during market hours. Throttled +
+    // best-effort; runs after the response so it adds no latency. A left-open
+    // Liveslide rotates through the in-zone set and keeps it fresh for free.
+    const healScope = scope === "index" ? "index" : "stock";
+    after(() => healSymbolCurrentPvt(getAdminFirestore(), healScope, symbol));
     if (scope === "index") {
       return getSingleIndex(symbol, forceRefresh, explicitCompute);
     }

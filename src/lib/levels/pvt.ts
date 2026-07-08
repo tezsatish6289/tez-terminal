@@ -16,7 +16,7 @@ export interface PvtPoint {
  * Price Volume Trend — cumulative from zero at the first bar in the series.
  * PVT[i] = PVT[i-1] + volume[i] × (close[i] - close[i-1]) / close[i-1]
  */
-export function computePvt(candles: PvtInputCandle[]): PvtPoint[] {
+export function computePvt(candles: readonly PvtInputCandle[]): PvtPoint[] {
   if (candles.length === 0) return [];
   const out: PvtPoint[] = [{ time: candles[0]!.time, value: 0 }];
   for (let i = 1; i < candles.length; i++) {

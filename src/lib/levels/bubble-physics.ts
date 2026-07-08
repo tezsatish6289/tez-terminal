@@ -280,6 +280,81 @@ export function isNearZoneTone(tone: BubbleTone): boolean {
 }
 
 /** Paint order: zone setups above indices and neutral/unscanned stocks. */
+/** Synthetic id for the community-chat bubble on the market map. */
+export const CHAT_MAP_BUBBLE_ID = "__community_chat__";
+
+/** Fixed radius — sized between near-zone and in-zone stock bubbles. */
+export const CHAT_MAP_BUBBLE_RADIUS = 46;
+
+export function createChatMapBubbleNode(
+  width: number,
+  height: number,
+  r = CHAT_MAP_BUBBLE_RADIUS,
+): PhysicsNode<BubblePhysicsItem> {
+  const node: PhysicsNode<BubblePhysicsItem> = {
+    id: CHAT_MAP_BUBBLE_ID,
+    item: { id: CHAT_MAP_BUBBLE_ID, scope: "stock", tone: "NEUTRAL" },
+    x: width / 2,
+    y: height / 2,
+    vx: 0,
+    vy: 0,
+    r,
+  };
+  pinChatMapBubble(node, width, height);
+  return node;
+}
+
+/** Anchor chat bubble to the bottom-right of the map canvas. */
+export function pinChatMapBubble(
+  node: PhysicsNode,
+  width: number,
+  height: number,
+  padding = { x: 18, y: 14 },
+): void {
+  node.x = width - padding.x - node.r;
+  node.y = height - padding.y - node.r;
+  node.vx = 0;
+  node.vy = 0;
+}
+
+/** Push market bubbles away from the pinned chat bubble (chat stays fixed). */
+export function repelNodesFromChatBubble(
+  nodes: PhysicsNode[],
+  chat: PhysicsNode,
+  pad = 10,
+): void {
+  for (const n of nodes) {
+    if (n.id === chat.id) continue;
+    const dx = n.x - chat.x;
+    const dy = n.y - chat.y;
+    const dist = Math.hypot(dx, dy) || 0.001;
+    const minDist = n.r + chat.r + pad;
+    if (dist >= minDist) continue;
+    const push = minDist - dist;
+    const ux = dx / dist;
+    const uy = dy / dist;
+    n.x += ux * push;
+    n.y += uy * push;
+    const outward = n.vx * ux + n.vy * uy;
+    if (outward < 0) {
+      n.vx -= outward * ux;
+      n.vy -= outward * uy;
+    }
+  }
+}
+
+export function clampNodesToBounds(
+  nodes: PhysicsNode[],
+  width: number,
+  height: number,
+  edgePad = 10,
+): void {
+  for (const n of nodes) {
+    n.x = Math.max(n.r + edgePad, Math.min(width - n.r - edgePad, n.x));
+    n.y = Math.max(n.r + edgePad, Math.min(height - n.r - edgePad, n.y));
+  }
+}
+
 export function bubbleStackZIndex(scope: "index" | "stock", tone: BubbleTone): number {
   switch (tone) {
     case "BULLISH":

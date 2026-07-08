@@ -4,9 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   bubbleStackZIndex,
+  CHAT_MAP_BUBBLE_RADIUS,
+  clampNodesToBounds,
+  createChatMapBubbleNode,
   createPhysicsNodes,
   isInZoneTone,
   layoutBubbleRadius,
+  pinChatMapBubble,
+  repelNodesFromChatBubble,
   stepPhysics,
   type PhysicsNode,
 } from "@/lib/levels/bubble-physics";
@@ -34,7 +39,7 @@ import { levelsFromStockRow } from "@/lib/zones/levels-actionable-list";
 import { matchesSlideshowSetup, type ZoneBands } from "@/lib/zones/zone-status";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 import { FNO_BUBBLE_MAP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
-import { LevelsGlobalChatTrigger } from "@/components/levels/LevelsGlobalChatTrigger";
+import { LevelsChatMapBubble } from "@/components/levels/LevelsChatMapBubble";
 
 export interface LevelsBubbleItem {
   id: string;
@@ -132,6 +137,8 @@ export function LevelsBubblesView({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
+  const chatNodeRef = useRef<PhysicsNode<LevelsBubbleItem> | null>(null);
+  const chatElRef = useRef<HTMLDivElement | null>(null);
   const elRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const prevTonesRef = useRef<Map<string, BubbleTone>>(new Map());
   const rafRef = useRef<number>(0);
@@ -151,6 +158,8 @@ export function LevelsBubblesView({
   layoutScaleRef.current = layoutScale;
   const embedMobileLayoutRef = useRef(embedMobileLayout);
   embedMobileLayoutRef.current = embedMobileLayout;
+  const showChatFloaterRef = useRef(showChatFloater);
+  showChatFloaterRef.current = showChatFloater;
 
   const syncSize = useCallback(() => {
     const el = containerRef.current;
@@ -200,6 +209,16 @@ export function LevelsBubblesView({
   );
 
   const toneCounts = useMemo(() => countBubbleMapFilters(items), [items]);
+
+  const chatPin = useMemo(() => {
+    if (!showChatFloater || size.w < 80 || size.h < 80) return null;
+    const r = CHAT_MAP_BUBBLE_RADIUS * layoutScale;
+    return {
+      x: size.w - 18 - r,
+      y: size.h - 14 - r,
+      r,
+    };
+  }, [showChatFloater, size.w, size.h, layoutScale]);
 
   const paintTone = useCallback(
     (tone: BubbleTone) =>
@@ -299,6 +318,37 @@ export function LevelsBubblesView({
       n.y = Math.max(n.r + 8, Math.min(size.h - n.r - 8, n.y));
     }
 
+    const chatR = CHAT_MAP_BUBBLE_RADIUS * scale;
+    if (showChatFloaterRef.current) {
+      if (!chatNodeRef.current) {
+        chatNodeRef.current = createChatMapBubbleNode(size.w, size.h, chatR);
+      } else {
+        chatNodeRef.current.r = chatR;
+        pinChatMapBubble(chatNodeRef.current, size.w, size.h);
+      }
+    } else {
+      chatNodeRef.current = null;
+    }
+
+    const settleChatCollisions = () => {
+      const chat = chatNodeRef.current;
+      if (!chat || !showChatFloaterRef.current) return;
+      pinChatMapBubble(chat, size.w, size.h);
+      repelNodesFromChatBubble(nodesRef.current, chat);
+      clampNodesToBounds(nodesRef.current, size.w, size.h);
+    };
+
+    const applyChatPosition = () => {
+      const chat = chatNodeRef.current;
+      const el = chatElRef.current;
+      if (!chat || !el || !showChatFloaterRef.current) return;
+      const d = chat.r * 2;
+      el.style.width = `${d}px`;
+      el.style.height = `${d}px`;
+      el.style.transform = `translate3d(${chat.x - chat.r}px, ${chat.y - chat.r}px, 0)`;
+      el.style.zIndex = "300";
+    };
+
     physicsFrameRef.current = 0;
     if (physicsIntensity <= 0) {
       for (const n of nodesRef.current) {
@@ -367,8 +417,10 @@ export function LevelsBubblesView({
           ? "opacity 0.55s ease"
           : "opacity 0.35s ease";
       }
+      applyChatPosition();
     };
 
+    settleChatCollisions();
     applyPositions();
 
     const loop = () => {
@@ -378,13 +430,14 @@ export function LevelsBubblesView({
         const t = Math.min(1, (frame - 90) / 120);
         stepPhysics(nodesRef.current, size.w, size.h, (0.06 + t * 0.06) * physicsIntensity);
       }
+      settleChatCollisions();
       applyPositions();
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale, embedMobileLayout, showMaxPainBubbles, toneFilter, paintTone]);
+  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale, embedMobileLayout, showMaxPainBubbles, toneFilter, paintTone, showChatFloater]);
 
   const setBubbleRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) elRefs.current.set(id, el);
@@ -491,11 +544,7 @@ export function LevelsBubblesView({
             );
           })
         )}
-        {showChatFloater ? (
-          <div className="pointer-events-none absolute inset-0 z-[280]">
-            <LevelsGlobalChatTrigger />
-          </div>
-        ) : null}
+        {chatPin ? <LevelsChatMapBubble bubbleRef={chatElRef} pin={chatPin} /> : null}
       </div>
     </div>
   );

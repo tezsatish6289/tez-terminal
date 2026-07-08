@@ -120,7 +120,7 @@ export function pvtSlopeSince(
  * every bar. Use two of these (dip vs now/exit) to read the real move: the value
  * itself is window-relative, but the *difference* between two anchors is not.
  */
-export function pvtValueAt(points: PvtPoint[], atTimeSec: number): number | null {
+export function pvtValueAt(points: readonly PvtPoint[], atTimeSec: number): number | null {
   if (points.length === 0 || !Number.isFinite(atTimeSec)) return null;
   let idx = -1;
   for (let i = 0; i < points.length; i++) {

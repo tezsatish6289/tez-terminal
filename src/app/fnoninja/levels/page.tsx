@@ -1421,6 +1421,7 @@ export default function LevelsPage() {
         toneFilter={bubbleMapFilter}
         showMaxPainBubbles={showMaxPainBubbles}
         showChatFloater
+        suppressBubbleStacking={chatDrawerOpen}
       />
     ) : (
       renderSlideshow()

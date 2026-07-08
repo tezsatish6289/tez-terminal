@@ -108,6 +108,8 @@ export function LevelsBubblesView({
   embedMobileLayout = false,
   /** Market map page: bottom-right community chat floater over the canvas. */
   showChatFloater = false,
+  /** Keep market bubbles under the chat drawer (z capped while pane is open). */
+  suppressBubbleStacking = false,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
@@ -134,6 +136,7 @@ export function LevelsBubblesView({
   layoutScale?: number;
   embedMobileLayout?: boolean;
   showChatFloater?: boolean;
+  suppressBubbleStacking?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
@@ -160,6 +163,8 @@ export function LevelsBubblesView({
   embedMobileLayoutRef.current = embedMobileLayout;
   const showChatFloaterRef = useRef(showChatFloater);
   showChatFloaterRef.current = showChatFloater;
+  const suppressBubbleStackingRef = useRef(suppressBubbleStacking);
+  suppressBubbleStackingRef.current = suppressBubbleStacking;
 
   const syncSize = useCallback(() => {
     const el = containerRef.current;
@@ -397,7 +402,10 @@ export function LevelsBubblesView({
         el.style.width = `${d}px`;
         el.style.height = `${d}px`;
         el.style.transform = `translate3d(${n.x - n.r}px, ${n.y - n.r}px, 0)`;
-        if (matched) {
+        if (suppressBubbleStackingRef.current) {
+          el.style.zIndex = "1";
+          el.style.opacity = "1";
+        } else if (matched) {
           el.style.zIndex = "320";
           el.style.opacity = "1";
         } else if (emphasisActive) {
@@ -437,7 +445,7 @@ export function LevelsBubblesView({
     rafRef.current = requestAnimationFrame(loop);
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale, embedMobileLayout, showMaxPainBubbles, toneFilter, paintTone, showChatFloater]);
+  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale, embedMobileLayout, showMaxPainBubbles, toneFilter, paintTone, showChatFloater, suppressBubbleStacking]);
 
   const setBubbleRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) elRefs.current.set(id, el);

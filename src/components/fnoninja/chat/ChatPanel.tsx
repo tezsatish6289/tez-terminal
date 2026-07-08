@@ -263,16 +263,16 @@ export function ChatPanel() {
 
   return (
     <>
-      {/* Mobile backdrop */}
+      {/* Backdrop — above map bubbles (z up to ~320), below panel */}
       <button
         type="button"
         aria-label="Close chat"
         onClick={() => setOpen(false)}
-        className="fixed inset-0 z-[180] bg-black/60 md:hidden"
+        className="fixed inset-0 z-[340] bg-black/60 md:bg-black/40"
       />
 
       <aside
-        className="fixed right-0 top-14 z-[185] flex w-full flex-col shadow-2xl sm:top-16 md:w-[480px]"
+        className="fixed right-0 top-14 z-[350] flex w-full flex-col shadow-2xl sm:top-16 md:w-[480px]"
         style={{
           height: "calc(100% - 3.5rem)",
           backgroundColor: FNO_BG,

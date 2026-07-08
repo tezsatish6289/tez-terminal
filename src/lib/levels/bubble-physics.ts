@@ -283,8 +283,8 @@ export function isNearZoneTone(tone: BubbleTone): boolean {
 /** Synthetic id for the community-chat bubble on the market map. */
 export const CHAT_MAP_BUBBLE_ID = "__community_chat__";
 
-/** Fixed radius — sized between near-zone and in-zone stock bubbles. */
-export const CHAT_MAP_BUBBLE_RADIUS = 46;
+/** Fixed radius — ~30% smaller than original 46px pin. */
+export const CHAT_MAP_BUBBLE_RADIUS = 32;
 
 export function createChatMapBubbleNode(
   width: number,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
@@ -12,7 +12,6 @@ import type { LevelsChartStatusOverlayProps } from "@/components/levels/LevelsCh
 import { isSlideshowZoneStale, SLIDESHOW_ZONE_TICK_MS } from "@/lib/levels/slideshow-zones";
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
-import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { LevelsChartDeepDiveLayout } from "@/components/levels/LevelsChartDeepDiveLayout";
 import { LevelsChartSideToolbar } from "@/components/levels/LevelsChartSideToolbar";
 import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
@@ -26,7 +25,6 @@ import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook
 import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-shortcut";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { FNO_LEVELS_MAIN, FNO_LEVELS_SHELL } from "@/lib/fnoninja/responsive";
-import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
@@ -322,22 +320,6 @@ function ChartContent() {
   );
 }
 
-function ChartPageGate() {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const symbol = (searchParams.get("symbol") ?? "").trim().toUpperCase();
-  const hostname = typeof window !== "undefined" ? window.location.hostname : undefined;
-  const gated = requiresFnoNinjaChartAuth(pathname, hostname);
-
-  if (!gated) return <ChartContent />;
-
-  return (
-    <FnoNinjaChartLoginGate symbol={symbol || undefined}>
-      <ChartContent />
-    </FnoNinjaChartLoginGate>
-  );
-}
-
 export default function LevelsChartPage() {
   return (
     <Suspense
@@ -350,7 +332,7 @@ export default function LevelsChartPage() {
         </main>
       }
     >
-      <ChartPageGate />
+      <ChartContent />
     </Suspense>
   );
 }

@@ -235,7 +235,7 @@ export default function LevelsPage() {
   useEffect(() => {
     setLocalDevSlideBypass(bypassFnoNinjaSlideAuthForLocalDev());
   }, []);
-  const slideSignInGate = isSlideView && !localDevSlideBypass;
+  const levelsSignInGate = !localDevSlideBypass;
 
   useEffect(() => {
     if (!isSlideView) {
@@ -1539,14 +1539,17 @@ export default function LevelsPage() {
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
-        ) : slideSignInGate && !slideAuthUser ? (
+        ) : levelsSignInGate && !slideAuthUser ? (
           <FnoNinjaChartLoginGate
-            overlay
-            backAction={{ label: "Back to Market Map", onClick: enterBubbles }}
+            overlay={isSlideView}
+            headline={viewMode === "bubbles" ? "Unlock NSE F&O Market Map" : undefined}
+            backAction={
+              isSlideView ? { label: "Back to Market Map", onClick: enterBubbles } : undefined
+            }
           >
             {levelsWorkspace}
           </FnoNinjaChartLoginGate>
-        ) : slideSignInGate && slideAuthLoading ? (
+        ) : levelsSignInGate && slideAuthLoading ? (
           <div
             className={`flex flex-1 min-h-0 w-full flex-col items-center justify-center ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
           >

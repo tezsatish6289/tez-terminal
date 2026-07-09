@@ -12,17 +12,25 @@ export function isFnoNinjaLevelsPath(pathname: string): boolean {
   return false;
 }
 
-/** Chart deep-dive requires sign-in on FNONINJA only. */
+/** Symbol chart deep-dive (/levels/chart). */
 export function isFnoNinjaChartPath(pathname: string): boolean {
   if (pathname === "/levels/chart" || pathname.startsWith("/levels/chart/")) return true;
   return pathname.startsWith("/fnoninja/levels/chart");
 }
 
-export function requiresFnoNinjaChartAuth(pathname: string, hostname?: string): boolean {
-  return isFnoNinjaAppContext(pathname, hostname) && isFnoNinjaChartPath(pathname);
+/** Chart deep-dive is public on FNONINJA (symbol links can be shared without sign-in). */
+export function requiresFnoNinjaChartAuth(_pathname: string, _hostname?: string): boolean {
+  return false;
 }
 
-/** Liveslide requires sign-in on FNONINJA only — the bubbles market map stays public. */
+/** Main market map (/levels) requires sign-in on FNONINJA — not the chart deep-dive. */
+export function requiresFnoNinjaBubbleMapAuth(pathname: string, hostname?: string): boolean {
+  if (!isFnoNinjaAppContext(pathname, hostname)) return false;
+  if (isFnoNinjaChartPath(pathname)) return false;
+  return isFnoNinjaLevelsPath(pathname);
+}
+
+/** Liveslide / favslide require sign-in on FNONINJA (same host as the market map). */
 export function requiresFnoNinjaLiveslideAuth(pathname: string, hostname?: string): boolean {
   return isFnoNinjaAppContext(pathname, hostname);
 }

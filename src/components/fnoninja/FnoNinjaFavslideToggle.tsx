@@ -25,6 +25,7 @@ export function FnoNinjaFavslideToggle({
   variant = "default",
   /** Parent hook — keeps list in sync when toggling from /levels favslide. */
   api: externalApi,
+  onSignInRequired,
 }: {
   scope: LevelsTvScope;
   symbol: string;
@@ -33,6 +34,8 @@ export function FnoNinjaFavslideToggle({
   iconOnly?: boolean;
   variant?: "default" | "toolbar";
   api?: FnoNinjaFavslideApi;
+  /** When set, unsigned clicks open sign-in instead of disabling the control. */
+  onSignInRequired?: () => void;
 }) {
   const internal = useFnoNinjaFavslide(enabled && !externalApi);
   const api = externalApi ?? internal;
@@ -44,9 +47,13 @@ export function FnoNinjaFavslideToggle({
   const busy = api.loading || api.mutating;
   const error = externalApi ? null : internal.error;
   const amber = favorited || removeOnly;
+  const gateSignIn = needsSignIn && Boolean(onSignInRequired);
 
   const handleClick = () => {
-    if (needsSignIn) return;
+    if (needsSignIn) {
+      onSignInRequired?.();
+      return;
+    }
     if (removeOnly) void api.setFavorite(scope, symbol, false);
     else void api.toggle(scope, symbol);
   };
@@ -57,7 +64,7 @@ export function FnoNinjaFavslideToggle({
   return (
     <button
       type="button"
-      disabled={busy || needsSignIn}
+      disabled={busy || (needsSignIn && !gateSignIn)}
       onClick={handleClick}
       className={
         toolbar
@@ -77,9 +84,11 @@ export function FnoNinjaFavslideToggle({
             }
       }
       title={
-        needsSignIn
+        gateSignIn
           ? "Sign in to use favslide"
-          : error
+          : needsSignIn
+            ? "Sign in to use favslide"
+            : error
             ? error
             : favorited
               ? "Remove from favslide"

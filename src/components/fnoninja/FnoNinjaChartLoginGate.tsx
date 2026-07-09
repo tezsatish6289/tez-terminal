@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
 import {
   FNO_LOGIN_DISCLAIMER,
@@ -35,6 +36,7 @@ function FnoNinjaLoginCta({ className = "" }: { className?: string }) {
   return (
     <Link
       href={loginHref}
+      onClick={() => trackCtaClick("chart_gate_sign_in", { label: "Sign in with Google" })}
       className={`${LOGIN_BTN_CLASS} ${className}`}
       style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
     >
@@ -81,7 +83,10 @@ function FnoNinjaLoginShimmerOverlay({
         {backAction ? (
           <button
             type="button"
-            onClick={backAction.onClick}
+            onClick={() => {
+              trackCtaClick("chart_gate_back", { label: backAction.label });
+              backAction.onClick();
+            }}
             className="text-xs font-semibold underline-offset-2 hover:underline"
             style={{ color: FNO_MUTED }}
           >
@@ -90,6 +95,23 @@ function FnoNinjaLoginShimmerOverlay({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** On-demand sign-in overlay (e.g. toolbar CTAs on the public chart deep-dive page). */
+export function FnoNinjaSignInOverlay({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <FnoNinjaLoginShimmerOverlay
+      fixed
+      backAction={{ label: "Not now", onClick: onClose }}
+    />
   );
 }
 
@@ -174,7 +196,10 @@ export function FnoNinjaChartLoginGate({
       {backAction ? (
         <button
           type="button"
-          onClick={backAction.onClick}
+          onClick={() => {
+            trackCtaClick("chart_gate_back", { label: backAction.label });
+            backAction.onClick();
+          }}
           className="text-xs font-semibold underline-offset-2 hover:underline"
           style={{ color: FNO_MUTED }}
         >

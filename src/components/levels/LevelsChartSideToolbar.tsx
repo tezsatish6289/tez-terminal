@@ -12,6 +12,7 @@ import {
 import { AskFynn } from "@/components/fnoninja/AskFynn";
 import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
+import { FnoNinjaSignInOverlay } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
@@ -45,6 +46,9 @@ import {
   FNO_BG_CANVAS,
   FNO_MUTED,
 } from "@/lib/fnoninja/theme";
+import { trackCtaClick } from "@/firebase/analytics";
+import { useUser } from "@/firebase";
+import { isFnoNinjaAppContext, isFnoNinjaChartPath } from "@/lib/fnoninja/auth";
 
 const TOOLBAR_WIDTH_CLASS = LEVELS_CHART_TOOLBAR_WIDTH_CLASS;
 const TOOLBAR_ICON_CLASS = LEVELS_CHART_TOOLBAR_ICON_CLASS;
@@ -225,12 +229,31 @@ export function LevelsChartSideToolbar({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user } = useUser();
   const { open: chatOpen, setOpen: setChatOpen, totalUnreadCount } = useChatPanel();
   const [newsOpen, setNewsOpen] = useState(false);
   const [atlasOpen, setAtlasOpen] = useState(false);
+  const [signInOverlayOpen, setSignInOverlayOpen] = useState(false);
   const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
   const [atlasScore, setAtlasScore] = useState<AtlasScore | null>(null);
+
+  const gateToolbarActions =
+    isFnoNinjaAppContext(
+      pathname,
+      typeof window !== "undefined" ? window.location.hostname : undefined,
+    ) && isFnoNinjaChartPath(pathname);
+
+  const runIfSignedIn = useCallback(
+    (action: () => void) => {
+      if (!gateToolbarActions || user) {
+        action();
+        return;
+      }
+      setSignInOverlayOpen(true);
+    },
+    [gateToolbarActions, user],
+  );
 
   const loadNewsSentiment = useCallback(async () => {
     if (!symbol || (scope !== "stock" && scope !== "index")) return;
@@ -300,39 +323,49 @@ export function LevelsChartSideToolbar({
   }, [scope, symbol, onAtlasOpenChange, onNewsOpenChange]);
 
   const goToBubbles = useCallback(() => {
-    if (onNavigateBubbles) {
-      onNavigateBubbles();
-      return;
-    }
-    const path = levelsBubblesPagePathForHost(
-      typeof window !== "undefined" ? window.location.hostname : "fnoninja.com",
-    );
-    if (path.startsWith("http")) {
-      window.location.href = path;
-      return;
-    }
-    router.push(path);
-  }, [router, onNavigateBubbles]);
+    runIfSignedIn(() => {
+      trackCtaClick("toolbar_view_bubbles", { label: "View bubble chart", symbol, scope });
+      if (onNavigateBubbles) {
+        onNavigateBubbles();
+        return;
+      }
+      const path = levelsBubblesPagePathForHost(
+        typeof window !== "undefined" ? window.location.hostname : "fnoninja.com",
+      );
+      if (path.startsWith("http")) {
+        window.location.href = path;
+        return;
+      }
+      router.push(path);
+    });
+  }, [router, onNavigateBubbles, symbol, scope, runIfSignedIn]);
 
   const goToFavslide = useCallback(() => {
-    if (onNavigateFavslide) {
-      onNavigateFavslide();
-      return;
-    }
-    router.push(fnoFavslideHref(pathname));
-  }, [router, pathname, onNavigateFavslide]);
+    runIfSignedIn(() => {
+      trackCtaClick("toolbar_view_favslide", { label: "Favslide", symbol, scope });
+      if (onNavigateFavslide) {
+        onNavigateFavslide();
+        return;
+      }
+      router.push(fnoFavslideHref(pathname));
+    });
+  }, [router, pathname, onNavigateFavslide, symbol, scope, runIfSignedIn]);
 
   const goToLiveslide = useCallback(() => {
-    if (onNavigateLiveslide) {
-      onNavigateLiveslide();
-      return;
-    }
-    router.push(fnoLiveslideHref(pathname));
-  }, [router, pathname, onNavigateLiveslide]);
+    runIfSignedIn(() => {
+      trackCtaClick("toolbar_view_liveslide", { label: "Liveslide", symbol, scope });
+      if (onNavigateLiveslide) {
+        onNavigateLiveslide();
+        return;
+      }
+      router.push(fnoLiveslideHref(pathname));
+    });
+  }, [router, pathname, onNavigateLiveslide, symbol, scope, runIfSignedIn]);
 
   const goToLearn = useCallback(() => {
+    trackCtaClick("toolbar_learn", { label: "Learn", symbol, scope });
     router.push(fnoLearnHref(pathname));
-  }, [router, pathname]);
+  }, [router, pathname, symbol, scope]);
 
   return (
     <>
@@ -344,7 +377,10 @@ export function LevelsChartSideToolbar({
         <ToolbarButton
           label="News"
           active={newsOpen}
-          onClick={() => handleNewsOpenChange(true)}
+          onClick={() => {
+            trackCtaClick("toolbar_news", { label: "News", symbol, scope });
+            handleNewsOpenChange(true);
+          }}
           title="Recent news and sentiment"
           dataAttrs={{
             "data-liveslide-tour": "news",
@@ -362,7 +398,10 @@ export function LevelsChartSideToolbar({
         <ToolbarButton
           label="Atlas AI"
           active={atlasOpen}
-          onClick={() => setAtlasOpen(true)}
+          onClick={() => {
+            trackCtaClick("toolbar_atlas", { label: "Atlas AI", symbol, scope });
+            setAtlasOpen(true);
+          }}
           title="Atlas AI coach — setup score"
         >
           <Sparkles className={`${TOOLBAR_ICON_CLASS} fynn-sparkle-glow`} strokeWidth={1.5} />
@@ -373,7 +412,12 @@ export function LevelsChartSideToolbar({
           label="Chat"
           active={chatOpen}
           unreadCount={chatOpen ? 0 : totalUnreadCount}
-          onClick={() => setChatOpen(true)}
+          onClick={() => {
+            runIfSignedIn(() => {
+              trackCtaClick("toolbar_chat", { label: "Chat", symbol, scope });
+              setChatOpen(true);
+            });
+          }}
           title={
             totalUnreadCount > 0 && !chatOpen
               ? `Community chat — ${totalUnreadCount} unread`
@@ -386,7 +430,10 @@ export function LevelsChartSideToolbar({
         <div className="my-0.5 h-px w-10 shrink-0 bg-white/[0.08]" aria-hidden />
 
         <ToolbarHoverLabel label="Favorite">
-          <div data-favslide-tour="remove">
+          <div
+            data-favslide-tour="remove"
+            onClick={() => trackCtaClick("favslide_toggle", { label: "Favorite", symbol, scope })}
+          >
             <FnoNinjaFavslideToggle
               scope={scope}
               symbol={symbol}
@@ -394,6 +441,9 @@ export function LevelsChartSideToolbar({
               variant="toolbar"
               removeOnly={favslideRemoveOnly}
               api={favslideApi}
+              onSignInRequired={
+                gateToolbarActions && !user ? () => setSignInOverlayOpen(true) : undefined
+              }
             />
           </div>
         </ToolbarHoverLabel>
@@ -479,6 +529,8 @@ export function LevelsChartSideToolbar({
         open={atlasOpen}
         onOpenChange={handleAtlasOpenChange}
       />
+
+      <FnoNinjaSignInOverlay open={signInOverlayOpen} onClose={() => setSignInOverlayOpen(false)} />
     </>
   );
 }

@@ -46,6 +46,32 @@ export function clearUserIdentity() {
   setUserId(analyticsInstance, '');
 }
 
+// ─── CTA clicks (unified) ───────────────────────────────────────
+// Every meaningful call-to-action fires a single `cta_click` event so all
+// clicks can be counted in one GA4 report, while `cta_id` allows slicing per
+// button. `surface` and `location` are auto-derived from the current host/path
+// unless explicitly overridden.
+function deriveCtaSurface(): string {
+  if (typeof window === 'undefined') return 'unknown';
+  const host = window.location.hostname;
+  if (host.includes('fnoninja')) return 'fnoninja';
+  if (host.includes('freedombot')) return 'freedombot';
+  if (host.includes('tezterminal')) return 'tezterminal';
+  const path = window.location.pathname;
+  if (path.startsWith('/fnoninja')) return 'fnoninja';
+  if (path.startsWith('/freedombot')) return 'freedombot';
+  return 'tezterminal';
+}
+
+export function trackCtaClick(ctaId: string, params: Record<string, unknown> = {}) {
+  track('cta_click', {
+    cta_id: ctaId,
+    surface: deriveCtaSurface(),
+    location: typeof window !== 'undefined' ? window.location.pathname : undefined,
+    ...params,
+  });
+}
+
 // ─── Landing ────────────────────────────────────────────────────
 export function trackSignInClicked() {
   track('sign_in_clicked');

@@ -254,10 +254,11 @@ export default function LevelsPage() {
   const guestBubblePreview =
     levelsSignInGate && !slideAuthUser && viewMode === "bubbles";
 
-  const [guestFilterCycleRestart, setGuestFilterCycleRestart] = useState(0);
-  const [guestSignInNudgeKey, setGuestSignInNudgeKey] = useState(0);
+  const guestBubblePreviewRef = useRef(guestBubblePreview);
+  guestBubblePreviewRef.current = guestBubblePreview;
+
   const guestFilterCycleStopRef = useRef<(() => void) | null>(null);
-  const guestFilterCycleRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [guestSignInNudgeKey, setGuestSignInNudgeKey] = useState(0);
   const guestBubbleClickDebounceRef = useRef(0);
 
   const handleGuestBubbleClick = useCallback((item: LevelsBubbleItem) => {
@@ -278,15 +279,21 @@ export default function LevelsPage() {
       if (!guestBubblePreview) return;
       guestFilterCycleStopRef.current?.();
       guestFilterCycleStopRef.current = null;
-      if (guestFilterCycleRestartTimerRef.current) {
-        clearTimeout(guestFilterCycleRestartTimerRef.current);
-      }
-      guestFilterCycleRestartTimerRef.current = setTimeout(() => {
-        setGuestFilterCycleRestart((n) => n + 1);
-      }, 18_000);
     },
     [guestBubblePreview],
   );
+
+  const applyGuestCycleFilter = useCallback((phase: BubbleMapFilter) => {
+    if (!guestBubblePreviewRef.current) return;
+    setBubbleMapFilter(phase);
+  }, []);
+
+  useEffect(() => {
+    if (guestBubblePreview || !slideAuthUser) return;
+    guestFilterCycleStopRef.current?.();
+    guestFilterCycleStopRef.current = null;
+    setBubbleMapFilter("all");
+  }, [guestBubblePreview, slideAuthUser]);
 
   const load = useCallback(async () => {
     try {
@@ -1554,23 +1561,15 @@ export default function LevelsPage() {
     guestFilterCycleStopRef.current?.();
     guestFilterCycleStopRef.current = runBubbleMapFilterCycle(
       guestFilterCycleSteps,
-      setBubbleMapFilter,
-      { allMs: 4600, highlightMs: 5800 },
+      applyGuestCycleFilter,
+      { allMs: 4600, highlightMs: 5800, loopOnce: true },
     );
 
     return () => {
       guestFilterCycleStopRef.current?.();
       guestFilterCycleStopRef.current = null;
     };
-  }, [guestBubblePreview, guestFilterCycleSteps, guestFilterCycleRestart]);
-
-  useEffect(() => {
-    return () => {
-      if (guestFilterCycleRestartTimerRef.current) {
-        clearTimeout(guestFilterCycleRestartTimerRef.current);
-      }
-    };
-  }, []);
+  }, [guestBubblePreview, guestFilterCycleSteps, applyGuestCycleFilter]);
 
   const guestBubbleShowcaseEmphasis: BubbleMapFilter =
     guestBubblePreview && bubbleMapFilter !== "all" ? bubbleMapFilter : "all";
@@ -1585,7 +1584,7 @@ export default function LevelsPage() {
         showcaseEmphasis={guestBubblePreview ? guestBubbleShowcaseEmphasis : "all"}
         showcaseSolo={guestBubblePreview && guestBubbleShowcaseEmphasis !== "all"}
         physicsIntensity={guestBubblePreview ? 0.42 : 1}
-        showMaxPainBubbles={guestBubblePreview ? true : showMaxPainBubbles}
+        showMaxPainBubbles={showMaxPainBubbles}
         showChatFloater={!guestBubblePreview}
         guestPreview={guestBubblePreview}
         guestBubbleLabels={guestBubbleLabels}

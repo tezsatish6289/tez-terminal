@@ -45,12 +45,13 @@ export function guestBubbleFilterSteps(
 export function runBubbleMapFilterCycle(
   steps: BubbleMapFilter[],
   onPhase: (phase: BubbleMapFilter) => void,
-  options?: { allMs?: number; highlightMs?: number },
+  options?: { allMs?: number; highlightMs?: number; loopOnce?: boolean },
 ): () => void {
   if (steps.length === 0) return () => {};
 
   const allMs = options?.allMs ?? 3200;
   const highlightMs = options?.highlightMs ?? 4200;
+  const loopOnce = options?.loopOnce ?? false;
   let cancelled = false;
   const timeouts: ReturnType<typeof setTimeout>[] = [];
 
@@ -63,23 +64,39 @@ export function runBubbleMapFilterCycle(
     });
 
   void (async () => {
+    const runRound = async (): Promise<boolean> => {
+      onPhase("all");
+      await sleep(allMs);
+      if (cancelled) return false;
+      for (const key of steps) {
+        if (cancelled) return false;
+        onPhase(key);
+        await sleep(highlightMs);
+      }
+      return true;
+    };
+
     if (steps.length === 1) {
       onPhase("all");
       await sleep(allMs);
       if (cancelled) return;
       onPhase(steps[0]!);
+      if (loopOnce) {
+        await sleep(highlightMs);
+        if (!cancelled) onPhase("all");
+      }
+      return;
+    }
+
+    if (loopOnce) {
+      const completed = await runRound();
+      if (!cancelled && completed) onPhase("all");
       return;
     }
 
     while (!cancelled) {
-      onPhase("all");
-      await sleep(allMs);
-      if (cancelled) break;
-      for (const key of steps) {
-        if (cancelled) break;
-        onPhase(key);
-        await sleep(highlightMs);
-      }
+      const completed = await runRound();
+      if (cancelled || !completed) break;
     }
   })();
 

@@ -161,6 +161,9 @@ export function LevelsBubblesView({
   onGuestBubbleClick?: (item: LevelsBubbleItem) => void;
   suppressBubbleStacking?: boolean;
 }) {
+  const mapPaintFilter: BubbleMapFilter =
+    guestPreview && showcaseEmphasis !== "all" ? showcaseEmphasis : toneFilter;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
   const chatNodeRef = useRef<PhysicsNode<LevelsBubbleItem> | null>(null);
@@ -180,6 +183,8 @@ export function LevelsBubblesView({
   showMaxPainRef.current = showMaxPainBubbles;
   const toneFilterRef = useRef(toneFilter);
   toneFilterRef.current = toneFilter;
+  const mapPaintFilterRef = useRef(mapPaintFilter);
+  mapPaintFilterRef.current = mapPaintFilter;
   const layoutScaleRef = useRef(layoutScale);
   layoutScaleRef.current = layoutScale;
   const embedMobileLayoutRef = useRef(embedMobileLayout);
@@ -254,8 +259,8 @@ export function LevelsBubblesView({
 
   const paintTone = useCallback(
     (tone: BubbleTone) =>
-      bubbleMapDisplayTone(tone, showMaxPainBubbles, toneFilter),
-    [showMaxPainBubbles, toneFilter],
+      bubbleMapDisplayTone(tone, showMaxPainBubbles, mapPaintFilter),
+    [showMaxPainBubbles, mapPaintFilter],
   );
 
   const showcaseActiveKey: BubbleToneSummaryKey | null =
@@ -405,7 +410,7 @@ export function LevelsBubblesView({
         const displayTone = bubbleMapDisplayTone(
           n.item.tone,
           showMaxPainRef.current,
-          toneFilterRef.current,
+          mapPaintFilterRef.current,
         );
         const targetR = (() => {
           const baseR = layoutBubbleRadius(n.item.scope, displayTone, scale, mobileEmbed);
@@ -478,7 +483,7 @@ export function LevelsBubblesView({
     rafRef.current = requestAnimationFrame(loop);
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale, embedMobileLayout, showMaxPainBubbles, toneFilter, paintTone, showChatFloater, suppressBubbleStacking]);
+  }, [filteredIds, size.w, size.h, layoutReady, physicsIntensity, layoutScale, embedMobileLayout, showMaxPainBubbles, mapPaintFilter, paintTone, showChatFloater, suppressBubbleStacking]);
 
   const setBubbleRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) elRefs.current.set(id, el);

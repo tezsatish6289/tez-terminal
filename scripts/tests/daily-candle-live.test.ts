@@ -66,6 +66,30 @@ function friBar(): DailyOhlcCandle {
   assert.equal(istDateKeyFromEpochSec(out[1]!.time), istTodayKey(MON_11AM_IST));
 }
 
+// No-op before the session opens (pre-market) — snapshot still holds the prior
+// session's OHLC, so we must not fabricate a bar dated today.
+{
+  const preOpenMs = Date.UTC(2026, 6, 6, 3, 0, 0); // Mon 08:30 IST (before 09:15)
+  const out = enrichDailyWithTodayMarketBar(
+    [friBar()],
+    { last_price: 108, ohlc: { open: 104, high: 110, low: 103, close: 105 } },
+    preOpenMs,
+  );
+  assert.equal(out.length, 1);
+  assert.equal(istDateKeyFromEpochSec(out[0]!.time), "2026-07-03");
+}
+
+// Merges once the session has opened (09:15 IST boundary).
+{
+  const atOpenMs = Date.UTC(2026, 6, 6, 3, 45, 0); // Mon 09:15 IST
+  const out = enrichDailyWithTodayMarketBar(
+    [friBar()],
+    { last_price: 108, ohlc: { open: 104, high: 110, low: 103, close: 105 } },
+    atOpenMs,
+  );
+  assert.equal(out.length, 2);
+}
+
 // No-op on weekends.
 {
   const satMs = Date.UTC(2026, 6, 4, 5, 30, 0);

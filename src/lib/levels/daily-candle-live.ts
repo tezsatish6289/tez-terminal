@@ -30,6 +30,14 @@ export interface DhanMarketOhlcSnapshot {
 }
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+/** 09:15 IST — NSE session open (minutes since IST midnight). */
+const SESSION_OPEN_MIN = 9 * 60 + 15;
+
+/** Minutes since IST midnight for an instant. */
+function istMinuteOfDay(nowMs: number): number {
+  const d = new Date(nowMs + IST_OFFSET_MS);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
 
 export function istDateKeyFromEpochSec(epochSec: number): string {
   return new Date(epochSec * 1000 + IST_OFFSET_MS).toISOString().slice(0, 10);
@@ -112,6 +120,11 @@ export function enrichDailyWithTodayMarketBar<T extends DailyOhlcCandle>(
   nowMs: number = Date.now(),
 ): T[] {
   if (!daily.length || !isIstWeekday(nowMs)) return [...daily];
+  // Before the session opens there is no "today" data yet — the marketfeed
+  // snapshot still carries the *previous* session's OHLC, which would otherwise
+  // be merged as a bogus bar dated today, masking yesterday's not-yet-persisted
+  // close (e.g. showing 7th then 9th with the 8th missing pre-open on the 9th).
+  if (istMinuteOfDay(nowMs) < SESSION_OPEN_MIN) return [...daily];
   const todayBar = todayBarFromMarketSnapshot(snap, istTodayKey(nowMs));
   return mergeTodaySessionBar(daily, todayBar);
 }

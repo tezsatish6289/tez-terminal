@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
@@ -106,31 +106,71 @@ function FnoNinjaLoginShimmerOverlay({
   );
 }
 
+const GUEST_SIGNIN_NUDGE_CSS = `
+@keyframes fno-guest-signin-nudge {
+  0%, 100% {
+    transform: translateX(0) rotate(0deg);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.55);
+    border-color: rgba(255,255,255,0.14);
+  }
+  14% { transform: translateX(-4px) rotate(-0.75deg); }
+  28% { transform: translateX(4px) rotate(0.75deg); }
+  42% {
+    transform: translateX(-2px) rotate(-0.4deg);
+    box-shadow: 0 20px 56px rgba(0,0,0,0.62), 0 0 28px rgba(96,165,250,0.32);
+    border-color: rgba(147,197,253,0.52);
+  }
+  56% { transform: translateX(2px) rotate(0.4deg); }
+  72% {
+    transform: translateX(-1px) rotate(-0.15deg);
+    box-shadow: 0 18px 52px rgba(0,0,0,0.58), 0 0 16px rgba(96,165,250,0.2);
+    border-color: rgba(147,197,253,0.38);
+  }
+}
+.fno-guest-signin-nudge {
+  animation: fno-guest-signin-nudge 1.2s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+}
+`;
+
 /** Market map preview for signed-out users — fixed bottom-right card (portaled, never clipped). */
-export function FnoNinjaMarketMapGuestGate() {
+export function FnoNinjaMarketMapGuestGate({ nudgeKey = 0 }: { nudgeKey?: number }) {
   const [mounted, setMounted] = useState(false);
+  const [nudging, setNudging] = useState(false);
+  const lastNudgeKeyRef = useRef(0);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!mounted || nudgeKey <= 0 || nudgeKey === lastNudgeKeyRef.current) return;
+    lastNudgeKeyRef.current = nudgeKey;
+    setNudging(true);
+    const t = window.setTimeout(() => setNudging(false), 1250);
+    return () => window.clearTimeout(t);
+  }, [mounted, nudgeKey]);
+
   if (!mounted) return null;
 
   return createPortal(
-    <div
-      className="fixed z-[220] pointer-events-none left-0 right-0 bottom-0 top-14 sm:top-16"
-      role="dialog"
-      aria-modal="true"
-      aria-label={FNO_MARKET_MAP_GUEST_HEADLINE}
-    >
+    <>
+      <style dangerouslySetInnerHTML={{ __html: GUEST_SIGNIN_NUDGE_CSS }} />
       <div
-        className="absolute bottom-4 right-4 sm:bottom-5 sm:right-5 w-[min(17rem,calc(100vw-2rem))] rounded-xl border px-4 py-3.5 shadow-2xl pointer-events-auto"
-        style={{
-          backgroundColor: "#0f172a",
-          borderColor: "rgba(255,255,255,0.14)",
-          boxShadow: "0 16px 48px rgba(0,0,0,0.55)",
-        }}
+        className="fixed z-[220] pointer-events-none left-0 right-0 bottom-0 top-14 sm:top-16"
+        role="dialog"
+        aria-modal="true"
+        aria-label={FNO_MARKET_MAP_GUEST_HEADLINE}
       >
+        <div
+          className={`absolute bottom-4 right-4 sm:bottom-5 sm:right-5 w-[min(17rem,calc(100vw-2rem))] rounded-xl border px-4 py-3.5 shadow-2xl pointer-events-auto ${
+            nudging ? "fno-guest-signin-nudge" : ""
+          }`}
+          style={{
+            backgroundColor: "#0f172a",
+            borderColor: "rgba(255,255,255,0.14)",
+            boxShadow: "0 16px 48px rgba(0,0,0,0.55)",
+          }}
+        >
         <p className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: FNO_MUTED }}>
           Live preview
         </p>
@@ -148,8 +188,9 @@ export function FnoNinjaMarketMapGuestGate() {
         <p className="mt-2.5 text-[9px] leading-relaxed" style={{ color: "#64748b" }}>
           {FNO_LOGIN_DISCLAIMER}
         </p>
+        </div>
       </div>
-    </div>,
+    </>,
     document.body,
   );
 }

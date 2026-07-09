@@ -91,6 +91,7 @@ import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/livesl
 import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { useUser } from "@/firebase";
+import { trackCtaClick } from "@/firebase/analytics";
 import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
 import { buildGuestBubbleLabels } from "@/lib/fnoninja/guest-map-preview";
 import {
@@ -254,8 +255,22 @@ export default function LevelsPage() {
     levelsSignInGate && !slideAuthUser && viewMode === "bubbles";
 
   const [guestFilterCycleRestart, setGuestFilterCycleRestart] = useState(0);
+  const [guestSignInNudgeKey, setGuestSignInNudgeKey] = useState(0);
   const guestFilterCycleStopRef = useRef<(() => void) | null>(null);
   const guestFilterCycleRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const guestBubbleClickDebounceRef = useRef(0);
+
+  const handleGuestBubbleClick = useCallback((item: LevelsBubbleItem) => {
+    const now = Date.now();
+    if (now - guestBubbleClickDebounceRef.current < 450) return;
+    guestBubbleClickDebounceRef.current = now;
+    setGuestSignInNudgeKey((n) => n + 1);
+    trackCtaClick("guest_bubble_nudge", {
+      symbol: item.symbol,
+      label: item.label,
+      scope: item.scope,
+    });
+  }, []);
 
   const handleBubbleMapFilterChange = useCallback(
     (next: BubbleMapFilter) => {
@@ -1540,7 +1555,7 @@ export default function LevelsPage() {
     guestFilterCycleStopRef.current = runBubbleMapFilterCycle(
       guestFilterCycleSteps,
       setBubbleMapFilter,
-      { allMs: 2800, highlightMs: 3600 },
+      { allMs: 4600, highlightMs: 5800 },
     );
 
     return () => {
@@ -1557,17 +1572,24 @@ export default function LevelsPage() {
     };
   }, []);
 
+  const guestBubbleShowcaseEmphasis: BubbleMapFilter =
+    guestBubblePreview && bubbleMapFilter !== "all" ? bubbleMapFilter : "all";
+
   const levelsMainPane =
     viewMode === "bubbles" ? (
       <LevelsBubblesView
         items={bubbleItems}
         onBubbleOpen={openBubbleChart}
         hasMarketData={Boolean(payload)}
-        toneFilter={bubbleMapFilter}
+        toneFilter={guestBubblePreview ? "all" : bubbleMapFilter}
+        showcaseEmphasis={guestBubblePreview ? guestBubbleShowcaseEmphasis : "all"}
+        showcaseSolo={guestBubblePreview && guestBubbleShowcaseEmphasis !== "all"}
+        physicsIntensity={guestBubblePreview ? 0.42 : 1}
         showMaxPainBubbles={showMaxPainBubbles}
         showChatFloater={!guestBubblePreview}
         guestPreview={guestBubblePreview}
         guestBubbleLabels={guestBubbleLabels}
+        onGuestBubbleClick={guestBubblePreview ? handleGuestBubbleClick : undefined}
         suppressBubbleStacking={chatDrawerOpen}
       />
     ) : (
@@ -1617,7 +1639,7 @@ export default function LevelsPage() {
               <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 pointer-events-none select-none max-md:flex-none max-md:overflow-visible md:overflow-hidden">
                 {levelsMainPane}
               </div>
-              <FnoNinjaMarketMapGuestGate />
+              <FnoNinjaMarketMapGuestGate nudgeKey={guestSignInNudgeKey} />
             </div>
           ) : (
             <FnoNinjaChartLoginGate

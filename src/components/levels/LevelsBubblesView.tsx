@@ -89,6 +89,19 @@ const BUBBLE_ANIM_CSS = `
 .levels-bubble-showcase-breathe-mobile {
   animation: levels-bubble-showcase-breathe-mobile 2.4s ease-in-out infinite;
 }
+@keyframes levels-bubble-guest-emphasis-breathe {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.045); filter: brightness(1.1); }
+}
+.levels-bubble-guest-emphasis-breathe {
+  animation: levels-bubble-guest-emphasis-breathe 3.8s ease-in-out infinite;
+}
+.levels-bubble-pop-in-guest {
+  animation: levels-bubble-pop-in 0.9s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+}
+.levels-bubble-pop-out-guest {
+  animation: levels-bubble-pop-out 0.75s ease-out forwards;
+}
 `;
 
 export function LevelsBubblesView({
@@ -113,6 +126,8 @@ export function LevelsBubblesView({
   /** Signed-out preview — per-bubble label policy (full / masked symbol + price). */
   guestPreview = false,
   guestBubbleLabels,
+  /** Signed-out bubble tap — nudge sign-in card (does not open chart). */
+  onGuestBubbleClick,
   /** Keep market bubbles under the chat drawer (z capped while pane is open). */
   suppressBubbleStacking = false,
 }: {
@@ -143,6 +158,7 @@ export function LevelsBubblesView({
   showChatFloater?: boolean;
   guestPreview?: boolean;
   guestBubbleLabels?: ReadonlyMap<string, GuestBubbleLabel>;
+  onGuestBubbleClick?: (item: LevelsBubbleItem) => void;
   suppressBubbleStacking?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -172,6 +188,10 @@ export function LevelsBubblesView({
   showChatFloaterRef.current = showChatFloater;
   const suppressBubbleStackingRef = useRef(suppressBubbleStacking);
   suppressBubbleStackingRef.current = suppressBubbleStacking;
+  const guestPreviewRef = useRef(guestPreview);
+  guestPreviewRef.current = guestPreview;
+  const onGuestBubbleClickRef = useRef(onGuestBubbleClick);
+  onGuestBubbleClickRef.current = onGuestBubbleClick;
 
   const syncSize = useCallback(() => {
     const el = containerRef.current;
@@ -270,7 +290,8 @@ export function LevelsBubblesView({
       return;
     }
     setLayoutReady(false);
-    const t = window.setTimeout(() => setLayoutReady(true), 400);
+    const delayMs = guestPreviewRef.current ? 550 : 400;
+    const t = window.setTimeout(() => setLayoutReady(true), delayMs);
     return () => window.clearTimeout(t);
   }, [size.w, size.h]);
 
@@ -288,13 +309,14 @@ export function LevelsBubblesView({
     }
     if (Object.keys(nextPop).length > 0) {
       setPopClass((p) => ({ ...p, ...nextPop }));
+      const popDurationMs = guestPreviewRef.current ? 950 : 600;
       const t = window.setTimeout(() => {
         setPopClass((p) => {
           const copy = { ...p };
           for (const id of Object.keys(nextPop)) delete copy[id];
           return copy;
         });
-      }, 600);
+      }, popDurationMs);
       return () => window.clearTimeout(t);
     }
   }, [filtered, filteredIds]);
@@ -398,7 +420,7 @@ export function LevelsBubblesView({
           if (n.item.scope === "index") return baseR * (solo ? 0.95 : 0.9);
           return baseR * (solo ? (mobileEmbed ? 0.72 : 0.88) : 0.76);
         })();
-        n.r += (targetR - n.r) * (emphasisActive ? 0.14 : 0.22);
+        n.r += (targetR - n.r) * (emphasisActive ? (guestPreviewRef.current ? 0.08 : 0.14) : guestPreviewRef.current ? 0.16 : 0.22);
         if (mobileEmbed && matched && emphasisActive) {
           const cx = size.w * 0.5;
           const cy = size.h * 0.42;
@@ -429,8 +451,12 @@ export function LevelsBubblesView({
           el.style.opacity = "1";
         }
         el.style.transition = emphasisActive
-          ? "opacity 0.55s ease"
-          : "opacity 0.35s ease";
+          ? guestPreviewRef.current
+            ? "opacity 0.95s ease, width 0.75s ease, height 0.75s ease"
+            : "opacity 0.55s ease"
+          : guestPreviewRef.current
+            ? "opacity 0.7s ease, width 0.55s ease, height 0.55s ease"
+            : "opacity 0.35s ease";
       }
       applyChatPosition();
     };
@@ -503,9 +529,13 @@ export function LevelsBubblesView({
             const pop = popClass[item.id];
             const popAnim =
               pop === "in"
-                ? "levels-bubble-pop-in"
+                ? guestPreview
+                  ? "levels-bubble-pop-in-guest"
+                  : "levels-bubble-pop-in"
                 : pop === "out"
-                  ? "levels-bubble-pop-out"
+                  ? guestPreview
+                    ? "levels-bubble-pop-out-guest"
+                    : "levels-bubble-pop-out"
                   : "";
             const borderW = style.borderWidth;
             const emphMatched =
@@ -516,7 +546,9 @@ export function LevelsBubblesView({
                 ? embedMobileLayout
                   ? "levels-bubble-showcase-breathe-mobile"
                   : "levels-bubble-showcase-breathe"
-                : "";
+                : guestPreview && emphMatched && showcaseEmphasis !== "all"
+                  ? "levels-bubble-guest-emphasis-breathe"
+                  : "";
             const guestLabel = guestPreview ? guestBubbleLabels?.get(item.id) : undefined;
             const showLabel = guestPreview ? Boolean(guestLabel) : true;
             const displaySymbol = guestPreview ? guestLabel?.symbol : item.symbol;
@@ -530,7 +562,10 @@ export function LevelsBubblesView({
                 <button
                   type="button"
                   onClick={() => {
-                    if (guestPreview) return;
+                    if (guestPreview) {
+                      onGuestBubbleClickRef.current?.(item);
+                      return;
+                    }
                     trackCtaClick("bubble_open_chart", {
                       label: item.label,
                       symbol: item.symbol,
@@ -538,22 +573,23 @@ export function LevelsBubblesView({
                     });
                     onBubbleOpen(item);
                   }}
-                  disabled={guestPreview}
-                  className={`w-full h-full flex flex-col items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${popAnim} ${breatheAnim} ${
-                    guestPreview ? "cursor-default" : "hover:scale-[1.03] cursor-pointer"
+                  className={`w-full h-full flex flex-col items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 pointer-events-auto ${popAnim} ${breatheAnim} ${
+                    guestPreview
+                      ? "cursor-pointer hover:scale-[1.04] active:scale-[0.97]"
+                      : "hover:scale-[1.03] cursor-pointer"
                   }`}
                   style={{
                     background: style.fill,
                     border: `${borderW}px ${style.borderStyle} ${style.border}`,
                     boxShadow: style.glow,
                     transition:
-                      "box-shadow 0.35s ease, background 0.35s ease, border-color 0.35s ease, border-width 0.35s ease",
+                      "box-shadow 0.45s ease, background 0.45s ease, border-color 0.45s ease, border-width 0.45s ease, transform 0.35s ease",
                   }}
                   aria-label={
                     guestPreview
                       ? showLabel
-                        ? `${displaySymbol}${item.spot != null ? `, ${item.spot}` : ""}`
-                        : "Sign in to view symbol"
+                        ? `${displaySymbol}${item.spot != null ? `, ${item.spot}` : ""} — sign in to open chart`
+                        : "Sign in to view symbol and open chart"
                       : `${item.label}, ${displayTone === item.tone ? style.label : `At Max Pain (hidden) · ${style.label}`}`
                   }
                   title={

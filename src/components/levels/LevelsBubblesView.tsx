@@ -518,7 +518,8 @@ export function LevelsBubblesView({
                   : "levels-bubble-showcase-breathe"
                 : "";
             const guestLabel = guestPreview ? guestBubbleLabels?.get(item.id) : undefined;
-            const showGuestLabel = Boolean(guestLabel);
+            const showLabel = guestPreview ? Boolean(guestLabel) : true;
+            const displaySymbol = guestPreview ? guestLabel?.symbol : item.symbol;
             return (
               <div
                 key={item.id}
@@ -550,26 +551,26 @@ export function LevelsBubblesView({
                   }}
                   aria-label={
                     guestPreview
-                      ? showGuestLabel
-                        ? `${guestLabel!.symbol}${item.spot != null ? `, ${item.spot}` : ""}`
+                      ? showLabel
+                        ? `${displaySymbol}${item.spot != null ? `, ${item.spot}` : ""}`
                         : "Sign in to view symbol"
                       : `${item.label}, ${displayTone === item.tone ? style.label : `At Max Pain (hidden) · ${style.label}`}`
                   }
                   title={
                     guestPreview
-                      ? showGuestLabel
-                        ? `${guestLabel!.symbol}${item.spot != null ? ` · ${item.spot}` : ""} — sign in for full map`
+                      ? showLabel
+                        ? `${displaySymbol}${item.spot != null ? ` · ${item.spot}` : ""} — sign in for full map`
                         : "Sign in to see full market map"
                       : `${item.label} · ${item.tone === "AT_POC" ? "At Max Pain" : style.label} — click for chart`
                   }
                 >
-                  {showGuestLabel ? (
+                  {showLabel && displaySymbol ? (
                     <>
                       <span
                         className="font-black leading-none text-center px-1 truncate max-w-[92%] pointer-events-none"
                         style={{ fontSize: fontMain, color: style.textColor }}
                       >
-                        {guestLabel!.symbol}
+                        {displaySymbol}
                       </span>
                       {item.spot != null && (
                         <span

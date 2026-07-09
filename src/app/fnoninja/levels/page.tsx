@@ -80,8 +80,9 @@ import {
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
-import { withoutConfirmedSignalTone } from "@/lib/zones/bubble-tone";
+import { applyConfirmedSignal, withoutConfirmedSignalTone } from "@/lib/zones/bubble-tone";
 import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
+import type { ConfirmedSignal } from "@/lib/levels/confirmed-signal-core";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
@@ -190,6 +191,13 @@ export default function LevelsPage() {
   const [slideshowChartViewMode, setSlideshowChartViewMode] = useState<ChartPanelViewMode>("pvt");
   /** Last candle close per symbol — strip tiles match native chart price. */
   const [liveStripSpot, setLiveStripSpot] = useState<Record<string, number>>({});
+  /**
+   * Live PVT signal per symbol reported by the trend chart. Lets the chip badge
+   * mirror exactly what the chart shows (fixes bull/bear chip vs neutral chart).
+   */
+  const [liveSignalOverride, setLiveSignalOverride] = useState<
+    Record<string, ConfirmedSignal | null>
+  >({});
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
   const activeStripKeyRef = useRef("");
   const chartLevelsSymbolRef = useRef<string | null>(null);
@@ -474,6 +482,14 @@ export default function LevelsPage() {
     setLiveStripSpot((prev) => (prev[key] === close ? prev : { ...prev, [key]: close }));
   }, []);
 
+  const handleLiveSignal = useCallback(
+    (scope: "index" | "stock", symbol: string, signal: ConfirmedSignal | null) => {
+      const key = `${scope}-${symbol}`;
+      setLiveSignalOverride((prev) => (prev[key] === signal ? prev : { ...prev, [key]: signal }));
+    },
+    [],
+  );
+
   const slideshowEnabled = isSlideView && inZoneCount > 1;
   /** Favslide: keep transport + pill row even when empty; liveslide needs 2+ symbols to advance. */
   const showSlideshowStripTransport =
@@ -647,6 +663,33 @@ export default function LevelsPage() {
     [inZoneCount],
   );
 
+  /** Arrow keys step through the slideshow chip list (up/down rail, left/right strip). */
+  useEffect(() => {
+    if (!isSlideView || inZoneCount <= 1) return;
+    function onKeyDown(e: KeyboardEvent) {
+      const t = e.target;
+      if (
+        t instanceof HTMLInputElement ||
+        t instanceof HTMLTextAreaElement ||
+        t instanceof HTMLSelectElement ||
+        (t instanceof HTMLElement && t.isContentEditable)
+      ) {
+        return;
+      }
+      const dir =
+        e.key === "ArrowDown" || e.key === "ArrowRight"
+          ? 1
+          : e.key === "ArrowUp" || e.key === "ArrowLeft"
+            ? -1
+            : 0;
+      if (dir === 0) return;
+      e.preventDefault();
+      goInZone(dir);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isSlideView, inZoneCount, goInZone]);
+
   useEffect(() => {
     setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
   }, [inZoneCurrent, slideshowFilter, viewMode]);
@@ -815,13 +858,26 @@ export default function LevelsPage() {
     () =>
       slideListFiltered.map((it) => {
         const id = `${it.scope}-${it.symbol}`;
+        const override = liveSignalOverride[id];
+        // Once the trend chart has reported a definitive live signal for this
+        // symbol, honour it over the (laggier) cron signal so the chip never
+        // contradicts the chart. Fall back to the bubble/cron tone otherwise.
         const tone =
-          bubbleToneByKey.get(id) ??
-          resolveSymbolDisplayTone(it.data, {
-            scanned: Boolean(it.data),
-            spotOverride: it.spot,
-            signal: payload?.signals?.[it.symbol] ?? null,
-          });
+          override !== undefined
+            ? applyConfirmedSignal(
+                resolveSymbolDisplayTone(it.data, {
+                  scanned: Boolean(it.data),
+                  spotOverride: it.spot,
+                  signal: null,
+                }),
+                override,
+              )
+            : bubbleToneByKey.get(id) ??
+              resolveSymbolDisplayTone(it.data, {
+                scanned: Boolean(it.data),
+                spotOverride: it.spot,
+                signal: payload?.signals?.[it.symbol] ?? null,
+              });
         return {
           id,
           label: it.label,
@@ -831,16 +887,32 @@ export default function LevelsPage() {
           trailing: <LevelsSymbolStatusBadge tone={tone} />,
         };
       }),
-    [slideListFiltered, liveStripSpot, bubbleToneByKey, payload?.signals],
+    [slideListFiltered, liveStripSpot, bubbleToneByKey, payload?.signals, liveSignalOverride],
   );
 
   const activeDisplayTone = inZoneActive
-    ? bubbleToneByKey.get(`${inZoneActive.scope}-${inZoneActive.symbol}`) ??
-      resolveSymbolDisplayTone(inZoneActive.data, {
-        scanned: Boolean(inZoneActive.data),
-        spotOverride: inZoneActive.spot,
-        signal: payload?.signals?.[inZoneActive.symbol] ?? null,
-      })
+    ? (() => {
+        const id = `${inZoneActive.scope}-${inZoneActive.symbol}`;
+        const override = liveSignalOverride[id];
+        if (override !== undefined) {
+          return applyConfirmedSignal(
+            resolveSymbolDisplayTone(inZoneActive.data, {
+              scanned: Boolean(inZoneActive.data),
+              spotOverride: inZoneActive.spot,
+              signal: null,
+            }),
+            override,
+          );
+        }
+        return (
+          bubbleToneByKey.get(id) ??
+          resolveSymbolDisplayTone(inZoneActive.data, {
+            scanned: Boolean(inZoneActive.data),
+            spotOverride: inZoneActive.spot,
+            signal: payload?.signals?.[inZoneActive.symbol] ?? null,
+          })
+        );
+      })()
     : null;
 
   const slideshowStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
@@ -881,6 +953,7 @@ export default function LevelsPage() {
           levels={chartLevelsForView}
           webChartUrl={activeTv.dailyWebChartUrl}
           statusOverlay={slideshowStatusOverlay}
+          onLiveSignal={handleLiveSignal}
         />
       ) : showSlideshowOutlook ? (
         <NiftyOutlookChart

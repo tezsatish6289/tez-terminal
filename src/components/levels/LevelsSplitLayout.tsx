@@ -220,8 +220,10 @@ export function LevelsSymbolList({
 
   useEffect(() => {
     if (!isRunnerStrip && !isVerticalRunner) return;
-    if (timerHighlightsActive) return;
 
+    // Keep the focused chip on screen as the slideshow advances (auto or manual).
+    // The active chip grows a countdown footer, so center it in the vertical rail
+    // to avoid a long list scrolling it just out of view at the top/bottom edge.
     const container = scrollRef.current;
     const tile = container?.querySelector(
       `[data-strip-index="${activeIndex}"]`,
@@ -229,7 +231,7 @@ export function LevelsSymbolList({
     tile?.scrollIntoView({
       behavior: "smooth",
       inline: isVerticalRunner ? "nearest" : "center",
-      block: isVerticalRunner ? "nearest" : "nearest",
+      block: isVerticalRunner ? (timerHighlightsActive ? "center" : "nearest") : "nearest",
     });
 
     if (prevActiveRef.current !== activeIndex) {

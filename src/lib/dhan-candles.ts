@@ -16,10 +16,10 @@ import { dhanIndexSecurityId } from "@/lib/nse/dhan-index-ids";
 import {
   enrichDailyWithTodayMarketBar,
   istDateKeyFromEpochSec,
-  istTodayKey,
   type DhanMarketOhlcSnapshot,
 } from "@/lib/levels/daily-candle-live";
 import {
+  expectedLastClosedSessionKey,
   mergeDailyBars,
   planDailyFetch,
   sanitizeClosedBar,
@@ -529,10 +529,15 @@ async function getDailyCandlesStored(
     const dhan = await getDailyCandlesCached(cacheKey, resolveSecurityId, segment, plan.fetchDays);
     if (dhan.ok && dhan.candles.length) {
       const merged = mergeDailyBars(store.bars, dhan.candles, DAILY_STORE_CAP_BARS);
-      const todayKey = istTodayKey(nowMs);
-      // Never persist the forming (today) bar — it comes live from marketfeed.
+      // Persist every bar whose session is final. `expectedLastClosedSessionKey`
+      // returns *today* once past 16:00 IST on a weekday, so today's bar is
+      // locked in the same evening — otherwise it's the prior weekday, so an
+      // in-session forming bar is still excluded (it comes live from marketfeed).
+      // This closes the gap where a just-closed day stayed unstored until a
+      // next-day fetch (which briefly dropped it from the chart).
+      const persistThroughKey = expectedLastClosedSessionKey(nowMs);
       const closed = merged
-        .filter((b) => istDateKeyFromEpochSec(b.time) < todayKey)
+        .filter((b) => istDateKeyFromEpochSec(b.time) <= persistThroughKey)
         .map(sanitizeClosedBar);
       const updatedThrough = closed.length
         ? istDateKeyFromEpochSec(closed[closed.length - 1]!.time)

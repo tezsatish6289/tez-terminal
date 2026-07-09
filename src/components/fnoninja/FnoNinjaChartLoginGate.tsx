@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { trackCtaClick } from "@/firebase/analytics";
@@ -105,42 +106,51 @@ function FnoNinjaLoginShimmerOverlay({
   );
 }
 
-/** Market map preview for signed-out users — compact sign-in card over the bubble canvas. */
+/** Market map preview for signed-out users — fixed bottom-right card (portaled, never clipped). */
 export function FnoNinjaMarketMapGuestGate() {
-  return (
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <div
-      className="absolute inset-0 z-30 pointer-events-none"
+      className="fixed z-[220] pointer-events-none left-0 right-0 bottom-0 top-14 sm:top-16"
       role="dialog"
       aria-modal="true"
       aria-label={FNO_MARKET_MAP_GUEST_HEADLINE}
     >
       <div
-        className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 w-[min(calc(100vw-1.5rem),16.5rem)] rounded-xl border px-3.5 py-3 shadow-2xl pointer-events-auto"
+        className="absolute bottom-4 right-4 sm:bottom-5 sm:right-5 w-[min(17rem,calc(100vw-2rem))] rounded-xl border px-4 py-3.5 shadow-2xl pointer-events-auto"
         style={{
-          backgroundColor: "rgba(15,23,42,0.97)",
-          borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
+          backgroundColor: "#0f172a",
+          borderColor: "rgba(255,255,255,0.14)",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.55)",
         }}
       >
         <p className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: FNO_MUTED }}>
           Live preview
         </p>
-        <h2 className="mt-1 text-[13px] font-black text-white leading-snug tracking-tight">
+        <h2 className="mt-1 text-sm font-black text-white leading-snug tracking-tight">
           {FNO_MARKET_MAP_GUEST_HEADLINE}
         </h2>
-        <p className="mt-1.5 text-[10px] leading-relaxed" style={{ color: FNO_MUTED }}>
+        <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: "#94a3b8" }}>
           {FNO_MARKET_MAP_GUEST_DESCRIPTION}
         </p>
-        <div className="mt-2.5">
+        <div className="mt-3">
           <Suspense fallback={<Loader2 className="h-4 w-4 animate-spin mx-auto" style={{ color: FNO_MUTED }} />}>
             <FnoNinjaLoginCta compact ctaId="market_map_guest_sign_in" />
           </Suspense>
         </div>
-        <p className="mt-2 text-[8px] leading-relaxed text-center" style={{ color: "#475569" }}>
+        <p className="mt-2.5 text-[9px] leading-relaxed" style={{ color: "#64748b" }}>
           {FNO_LOGIN_DISCLAIMER}
         </p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

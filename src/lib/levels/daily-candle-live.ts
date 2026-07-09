@@ -31,12 +31,21 @@ export interface DhanMarketOhlcSnapshot {
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 /** 09:15 IST — NSE session open (minutes since IST midnight). */
-const SESSION_OPEN_MIN = 9 * 60 + 15;
+export const SESSION_OPEN_MIN = 9 * 60 + 15;
 
 /** Minutes since IST midnight for an instant. */
-function istMinuteOfDay(nowMs: number): number {
+export function istMinuteOfDay(nowMs: number): number {
   const d = new Date(nowMs + IST_OFFSET_MS);
   return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+
+/**
+ * True when a *live* today bar is expected but only available from the marketfeed
+ * snapshot (i.e. not yet persisted as a closed bar). Used to detect a transient
+ * snapshot miss so a stale (today-less) daily payload isn't cached.
+ */
+export function expectsLiveTodayBar(nowMs: number = Date.now()): boolean {
+  return isIstWeekday(nowMs) && istMinuteOfDay(nowMs) >= SESSION_OPEN_MIN;
 }
 
 export function istDateKeyFromEpochSec(epochSec: number): string {

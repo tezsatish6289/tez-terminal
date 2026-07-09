@@ -42,7 +42,8 @@ import {
   isSlideshowZoneStale,
   SLIDESHOW_ZONE_TICK_MS,
 } from "@/lib/levels/slideshow-zones";
-import { epochUtcToChartIstSeconds } from "@/lib/market-hours";
+import { epochUtcToChartIstSeconds, isIndianMarketOpen } from "@/lib/market-hours";
+import { istDateKeyFromEpochSec, istTodayKey } from "@/lib/levels/daily-candle-live";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 
 interface DailyCandle {
@@ -289,14 +290,26 @@ export function PvtChart({
   const levelsRef = useRef(effectiveLevels);
   levelsRef.current = effectiveLevels;
 
+  // Identifies the symbol currently mounted. In-flight fetches captured for a
+  // previous symbol compare against this before applying state, so a late
+  // response can't clobber the chart after the slideshow has advanced.
+  const activeKeyRef = useRef("");
+  activeKeyRef.current = `${scope}:${symbol}`;
+  const liveBarRetryRef = useRef<number | null>(null);
+
   useEffect(() => {
     setRange("6M");
     setFetchedLevels(null);
     setSignalContext(null);
+    if (liveBarRetryRef.current != null) {
+      window.clearTimeout(liveBarRetryRef.current);
+      liveBarRetryRef.current = null;
+    }
   }, [scope, symbol]);
 
   const loadOptionLevels = useCallback(
     async (opts?: { quiet?: boolean }) => {
+      const reqKey = `${scope}:${symbol}`;
       if (!opts?.quiet) setLevelsLoading(true);
       try {
         const json = await fetchSymbolLevels(scope, symbol, {
@@ -306,15 +319,18 @@ export function PvtChart({
           onPartial: opts?.quiet
             ? undefined
             : (data) => {
-                if (levelsHaveBands(data)) setFetchedLevels(data);
+                if (activeKeyRef.current === reqKey && levelsHaveBands(data)) {
+                  setFetchedLevels(data);
+                }
               },
         });
+        if (activeKeyRef.current !== reqKey) return;
         setFetchedLevels(json.data);
         setSignalContext(json.signalContext ?? null);
       } catch {
-        if (!opts?.quiet) setFetchedLevels(null);
+        if (!opts?.quiet && activeKeyRef.current === reqKey) setFetchedLevels(null);
       } finally {
-        if (!opts?.quiet) setLevelsLoading(false);
+        if (!opts?.quiet && activeKeyRef.current === reqKey) setLevelsLoading(false);
       }
     },
     [scope, symbol],
@@ -336,6 +352,7 @@ export function PvtChart({
 
   const loadDailyCandles = useCallback(
     async (opts?: { quiet?: boolean }) => {
+      const reqKey = `${scope}:${symbol}`;
       if (!opts?.quiet) {
         setLoading(true);
         setError(null);
@@ -346,6 +363,8 @@ export function PvtChart({
           `/api/freedombot/levels/candles?scope=${scope}&symbol=${encodeURIComponent(symbol)}&interval=D&days=${PVT_LOOKBACK_DAYS}`,
         );
         const json = (await res.json()) as { ok?: boolean; candles?: DailyCandle[]; error?: string };
+        // Drop the response if we've since advanced to another symbol.
+        if (activeKeyRef.current !== reqKey) return;
         if (!json.ok || !json.candles?.length) {
           if (!opts?.quiet) {
             setCandles([]);
@@ -355,10 +374,28 @@ export function PvtChart({
         }
         setCandles(json.candles);
         if (!opts?.quiet) setError(null);
+
+        // The server drops today's live bar on a transient snapshot miss and no
+        // longer caches that payload — so a quick quiet retry recovers the
+        // current-day candle instead of waiting for the 60s refresh (fixes the
+        // missing today candle right after a slide transition).
+        const last = json.candles[json.candles.length - 1];
+        const missingToday =
+          last != null &&
+          isIndianMarketOpen() &&
+          istDateKeyFromEpochSec(last.time) !== istTodayKey();
+        if (missingToday && liveBarRetryRef.current == null) {
+          liveBarRetryRef.current = window.setTimeout(() => {
+            liveBarRetryRef.current = null;
+            if (activeKeyRef.current === reqKey) void loadDailyCandles({ quiet: true });
+          }, 4000);
+        }
       } catch {
-        if (!opts?.quiet) setError("Could not load PVT chart.");
+        if (!opts?.quiet && activeKeyRef.current === reqKey) {
+          setError("Could not load PVT chart.");
+        }
       } finally {
-        if (!opts?.quiet) setLoading(false);
+        if (!opts?.quiet && activeKeyRef.current === reqKey) setLoading(false);
       }
     },
     [scope, symbol],
@@ -369,6 +406,13 @@ export function PvtChart({
     const id = setInterval(() => void loadDailyCandles({ quiet: true }), 60_000);
     return () => clearInterval(id);
   }, [loadDailyCandles]);
+
+  useEffect(
+    () => () => {
+      if (liveBarRetryRef.current != null) window.clearTimeout(liveBarRetryRef.current);
+    },
+    [],
+  );
 
   const displayCandles = useMemo(
     () => filterCandlesByRange(candles ?? [], range),

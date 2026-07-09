@@ -15,7 +15,9 @@ import { ensureValidToken } from "@/lib/dhan-token";
 import { dhanIndexSecurityId } from "@/lib/nse/dhan-index-ids";
 import {
   enrichDailyWithTodayMarketBar,
+  expectsLiveTodayBar,
   istDateKeyFromEpochSec,
+  istTodayKey,
   type DhanMarketOhlcSnapshot,
 } from "@/lib/levels/daily-candle-live";
 import {
@@ -67,6 +69,12 @@ export interface CandleResult {
   error?: string;
   code?: CandleErrorCode;
   stale?: boolean;
+  /**
+   * Daily only: today's live bar was expected (in-session) but the marketfeed
+   * snapshot came back empty, so it's absent. The result is still renderable but
+   * must NOT be cached — a retry moments later usually recovers the live bar.
+   */
+  missingLiveBar?: boolean;
 }
 
 function classifyCandleError(e: unknown): CandleErrorCode {
@@ -500,8 +508,9 @@ function cachedCandleResult(
   key: string,
   ttlMs: number,
   produce: () => Promise<CandleResult>,
+  shouldCache: (r: CandleResult) => boolean = (r) => r.ok,
 ): Promise<CandleResult> {
-  return candleResultCache.get(key, ttlMs, produce, (r) => r.ok);
+  return candleResultCache.get(key, ttlMs, produce, shouldCache);
 }
 
 /**
@@ -559,7 +568,19 @@ async function getDailyCandlesStored(
   const securityId = await resolveSecurityId();
   const snap = securityId != null ? await fetchDhanMarketSnapshot(securityId, feedSegment, useQuote) : null;
   const candles = enrichDailyWithTodayMarketBar(sliced, snap, nowMs);
-  return dhanErr ? { ok: true, candles, stale: true } : { ok: true, candles };
+
+  // During the live session today's bar comes only from the marketfeed snapshot
+  // (it isn't persisted until the close). If a transient snapshot miss dropped
+  // it, flag the result so it isn't cached for the TTL — otherwise every viewer
+  // sees a today-less chart until the cache expires (the "current-day candle
+  // missing on slide transition" bug).
+  const lastKey = candles.length
+    ? istDateKeyFromEpochSec(candles[candles.length - 1]!.time)
+    : null;
+  const missingLiveBar = expectsLiveTodayBar(nowMs) && lastKey !== istTodayKey(nowMs);
+
+  if (dhanErr) return { ok: true, candles, stale: true, missingLiveBar };
+  return { ok: true, candles, missingLiveBar };
 }
 
 // ── Public API ──────────────────────────────────────────────────────
@@ -702,29 +723,37 @@ export async function getIndexCandles(symbol: string, interval = "5"): Promise<C
 /** Daily OHLC for an F&O stock — feeds the levels Trend/History charts. */
 export async function getStockDailyCandles(symbol: string, days = DAILY_LOOKBACK_DAYS): Promise<CandleResult> {
   const upper = symbol.toUpperCase();
-  return cachedCandleResult(`daily:EQ:${upper}:${days}`, DAILY_RESULT_TTL_MS, () =>
-    getDailyCandlesStored(
-      `EQ:${upper}`,
-      () => resolveDhanEquitySecurityId(upper),
-      { exchangeSegment: "NSE_EQ", instrument: "EQUITY" },
-      days,
-      "NSE_EQ",
-      true, // quote → includes volume (needed for stock PVT)
-    ),
+  return cachedCandleResult(
+    `daily:EQ:${upper}:${days}`,
+    DAILY_RESULT_TTL_MS,
+    () =>
+      getDailyCandlesStored(
+        `EQ:${upper}`,
+        () => resolveDhanEquitySecurityId(upper),
+        { exchangeSegment: "NSE_EQ", instrument: "EQUITY" },
+        days,
+        "NSE_EQ",
+        true, // quote → includes volume (needed for stock PVT)
+      ),
+    (r) => r.ok && !r.missingLiveBar,
   );
 }
 
 /** Daily OHLC for an NSE index — feeds the levels Trend/History charts. */
 export async function getIndexDailyCandles(symbol: string, days = DAILY_LOOKBACK_DAYS): Promise<CandleResult> {
   const upper = symbol.toUpperCase();
-  return cachedCandleResult(`daily:IDX:${upper}:${days}`, DAILY_RESULT_TTL_MS, () =>
-    getDailyCandlesStored(
-      `IDX:${upper}`,
-      async () => dhanIndexSecurityId(upper),
-      { exchangeSegment: "IDX_I", instrument: "INDEX" },
-      days,
-      "IDX_I",
-      false, // ohlc is lighter for indices (no volume needed)
-    ),
+  return cachedCandleResult(
+    `daily:IDX:${upper}:${days}`,
+    DAILY_RESULT_TTL_MS,
+    () =>
+      getDailyCandlesStored(
+        `IDX:${upper}`,
+        async () => dhanIndexSecurityId(upper),
+        { exchangeSegment: "IDX_I", instrument: "INDEX" },
+        days,
+        "IDX_I",
+        false, // ohlc is lighter for indices (no volume needed)
+      ),
+    (r) => r.ok && !r.missingLiveBar,
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   GraduationCap,
@@ -47,7 +47,7 @@ import {
   FNO_MUTED,
 } from "@/lib/fnoninja/theme";
 import { trackCtaClick } from "@/firebase/analytics";
-import { useUser } from "@/firebase";
+import { useAuth, useUser } from "@/firebase";
 import { isFnoNinjaAppContext, isFnoNinjaChartPath } from "@/lib/fnoninja/auth";
 
 const TOOLBAR_WIDTH_CLASS = LEVELS_CHART_TOOLBAR_WIDTH_CLASS;
@@ -234,7 +234,8 @@ export function LevelsChartSideToolbar({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user } = useUser();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
   const { setOpen: setChatOpen, totalUnreadCount } = useChatPanel();
   const [newsOpen, setNewsOpen] = useState(false);
   const [atlasOpen, setAtlasOpen] = useState(false);
@@ -242,6 +243,8 @@ export function LevelsChartSideToolbar({
   const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
   const [atlasScore, setAtlasScore] = useState<AtlasScore | null>(null);
+  const pendingToolbarActionRef = useRef<(() => void) | null>(null);
+  const wasSignedInRef = useRef(false);
 
   const gateToolbarActions =
     isFnoNinjaAppContext(
@@ -249,16 +252,50 @@ export function LevelsChartSideToolbar({
       typeof window !== "undefined" ? window.location.hostname : undefined,
     ) && isFnoNinjaChartPath(pathname);
 
+  /** Firebase user in React state, or sync currentUser right after popup OAuth. */
+  const isSignedIn = Boolean(user ?? auth.currentUser);
+
+  const dismissSignInPrompt = useCallback(() => {
+    pendingToolbarActionRef.current = null;
+    setSignInAction(null);
+  }, []);
+
+  const hideSignInPrompt = useCallback(() => {
+    setSignInAction(null);
+  }, []);
+
   const runIfSignedIn = useCallback(
     (action: FnoToolbarSignInAction, fn: () => void) => {
-      if (!gateToolbarActions || user) {
+      if (!gateToolbarActions) {
         fn();
         return;
       }
+      if (isUserLoading) return;
+      if (isSignedIn) {
+        fn();
+        return;
+      }
+      pendingToolbarActionRef.current = fn;
       setSignInAction(action);
     },
-    [gateToolbarActions, user],
+    [gateToolbarActions, isSignedIn, isUserLoading],
   );
+
+  // Close the sign-in overlay once auth resolves; run the action the user originally clicked.
+  useEffect(() => {
+    if (isUserLoading) return;
+
+    if (isSignedIn) {
+      setSignInAction(null);
+      if (!wasSignedInRef.current && pendingToolbarActionRef.current) {
+        const pending = pendingToolbarActionRef.current;
+        pendingToolbarActionRef.current = null;
+        pending();
+      }
+    }
+
+    wasSignedInRef.current = isSignedIn;
+  }, [isSignedIn, isUserLoading]);
 
   const loadNewsSentiment = useCallback(async () => {
     if (!symbol || (scope !== "stock" && scope !== "index")) return;
@@ -447,7 +484,12 @@ export function LevelsChartSideToolbar({
               removeOnly={favslideRemoveOnly}
               api={favslideApi}
               onSignInRequired={
-                gateToolbarActions && !user ? () => setSignInAction("favorite") : undefined
+                gateToolbarActions && !isUserLoading && !isSignedIn
+                  ? () => {
+                      pendingToolbarActionRef.current = null;
+                      setSignInAction("favorite");
+                    }
+                  : undefined
               }
             />
           </div>
@@ -539,9 +581,10 @@ export function LevelsChartSideToolbar({
       />
 
       <FnoNinjaToolbarSignInPrompt
-        open={signInAction != null}
+        open={signInAction != null && !isSignedIn}
         action={signInAction}
-        onClose={() => setSignInAction(null)}
+        onDismiss={dismissSignInPrompt}
+        onSignedIn={hideSignInPrompt}
       />
     </>
   );

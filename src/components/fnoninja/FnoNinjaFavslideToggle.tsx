@@ -59,7 +59,7 @@ export function FnoNinjaFavslideToggle({
   };
 
   const toolbar = variant === "toolbar";
-  const toolbarFavoritedStar = "#64748b";
+  const toolbarFavoritedStar = FNO_FAVSLIDE_CHIP.text;
 
   return (
     <button
@@ -75,7 +75,12 @@ export function FnoNinjaFavslideToggle({
       }
       style={
         toolbar
-          ? undefined
+          ? favorited
+            ? {
+                color: FNO_FAVSLIDE_CHIP.text,
+                backgroundColor: FNO_FAVSLIDE_CHIP.fillActive,
+              }
+            : undefined
           : {
               color: amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED,
               backgroundColor: amber ? FNO_FAVSLIDE_CHIP.fillActive : "rgba(255,255,255,0.04)",

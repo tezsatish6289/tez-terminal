@@ -105,11 +105,15 @@ function FnoNinjaLoginShimmerOverlay({
 export function FnoNinjaToolbarSignInPrompt({
   open,
   action,
-  onClose,
+  onDismiss,
+  onSignedIn,
 }: {
   open: boolean;
   action: FnoToolbarSignInAction | null;
-  onClose: () => void;
+  /** User cancelled — clear any pending gated action. */
+  onDismiss: () => void;
+  /** OAuth finished — hide prompt; caller may run the pending action when auth state updates. */
+  onSignedIn?: () => void;
 }) {
   if (!open || !action) return null;
 
@@ -121,7 +125,7 @@ export function FnoNinjaToolbarSignInPrompt({
         type="button"
         className="fixed inset-0 z-[190] cursor-default bg-transparent"
         aria-label="Dismiss sign-in prompt"
-        onClick={onClose}
+        onClick={onDismiss}
       />
       <div
         className="fixed z-[200] left-[4.75rem] top-1/2 w-[min(calc(100vw-5.5rem),18rem)] -translate-y-1/2 rounded-xl border px-4 py-3.5 shadow-2xl"
@@ -140,7 +144,7 @@ export function FnoNinjaToolbarSignInPrompt({
         </p>
         <div className="mt-3">
           <Suspense fallback={<Loader2 className="h-5 w-5 animate-spin mx-auto" style={{ color: FNO_MUTED }} />}>
-            <FnoNinjaLoginCta compact onSignedIn={onClose} />
+            <FnoNinjaLoginCta compact onSignedIn={onSignedIn ?? onDismiss} />
           </Suspense>
         </div>
         <p className="mt-2.5 text-[9px] leading-relaxed text-center" style={{ color: "#475569" }}>
@@ -161,7 +165,14 @@ export function FnoNinjaSignInOverlay({
   onClose: () => void;
   action?: FnoToolbarSignInAction;
 }) {
-  return <FnoNinjaToolbarSignInPrompt open={open} action={open ? action : null} onClose={onClose} />;
+  return (
+    <FnoNinjaToolbarSignInPrompt
+      open={open}
+      action={open ? action : null}
+      onDismiss={onClose}
+      onSignedIn={onClose}
+    />
+  );
 }
 
 export function FnoNinjaChartLoginGate({

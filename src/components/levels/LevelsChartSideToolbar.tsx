@@ -12,8 +12,9 @@ import {
 import { AskFynn } from "@/components/fnoninja/AskFynn";
 import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
-import { FnoNinjaSignInOverlay } from "@/components/fnoninja/FnoNinjaChartLoginGate";
+import { FnoNinjaToolbarSignInPrompt } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
+import type { FnoToolbarSignInAction } from "@/lib/fnoninja/login-copy";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
 import {
@@ -42,7 +43,6 @@ import {
   fnoLiveslideHref,
 } from "@/lib/fnoninja/paths";
 import {
-  FNO_ACCENT,
   FNO_BG_CANVAS,
   FNO_MUTED,
 } from "@/lib/fnoninja/theme";
@@ -81,6 +81,7 @@ function ToolbarHoverLabel({ label, children }: { label: string; children: React
 function ToolbarButton({
   label,
   active,
+  flat = false,
   onClick,
   children,
   title,
@@ -89,6 +90,8 @@ function ToolbarButton({
 }: {
   label: string;
   active?: boolean;
+  /** No highlight / accent — icon stays flat even when active. */
+  flat?: boolean;
   onClick?: () => void;
   children: ReactNode;
   title?: string;
@@ -96,7 +99,8 @@ function ToolbarButton({
   /** Unread badge count (hidden when active). */
   unreadCount?: number;
 }) {
-  const showBadge = (unreadCount ?? 0) > 0 && !active;
+  const showActive = !flat && active;
+  const showBadge = (unreadCount ?? 0) > 0 && !showActive;
   return (
     <ToolbarHoverLabel label={label}>
       <button
@@ -104,11 +108,12 @@ function ToolbarButton({
         onClick={onClick}
         title={title ?? label}
         aria-label={showBadge ? `${label}, ${unreadCount} unread` : label}
-        aria-pressed={active}
-        className={`relative ${LEVELS_CHART_TOOLBAR_BTN_CLASS} ${TOOLBAR_WIDTH_CLASS} data-[active=true]:bg-white/[0.08] shrink-0`}
-        data-active={active ? "true" : undefined}
+        aria-pressed={showActive ? true : undefined}
+        className={`relative ${LEVELS_CHART_TOOLBAR_BTN_CLASS} ${TOOLBAR_WIDTH_CLASS} shrink-0 ${
+          showActive ? "bg-white/[0.08]" : ""
+        }`}
         style={{
-          color: active ? FNO_ACCENT : "#94a3b8",
+          color: "#94a3b8",
         }}
         {...dataAttrs}
       >
@@ -230,10 +235,10 @@ export function LevelsChartSideToolbar({
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useUser();
-  const { open: chatOpen, setOpen: setChatOpen, totalUnreadCount } = useChatPanel();
+  const { setOpen: setChatOpen, totalUnreadCount } = useChatPanel();
   const [newsOpen, setNewsOpen] = useState(false);
   const [atlasOpen, setAtlasOpen] = useState(false);
-  const [signInOverlayOpen, setSignInOverlayOpen] = useState(false);
+  const [signInAction, setSignInAction] = useState<FnoToolbarSignInAction | null>(null);
   const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
   const [atlasScore, setAtlasScore] = useState<AtlasScore | null>(null);
@@ -245,12 +250,12 @@ export function LevelsChartSideToolbar({
     ) && isFnoNinjaChartPath(pathname);
 
   const runIfSignedIn = useCallback(
-    (action: () => void) => {
+    (action: FnoToolbarSignInAction, fn: () => void) => {
       if (!gateToolbarActions || user) {
-        action();
+        fn();
         return;
       }
-      setSignInOverlayOpen(true);
+      setSignInAction(action);
     },
     [gateToolbarActions, user],
   );
@@ -323,7 +328,7 @@ export function LevelsChartSideToolbar({
   }, [scope, symbol, onAtlasOpenChange, onNewsOpenChange]);
 
   const goToBubbles = useCallback(() => {
-    runIfSignedIn(() => {
+    runIfSignedIn("bubbles", () => {
       trackCtaClick("toolbar_view_bubbles", { label: "View bubble chart", symbol, scope });
       if (onNavigateBubbles) {
         onNavigateBubbles();
@@ -341,7 +346,7 @@ export function LevelsChartSideToolbar({
   }, [router, onNavigateBubbles, symbol, scope, runIfSignedIn]);
 
   const goToFavslide = useCallback(() => {
-    runIfSignedIn(() => {
+    runIfSignedIn("favslide", () => {
       trackCtaClick("toolbar_view_favslide", { label: "Favslide", symbol, scope });
       if (onNavigateFavslide) {
         onNavigateFavslide();
@@ -352,7 +357,7 @@ export function LevelsChartSideToolbar({
   }, [router, pathname, onNavigateFavslide, symbol, scope, runIfSignedIn]);
 
   const goToLiveslide = useCallback(() => {
-    runIfSignedIn(() => {
+    runIfSignedIn("liveslide", () => {
       trackCtaClick("toolbar_view_liveslide", { label: "Liveslide", symbol, scope });
       if (onNavigateLiveslide) {
         onNavigateLiveslide();
@@ -409,19 +414,19 @@ export function LevelsChartSideToolbar({
         </ToolbarButton>
 
         <ToolbarButton
-          label="Chat"
-          active={chatOpen}
-          unreadCount={chatOpen ? 0 : totalUnreadCount}
+          label="Chat with community"
+          flat
+          unreadCount={totalUnreadCount}
           onClick={() => {
-            runIfSignedIn(() => {
+            runIfSignedIn("chat", () => {
               trackCtaClick("toolbar_chat", { label: "Chat", symbol, scope });
               setChatOpen(true);
             });
           }}
           title={
-            totalUnreadCount > 0 && !chatOpen
-              ? `Community chat — ${totalUnreadCount} unread`
-              : "Community chat"
+            totalUnreadCount > 0
+              ? `Chat with community — ${totalUnreadCount} unread`
+              : "Chat with community"
           }
         >
           <MessageCircle className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
@@ -429,7 +434,7 @@ export function LevelsChartSideToolbar({
 
         <div className="my-0.5 h-px w-10 shrink-0 bg-white/[0.08]" aria-hidden />
 
-        <ToolbarHoverLabel label="Favorite">
+        <ToolbarHoverLabel label="Add to favourite">
           <div
             data-favslide-tour="remove"
             onClick={() => trackCtaClick("favslide_toggle", { label: "Favorite", symbol, scope })}
@@ -442,16 +447,17 @@ export function LevelsChartSideToolbar({
               removeOnly={favslideRemoveOnly}
               api={favslideApi}
               onSignInRequired={
-                gateToolbarActions && !user ? () => setSignInOverlayOpen(true) : undefined
+                gateToolbarActions && !user ? () => setSignInAction("favorite") : undefined
               }
             />
           </div>
         </ToolbarHoverLabel>
 
         <ToolbarButton
-          label="View bubble chart"
+          label="View Bubble Chart"
+          flat
           onClick={goToBubbles}
-          title="View Market Bubbles map"
+          title="View Bubble Chart"
           dataAttrs={{
             "data-liveslide-tour": "bubbles",
             "data-favslide-tour": "bubbles",
@@ -461,9 +467,10 @@ export function LevelsChartSideToolbar({
         </ToolbarButton>
 
         <ToolbarButton
-          label="Favslide"
+          label="Favourite Slideshow"
+          flat
           onClick={goToFavslide}
-          title="Cycle your favourited stocks"
+          title="Favourite Slideshow"
           dataAttrs={{
             "data-favslide-tour": "fav-switch",
             "data-liveslide-tour": "fav-switch",
@@ -473,9 +480,10 @@ export function LevelsChartSideToolbar({
         </ToolbarButton>
 
         <ToolbarButton
-          label="Liveslide"
+          label="Live Slideshow"
+          flat
           onClick={goToLiveslide}
-          title="Cycle aligned market setups"
+          title="Live Slideshow"
           dataAttrs={{
             "data-liveslide-tour": "live-switch",
             "data-favslide-tour": "live-switch",
@@ -530,7 +538,11 @@ export function LevelsChartSideToolbar({
         onOpenChange={handleAtlasOpenChange}
       />
 
-      <FnoNinjaSignInOverlay open={signInOverlayOpen} onClose={() => setSignInOverlayOpen(false)} />
+      <FnoNinjaToolbarSignInPrompt
+        open={signInAction != null}
+        action={signInAction}
+        onClose={() => setSignInAction(null)}
+      />
     </>
   );
 }

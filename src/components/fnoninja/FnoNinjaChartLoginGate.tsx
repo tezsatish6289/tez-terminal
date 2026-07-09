@@ -10,6 +10,8 @@ import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
 import {
   FNO_LOGIN_DISCLAIMER,
   FNO_LOGIN_GATE_DESCRIPTION,
+  FNO_TOOLBAR_SIGN_IN_COPY,
+  type FnoToolbarSignInAction,
 } from "@/lib/fnoninja/login-copy";
 import { fnoLoginHref } from "@/lib/fnoninja/paths";
 import { FNO_MOBILE_SLIDE_BODY_MIN_CLASS } from "@/lib/fnoninja/responsive";
@@ -26,7 +28,10 @@ const DEFAULT_DESCRIPTION = FNO_LOGIN_GATE_DESCRIPTION;
 const LOGIN_BTN_CLASS =
   "inline-flex items-center justify-center font-bold text-white transition-all hover:scale-[1.02] gap-2.5 rounded-xl px-8 py-3.5 text-sm";
 
-function FnoNinjaLoginCta({ className = "" }: { className?: string }) {
+const LOGIN_BTN_COMPACT_CLASS =
+  "inline-flex items-center justify-center font-bold text-white transition-all hover:scale-[1.02] gap-2 rounded-lg px-5 py-2.5 text-xs w-full";
+
+function FnoNinjaLoginCta({ className = "", compact = false }: { className?: string; compact?: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const returnTo =
@@ -37,7 +42,7 @@ function FnoNinjaLoginCta({ className = "" }: { className?: string }) {
     <Link
       href={loginHref}
       onClick={() => trackCtaClick("chart_gate_sign_in", { label: "Sign in with Google" })}
-      className={`${LOGIN_BTN_CLASS} ${className}`}
+      className={`${compact ? LOGIN_BTN_COMPACT_CLASS : LOGIN_BTN_CLASS} ${className}`}
       style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
     >
       Sign in with Google
@@ -98,21 +103,78 @@ function FnoNinjaLoginShimmerOverlay({
   );
 }
 
-/** On-demand sign-in overlay (e.g. toolbar CTAs on the public chart deep-dive page). */
-export function FnoNinjaSignInOverlay({
+/** Compact sign-in card beside the chart toolbar — chart stays fully visible. */
+export function FnoNinjaToolbarSignInPrompt({
   open,
+  action,
   onClose,
 }: {
   open: boolean;
+  action: FnoToolbarSignInAction | null;
   onClose: () => void;
 }) {
-  if (!open) return null;
+  if (!open || !action) return null;
+
+  const copy = FNO_TOOLBAR_SIGN_IN_COPY[action];
+
   return (
-    <FnoNinjaLoginShimmerOverlay
-      fixed
-      backAction={{ label: "Not now", onClick: onClose }}
-    />
+    <>
+      <button
+        type="button"
+        className="fixed inset-0 z-[190] cursor-default bg-transparent"
+        aria-label="Dismiss sign-in prompt"
+        onClick={onClose}
+      />
+      <div
+        className="fixed z-[200] left-[4.75rem] top-1/2 w-[min(calc(100vw-5.5rem),18rem)] -translate-y-1/2 rounded-xl border px-4 py-3.5 shadow-2xl"
+        style={{
+          backgroundColor: "rgba(15,23,42,0.98)",
+          borderColor: "rgba(255,255,255,0.12)",
+          boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={copy.title}
+      >
+        <p className="text-[13px] font-bold text-white leading-snug">{copy.title}</p>
+        <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: FNO_MUTED }}>
+          {copy.description}
+        </p>
+        <div className="mt-3 flex flex-col gap-2">
+          <Suspense fallback={<Loader2 className="h-5 w-5 animate-spin mx-auto" style={{ color: FNO_MUTED }} />}>
+            <FnoNinjaLoginCta compact />
+          </Suspense>
+          <button
+            type="button"
+            onClick={() => {
+              trackCtaClick("chart_gate_back", { label: "Not now" });
+              onClose();
+            }}
+            className="text-[11px] font-semibold underline-offset-2 hover:underline text-center"
+            style={{ color: FNO_MUTED }}
+          >
+            Not now
+          </button>
+        </div>
+        <p className="mt-2.5 text-[9px] leading-relaxed text-center" style={{ color: "#475569" }}>
+          {FNO_LOGIN_DISCLAIMER}
+        </p>
+      </div>
+    </>
   );
+}
+
+/** @deprecated Use {@link FnoNinjaToolbarSignInPrompt} — kept for any legacy callers. */
+export function FnoNinjaSignInOverlay({
+  open,
+  onClose,
+  action = "chat",
+}: {
+  open: boolean;
+  onClose: () => void;
+  action?: FnoToolbarSignInAction;
+}) {
+  return <FnoNinjaToolbarSignInPrompt open={open} action={open ? action : null} onClose={onClose} />;
 }
 
 export function FnoNinjaChartLoginGate({

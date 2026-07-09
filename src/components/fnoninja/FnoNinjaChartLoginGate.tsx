@@ -140,21 +140,10 @@ export function FnoNinjaToolbarSignInPrompt({
         <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: FNO_MUTED }}>
           {copy.description}
         </p>
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="mt-3">
           <Suspense fallback={<Loader2 className="h-5 w-5 animate-spin mx-auto" style={{ color: FNO_MUTED }} />}>
             <FnoNinjaLoginCta compact />
           </Suspense>
-          <button
-            type="button"
-            onClick={() => {
-              trackCtaClick("chart_gate_back", { label: "Not now" });
-              onClose();
-            }}
-            className="text-[11px] font-semibold underline-offset-2 hover:underline text-center"
-            style={{ color: FNO_MUTED }}
-          >
-            Not now
-          </button>
         </div>
         <p className="mt-2.5 text-[9px] leading-relaxed text-center" style={{ color: "#475569" }}>
           {FNO_LOGIN_DISCLAIMER}

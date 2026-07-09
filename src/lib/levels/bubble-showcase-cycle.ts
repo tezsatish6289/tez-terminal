@@ -14,6 +14,19 @@ export const BUBBLE_SHOWCASE_KEYS = [
 
 export type BubbleShowcaseKey = (typeof BUBBLE_SHOWCASE_KEYS)[number];
 
+/** Signed-out /levels — auto-demo filter chip order (matches toolbar labels). */
+export const GUEST_LEVELS_FILTER_CYCLE_KEYS = [
+  "BULLISH",
+  "BEARISH",
+  "IN_BULL",
+  "NEAR_BULL",
+  "IN_BEAR",
+  "NEAR_BEAR",
+  "AT_POC",
+] as const satisfies readonly Exclude<BubbleMapFilter, "all" | "UNSCANNED">[];
+
+export type GuestLevelsFilterCycleKey = (typeof GUEST_LEVELS_FILTER_CYCLE_KEYS)[number];
+
 export function bubbleShowcaseSteps(
   items: readonly { tone: BubbleTone }[],
 ): BubbleShowcaseKey[] {
@@ -21,8 +34,16 @@ export function bubbleShowcaseSteps(
   return BUBBLE_SHOWCASE_KEYS.filter((key) => counts[key] > 0);
 }
 
-export function runBubbleShowcaseCycle(
-  steps: BubbleShowcaseKey[],
+/** Filters with at least one symbol — guest map auto-cycle skips empty chips. */
+export function guestBubbleFilterSteps(
+  items: readonly { tone: BubbleTone }[],
+): GuestLevelsFilterCycleKey[] {
+  const counts = countBubbleMapFilters(items);
+  return GUEST_LEVELS_FILTER_CYCLE_KEYS.filter((key) => counts[key] > 0);
+}
+
+export function runBubbleMapFilterCycle(
+  steps: BubbleMapFilter[],
   onPhase: (phase: BubbleMapFilter) => void,
   options?: { allMs?: number; highlightMs?: number },
 ): () => void {
@@ -43,7 +64,6 @@ export function runBubbleShowcaseCycle(
 
   void (async () => {
     if (steps.length === 1) {
-      // One active filter: brief full-map intro, then settle — no all↔highlight loop.
       onPhase("all");
       await sleep(allMs);
       if (cancelled) return;
@@ -67,4 +87,12 @@ export function runBubbleShowcaseCycle(
     cancelled = true;
     for (const t of timeouts) window.clearTimeout(t);
   };
+}
+
+export function runBubbleShowcaseCycle(
+  steps: BubbleShowcaseKey[],
+  onPhase: (phase: BubbleMapFilter) => void,
+  options?: { allMs?: number; highlightMs?: number },
+): () => void {
+  return runBubbleMapFilterCycle(steps, onPhase, options);
 }

@@ -52,6 +52,8 @@ export function LevelsSlideshowToolbar({
   onBubbleSearchChange,
   stripTrailing,
   shareTrailing,
+  /** Guest /levels preview — filter chips only, no slideshow navigation. */
+  guestMapPreview = false,
 }: {
   zoneFilter?: PocDirectionFilter;
   onZoneFilterChange?: (filter: PocDirectionFilter) => void;
@@ -126,6 +128,7 @@ export function LevelsSlideshowToolbar({
   stripTrailing?: ReactNode;
   /** Bubbles map: share control beside view toggles. */
   shareTrailing?: ReactNode;
+  guestMapPreview?: boolean;
 }) {
   const filterActions = useMemo(
     () =>
@@ -250,6 +253,7 @@ export function LevelsSlideshowToolbar({
         viewToggle={viewToggle}
         favslideToggle={favslideToggle}
         shareTrailing={shareTrailing}
+        hideSlideshowCtas={guestMapPreview}
       />
     );
   }

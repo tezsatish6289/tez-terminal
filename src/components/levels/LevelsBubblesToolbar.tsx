@@ -18,6 +18,8 @@ export function LevelsBubblesToolbar({
   viewToggle,
   favslideToggle,
   shareTrailing,
+  /** Hide liveslide / favslide CTAs — guest map preview (filters only). */
+  hideSlideshowCtas = false,
 }: {
   bubbleMapFilter: BubbleMapFilter;
   onBubbleMapFilterChange: (filter: BubbleMapFilter) => void;
@@ -45,6 +47,7 @@ export function LevelsBubblesToolbar({
     active?: boolean;
   };
   shareTrailing?: ReactNode;
+  hideSlideshowCtas?: boolean;
 }) {
   return (
     <div className={LEVELS_BUBBLE_TOOLBAR_SCROLL_CLASS}>
@@ -56,7 +59,7 @@ export function LevelsBubblesToolbar({
           maxPainVisibility={maxPainVisibility}
         />
 
-        {favslideToggle ? (
+        {favslideToggle && !hideSlideshowCtas ? (
           <LevelsSlideshowCta
             label={favslideToggle.label}
             shortLabel={favslideToggle.shortLabel}
@@ -68,15 +71,17 @@ export function LevelsBubblesToolbar({
           />
         ) : null}
 
-        <LevelsSlideshowCta
-          label={viewToggle.label}
-          shortLabel={viewToggle.shortLabel}
-          onClick={viewToggle.onClick}
-          title={viewToggle.title}
-          variant={viewToggle.variant}
-          kbd={viewToggle.kbd}
-          active={viewToggle.active}
-        />
+        {!hideSlideshowCtas ? (
+          <LevelsSlideshowCta
+            label={viewToggle.label}
+            shortLabel={viewToggle.shortLabel}
+            onClick={viewToggle.onClick}
+            title={viewToggle.title}
+            variant={viewToggle.variant}
+            kbd={viewToggle.kbd}
+            active={viewToggle.active}
+          />
+        ) : null}
 
         {shareTrailing}
       </div>

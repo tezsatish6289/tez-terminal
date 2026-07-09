@@ -93,6 +93,10 @@ import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNin
 import { useUser } from "@/firebase";
 import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
 import { buildGuestBubbleLabels } from "@/lib/fnoninja/guest-map-preview";
+import {
+  guestBubbleFilterSteps,
+  runBubbleMapFilterCycle,
+} from "@/lib/levels/bubble-showcase-cycle";
 
 interface RawItem {
   symbol?: string;
@@ -245,6 +249,29 @@ export default function LevelsPage() {
     }
   }, [isSlideView]);
   const { user: slideAuthUser, isUserLoading: slideAuthLoading } = useUser();
+
+  const guestBubblePreview =
+    levelsSignInGate && !slideAuthUser && viewMode === "bubbles";
+
+  const [guestFilterCycleRestart, setGuestFilterCycleRestart] = useState(0);
+  const guestFilterCycleStopRef = useRef<(() => void) | null>(null);
+  const guestFilterCycleRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleBubbleMapFilterChange = useCallback(
+    (next: BubbleMapFilter) => {
+      setBubbleMapFilter(next);
+      if (!guestBubblePreview) return;
+      guestFilterCycleStopRef.current?.();
+      guestFilterCycleStopRef.current = null;
+      if (guestFilterCycleRestartTimerRef.current) {
+        clearTimeout(guestFilterCycleRestartTimerRef.current);
+      }
+      guestFilterCycleRestartTimerRef.current = setTimeout(() => {
+        setGuestFilterCycleRestart((n) => n + 1);
+      }, 18_000);
+    },
+    [guestBubblePreview],
+  );
 
   const load = useCallback(async () => {
     try {
@@ -1396,8 +1423,9 @@ export default function LevelsPage() {
     <LevelsSlideshowToolbar
       bubblesMode={viewMode === "bubbles"}
       bubbleMapFilter={bubbleMapFilter}
-      onBubbleMapFilterChange={setBubbleMapFilter}
+      onBubbleMapFilterChange={handleBubbleMapFilterChange}
       bubbleFilterCounts={bubbleFilterCounts}
+      guestMapPreview={guestBubblePreview}
       maxPainVisibility={{
         visible: showMaxPainBubbles,
         onToggle: () => setShowMaxPainBubbles((v) => !v),
@@ -1495,13 +1523,39 @@ export default function LevelsPage() {
     />
   );
 
-  const guestBubblePreview =
-    levelsSignInGate && !slideAuthUser && viewMode === "bubbles";
-
   const guestBubbleLabels = useMemo(
     () => (guestBubblePreview ? buildGuestBubbleLabels(bubbleItems) : undefined),
     [guestBubblePreview, bubbleItems],
   );
+
+  const guestFilterCycleSteps = useMemo(
+    () => (guestBubblePreview ? guestBubbleFilterSteps(bubbleItems) : []),
+    [guestBubblePreview, bubbleItems],
+  );
+
+  useEffect(() => {
+    if (!guestBubblePreview || guestFilterCycleSteps.length === 0) return;
+
+    guestFilterCycleStopRef.current?.();
+    guestFilterCycleStopRef.current = runBubbleMapFilterCycle(
+      guestFilterCycleSteps,
+      setBubbleMapFilter,
+      { allMs: 2800, highlightMs: 3600 },
+    );
+
+    return () => {
+      guestFilterCycleStopRef.current?.();
+      guestFilterCycleStopRef.current = null;
+    };
+  }, [guestBubblePreview, guestFilterCycleSteps, guestFilterCycleRestart]);
+
+  useEffect(() => {
+    return () => {
+      if (guestFilterCycleRestartTimerRef.current) {
+        clearTimeout(guestFilterCycleRestartTimerRef.current);
+      }
+    };
+  }, []);
 
   const levelsMainPane =
     viewMode === "bubbles" ? (
@@ -1555,8 +1609,13 @@ export default function LevelsPage() {
             <div
               className={`relative flex flex-1 min-h-0 w-full flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
             >
-              <div className="flex flex-1 min-h-0 flex-col pointer-events-none select-none">
-                {levelsWorkspace}
+              {!hideTopSlideshowToolbar ? (
+                <div className="shrink-0 pointer-events-auto relative z-[35]">
+                  {levelsSlideshowToolbar}
+                </div>
+              ) : null}
+              <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 pointer-events-none select-none max-md:flex-none max-md:overflow-visible md:overflow-hidden">
+                {levelsMainPane}
               </div>
               <FnoNinjaMarketMapGuestGate />
             </div>

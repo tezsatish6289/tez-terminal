@@ -15,10 +15,10 @@ export const FNO_LOGIN_NAV_HINT =
 export const FNO_LOGIN_DISCLAIMER =
   "Informational market data only · Not investment advice";
 
-/** Signed-out market map preview — map visible behind, sign-in unlocks full universe. */
+/** Signed-out market map preview — map visible; compact sign-in card floats over bubbles. */
 export const FNO_MARKET_MAP_GUEST_HEADLINE = "See full market map";
 export const FNO_MARKET_MAP_GUEST_DESCRIPTION =
-  "You're viewing a live preview. Sign in with Google to explore 200+ NSE F&O symbols — filter by support, resistance, and open-interest clusters.";
+  "Sign in with Google to explore 200+ NSE F&O symbols — filter by support, resistance, and OI clusters.";
 
 /** Contextual copy when a signed-out user clicks a gated toolbar action on the public chart page. */
 export const FNO_TOOLBAR_SIGN_IN_COPY = {

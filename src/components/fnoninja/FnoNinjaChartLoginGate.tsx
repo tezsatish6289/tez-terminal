@@ -105,47 +105,38 @@ function FnoNinjaLoginShimmerOverlay({
   );
 }
 
-/** Market map preview for signed-out users — live bubbles behind a sign-in CTA. */
+/** Market map preview for signed-out users — compact sign-in card over the bubble canvas. */
 export function FnoNinjaMarketMapGuestGate() {
   return (
     <div
-      className="absolute inset-0 z-20 flex items-center justify-center px-4 sm:px-6 pointer-events-none"
+      className="absolute inset-0 z-30 pointer-events-none"
       role="dialog"
       aria-modal="true"
       aria-label={FNO_MARKET_MAP_GUEST_HEADLINE}
     >
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse 85% 70% at 50% 50%, rgba(8,15,30,0.88) 0%, rgba(8,15,30,0.55) 45%, rgba(8,15,30,0.2) 100%)",
-        }}
-        aria-hidden
-      />
-
-      <div
-        className="relative z-10 w-full max-w-md rounded-2xl border px-5 py-5 sm:px-6 sm:py-6 text-center shadow-2xl pointer-events-auto"
+        className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 w-[min(calc(100vw-1.5rem),16.5rem)] rounded-xl border px-3.5 py-3 shadow-2xl pointer-events-auto"
         style={{
           backgroundColor: "rgba(15,23,42,0.97)",
           borderColor: "rgba(255,255,255,0.12)",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
+          boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
         }}
       >
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: FNO_MUTED }}>
+        <p className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: FNO_MUTED }}>
           Live preview
         </p>
-        <h2 className="mt-2 text-xl sm:text-2xl font-black text-white tracking-tight">
+        <h2 className="mt-1 text-[13px] font-black text-white leading-snug tracking-tight">
           {FNO_MARKET_MAP_GUEST_HEADLINE}
         </h2>
-        <p className="mt-2.5 text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
+        <p className="mt-1.5 text-[10px] leading-relaxed" style={{ color: FNO_MUTED }}>
           {FNO_MARKET_MAP_GUEST_DESCRIPTION}
         </p>
-        <div className="mt-5">
-          <Suspense fallback={<Loader2 className="h-6 w-6 animate-spin mx-auto" style={{ color: FNO_MUTED }} />}>
-            <FnoNinjaLoginCta ctaId="market_map_guest_sign_in" />
+        <div className="mt-2.5">
+          <Suspense fallback={<Loader2 className="h-4 w-4 animate-spin mx-auto" style={{ color: FNO_MUTED }} />}>
+            <FnoNinjaLoginCta compact ctaId="market_map_guest_sign_in" />
           </Suspense>
         </div>
-        <p className="mt-3 text-[10px] leading-relaxed" style={{ color: "#475569" }}>
+        <p className="mt-2 text-[8px] leading-relaxed text-center" style={{ color: "#475569" }}>
           {FNO_LOGIN_DISCLAIMER}
         </p>
       </div>

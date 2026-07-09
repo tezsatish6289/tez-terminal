@@ -109,26 +109,46 @@ function FnoNinjaLoginShimmerOverlay({
 const GUEST_SIGNIN_NUDGE_CSS = `
 @keyframes fno-guest-signin-nudge {
   0%, 100% {
-    transform: translateX(0) rotate(0deg);
+    transform: translateX(0) rotate(0deg) scale(1);
     box-shadow: 0 16px 48px rgba(0,0,0,0.55);
     border-color: rgba(255,255,255,0.14);
+    filter: brightness(1);
   }
-  14% { transform: translateX(-4px) rotate(-0.75deg); }
-  28% { transform: translateX(4px) rotate(0.75deg); }
-  42% {
-    transform: translateX(-2px) rotate(-0.4deg);
-    box-shadow: 0 20px 56px rgba(0,0,0,0.62), 0 0 28px rgba(96,165,250,0.32);
-    border-color: rgba(147,197,253,0.52);
+  12% { transform: translateX(-4px) rotate(-0.75deg) scale(1.008); }
+  24% { transform: translateX(4px) rotate(0.75deg) scale(1.012); }
+  38% {
+    transform: translateX(-2px) rotate(-0.4deg) scale(1.018);
+    box-shadow:
+      0 22px 60px rgba(0,0,0,0.65),
+      0 0 36px rgba(96,165,250,0.55),
+      0 0 72px rgba(59,130,246,0.32),
+      0 0 110px rgba(37,99,235,0.18),
+      inset 0 0 24px rgba(96,165,250,0.12);
+    border-color: rgba(147,197,253,0.72);
+    filter: brightness(1.1);
   }
-  56% { transform: translateX(2px) rotate(0.4deg); }
-  72% {
-    transform: translateX(-1px) rotate(-0.15deg);
-    box-shadow: 0 18px 52px rgba(0,0,0,0.58), 0 0 16px rgba(96,165,250,0.2);
-    border-color: rgba(147,197,253,0.38);
+  52% {
+    transform: translateX(2px) rotate(0.4deg) scale(1.014);
+    box-shadow:
+      0 20px 56px rgba(0,0,0,0.62),
+      0 0 44px rgba(96,165,250,0.48),
+      0 0 80px rgba(59,130,246,0.26),
+      inset 0 0 18px rgba(96,165,250,0.1);
+    border-color: rgba(147,197,253,0.58);
+    filter: brightness(1.06);
+  }
+  68% {
+    transform: translateX(-1px) rotate(-0.15deg) scale(1.006);
+    box-shadow:
+      0 18px 52px rgba(0,0,0,0.58),
+      0 0 24px rgba(96,165,250,0.28),
+      0 0 48px rgba(59,130,246,0.14);
+    border-color: rgba(147,197,253,0.42);
+    filter: brightness(1.03);
   }
 }
 .fno-guest-signin-nudge {
-  animation: fno-guest-signin-nudge 1.2s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+  animation: fno-guest-signin-nudge 1.35s cubic-bezier(0.45, 0, 0.55, 1) forwards;
 }
 `;
 
@@ -146,7 +166,7 @@ export function FnoNinjaMarketMapGuestGate({ nudgeKey = 0 }: { nudgeKey?: number
     if (!mounted || nudgeKey <= 0 || nudgeKey === lastNudgeKeyRef.current) return;
     lastNudgeKeyRef.current = nudgeKey;
     setNudging(true);
-    const t = window.setTimeout(() => setNudging(false), 1250);
+    const t = window.setTimeout(() => setNudging(false), 1400);
     return () => window.clearTimeout(t);
   }, [mounted, nudgeKey]);
 
@@ -168,7 +188,7 @@ export function FnoNinjaMarketMapGuestGate({ nudgeKey = 0 }: { nudgeKey?: number
           style={{
             backgroundColor: "#0f172a",
             borderColor: "rgba(255,255,255,0.14)",
-            boxShadow: "0 16px 48px rgba(0,0,0,0.55)",
+            ...(nudging ? {} : { boxShadow: "0 16px 48px rgba(0,0,0,0.55)" }),
           }}
         >
         <p className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: FNO_MUTED }}>

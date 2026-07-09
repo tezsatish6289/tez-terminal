@@ -1585,7 +1585,7 @@ export default function LevelsPage() {
         showcaseEmphasis={guestBubblePreview ? guestBubbleShowcaseEmphasis : "all"}
         showcaseSolo={guestBubblePreview && guestBubbleShowcaseEmphasis !== "all"}
         physicsIntensity={guestBubblePreview ? 0.42 : 1}
-        showMaxPainBubbles={showMaxPainBubbles}
+        showMaxPainBubbles={guestBubblePreview ? true : showMaxPainBubbles}
         showChatFloater={!guestBubblePreview}
         guestPreview={guestBubblePreview}
         guestBubbleLabels={guestBubbleLabels}

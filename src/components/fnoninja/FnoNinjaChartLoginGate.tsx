@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { trackCtaClick } from "@/firebase/analytics";
+import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
 import {
   FNO_LOGIN_DISCLAIMER,
@@ -13,40 +13,38 @@ import {
   FNO_TOOLBAR_SIGN_IN_COPY,
   type FnoToolbarSignInAction,
 } from "@/lib/fnoninja/login-copy";
-import { fnoLoginHref } from "@/lib/fnoninja/paths";
 import { FNO_MOBILE_SLIDE_BODY_MIN_CLASS } from "@/lib/fnoninja/responsive";
 import {
   FNO_ACCENT,
   FNO_APP_SURFACE_STYLE,
-  FNO_CTA_GRADIENT,
-  FNO_CTA_SHADOW,
   FNO_MUTED,
 } from "@/lib/fnoninja/theme";
 
 const DEFAULT_DESCRIPTION = FNO_LOGIN_GATE_DESCRIPTION;
 
-const LOGIN_BTN_CLASS =
-  "inline-flex items-center justify-center font-bold text-white transition-all hover:scale-[1.02] gap-2.5 rounded-xl px-8 py-3.5 text-sm";
-
-const LOGIN_BTN_COMPACT_CLASS =
-  "inline-flex items-center justify-center font-bold text-white transition-all hover:scale-[1.02] gap-2 rounded-lg px-5 py-2.5 text-xs w-full";
-
-function FnoNinjaLoginCta({ className = "", compact = false }: { className?: string; compact?: boolean }) {
+/** Google OAuth in-place — no redirect to /login (avoids a redundant second sign-in screen). */
+function FnoNinjaLoginCta({
+  className = "",
+  compact = false,
+  onSignedIn,
+}: {
+  className?: string;
+  compact?: boolean;
+  onSignedIn?: () => void;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const returnTo =
     searchParams.size > 0 ? `${pathname}?${searchParams.toString()}` : pathname;
-  const loginHref = fnoLoginHref(pathname, returnTo);
 
   return (
-    <Link
-      href={loginHref}
-      onClick={() => trackCtaClick("chart_gate_sign_in", { label: "Sign in with Google" })}
-      className={`${compact ? LOGIN_BTN_COMPACT_CLASS : LOGIN_BTN_CLASS} ${className}`}
-      style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
-    >
-      Sign in with Google
-    </Link>
+    <FnoNinjaGoogleSignInButton
+      className={`w-full ${className}`.trim()}
+      size={compact ? "nav" : "hero"}
+      ctaId="chart_gate_sign_in"
+      postSignInHref={returnTo}
+      onSignedIn={onSignedIn}
+    />
   );
 }
 
@@ -142,7 +140,7 @@ export function FnoNinjaToolbarSignInPrompt({
         </p>
         <div className="mt-3">
           <Suspense fallback={<Loader2 className="h-5 w-5 animate-spin mx-auto" style={{ color: FNO_MUTED }} />}>
-            <FnoNinjaLoginCta compact />
+            <FnoNinjaLoginCta compact onSignedIn={onClose} />
           </Suspense>
         </div>
         <p className="mt-2.5 text-[9px] leading-relaxed text-center" style={{ color: "#475569" }}>

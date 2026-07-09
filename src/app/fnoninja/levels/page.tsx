@@ -92,7 +92,7 @@ import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { useUser } from "@/firebase";
 import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
-import { pickGuestPreviewBubbleIds } from "@/lib/fnoninja/guest-map-preview";
+import { buildGuestBubbleLabels } from "@/lib/fnoninja/guest-map-preview";
 
 interface RawItem {
   symbol?: string;
@@ -1498,8 +1498,8 @@ export default function LevelsPage() {
   const guestBubblePreview =
     levelsSignInGate && !slideAuthUser && viewMode === "bubbles";
 
-  const guestFeaturedBubbleIds = useMemo(
-    () => (guestBubblePreview ? pickGuestPreviewBubbleIds(bubbleItems) : undefined),
+  const guestBubbleLabels = useMemo(
+    () => (guestBubblePreview ? buildGuestBubbleLabels(bubbleItems) : undefined),
     [guestBubblePreview, bubbleItems],
   );
 
@@ -1513,7 +1513,7 @@ export default function LevelsPage() {
         showMaxPainBubbles={showMaxPainBubbles}
         showChatFloater={!guestBubblePreview}
         guestPreview={guestBubblePreview}
-        featuredBubbleIds={guestFeaturedBubbleIds}
+        guestBubbleLabels={guestBubbleLabels}
         suppressBubbleStacking={chatDrawerOpen}
       />
     ) : (

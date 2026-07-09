@@ -1,31 +1,66 @@
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
-import { isInZoneTone } from "@/lib/levels/bubble-physics";
+import type { BubbleTone } from "@/lib/zones/bubble-tone";
 
-const GUEST_PREVIEW_MAX = 2;
+export type GuestBubbleLabelMode = "full" | "masked";
 
-/** Pick 1–2 bubbles to label on the signed-out market map preview (NIFTY + one in-zone stock). */
-export function pickGuestPreviewBubbleIds(items: LevelsBubbleItem[]): Set<string> {
-  const ids = new Set<string>();
+export interface GuestBubbleLabel {
+  /** Symbol text shown on the bubble (full or partially masked). */
+  symbol: string;
+  mode: GuestBubbleLabelMode;
+}
 
-  const nifty = items.find((it) => it.scope === "index" && it.symbol === "NIFTY");
-  if (nifty) ids.add(nifty.id);
-
-  if (ids.size >= GUEST_PREVIEW_MAX) return ids;
-
-  const inZoneStock = items.find(
-    (it) => it.scope === "stock" && isInZoneTone(it.tone) && !ids.has(it.id),
+/** Zone setups + confirmed directional signals — teased for signed-out users. */
+export function isGuestInterestingTone(tone: BubbleTone): boolean {
+  return (
+    tone === "BULLISH" ||
+    tone === "BEARISH" ||
+    tone === "IN_BULL" ||
+    tone === "IN_BEAR" ||
+    tone === "NEAR_BULL" ||
+    tone === "NEAR_BEAR"
   );
-  if (inZoneStock) ids.add(inZoneStock.id);
+}
 
-  if (ids.size >= GUEST_PREVIEW_MAX) return ids;
+/** Partially hide symbol — e.g. DELHIVERY → DELH**** */
+export function maskGuestSymbol(symbol: string): string {
+  const s = symbol.trim().toUpperCase();
+  if (s.length <= 4) return `${s.slice(0, Math.max(1, s.length - 1))}*`;
+  const tail = Math.min(4, s.length - 4);
+  return `${s.slice(0, 4)}${"*".repeat(tail)}`;
+}
 
-  const anyIndex = items.find((it) => it.scope === "index" && !ids.has(it.id));
-  if (anyIndex) ids.add(anyIndex.id);
+function guestRevealCount(interestingCount: number): number {
+  if (interestingCount <= 0) return 0;
+  return Math.max(1, Math.round(interestingCount * 0.25));
+}
 
-  if (ids.size >= GUEST_PREVIEW_MAX) return ids;
+/**
+ * Signed-out /levels bubble labels:
+ * - Neutral / max-pain / awaiting scan → full symbol + price
+ * - Interesting setups → 25% full names, 75% masked names (all show price)
+ */
+export function buildGuestBubbleLabels(items: LevelsBubbleItem[]): Map<string, GuestBubbleLabel> {
+  const out = new Map<string, GuestBubbleLabel>();
 
-  const anyStock = items.find((it) => it.scope === "stock" && !ids.has(it.id));
-  if (anyStock) ids.add(anyStock.id);
+  const interesting = items
+    .filter((it) => isGuestInterestingTone(it.tone))
+    .sort((a, b) => a.symbol.localeCompare(b.symbol) || a.id.localeCompare(b.id));
 
-  return ids;
+  const revealIds = new Set(
+    interesting.slice(0, guestRevealCount(interesting.length)).map((it) => it.id),
+  );
+
+  for (const item of items) {
+    if (!isGuestInterestingTone(item.tone)) {
+      out.set(item.id, { symbol: item.symbol, mode: "full" });
+      continue;
+    }
+    if (revealIds.has(item.id)) {
+      out.set(item.id, { symbol: item.symbol, mode: "full" });
+    } else {
+      out.set(item.id, { symbol: maskGuestSymbol(item.symbol), mode: "masked" });
+    }
+  }
+
+  return out;
 }

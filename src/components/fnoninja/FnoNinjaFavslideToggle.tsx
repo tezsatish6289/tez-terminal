@@ -75,12 +75,7 @@ export function FnoNinjaFavslideToggle({
       }
       style={
         toolbar
-          ? favorited
-            ? {
-                color: FNO_FAVSLIDE_CHIP.text,
-                backgroundColor: FNO_FAVSLIDE_CHIP.fillActive,
-              }
-            : undefined
+          ? undefined
           : {
               color: amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED,
               backgroundColor: amber ? FNO_FAVSLIDE_CHIP.fillActive : "rgba(255,255,255,0.04)",

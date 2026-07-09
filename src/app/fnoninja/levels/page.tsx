@@ -85,13 +85,14 @@ import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 import type { ConfirmedSignal } from "@/lib/levels/confirmed-signal-core";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
-import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
+import { FnoNinjaChartLoginGate, FnoNinjaMarketMapGuestGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { LevelsViewUrlSync } from "@/components/levels/LevelsViewUrlSync";
 import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughBridge";
 import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { useUser } from "@/firebase";
 import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
+import { pickGuestPreviewBubbleIds } from "@/lib/fnoninja/guest-map-preview";
 
 interface RawItem {
   symbol?: string;
@@ -1494,6 +1495,14 @@ export default function LevelsPage() {
     />
   );
 
+  const guestBubblePreview =
+    levelsSignInGate && !slideAuthUser && viewMode === "bubbles";
+
+  const guestFeaturedBubbleIds = useMemo(
+    () => (guestBubblePreview ? pickGuestPreviewBubbleIds(bubbleItems) : undefined),
+    [guestBubblePreview, bubbleItems],
+  );
+
   const levelsMainPane =
     viewMode === "bubbles" ? (
       <LevelsBubblesView
@@ -1502,7 +1511,9 @@ export default function LevelsPage() {
         hasMarketData={Boolean(payload)}
         toneFilter={bubbleMapFilter}
         showMaxPainBubbles={showMaxPainBubbles}
-        showChatFloater
+        showChatFloater={!guestBubblePreview}
+        guestPreview={guestBubblePreview}
+        featuredBubbleIds={guestFeaturedBubbleIds}
         suppressBubbleStacking={chatDrawerOpen}
       />
     ) : (
@@ -1540,15 +1551,26 @@ export default function LevelsPage() {
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
         ) : levelsSignInGate && !slideAuthUser ? (
-          <FnoNinjaChartLoginGate
-            overlay={isSlideView}
-            headline={viewMode === "bubbles" ? "Unlock NSE F&O Market Map" : undefined}
-            backAction={
-              isSlideView ? { label: "Back to Market Map", onClick: enterBubbles } : undefined
-            }
-          >
-            {levelsWorkspace}
-          </FnoNinjaChartLoginGate>
+          guestBubblePreview ? (
+            <div
+              className={`relative flex flex-1 min-h-0 w-full flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
+            >
+              <div className="flex flex-1 min-h-0 flex-col pointer-events-none select-none">
+                {levelsWorkspace}
+              </div>
+              <FnoNinjaMarketMapGuestGate />
+            </div>
+          ) : (
+            <FnoNinjaChartLoginGate
+              overlay={isSlideView}
+              headline={viewMode === "bubbles" ? "Unlock NSE F&O Market Map" : undefined}
+              backAction={
+                isSlideView ? { label: "Back to Market Map", onClick: enterBubbles } : undefined
+              }
+            >
+              {levelsWorkspace}
+            </FnoNinjaChartLoginGate>
+          )
         ) : levelsSignInGate && slideAuthLoading ? (
           <div
             className={`flex flex-1 min-h-0 w-full flex-col items-center justify-center ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}

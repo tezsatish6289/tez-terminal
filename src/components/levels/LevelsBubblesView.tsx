@@ -40,6 +40,7 @@ import { matchesSlideshowSetup, type ZoneBands } from "@/lib/zones/zone-status";
 import type { OiWallMomentum } from "@/lib/zones/oi-momentum-signal";
 import { FNO_BUBBLE_MAP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import { LevelsChatMapBubble } from "@/components/levels/LevelsChatMapBubble";
+import { trackCtaClick } from "@/firebase/analytics";
 
 export interface LevelsBubbleItem {
   id: string;
@@ -108,6 +109,10 @@ export function LevelsBubblesView({
   embedMobileLayout = false,
   /** Market map page: bottom-right community chat floater over the canvas. */
   showChatFloater = false,
+  /** Signed-out preview — only featured bubbles show symbol/price; others are anonymous. */
+  guestPreview = false,
+  /** Bubble ids that stay labeled in guest preview (see pickGuestPreviewBubbleIds). */
+  featuredBubbleIds,
   /** Keep market bubbles under the chat drawer (z capped while pane is open). */
   suppressBubbleStacking = false,
 }: {
@@ -136,6 +141,8 @@ export function LevelsBubblesView({
   layoutScale?: number;
   embedMobileLayout?: boolean;
   showChatFloater?: boolean;
+  guestPreview?: boolean;
+  featuredBubbleIds?: Set<string> | ReadonlySet<string>;
   suppressBubbleStacking?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -510,6 +517,7 @@ export function LevelsBubblesView({
                   ? "levels-bubble-showcase-breathe-mobile"
                   : "levels-bubble-showcase-breathe"
                 : "";
+            const featured = !guestPreview || (featuredBubbleIds?.has(item.id) ?? false);
             return (
               <div
                 key={item.id}
@@ -519,34 +527,58 @@ export function LevelsBubblesView({
               >
                 <button
                   type="button"
-                  onClick={() => onBubbleOpen(item)}
-                  className={`w-full h-full flex flex-col items-center justify-center rounded-full hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 cursor-pointer ${popAnim} ${breatheAnim}`}
+                  onClick={() => {
+                    if (guestPreview) return;
+                    trackCtaClick("bubble_open_chart", {
+                      label: item.label,
+                      symbol: item.symbol,
+                      scope: item.scope,
+                    });
+                    onBubbleOpen(item);
+                  }}
+                  disabled={guestPreview}
+                  className={`w-full h-full flex flex-col items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${popAnim} ${breatheAnim} ${
+                    guestPreview ? "cursor-default" : "hover:scale-[1.03] cursor-pointer"
+                  } ${featured && guestPreview ? "ring-2 ring-white/25" : ""}`}
                   style={{
                     background: style.fill,
                     border: `${borderW}px ${style.borderStyle} ${style.border}`,
                     boxShadow: style.glow,
+                    opacity: guestPreview && !featured ? 0.72 : 1,
                     transition:
-                      "box-shadow 0.35s ease, background 0.35s ease, border-color 0.35s ease, border-width 0.35s ease",
+                      "box-shadow 0.35s ease, background 0.35s ease, border-color 0.35s ease, border-width 0.35s ease, opacity 0.35s ease",
                   }}
-                  aria-label={`${item.label}, ${displayTone === item.tone ? style.label : `At Max Pain (hidden) · ${style.label}`}`}
-                  title={`${item.label} · ${item.tone === "AT_POC" ? "At Max Pain" : style.label} — click for chart`}
+                  aria-label={
+                    guestPreview && !featured
+                      ? "Sign in to view symbol"
+                      : `${item.label}, ${displayTone === item.tone ? style.label : `At Max Pain (hidden) · ${style.label}`}`
+                  }
+                  title={
+                    guestPreview && !featured
+                      ? "Sign in to see full market map"
+                      : `${item.label} · ${item.tone === "AT_POC" ? "At Max Pain" : style.label}${guestPreview ? "" : " — click for chart"}`
+                  }
                 >
-                  <span
-                    className="font-black leading-none text-center px-1 truncate max-w-[92%] pointer-events-none"
-                    style={{ fontSize: fontMain, color: style.textColor }}
-                  >
-                    {item.symbol}
-                  </span>
-                  {item.spot != null && (
-                    <span
-                      className="font-mono tabular-nums mt-0.5 opacity-90 pointer-events-none"
-                      style={{ fontSize: fontSub, color: style.textMutedColor }}
-                    >
-                      {item.spot >= 1000
-                        ? item.spot.toLocaleString("en-IN", { maximumFractionDigits: 0 })
-                        : item.spot.toFixed(2)}
-                    </span>
-                  )}
+                  {featured ? (
+                    <>
+                      <span
+                        className="font-black leading-none text-center px-1 truncate max-w-[92%] pointer-events-none"
+                        style={{ fontSize: fontMain, color: style.textColor }}
+                      >
+                        {item.symbol}
+                      </span>
+                      {item.spot != null && (
+                        <span
+                          className="font-mono tabular-nums mt-0.5 opacity-90 pointer-events-none"
+                          style={{ fontSize: fontSub, color: style.textMutedColor }}
+                        >
+                          {item.spot >= 1000
+                            ? item.spot.toLocaleString("en-IN", { maximumFractionDigits: 0 })
+                            : item.spot.toFixed(2)}
+                        </span>
+                      )}
+                    </>
+                  ) : null}
                 </button>
               </div>
             );

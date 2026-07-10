@@ -6,9 +6,9 @@ import { toast } from "@/hooks/use-toast";
 import { isFnoNinjaAppContext } from "@/lib/fnoninja/auth";
 import { FNONINJA_FREE_TRIAL_DAYS } from "@/lib/fnoninja/pricing";
 
-const SESSION_KEY = "fnoninja-trial-toast-shown";
+const STORAGE_KEY = "fnoninja-trial-toast-shown";
 
-/** Activates FNONINJA trial on first sign-in and shows a success toast once per session. */
+/** Activates FNONINJA trial on first sign-in and shows a welcome toast at most once per account. */
 export function FnoNinjaTrialActivator() {
   const { user, isUserLoading } = useUser();
   const activatedUid = useRef<string | null>(null);
@@ -18,7 +18,8 @@ export function FnoNinjaTrialActivator() {
     if (typeof window === "undefined") return;
     if (!isFnoNinjaAppContext(window.location.pathname)) return;
     if (activatedUid.current === user.uid) return;
-    if (sessionStorage.getItem(SESSION_KEY) === user.uid) return;
+    // Persist across sessions so returning trial users never see the popup again.
+    if (localStorage.getItem(STORAGE_KEY) === user.uid) return;
 
     activatedUid.current = user.uid;
 
@@ -31,9 +32,9 @@ export function FnoNinjaTrialActivator() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.trialJustActivated) {
-          sessionStorage.setItem(SESSION_KEY, user.uid);
+          localStorage.setItem(STORAGE_KEY, user.uid);
           toast({
-            title: "30-day free trial activated",
+            title: `${FNONINJA_FREE_TRIAL_DAYS}-day free trial activated`,
             description: `Your ${FNONINJA_FREE_TRIAL_DAYS}-day free trial is now active. Enjoy full access to charts and analytics.`,
           });
         }

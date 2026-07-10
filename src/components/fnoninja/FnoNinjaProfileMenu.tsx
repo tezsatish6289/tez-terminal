@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { LogOut, User } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { CreditCard, LogOut, User } from "lucide-react";
 import { useAuth, useUser } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
 import {
@@ -11,11 +13,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaProfileMenu() {
   const { user } = useUser();
   const auth = useAuth();
+  const pathname = usePathname();
 
   if (!user) return null;
 
@@ -66,6 +70,17 @@ export function FnoNinjaProfileMenu() {
             {user.email}
           </p>
         </div>
+        <DropdownMenuSeparator style={{ backgroundColor: FNO_NAV_BORDER }} />
+        <DropdownMenuItem
+          asChild
+          className="cursor-pointer gap-2 text-xs font-semibold focus:text-white"
+          style={{ color: "#dbe4ff" }}
+        >
+          <Link href={fnoSubscribeHref(pathname)}>
+            <CreditCard className="h-3.5 w-3.5" style={{ color: "#60a5fa" }} />
+            My subscription
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator style={{ backgroundColor: FNO_NAV_BORDER }} />
         <DropdownMenuItem
           className="cursor-pointer gap-2 text-xs font-semibold focus:text-white"

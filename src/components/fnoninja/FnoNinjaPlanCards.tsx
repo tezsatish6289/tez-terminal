@@ -238,7 +238,7 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
 
             <div className="mb-2">
               {card.kind === "trial" ? (
-                <p className="text-3xl font-black leading-none text-white sm:text-4xl">Free</p>
+                <p className="text-3xl font-black leading-none text-white sm:text-4xl">Free trial</p>
               ) : (
                 <p className="text-3xl font-black leading-none text-white sm:text-4xl">{formatInr(card.priceInr)}</p>
               )}

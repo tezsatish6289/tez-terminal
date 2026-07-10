@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Clock, Crown, Sparkles } from "lucide-react";
 import { useUser } from "@/firebase";
 import { useSubscription } from "@/hooks/use-subscription";
-import { fnoSubscribeHref } from "@/lib/fnoninja/paths";
+import { fnoMySubscriptionHref, fnoSubscribeHref } from "@/lib/fnoninja/paths";
 
 /**
  * Compact subscription status pill for the FNONINJA nav. Always visible for
@@ -19,7 +19,10 @@ export function FnoNinjaSubscriptionBadge() {
 
   if (isUserLoading || !user || sub.isLoading || sub.status === "loading") return null;
 
-  const href = fnoSubscribeHref(pathname);
+  // Expired/no-plan users go to the pricing page to buy; active/trial users go
+  // to their subscription details.
+  const hasAccess = sub.isActive || sub.isTrial;
+  const href = hasAccess ? fnoMySubscriptionHref(pathname) : fnoSubscribeHref(pathname);
   const unit = sub.showHours ? "h" : "d";
   const amount = sub.showHours ? sub.hoursRemaining : sub.daysRemaining;
 

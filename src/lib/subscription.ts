@@ -50,6 +50,8 @@ export interface SubscriptionDoc {
   planCode?: string;
   /** Whether the paid subscription auto-renews (false for Day Pass). */
   autoRenew?: boolean;
+  /** When the current paid term started (set by webhook/verify on activation). */
+  subscriptionStartDate?: string;
   /** Zoho payment_id of the last Day Pass we granted — dedupes webhook + on-return reconciliation. */
   lastDayPassPaymentId?: string;
 }

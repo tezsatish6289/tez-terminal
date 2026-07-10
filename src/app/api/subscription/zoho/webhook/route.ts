@@ -69,10 +69,19 @@ async function applyEntitlement(
     autoRenew: boolean;
     zohoSubscriptionId?: string;
     lastDayPassPaymentId?: string;
+    startDateIso?: string | null;
   },
 ): Promise<void> {
-  const { uid, tier, endDateIso, planCode, autoRenew, zohoSubscriptionId, lastDayPassPaymentId } =
-    args;
+  const {
+    uid,
+    tier,
+    endDateIso,
+    planCode,
+    autoRenew,
+    zohoSubscriptionId,
+    lastDayPassPaymentId,
+    startDateIso,
+  } = args;
   const active = new Date(endDateIso).getTime() > Date.now();
   const status: SubscriptionStatus = active ? "active" : "expired";
 
@@ -85,6 +94,7 @@ async function applyEntitlement(
   };
   if (zohoSubscriptionId) update.zohoSubscriptionId = zohoSubscriptionId;
   if (lastDayPassPaymentId) update.lastDayPassPaymentId = lastDayPassPaymentId;
+  if (active && startDateIso) update.subscriptionStartDate = startDateIso;
 
   await db.collection("subscriptions").doc(uid).set(update, { merge: true });
   void syncChatAccess(uid, active).catch((e) =>
@@ -169,6 +179,10 @@ export async function POST(request: NextRequest) {
         planCode: planCode!,
         autoRenew: zStatus === "live" || zStatus === "active",
         zohoSubscriptionId: subscription.subscription_id,
+        startDateIso:
+          toIso(subscription.current_term_starts_at) ??
+          toIso(subscription.activated_at) ??
+          new Date().toISOString(),
       });
 
       return NextResponse.json({ ok: true, tier, uid });
@@ -194,6 +208,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true, skipped: "unmapped payment" });
       }
 
+      const nowIso = new Date().toISOString();
       const endDateIso = new Date(Date.now() + DAY_MS).toISOString();
       await applyEntitlement(db, {
         uid,
@@ -202,6 +217,7 @@ export async function POST(request: NextRequest) {
         planCode: "daypass",
         autoRenew: false,
         lastDayPassPaymentId: payment.payment_id ?? payment.customer_payment_id,
+        startDateIso: nowIso,
       });
 
       return NextResponse.json({ ok: true, tier: "daypass", uid });

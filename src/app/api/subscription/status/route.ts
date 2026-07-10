@@ -87,6 +87,11 @@ export async function GET(request: NextRequest) {
         ? data.trialEndDate
         : data.subscriptionEndDate;
 
+    const startDate =
+      effectiveStatus === "trial"
+        ? data.trialStartDate
+        : data.subscriptionStartDate ?? data.createdAt ?? null;
+
     let daysRemaining = 0;
     if (endDate) {
       daysRemaining = Math.max(
@@ -118,6 +123,7 @@ export async function GET(request: NextRequest) {
       showHours: shouldShowHoursRemaining(effectiveSub),
       planCode: data.planCode ?? null,
       autoRenew: data.autoRenew ?? null,
+      startDate,
       trialEndDate: data.trialEndDate,
       subscriptionEndDate: data.subscriptionEndDate,
       trialJustActivated,

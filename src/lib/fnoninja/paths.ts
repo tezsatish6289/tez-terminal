@@ -131,6 +131,16 @@ export function fnoSubscribeHref(pathname: string): string {
   return "/fnoninja/subscribe";
 }
 
+/** My Subscription (account) page — fnoninja.com uses /my-subscription; dev uses /fnoninja/my-subscription. */
+export function fnoMySubscriptionHref(pathname: string): string {
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/my-subscription";
+  }
+  if (pathname.startsWith("/fnoninja")) return "/fnoninja/my-subscription";
+  return "/fnoninja/my-subscription";
+}
+
 /** Webinar page path for current host/env. */
 export function fnoWebinarHref(pathname: string): string {
   if (typeof window !== "undefined") {

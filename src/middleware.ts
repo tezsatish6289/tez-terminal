@@ -136,6 +136,8 @@ export function middleware(request: NextRequest) {
       pathname.startsWith("/community/") ||
       pathname === "/subscribe" ||
       pathname.startsWith("/subscribe/") ||
+      pathname === "/my-subscription" ||
+      pathname.startsWith("/my-subscription/") ||
       pathname === "/levels" ||
       pathname.startsWith("/levels/")
     ) {

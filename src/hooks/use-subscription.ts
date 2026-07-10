@@ -14,6 +14,7 @@ export interface SubscriptionState {
   showHours: boolean;
   planCode: string | null;
   autoRenew: boolean | null;
+  startDate: string | null;
   trialEndDate: string | null;
   subscriptionEndDate: string | null;
   isLoading: boolean;
@@ -32,13 +33,14 @@ export function useSubscription(
     isExpired: false,
     daysRemaining: 0,
     hoursRemaining: 0,
-    showHours: false,
-    planCode: null,
-    autoRenew: null,
-    trialEndDate: null,
-    subscriptionEndDate: null,
-    isLoading: true,
-  });
+      showHours: false,
+      planCode: null,
+      autoRenew: null,
+      startDate: null,
+      trialEndDate: null,
+      subscriptionEndDate: null,
+      isLoading: true,
+    });
 
   const fetchStatus = useCallback(async () => {
     if (!uid) {
@@ -53,6 +55,7 @@ export function useSubscription(
         showHours: false,
         planCode: null,
         autoRenew: null,
+        startDate: null,
         trialEndDate: null,
         subscriptionEndDate: null,
         isLoading: false,
@@ -80,6 +83,7 @@ export function useSubscription(
         showHours: data.showHours ?? false,
         planCode: data.planCode ?? null,
         autoRenew: data.autoRenew ?? null,
+        startDate: data.startDate ?? null,
         trialEndDate: data.trialEndDate,
         subscriptionEndDate: data.subscriptionEndDate,
         isLoading: false,

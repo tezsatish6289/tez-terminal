@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { fnoSubscribeHref } from "@/lib/fnoninja/paths";
+import { fnoMySubscriptionHref } from "@/lib/fnoninja/paths";
 import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaProfileMenu() {
@@ -76,7 +76,7 @@ export function FnoNinjaProfileMenu() {
           className="cursor-pointer gap-2 text-xs font-semibold focus:text-white"
           style={{ color: "#dbe4ff" }}
         >
-          <Link href={fnoSubscribeHref(pathname)}>
+          <Link href={fnoMySubscriptionHref(pathname)}>
             <CreditCard className="h-3.5 w-3.5" style={{ color: "#60a5fa" }} />
             My subscription
           </Link>

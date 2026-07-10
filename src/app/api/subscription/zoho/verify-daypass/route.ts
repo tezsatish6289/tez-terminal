@@ -69,11 +69,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const nowIso = new Date().toISOString();
     const endDateIso = new Date(Date.now() + DAY_MS).toISOString();
     const update: Partial<SubscriptionDoc> = {
       status: "active",
       tier: "daypass",
       subscriptionEndDate: endDateIso,
+      subscriptionStartDate: nowIso,
       planCode: "daypass",
       autoRenew: false,
       lastDayPassPaymentId: payment.paymentId,

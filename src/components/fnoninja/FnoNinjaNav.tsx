@@ -18,8 +18,8 @@ import {
   fnoLearnHref,
   fnoLoginHref,
   fnoMarketingHash,
+  fnoMySubscriptionHref,
   fnoProductHomeHref,
-  fnoSubscribeHref,
   fnoWebinarHref,
   isFnoNinjaLandingPath,
 } from "@/lib/fnoninja/paths";
@@ -257,7 +257,7 @@ export function FnoNinjaNav() {
                     </p>
                   </div>
                   <Link
-                    href={fnoSubscribeHref(pathname)}
+                    href={fnoMySubscriptionHref(pathname)}
                     onClick={() => setMenuOpen(false)}
                     className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white"
                     style={{

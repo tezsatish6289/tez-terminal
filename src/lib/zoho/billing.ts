@@ -235,3 +235,40 @@ export async function getSubscription(subscriptionId: string): Promise<ZohoSubsc
   );
   return res.subscription;
 }
+
+export interface CustomerPaymentTotals {
+  totalPaidInr: number;
+  paymentCount: number;
+  lastPaymentAt: string | null;
+  currency: string;
+}
+
+interface ZohoCustomerPayment {
+  payment_id: string;
+  amount?: number;
+  date?: string;
+  currency_code?: string;
+}
+
+/**
+ * Sums the actual money received from a Zoho customer (all recorded customer
+ * payments — covers both subscription invoices and one-time Day Pass links).
+ * Used by the admin dashboard's on-demand "Sync from Zoho" so the list stays
+ * fast (we cache the result on the subscription doc rather than calling Zoho per
+ * row on every load).
+ */
+export async function getCustomerPaymentTotals(customerId: string): Promise<CustomerPaymentTotals> {
+  const res = await zohoRequest<{ customerpayments?: ZohoCustomerPayment[] }>(
+    "GET",
+    `/customerpayments?customer_id=${encodeURIComponent(customerId)}&sort_column=date&sort_order=D`,
+  );
+  const payments = res.customerpayments ?? [];
+  const totalPaidInr = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const lastPaymentAt = payments[0]?.date ? new Date(payments[0].date).toISOString() : null;
+  return {
+    totalPaidInr: Math.round(totalPaidInr * 100) / 100,
+    paymentCount: payments.length,
+    lastPaymentAt,
+    currency: payments[0]?.currency_code ?? "INR",
+  };
+}

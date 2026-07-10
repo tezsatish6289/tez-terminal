@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminFirestore } from "@/firebase/admin";
+import { isSubscriptionActive, type SubscriptionDoc } from "@/lib/subscription";
 import {
   ZOHO_PLAN_CODES,
   createDayPassPaymentLink,
@@ -52,6 +53,20 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getAdminFirestore();
+
+    // A Day Pass only makes sense for users WITHOUT current access. Someone on a
+    // trial or an active plan already has full access, so block the redundant
+    // purchase (client hides it too, but this is the authoritative guard).
+    if (tier === "daypass") {
+      const subSnap = await db.collection("subscriptions").doc(uid).get();
+      const sub = subSnap.exists ? (subSnap.data() as SubscriptionDoc) : null;
+      if (isSubscriptionActive(sub)) {
+        return NextResponse.json(
+          { error: "You already have active access — a Day Pass isn't needed right now." },
+          { status: 409 },
+        );
+      }
+    }
 
     // Find or create the Zoho customer and persist the uid ↔ customer mapping so
     // the webhook can resolve the buyer later.

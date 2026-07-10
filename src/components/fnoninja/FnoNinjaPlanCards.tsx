@@ -139,6 +139,38 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, signedIn]);
 
+  // Self-heal the one-time Day Pass. Payment links don't reliably fire the Zoho
+  // webhook (and don't redirect back), so when a user returns to this page —
+  // after checkout, or simply lands here without active access — we ask the
+  // server to reconcile against Zoho and grant the pass if they actually paid.
+  const verifiedRef = useRef(false);
+  useEffect(() => {
+    if (!user || sub.isLoading || verifiedRef.current) return;
+    const returnedFromCheckout = searchParams.get("status") === "success";
+    if (!returnedFromCheckout && sub.isActive) return;
+    verifiedRef.current = true;
+    void (async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/subscription/zoho/verify-daypass", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const data = await res.json();
+        if (data?.applied) {
+          toast({
+            title: "Day Pass activated",
+            description: "You now have 24 hours of full access.",
+          });
+          sub.refresh();
+        }
+      } catch {
+        /* best-effort */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, sub.isLoading, sub.isActive, searchParams]);
+
   // Login destination that resumes the chosen action after OAuth.
   const loginForCheckout = (tier: CheckoutTier) =>
     fnoLoginHref(pathname, `${fnoSubscribeHref(pathname)}?checkout=${tier}`);
@@ -268,6 +300,7 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
 
       <DayPassCallout
         signedIn={signedIn}
+        hasAccess={signedIn && sub.isActive}
         loading={loadingTier === "daypass"}
         disabled={loadingTier !== null}
         onSelect={() => handleSubscribe("daypass")}
@@ -279,17 +312,31 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
 
 function DayPassCallout({
   signedIn,
+  hasAccess,
   loading,
   disabled,
   onSelect,
   loginHref,
 }: {
   signedIn: boolean;
+  hasAccess: boolean;
   loading: boolean;
   disabled: boolean;
   onSelect: () => void;
   loginHref: string;
 }) {
+  // A user who already has access (trial or active plan) doesn't need a Day Pass.
+  if (hasAccess) {
+    return (
+      <div
+        className="mt-5 rounded-2xl border px-6 py-4 text-center text-[13px] text-slate-400"
+        style={{ border: `1px dashed ${FNO_BORDER}`, backgroundColor: "rgba(13,24,48,0.5)" }}
+      >
+        You already have full access — no Day Pass needed right now.
+      </div>
+    );
+  }
+
   const btnClass =
     "inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all hover:scale-[1.02] disabled:opacity-60";
   return (

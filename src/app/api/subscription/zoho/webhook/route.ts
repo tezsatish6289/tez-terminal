@@ -67,9 +67,11 @@ async function applyEntitlement(
     planCode: string;
     autoRenew: boolean;
     zohoSubscriptionId?: string;
+    lastDayPassPaymentId?: string;
   },
 ): Promise<void> {
-  const { uid, tier, endDateIso, planCode, autoRenew, zohoSubscriptionId } = args;
+  const { uid, tier, endDateIso, planCode, autoRenew, zohoSubscriptionId, lastDayPassPaymentId } =
+    args;
   const active = new Date(endDateIso).getTime() > Date.now();
   const status: SubscriptionStatus = active ? "active" : "expired";
 
@@ -81,6 +83,7 @@ async function applyEntitlement(
     autoRenew,
   };
   if (zohoSubscriptionId) update.zohoSubscriptionId = zohoSubscriptionId;
+  if (lastDayPassPaymentId) update.lastDayPassPaymentId = lastDayPassPaymentId;
 
   await db.collection("subscriptions").doc(uid).set(update, { merge: true });
   void syncChatAccess(uid, active).catch((e) =>
@@ -120,10 +123,12 @@ export async function POST(request: NextRequest) {
       })
       .catch(() => {});
 
-    // Zoho may nest the record under `data` or send it top-level.
+    // Zoho may nest the record under `data` or send it top-level, and one-time
+    // payments arrive as either `payment` or `customerpayment`.
     const payload = body.data ?? body;
     const subscription = payload.subscription ?? body.subscription;
-    const payment = payload.payment ?? body.payment;
+    const payment =
+      payload.payment ?? body.payment ?? payload.customerpayment ?? body.customerpayment;
 
     // ── Subscription events (Silver / Gold) ──────────────────────────────────
     if (subscription) {
@@ -180,6 +185,7 @@ export async function POST(request: NextRequest) {
         endDateIso,
         planCode: "daypass",
         autoRenew: false,
+        lastDayPassPaymentId: payment.payment_id,
       });
 
       return NextResponse.json({ ok: true, tier: "daypass", uid });

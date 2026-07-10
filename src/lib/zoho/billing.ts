@@ -13,6 +13,9 @@ import "server-only";
 
 export type PaidTier = "silver" | "gold" | "daypass";
 
+/** Day Pass price (INR). Used to identify a Day Pass payment during reconciliation. */
+export const DAY_PASS_INR = 99;
+
 /** Maps our recurring tiers to their Zoho plan codes. */
 export const ZOHO_PLAN_CODES: Record<"silver" | "gold", string> = {
   silver: "fnoninja_silver",
@@ -206,7 +209,7 @@ export async function createDayPassPaymentLink(args: {
   uid: string;
   amount?: number;
 }): Promise<PaymentLink> {
-  const { customerId, uid, amount = 99 } = args;
+  const { customerId, uid, amount = DAY_PASS_INR } = args;
   const res = await zohoRequest<{ payment_link: PaymentLink }>("POST", "/paymentlinks", {
     customer_id: customerId,
     payment_amount: amount,
@@ -248,6 +251,34 @@ interface ZohoCustomerPayment {
   amount?: number;
   date?: string;
   currency_code?: string;
+}
+
+export interface LatestCustomerPayment {
+  paymentId: string;
+  amountInr: number;
+  /** Payment date as reported by Zoho (ISO), or null if unparseable. */
+  dateIso: string | null;
+}
+
+/**
+ * Returns the most recent recorded payment for a customer (or null). Used to
+ * reconcile a Day Pass when the user returns to the app, since one-time payment
+ * links don't reliably fire the subscription webhook.
+ */
+export async function getLatestCustomerPayment(
+  customerId: string,
+): Promise<LatestCustomerPayment | null> {
+  const res = await zohoRequest<{ customerpayments?: ZohoCustomerPayment[] }>(
+    "GET",
+    `/customerpayments?customer_id=${encodeURIComponent(customerId)}&sort_column=date&sort_order=D`,
+  );
+  const p = res.customerpayments?.[0];
+  if (!p) return null;
+  return {
+    paymentId: p.payment_id,
+    amountInr: Number(p.amount) || 0,
+    dateIso: p.date ? new Date(p.date).toISOString() : null,
+  };
 }
 
 /**

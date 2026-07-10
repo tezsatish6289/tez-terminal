@@ -219,6 +219,55 @@ export async function createDayPassPaymentLink(args: {
   return res.payment_link;
 }
 
+interface ZohoInvoice {
+  invoice_id: string;
+  status?: string;
+}
+
+/**
+ * Day Pass via a real invoice (not a bare payment link) so the customer gets a
+ * proper tax invoice, consistent with subscriptions. Creates an invoice for the
+ * Day Pass item, ensures it's open/payable, then returns a hosted invoice-payment
+ * page the buyer is redirected to. On payment, Zoho records a ₹99 customer
+ * payment → the webhook (and on-return verification) grant the 24h pass.
+ */
+export async function createDayPassInvoice(args: {
+  customerId: string;
+  uid: string;
+  redirectUrl: string;
+}): Promise<{ url: string; invoiceId: string }> {
+  const cfg = requireConfig();
+  if (!cfg.dayPassItemId) {
+    throw new Error("Missing ZOHO_BILLING_DAYPASS_ITEM_ID — required for Day Pass invoicing");
+  }
+  const { customerId, uid, redirectUrl } = args;
+
+  // 1) Create the invoice for the Day Pass item.
+  const created = await zohoRequest<{ invoice: ZohoInvoice }>("POST", "/invoices", {
+    customer_id: customerId,
+    reference_id: uid,
+    invoice_items: [{ item_id: cfg.dayPassItemId, quantity: 1, rate: DAY_PASS_INR }],
+  });
+  const invoice = created.invoice;
+
+  // 2) New invoices can be created as Draft; convert to Open so it's payable.
+  if ((invoice.status ?? "").toLowerCase() === "draft") {
+    try {
+      await zohoRequest("POST", `/invoices/${invoice.invoice_id}/converttoopen`);
+    } catch {
+      /* already open / not applicable — ignore */
+    }
+  }
+
+  // 3) Hosted payment page for that invoice (redirects back on success).
+  const hp = await zohoRequest<{ hostedpage: HostedPage }>("POST", "/hostedpages/invoicepayment", {
+    invoice_id: invoice.invoice_id,
+    redirect_url: redirectUrl,
+  });
+
+  return { url: hp.hostedpage.url, invoiceId: invoice.invoice_id };
+}
+
 // ── Reads (webhook enrichment / admin) ───────────────────────────────────────
 
 export interface ZohoSubscription {

@@ -3,7 +3,7 @@ import { getAdminAuth, getAdminFirestore } from "@/firebase/admin";
 import { isSubscriptionActive, type SubscriptionDoc } from "@/lib/subscription";
 import {
   ZOHO_PLAN_CODES,
-  createDayPassPaymentLink,
+  createDayPassInvoice,
   createSubscriptionHostedPage,
   findOrCreateCustomer,
   getZohoBillingConfig,
@@ -84,8 +84,12 @@ export async function POST(request: NextRequest) {
     const redirectUrl = `${protocol}://${host}${subscribePath}?status=success`;
 
     if (tier === "daypass") {
-      const link = await createDayPassPaymentLink({ customerId: customer.customer_id, uid });
-      return NextResponse.json({ url: link.url, kind: "payment_link" });
+      const invoice = await createDayPassInvoice({
+        customerId: customer.customer_id,
+        uid,
+        redirectUrl,
+      });
+      return NextResponse.json({ url: invoice.url, kind: "invoice" });
     }
 
     const hostedPage = await createSubscriptionHostedPage({

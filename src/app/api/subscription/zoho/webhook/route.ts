@@ -124,12 +124,18 @@ export async function POST(request: NextRequest) {
       })
       .catch(() => {});
 
-    // Zoho may nest the record under `data` or send it top-level, and one-time
-    // payments arrive as either `payment` or `customerpayment`.
+    // Zoho may nest the record under `data` or send it top-level. One-time
+    // payments arrive as `payment`, `customerpayment`, or `customer_payment`
+    // (the workflow "Default Payload" uses `customer_payment`).
     const payload = body.data ?? body;
     const subscription = payload.subscription ?? body.subscription;
     const payment =
-      payload.payment ?? body.payment ?? payload.customerpayment ?? body.customerpayment;
+      payload.payment ??
+      body.payment ??
+      payload.customerpayment ??
+      body.customerpayment ??
+      payload.customer_payment ??
+      body.customer_payment;
 
     // ── Subscription events (Silver / Gold) ──────────────────────────────────
     if (subscription) {
@@ -181,7 +187,7 @@ export async function POST(request: NextRequest) {
       }
 
       const uid = await resolveUid(db, {
-        referenceId: payment.reference_id,
+        referenceId: payment.reference_id ?? payment.reference_number,
         customerId: payment.customer_id,
       });
       if (!uid) {
@@ -195,7 +201,7 @@ export async function POST(request: NextRequest) {
         endDateIso,
         planCode: "daypass",
         autoRenew: false,
-        lastDayPassPaymentId: payment.payment_id,
+        lastDayPassPaymentId: payment.payment_id ?? payment.customer_payment_id,
       });
 
       return NextResponse.json({ ok: true, tier: "daypass", uid });

@@ -3,6 +3,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import type { SubscriptionStatus, SubscriptionDoc } from "@/lib/subscription";
 import type { Tier } from "@/lib/entitlements";
 import { syncChatAccess } from "@/lib/chat/access";
+import { DAY_PASS_INR } from "@/lib/zoho/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -168,8 +169,17 @@ export async function POST(request: NextRequest) {
     }
 
     // ── One-time Day Pass (payment link) ─────────────────────────────────────
-    // Only treat a payment as a Day Pass when it is NOT tied to a subscription.
+    // The Customer Payment webhook fires for EVERY payment (incl. Silver/Gold
+    // subscription invoices). Only treat a payment as a Day Pass when it isn't
+    // tied to a subscription AND matches the Day Pass price — otherwise a plan
+    // payment could wrongly downgrade the user to a 24h pass. Subscription
+    // payments are handled by the subscription workflow above.
     if (payment && !payment.subscription_id) {
+      const amountInr = Number(payment.amount) || 0;
+      if (Math.abs(amountInr - DAY_PASS_INR) >= 1) {
+        return NextResponse.json({ ok: true, skipped: "non-daypass payment" });
+      }
+
       const uid = await resolveUid(db, {
         referenceId: payment.reference_id,
         customerId: payment.customer_id,

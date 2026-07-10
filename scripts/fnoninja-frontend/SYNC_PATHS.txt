@@ -1,41 +1,47 @@
-# Paths synced from fnoninja-frontend → tez-terminal (same relative paths in both repos).
-src/app/fnoninja
-src/app/embed/levels-bubbles
-src/components/fnoninja
-src/components/levels
-src/components/sr-audit/SrStoryReplayCanvas.tsx
-src/components/seo/JsonLd.tsx
-src/components/ReferralTracker.tsx
-src/components/FirebaseErrorListener.tsx
-src/components/ui/button.tsx
-src/components/ui/carousel.tsx
-src/components/ui/dropdown-menu.tsx
-src/components/ui/popover.tsx
-src/components/ui/sheet.tsx
-src/components/ui/toast.tsx
-src/components/ui/toaster.tsx
-src/hooks/useFnoNinjaFavslide.ts
-src/hooks/use-chat-messages.ts
-src/hooks/use-chat-member.ts
-src/hooks/use-chat-presence.ts
-src/hooks/use-subscription.ts
-src/hooks/use-toast.ts
+# fnoninja-frontend → tez-terminal sync-back manifest.
+#
+# POLICY (locked): fnoninja-frontend owns ONLY the fnoninja.com LANDING PAGE
+# (marketing). Designers/Lovable edit the landing here; these paths — and ONLY
+# these — sync back into tez-terminal (the deploy monorepo) for production.
+#
+# Everything else is canonical in tez-terminal `main` and is NEVER synced back:
+#   - Product UI: /levels, /levels/chart, /subscribe, chat, /learn, /webinar,
+#     /contact, /privacy, /terms, /login, /community
+#   - Shared chrome: nav, footer, page shells, profile menu
+#   - Hooks, shared libs (src/lib/**), firebase, UI primitives
+#   - All backend (/api/**, middleware, entitlements-server, zoho)
+#
+# The export script (tez-terminal → fnoninja-frontend) still copies the full
+# tree so the frontend repo stays buildable for Lovable previews; this manifest
+# only governs what flows BACK, so landing edits can never clobber product code.
+
+# Landing route
+src/app/fnoninja/page.tsx
+
+# Landing marketing sections (+ their showcases/cards)
+src/components/fnoninja/FnoNinjaHero.tsx
+src/components/fnoninja/FnoNinjaHeroCard.tsx
+src/components/fnoninja/FnoNinjaLevelsPreviewCard.tsx
+src/components/fnoninja/FnoNinjaProblemSection.tsx
+src/components/fnoninja/FnoNinjaProblemChartShowcase.tsx
+src/components/fnoninja/FnoNinjaProblemShowcasePrefetch.tsx
+src/components/fnoninja/FnoNinjaComboSection.tsx
+src/components/fnoninja/FnoNinjaComboShowcase.tsx
+src/components/fnoninja/FnoNinjaHowItWorksSection.tsx
+src/components/fnoninja/FnoNinjaSrReplaysSection.tsx
+src/components/fnoninja/FnoNinjaSrReplaysShowcase.tsx
+src/components/fnoninja/FnoNinjaSrReplaySort.tsx
+src/components/fnoninja/FnoNinjaSrReplayCard.tsx
+src/components/fnoninja/FnoNinjaCommunitySection.tsx
+src/components/fnoninja/FnoNinjaAtlasSection.tsx
+src/components/fnoninja/FnoNinjaAtlasPromoSection.tsx
+src/components/fnoninja/FnoNinjaWebinarLandingSection.tsx
+src/components/fnoninja/FnoNinjaWebinarSection.tsx
+src/components/fnoninja/FnoNinjaWhoItsForSection.tsx
+src/components/fnoninja/FnoNinjaReviewsSection.tsx
+src/components/fnoninja/FnoNinjaPricingSection.tsx
+src/components/fnoninja/FnoNinjaDisclaimerSection.tsx
+src/components/fnoninja/FnoNinjaSocialSection.tsx
+
+# Landing marketing assets (images, etc.)
 public/fnoninja
-public/favicon.svg
-src/firebase
-src/lib/fnoninja
-src/lib/freedombot/responsive.ts
-src/lib/levels
-src/lib/zones
-src/lib/chat
-src/lib/countries.ts
-src/lib/index-specs.ts
-src/lib/market-hours.ts
-src/lib/utils.ts
-src/lib/admin-emails-client.ts
-src/lib/ist-display.ts
-src/lib/seo/noindex-metadata.ts
-src/lib/seo/constants.ts
-src/lib/nse/fno-company-names.ts
-src/lib/nse/fno-universe.ts
-src/lib/sr-audit/story-replay-types.ts

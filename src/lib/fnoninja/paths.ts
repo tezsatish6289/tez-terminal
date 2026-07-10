@@ -71,6 +71,16 @@ export function fnoCommunityChatHref(pathname: string): string {
   return `${fnoAnalyticsHref(pathname)}?chat=1`;
 }
 
+/** Guest community landing — benefits + blurred chat preview before sign-in. */
+export function fnoCommunityHref(pathname: string): string {
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/community";
+  }
+  if (pathname.startsWith("/fnoninja")) return "/fnoninja/community";
+  return "/fnoninja/community";
+}
+
 /** Liveslide slideshow on the levels app — sticky `?view=` so refresh restores it. */
 export function fnoLiveslideHref(pathname: string): string {
   return `${fnoAnalyticsHref(pathname)}?view=liveslide`;

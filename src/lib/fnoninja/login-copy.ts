@@ -20,6 +20,18 @@ export const FNO_MARKET_MAP_GUEST_HEADLINE = "See full market map";
 export const FNO_MARKET_MAP_GUEST_DESCRIPTION =
   "Sign in with Google to explore 200+ NSE F&O symbols — filter by support, resistance, and OI clusters.";
 
+/** /community guest page — left column headline + benefits. */
+export const FNO_COMMUNITY_PAGE_HEADLINE = "Join the F&O trader community";
+export const FNO_COMMUNITY_PAGE_SUBTITLE =
+  "A private room for subscribers — same market data, real conversations with serious traders.";
+export const FNO_COMMUNITY_PAGE_BENEFITS = [
+  "Real traders discussing structure, not tips",
+  "No buy/sell signals — observations only",
+  "Share charts and P&L screenshots instantly",
+  "General, Charts, PNL, Offers & Announcements",
+  "Included with your free trial — all channels",
+] as const;
+
 /** Contextual copy when a signed-out user clicks a gated toolbar action on the public chart page. */
 export const FNO_TOOLBAR_SIGN_IN_COPY = {
   chat: {

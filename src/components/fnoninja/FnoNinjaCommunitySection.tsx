@@ -5,8 +5,9 @@ import { useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { useUser } from "@/firebase";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
-import { fnoCommunityChatHref, fnoLoginHref } from "@/lib/fnoninja/paths";
+import { fnoCommunityChatHref, fnoCommunityHref } from "@/lib/fnoninja/paths";
 import {
   FNO_LANDING_BORDER,
   GradientText,
@@ -96,12 +97,14 @@ function CommunityCta() {
   const { user } = useUser();
   const pathname = usePathname();
   const router = useRouter();
-  const href = fnoCommunityChatHref(pathname);
+  const communityHref = fnoCommunityHref(pathname);
+  const chatHref = fnoCommunityChatHref(pathname);
 
   if (!user) {
     return (
       <Link
-        href={fnoLoginHref(pathname, href)}
+        href={communityHref}
+        onClick={() => trackCtaClick("join_community", { label: "Join the community" })}
         className={LANDING_PRIMARY_CTA}
       >
         Join the community
@@ -113,7 +116,10 @@ function CommunityCta() {
   return (
     <button
       type="button"
-      onClick={() => router.push(href)}
+      onClick={() => {
+        trackCtaClick("join_community", { label: "Join the community" });
+        router.push(chatHref);
+      }}
       className={LANDING_PRIMARY_CTA}
     >
       Join the community

@@ -132,6 +132,8 @@ export function middleware(request: NextRequest) {
       pathname.startsWith("/learn/") ||
       pathname === "/webinar" ||
       pathname.startsWith("/webinar/") ||
+      pathname === "/community" ||
+      pathname.startsWith("/community/") ||
       pathname === "/levels" ||
       pathname.startsWith("/levels/")
     ) {

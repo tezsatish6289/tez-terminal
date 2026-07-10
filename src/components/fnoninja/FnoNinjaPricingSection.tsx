@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { FnoNinjaPricingTrialCta } from "@/components/fnoninja/FnoNinjaPricingTrialCta";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
@@ -23,7 +24,7 @@ export function FnoNinjaPricingSection() {
           Start free. <GradientText>Scale when you&apos;re ready.</GradientText>
         </h2>
         <p className="mt-4 text-sm sm:text-base leading-relaxed text-slate-400">
-          One month on us — no credit card. Then pick a plan that fits how you research the F&amp;O
+          7 days on us — no credit card. Then pick a plan that fits how you research the F&amp;O
           market.
         </p>
       </div>
@@ -113,15 +114,13 @@ export function FnoNinjaPricingSection() {
             {tier.id === "trial" ? (
               <FnoNinjaPricingTrialCta className="w-full" />
             ) : (
-              <button
-                type="button"
-                disabled
-                className="w-full py-3 rounded-xl text-sm font-bold text-white opacity-50 cursor-not-allowed"
+              <Link
+                href="/subscribe"
+                className="w-full inline-flex items-center justify-center py-3 rounded-xl text-sm font-bold text-white transition-transform hover:scale-[1.02]"
                 style={{ background: FNO_CTA_GRADIENT }}
-                title="Paid plans coming soon"
               >
-                Coming soon
-              </button>
+                Subscribe
+              </Link>
             )}
             </article>
           </div>

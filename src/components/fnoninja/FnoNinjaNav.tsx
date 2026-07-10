@@ -7,8 +7,10 @@ import { createPortal } from "react-dom";
 import { Loader2, LogOut, Menu, X } from "lucide-react";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
+import { FnoNinjaSubscriptionBadge } from "@/components/fnoninja/FnoNinjaSubscriptionBadge";
 import { useAuth, useUser } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
+import { trackCtaClick } from "@/firebase/analytics";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
 import { FnoNinjaNavSearch } from "@/components/fnoninja/FnoNinjaNavSearch";
 import {
@@ -69,7 +71,10 @@ function FnoNinjaLandingNavCta({
     return (
       <Link
         href={bubblesHref}
-        onClick={onAction}
+        onClick={() => {
+          trackCtaClick("nav_explore_map", { label: "Explore live market map" });
+          onAction?.();
+        }}
         className={`inline-flex items-center justify-center font-bold transition-all hover:scale-105 hover:bg-[#2563eb] gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${className}`}
         style={{
           backgroundColor: "#3b82f6",
@@ -83,7 +88,10 @@ function FnoNinjaLandingNavCta({
   return (
     <Link
       href={loginHref}
-      onClick={onAction}
+      onClick={() => {
+        trackCtaClick("nav_login", { label: "Log in" });
+        onAction?.();
+      }}
       className={`inline-flex items-center justify-center font-bold transition-all hover:scale-105 hover:bg-[#2563eb] gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${className}`}
       style={{
         backgroundColor: "#3b82f6",
@@ -152,7 +160,11 @@ export function FnoNinjaNav() {
               </button>
             )}
 
-            <Link href={productHomeHref} className="flex-shrink-0 min-w-0">
+            <Link
+              href={productHomeHref}
+              onClick={() => trackCtaClick("nav_logo_home", { label: "FNONINJA logo" })}
+              className="flex-shrink-0 min-w-0"
+            >
               <FnoNinjaLogo size={34} />
             </Link>
           </div>
@@ -166,6 +178,7 @@ export function FnoNinjaNav() {
           )}
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {!isLanding ? <FnoNinjaSubscriptionBadge /> : null}
             {!isLevelsApp && isFnoNinjaLandingPath(pathname) ? (
               <>
                 <div className="hidden md:block">
@@ -245,6 +258,7 @@ export function FnoNinjaNav() {
                   <button
                     type="button"
                     onClick={() => {
+                      trackCtaClick("sign_out", { label: "Sign out" });
                       if (auth) initiateSignOut(auth);
                       setMenuOpen(false);
                     }}
@@ -310,7 +324,10 @@ export function FnoNinjaNav() {
             <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
               <Link
                 href={fnoLearnHref(pathname)}
-                onClick={() => setMenuOpen(false)}
+                onClick={() => {
+                  trackCtaClick("nav_learn", { label: "Learn" });
+                  setMenuOpen(false);
+                }}
                 className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
                 style={{ color: "#94a3b8" }}
               >
@@ -321,7 +338,10 @@ export function FnoNinjaNav() {
                   <Link
                     key={l.label}
                     href={fnoWebinarHref(pathname)}
-                    onClick={() => setMenuOpen(false)}
+                    onClick={() => {
+                      trackCtaClick("nav_webinar", { label: l.label });
+                      setMenuOpen(false);
+                    }}
                     className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
                     style={{ color: "#94a3b8" }}
                   >
@@ -331,7 +351,10 @@ export function FnoNinjaNav() {
                   <a
                     key={l.label}
                     href={fnoMarketingHash(pathname, l.href)}
-                    onClick={() => setMenuOpen(false)}
+                    onClick={() => {
+                      trackCtaClick("nav_anchor", { label: l.label, anchor: l.href });
+                      setMenuOpen(false);
+                    }}
                     className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
                     style={{ color: "#94a3b8" }}
                   >

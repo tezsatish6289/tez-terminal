@@ -1,13 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { Tier } from "@/lib/entitlements";
 
 export interface SubscriptionState {
   status: "trial" | "active" | "expired" | "loading";
+  tier: Tier | null;
   isTrial: boolean;
   isActive: boolean;
   isExpired: boolean;
   daysRemaining: number;
+  hoursRemaining: number;
+  showHours: boolean;
+  planCode: string | null;
+  autoRenew: boolean | null;
   trialEndDate: string | null;
   subscriptionEndDate: string | null;
   isLoading: boolean;
@@ -20,10 +26,15 @@ export function useSubscription(
 ): SubscriptionState {
   const [state, setState] = useState<Omit<SubscriptionState, "refresh" | "isLoading"> & { isLoading: boolean }>({
     status: "loading",
+    tier: null,
     isTrial: false,
     isActive: false,
     isExpired: false,
     daysRemaining: 0,
+    hoursRemaining: 0,
+    showHours: false,
+    planCode: null,
+    autoRenew: null,
     trialEndDate: null,
     subscriptionEndDate: null,
     isLoading: true,
@@ -33,10 +44,15 @@ export function useSubscription(
     if (!uid) {
       setState({
         status: "loading",
+        tier: null,
         isTrial: false,
         isActive: false,
         isExpired: false,
         daysRemaining: 0,
+        hoursRemaining: 0,
+        showHours: false,
+        planCode: null,
+        autoRenew: null,
         trialEndDate: null,
         subscriptionEndDate: null,
         isLoading: false,
@@ -55,10 +71,15 @@ export function useSubscription(
 
       setState({
         status: data.status,
+        tier: data.tier ?? null,
         isTrial: data.isTrial,
         isActive: data.isActive,
         isExpired: data.isExpired,
         daysRemaining: data.daysRemaining,
+        hoursRemaining: data.hoursRemaining ?? 0,
+        showHours: data.showHours ?? false,
+        planCode: data.planCode ?? null,
+        autoRenew: data.autoRenew ?? null,
         trialEndDate: data.trialEndDate,
         subscriptionEndDate: data.subscriptionEndDate,
         isLoading: false,

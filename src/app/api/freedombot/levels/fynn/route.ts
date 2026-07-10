@@ -11,7 +11,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminFirestore } from "@/firebase/admin";
+import { getAdminAuth, getAdminFirestore } from "@/firebase/admin";
+import { userHasFeature } from "@/lib/entitlements-server";
 import { stockDocId } from "@/lib/equity-zones-store";
 import { normalizeStockSymbol } from "@/lib/equity-zones-on-demand";
 import { isValidFnoSymbolDb } from "@/lib/nse/fno-universe-runtime";
@@ -338,6 +339,30 @@ export async function POST(request: NextRequest) {
   const rawSymbol = (body.symbol ?? "").trim().toUpperCase();
   if (!scope || !rawSymbol) {
     return NextResponse.json({ error: "Missing scope or symbol" }, { status: 400 });
+  }
+
+  // Atlas AI is a paid feature (free trial / Gold / Day Pass; excluded from
+  // Silver). Enforce server-side so the plan can't be pulled by an ineligible
+  // tier calling this route directly.
+  const authHeader = request.headers.get("authorization") || "";
+  const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!idToken) {
+    return NextResponse.json({ error: "Sign in to use Atlas AI." }, { status: 401 });
+  }
+  let uid: string;
+  try {
+    uid = (await getAdminAuth().verifyIdToken(idToken)).uid;
+  } catch {
+    return NextResponse.json({ error: "Your session expired — please sign in again." }, { status: 401 });
+  }
+  if (!(await userHasFeature(uid, "atlas_ai"))) {
+    return NextResponse.json(
+      {
+        error:
+          "Atlas AI is included with the free trial, Gold, and the Day Pass. Upgrade to unlock it.",
+      },
+      { status: 403 },
+    );
   }
 
   const db = getAdminFirestore();

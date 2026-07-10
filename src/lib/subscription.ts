@@ -2,6 +2,8 @@
  * Subscription system constants, types, and helpers.
  */
 
+import type { Tier } from "@/lib/entitlements";
+
 export const FREE_TRIAL_DAYS = 7;
 
 /** Re-export for server routes — FNONINJA uses a longer trial via product=fnoninja. */
@@ -35,6 +37,19 @@ export interface SubscriptionDoc {
   trialEndDate: string;
   subscriptionEndDate: string | null;
   createdAt: string;
+  /**
+   * Paid tier for `status: "active"` (set by the Zoho webhook). Trials are always
+   * treated as `"free"`; expired subs have no tier. Optional for backward compat
+   * with the existing (crypto/TezTerminal) subscription docs.
+   */
+  tier?: Tier | null;
+  /** Zoho Billing linkage (FNONINJA). */
+  zohoCustomerId?: string;
+  zohoSubscriptionId?: string;
+  /** Zoho plan code (`fnoninja_silver` / `fnoninja_gold`) or `"daypass"` for the one-time pass. */
+  planCode?: string;
+  /** Whether the paid subscription auto-renews (false for Day Pass). */
+  autoRenew?: boolean;
 }
 
 export type PaymentStatus =
@@ -81,6 +96,43 @@ export function isSubscriptionActive(sub: SubscriptionDoc | null): boolean {
   }
 
   return false;
+}
+
+/**
+ * Resolves the active entitlement tier for a subscription.
+ *  - inactive/expired          → null (no entitlements beyond public features)
+ *  - trial                     → "free"
+ *  - active                    → the stored paid tier (silver/gold/daypass)
+ */
+export function getSubscriptionTier(sub: SubscriptionDoc | null): Tier | null {
+  if (!sub || !isSubscriptionActive(sub)) return null;
+  if (sub.status === "trial") return "free";
+  return sub.tier ?? null;
+}
+
+/** End timestamp (ms) for the current period, or null if none/expired. */
+function getSubscriptionEndMs(sub: SubscriptionDoc | null): number | null {
+  if (!sub) return null;
+  if (sub.status === "trial") return new Date(sub.trialEndDate).getTime();
+  if (sub.subscriptionEndDate) return new Date(sub.subscriptionEndDate).getTime();
+  return null;
+}
+
+/** Whole hours remaining (rounded up), floored at 0. Used for Day Pass + final trial day. */
+export function getSubscriptionHoursRemaining(sub: SubscriptionDoc | null): number {
+  const end = getSubscriptionEndMs(sub);
+  if (end === null) return 0;
+  return Math.max(0, Math.ceil((end - Date.now()) / (1000 * 60 * 60)));
+}
+
+/**
+ * True when the UI should count down in hours rather than days: the Day Pass, or
+ * the final day of any plan/trial (≤ 24h left).
+ */
+export function shouldShowHoursRemaining(sub: SubscriptionDoc | null): boolean {
+  if (!sub || !isSubscriptionActive(sub)) return false;
+  if (getSubscriptionTier(sub) === "daypass") return true;
+  return getSubscriptionHoursRemaining(sub) <= 24;
 }
 
 export function getSubscriptionDaysRemaining(sub: SubscriptionDoc | null): number {

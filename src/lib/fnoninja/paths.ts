@@ -121,6 +121,16 @@ export function fnoLearnHref(pathname: string, slug?: LearnArticleSlug): string 
   return slug ? `${base}/${slug}` : base;
 }
 
+/** Subscribe / membership page — fnoninja.com uses /subscribe; dev uses /fnoninja/subscribe. */
+export function fnoSubscribeHref(pathname: string): string {
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/subscribe";
+  }
+  if (pathname.startsWith("/fnoninja")) return "/fnoninja/subscribe";
+  return "/fnoninja/subscribe";
+}
+
 /** Webinar page path for current host/env. */
 export function fnoWebinarHref(pathname: string): string {
   if (typeof window !== "undefined") {

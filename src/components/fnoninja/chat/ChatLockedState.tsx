@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
-import { fnoMarketingHash } from "@/lib/fnoninja/paths";
+import { fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
+import { trackCtaClick } from "@/firebase/analytics";
 
 /** Shown when the user is signed in but lacks an active trial/subscription. */
 export function ChatLockedState() {
@@ -24,7 +25,8 @@ export function ChatLockedState() {
         </p>
       </div>
       <Link
-        href={fnoMarketingHash(pathname, "#pricing")}
+        href={fnoSubscribeHref(pathname)}
+        onClick={() => trackCtaClick("chat_view_plans", { label: "View plans" })}
         className="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-xs font-bold text-white transition-transform hover:scale-105"
         style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
       >

@@ -41,6 +41,7 @@ import {
   fnoFavslideHref,
   fnoLearnHref,
   fnoLiveslideHref,
+  fnoSubscribeHref,
 } from "@/lib/fnoninja/paths";
 import {
   FNO_BG_CANVAS,
@@ -49,6 +50,8 @@ import {
 import { trackCtaClick } from "@/firebase/analytics";
 import { useAuth, useUser } from "@/firebase";
 import { isFnoNinjaAppContext, isFnoNinjaChartPath } from "@/lib/fnoninja/auth";
+import { useEntitlements } from "@/hooks/use-entitlements";
+import type { Feature } from "@/lib/entitlements";
 
 const TOOLBAR_WIDTH_CLASS = LEVELS_CHART_TOOLBAR_WIDTH_CLASS;
 const TOOLBAR_ICON_CLASS = LEVELS_CHART_TOOLBAR_ICON_CLASS;
@@ -255,6 +258,26 @@ export function LevelsChartSideToolbar({
   /** Firebase user in React state, or sync currentUser right after popup OAuth. */
   const isSignedIn = Boolean(user ?? auth.currentUser);
 
+  const { has: hasFeature, isLoading: entitlementsLoading } = useEntitlements();
+
+  /**
+   * Upsell nudge for tier-gated features (Atlas / FavSlide / LiveSlide are
+   * excluded from Silver). Only fires for a signed-in user on the FnoNinja app
+   * whose active tier does NOT include the feature — the guest preview and the
+   * sign-in gate are left untouched. Returns true (and routes to /subscribe)
+   * when the feature is locked, so callers can bail out of the action.
+   */
+  const nudgeIfFeatureLocked = useCallback(
+    (feature: Feature): boolean => {
+      if (!gateToolbarActions || entitlementsLoading || !isSignedIn) return false;
+      if (hasFeature(feature)) return false;
+      trackCtaClick("toolbar_feature_locked", { feature, symbol, scope });
+      router.push(fnoSubscribeHref(pathname));
+      return true;
+    },
+    [gateToolbarActions, entitlementsLoading, isSignedIn, hasFeature, router, pathname, symbol, scope],
+  );
+
   const dismissSignInPrompt = useCallback(() => {
     pendingToolbarActionRef.current = null;
     setSignInAction(null);
@@ -384,6 +407,7 @@ export function LevelsChartSideToolbar({
 
   const goToFavslide = useCallback(() => {
     runIfSignedIn("favslide", () => {
+      if (nudgeIfFeatureLocked("favslide")) return;
       trackCtaClick("toolbar_view_favslide", { label: "Favslide", symbol, scope });
       if (onNavigateFavslide) {
         onNavigateFavslide();
@@ -391,10 +415,11 @@ export function LevelsChartSideToolbar({
       }
       router.push(fnoFavslideHref(pathname));
     });
-  }, [router, pathname, onNavigateFavslide, symbol, scope, runIfSignedIn]);
+  }, [router, pathname, onNavigateFavslide, symbol, scope, runIfSignedIn, nudgeIfFeatureLocked]);
 
   const goToLiveslide = useCallback(() => {
     runIfSignedIn("liveslide", () => {
+      if (nudgeIfFeatureLocked("liveslide")) return;
       trackCtaClick("toolbar_view_liveslide", { label: "Liveslide", symbol, scope });
       if (onNavigateLiveslide) {
         onNavigateLiveslide();
@@ -402,7 +427,7 @@ export function LevelsChartSideToolbar({
       }
       router.push(fnoLiveslideHref(pathname));
     });
-  }, [router, pathname, onNavigateLiveslide, symbol, scope, runIfSignedIn]);
+  }, [router, pathname, onNavigateLiveslide, symbol, scope, runIfSignedIn, nudgeIfFeatureLocked]);
 
   const goToLearn = useCallback(() => {
     trackCtaClick("toolbar_learn", { label: "Learn", symbol, scope });
@@ -442,6 +467,7 @@ export function LevelsChartSideToolbar({
           active={atlasOpen}
           onClick={() => {
             trackCtaClick("toolbar_atlas", { label: "Atlas AI", symbol, scope });
+            if (nudgeIfFeatureLocked("atlas_ai")) return;
             setAtlasOpen(true);
           }}
           title="Atlas AI coach — setup score"

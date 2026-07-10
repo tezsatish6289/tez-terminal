@@ -1,6 +1,6 @@
 /** FNONINJA pricing — INR display tiers for marketing and future billing. */
 
-export const FNONINJA_FREE_TRIAL_DAYS = 30;
+export const FNONINJA_FREE_TRIAL_DAYS = 7;
 
 export interface FnoNinjaPricingTier {
   id: string;
@@ -19,7 +19,7 @@ export const FNONINJA_PRICING_TIERS: FnoNinjaPricingTier[] = [
     label: "Free trial",
     priceInr: null,
     pricePerDayInr: null,
-    periodLabel: "1 month",
+    periodLabel: "7 days",
     badge: "Start here",
     highlight: true,
     features: [

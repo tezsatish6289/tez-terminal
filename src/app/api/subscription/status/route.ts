@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { FNONINJA_FREE_TRIAL_DAYS, FREE_TRIAL_DAYS, type SubscriptionDoc } from "@/lib/subscription";
+import {
+  FNONINJA_FREE_TRIAL_DAYS,
+  FREE_TRIAL_DAYS,
+  getSubscriptionHoursRemaining,
+  getSubscriptionTier,
+  shouldShowHoursRemaining,
+  type SubscriptionDoc,
+} from "@/lib/subscription";
 import { syncChatAccess } from "@/lib/chat/access";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +54,7 @@ export async function GET(request: NextRequest) {
       const newSub: SubscriptionDoc = {
         userId: uid,
         status: "trial",
+        tier: "free",
         trialStartDate: now.toISOString(),
         trialEndDate: trialEnd.toISOString(),
         subscriptionEndDate: null,
@@ -95,12 +103,21 @@ export async function GET(request: NextRequest) {
       (e) => console.error("[Subscription Status] chat access sync failed", e)
     );
 
+    // Evaluate tier/hours against the *effective* status (the stored status may be stale).
+    const effectiveSub: SubscriptionDoc = { ...data, status: effectiveStatus };
+    const tier = getSubscriptionTier(effectiveSub);
+
     return NextResponse.json({
       status: effectiveStatus,
+      tier,
       isTrial: effectiveStatus === "trial",
       isActive: effectiveStatus === "trial" || effectiveStatus === "active",
       isExpired: effectiveStatus === "expired",
       daysRemaining,
+      hoursRemaining: getSubscriptionHoursRemaining(effectiveSub),
+      showHours: shouldShowHoursRemaining(effectiveSub),
+      planCode: data.planCode ?? null,
+      autoRenew: data.autoRenew ?? null,
       trialEndDate: data.trialEndDate,
       subscriptionEndDate: data.subscriptionEndDate,
       trialJustActivated,

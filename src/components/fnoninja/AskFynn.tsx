@@ -24,6 +24,15 @@ import {
 } from "@/components/ui/sheet";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { FNO_ACCENT, FNO_MUTED, FNO_TEXT, FNO_CARD_BG } from "@/lib/fnoninja/theme";
+import { trackCtaClick } from "@/firebase/analytics";
+import { useAuth } from "@/firebase";
+
+const ATLAS_INTENT_CTA_ID: Record<AtlasView, string> = {
+  menu: "atlas_intent_menu",
+  options: "atlas_intent_options",
+  futures: "atlas_intent_futures",
+  faq: "atlas_intent_faq",
+};
 
 interface StrategyEconomics {
   netDebit: number;
@@ -214,6 +223,7 @@ export function AskFynn({
   /** Notify parent (e.g. pause slideshow timer while open). */
   onOpenChange?: (open: boolean) => void;
 }) {
+  const auth = useAuth();
   const isControlled = controlledOpen !== undefined;
   const [internalOpen, setInternalOpen] = useState(false);
   const open = isControlled ? controlledOpen : internalOpen;
@@ -241,9 +251,15 @@ export function AskFynn({
       setLoadingMode(target);
       setByMode((prev) => ({ ...prev, [target]: { ...prev[target], error: undefined } }));
       try {
+        // Atlas AI is entitlement-gated server-side; attach the Firebase ID token
+        // so eligible tiers (trial / Gold / Day Pass) pass the guard.
+        const idToken = await auth.currentUser?.getIdToken().catch(() => null);
         const res = await fetch("/api/freedombot/levels/fynn", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+          },
           body: JSON.stringify({ scope, symbol, mode: target }),
           cache: "no-store",
         });
@@ -265,7 +281,7 @@ export function AskFynn({
         setLoadingMode((curr) => (curr === target ? null : curr));
       }
     },
-    [scope, symbol, byMode, loadingMode],
+    [scope, symbol, byMode, loadingMode, auth],
   );
 
   const handleOpenChange = useCallback(
@@ -281,12 +297,18 @@ export function AskFynn({
   /** User picked an intent — only here do we (maybe) call the model. */
   const handleSelectIntent = useCallback(
     (intent: AtlasView) => {
+      trackCtaClick(ATLAS_INTENT_CTA_ID[intent], {
+        label: intent,
+        symbol,
+        scope,
+        intent,
+      });
       setView(intent);
       if (intent === "options" || intent === "futures") {
         if (!byMode[intent].data && loadingMode !== intent) void ask(intent);
       }
     },
-    [ask, byMode, loadingMode],
+    [ask, byMode, loadingMode, symbol, scope],
   );
 
   const strategyMode: FynnMode | null =
@@ -302,7 +324,10 @@ export function AskFynn({
       {!hideTrigger ? (
       <button
         type="button"
-        onClick={() => handleOpenChange(true)}
+        onClick={() => {
+          trackCtaClick("atlas_open", { label: ATLAS_LABEL, symbol, scope });
+          handleOpenChange(true);
+        }}
         className={`fynn-sparkle-btn${open ? " fynn-sparkle-btn-open" : ""} ${
           iconOnly
             ? "inline-flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-[1.06] shrink-0"
@@ -460,7 +485,15 @@ export function AskFynn({
                       </p>
                       <button
                         type="button"
-                        onClick={() => strategyMode && void ask(strategyMode, true)}
+                        onClick={() => {
+                          trackCtaClick("atlas_refresh", {
+                            label: "Try again",
+                            symbol,
+                            scope,
+                            mode: strategyMode,
+                          });
+                          if (strategyMode) void ask(strategyMode, true);
+                        }}
                         className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-full text-[11px] font-semibold"
                         style={{
                           color: FNO_ACCENT,
@@ -473,7 +506,15 @@ export function AskFynn({
                   ) : plan ? (
                     <FynnPlanView
                       plan={plan}
-                      onRefresh={() => strategyMode && void ask(strategyMode, true)}
+                      onRefresh={() => {
+                        trackCtaClick("atlas_refresh", {
+                          label: "Refresh",
+                          symbol,
+                          scope,
+                          mode: strategyMode,
+                        });
+                        if (strategyMode) void ask(strategyMode, true);
+                      }}
                     />
                   ) : null}
                 </div>

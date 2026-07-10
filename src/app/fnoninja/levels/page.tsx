@@ -90,9 +90,13 @@ import { LevelsViewUrlSync } from "@/components/levels/LevelsViewUrlSync";
 import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughBridge";
 import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
+import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/firebase";
 import { trackCtaClick } from "@/firebase/analytics";
 import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
+import { fnoSubscribeHref } from "@/lib/fnoninja/paths";
+import { useEntitlements } from "@/hooks/use-entitlements";
+import { hasFeature as checkFeature, type Feature } from "@/lib/entitlements";
 import { buildGuestBubbleLabels } from "@/lib/fnoninja/guest-map-preview";
 import {
   guestBubbleFilterSteps,
@@ -208,6 +212,35 @@ export default function LevelsPage() {
   const activeStripKeyRef = useRef("");
   const chartLevelsSymbolRef = useRef<string | null>(null);
   const isFnoNinjaHost = true;
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const { subscription: entSubscription, isAuthenticated: entAuthenticated } = useEntitlements();
+  const entitlementCtx = useMemo(
+    () => ({
+      tier: entSubscription.tier,
+      isActive: entSubscription.isActive,
+      isAuthenticated: entAuthenticated,
+    }),
+    [entSubscription.tier, entSubscription.isActive, entAuthenticated],
+  );
+
+  /**
+   * Tier gate for the two premium slideshow modes (FavSlide + LiveSlide are
+   * excluded from Silver). Fires only for a signed-in user whose active tier
+   * doesn't include the mode; routes them to /subscribe and returns true so the
+   * caller aborts. Guests are handled separately by the sign-in gate below.
+   */
+  const nudgeIfFeatureLocked = useCallback(
+    (feature: Feature): boolean => {
+      if (entSubscription.isLoading || !entAuthenticated) return false;
+      if (checkFeature(feature, entitlementCtx)) return false;
+      trackCtaClick("levels_feature_locked", { feature });
+      router.push(fnoSubscribeHref(pathname));
+      return true;
+    },
+    [entSubscription.isLoading, entAuthenticated, entitlementCtx, router, pathname],
+  );
   const {
     entries: favslideEntries,
     loading: favslideLoading,
@@ -340,20 +373,38 @@ export default function LevelsPage() {
   }, []);
 
   const enterLiveslide = useCallback(() => {
+    if (nudgeIfFeatureLocked("liveslide")) return;
     setViewMode("liveslide");
     setInZoneSlide(0);
-  }, []);
+  }, [nudgeIfFeatureLocked]);
 
   const enterFavslide = useCallback(() => {
     if (!isFnoNinjaHost) return;
+    if (nudgeIfFeatureLocked("favslide")) return;
     void refreshFavslide();
     setViewMode("favslide");
     setInZoneSlide(0);
-  }, [isFnoNinjaHost, refreshFavslide]);
+  }, [isFnoNinjaHost, refreshFavslide, nudgeIfFeatureLocked]);
 
   const enterBubbles = useCallback(() => {
     setViewMode("bubbles");
   }, []);
+
+  /**
+   * Safety net: if entitlements resolve (or change) while the user is already in
+   * a premium slideshow mode their tier doesn't include — e.g. a Silver user who
+   * deep-linked to ?view=liveslide before the subscription loaded — bounce them
+   * back to the bubble map and nudge to /subscribe. Prevents the enter-time race
+   * from leaving them stuck in a locked view.
+   */
+  useEffect(() => {
+    if (entSubscription.isLoading || !entAuthenticated) return;
+    if (viewMode !== "liveslide" && viewMode !== "favslide") return;
+    if (checkFeature(viewMode, entitlementCtx)) return;
+    setViewMode("bubbles");
+    trackCtaClick("levels_feature_locked_bounce", { feature: viewMode });
+    router.push(fnoSubscribeHref(pathname));
+  }, [viewMode, entSubscription.isLoading, entAuthenticated, entitlementCtx, router, pathname]);
 
   const walkthrough = useLiveslideWalkthroughOptional();
   const registerLevelsViewMode = walkthrough?.registerLevelsViewMode;

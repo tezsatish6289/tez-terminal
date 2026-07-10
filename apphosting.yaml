@@ -128,3 +128,38 @@ env:
     secret: GOOGLE_OAUTH_CLIENT_SECRET
   - variable: GOOGLE_OAUTH_REFRESH_TOKEN
     secret: GOOGLE_OAUTH_REFRESH_TOKEN
+  # ── Zoho Billing (FNONINJA subscriptions) ───────────────────────────────────
+  # Non-secret identifiers (safe to keep inline).
+  - variable: ZOHO_BILLING_DC
+    value: in
+    availability:
+      - RUNTIME
+  - variable: ZOHO_BILLING_ORG_ID
+    value: "60063719033"
+    availability:
+      - RUNTIME
+  - variable: ZOHO_BILLING_DAYPASS_ITEM_ID
+    value: "3461880000000045068"
+    availability:
+      - RUNTIME
+  # Credentials + signing secret — create in Secret Manager BEFORE deploying:
+  #   firebase apphosting:secrets:set ZOHO_BILLING_CLIENT_ID
+  #   firebase apphosting:secrets:set ZOHO_BILLING_CLIENT_SECRET
+  #   firebase apphosting:secrets:set ZOHO_BILLING_REFRESH_TOKEN
+  #   firebase apphosting:secrets:set ZOHO_BILLING_WEBHOOK_SECRET
+  - variable: ZOHO_BILLING_CLIENT_ID
+    secret: ZOHO_BILLING_CLIENT_ID
+    availability:
+      - RUNTIME
+  - variable: ZOHO_BILLING_CLIENT_SECRET
+    secret: ZOHO_BILLING_CLIENT_SECRET
+    availability:
+      - RUNTIME
+  - variable: ZOHO_BILLING_REFRESH_TOKEN
+    secret: ZOHO_BILLING_REFRESH_TOKEN
+    availability:
+      - RUNTIME
+  - variable: ZOHO_BILLING_WEBHOOK_SECRET
+    secret: ZOHO_BILLING_WEBHOOK_SECRET
+    availability:
+      - RUNTIME

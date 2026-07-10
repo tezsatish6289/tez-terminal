@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, LogOut, Menu, X } from "lucide-react";
+import { CreditCard, Loader2, LogOut, Menu, X } from "lucide-react";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
 import { FnoNinjaSubscriptionBadge } from "@/components/fnoninja/FnoNinjaSubscriptionBadge";
@@ -19,6 +19,7 @@ import {
   fnoLoginHref,
   fnoMarketingHash,
   fnoProductHomeHref,
+  fnoSubscribeHref,
   fnoWebinarHref,
   isFnoNinjaLandingPath,
 } from "@/lib/fnoninja/paths";
@@ -255,6 +256,18 @@ export function FnoNinjaNav() {
                       {user.email}
                     </p>
                   </div>
+                  <Link
+                    href={fnoSubscribeHref(pathname)}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white"
+                    style={{
+                      border: "1px solid rgba(90,140,220,0.2)",
+                      backgroundColor: "rgba(37,99,235,0.08)",
+                    }}
+                  >
+                    <CreditCard className="h-4 w-4" style={{ color: "#60a5fa" }} />
+                    My subscription
+                  </Link>
                   <button
                     type="button"
                     onClick={() => {

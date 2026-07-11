@@ -62,12 +62,22 @@ function startOfToday(): number {
   return d.getTime();
 }
 
-function toDateInput(iso: string | null): string {
+/** Local `datetime-local` input value (minute precision) from an ISO string. */
+function toDateTimeInput(iso: string | null): string {
   if (!iso) return "";
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return "";
-  return format(new Date(t), "yyyy-MM-dd");
+  return format(new Date(t), "yyyy-MM-dd'T'HH:mm");
 }
+
+/** Quick expiry presets for testing (label → offset from now, ms). */
+const EXPIRY_PRESETS: { label: string; ms: number }[] = [
+  { label: "Expire now", ms: -60_000 },
+  { label: "+1 hour", ms: 60 * 60_000 },
+  { label: "+1 day", ms: 24 * 60 * 60_000 },
+  { label: "+7 days", ms: 7 * 24 * 60 * 60_000 },
+  { label: "+30 days", ms: 30 * 24 * 60 * 60_000 },
+];
 
 export default function AdminFnoNinjaUsersPage() {
   const { user, isUserLoading } = useUser();
@@ -512,9 +522,14 @@ function EditPlanModal({
   const initialTier: AdminTier =
     row.status === "none" ? "none" : ((row.tier as AdminTier) ?? "free");
   const [tier, setTier] = useState<AdminTier>(initialTier);
-  const [expiry, setExpiry] = useState(toDateInput(row.expiryDate) || toDateInput(new Date(Date.now() + 30 * 86_400_000).toISOString()));
+  const [expiry, setExpiry] = useState(
+    toDateTimeInput(row.expiryDate) || toDateTimeInput(new Date(Date.now() + 30 * 86_400_000).toISOString()),
+  );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const setPreset = (ms: number) => setExpiry(toDateTimeInput(new Date(Date.now() + ms).toISOString()));
+  const expiryIso = expiry ? new Date(expiry).toISOString() : "";
 
   const save = async () => {
     setSaving(true);
@@ -526,7 +541,7 @@ function EditPlanModal({
         body: JSON.stringify({
           action: "update",
           tier,
-          expiryDate: tier === "none" ? undefined : new Date(`${expiry}T23:59:59`).toISOString(),
+          expiryDate: tier === "none" ? undefined : expiryIso,
         }),
       });
       const data = await res.json();
@@ -541,7 +556,7 @@ function EditPlanModal({
         planName,
         status: tier === "none" ? "expired" : tier === "free" ? "trial" : "active",
         isActive,
-        expiryDate: tier === "none" ? row.expiryDate : new Date(`${expiry}T23:59:59`).toISOString(),
+        expiryDate: tier === "none" ? row.expiryDate : expiryIso,
         manualOverride: true,
         autoRenew: false,
       });
@@ -585,12 +600,29 @@ function EditPlanModal({
             <label className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1">
               {tier === "free" ? "Trial ends" : "Access expires"}
             </label>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {EXPIRY_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setPreset(p.ms)}
+                  className="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:border-accent/30 hover:text-white"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
             <input
-              type="date"
+              type="datetime-local"
               value={expiry}
               onChange={(e) => setExpiry(e.target.value)}
-              className="w-full mb-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/30"
+              className="w-full mb-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/30"
             />
+            <p className="mb-4 text-[11px] text-muted-foreground/70">
+              {expiryIso && new Date(expiryIso).getTime() <= Date.now()
+                ? "In the past → account will be expired (paywall)."
+                : "Minute precision — use “+1 hour” to test the hours-left badge & timer."}
+            </p>
           </>
         )}
 

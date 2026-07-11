@@ -237,17 +237,40 @@ export async function createDayPassInvoice(args: {
   redirectUrl: string;
 }): Promise<{ url: string; invoiceId: string }> {
   const cfg = requireConfig();
-  if (!cfg.dayPassItemId) {
-    throw new Error("Missing ZOHO_BILLING_DAYPASS_ITEM_ID — required for Day Pass invoicing");
-  }
   const { customerId, uid, redirectUrl } = args;
 
-  // 1) Create the invoice for the Day Pass item.
-  const created = await zohoRequest<{ invoice: ZohoInvoice }>("POST", "/invoices", {
-    customer_id: customerId,
-    reference_id: uid,
-    invoice_items: [{ item_id: cfg.dayPassItemId, quantity: 1, rate: DAY_PASS_INR }],
-  });
+  // 1) Create the invoice for the Day Pass.
+  //    Zoho Billing's create-invoice API keys the line item on `product_id`
+  //    (NOT `item_id`, which only appears in GET/response shapes — sending
+  //    `item_id` fails with "Invalid Element item_id"). name/rate make the
+  //    invoice self-describing and pin the ₹99 amount. If the configured
+  //    product id is missing/invalid we fall back to a pure ad-hoc line item so
+  //    a mis-set env can never block a Day Pass sale.
+  const baseLineItem = {
+    name: "FnoNinja Day Pass",
+    description: "24 hours of full access to FnoNinja",
+    rate: DAY_PASS_INR,
+    quantity: 1,
+  };
+  const createInvoice = (withProduct: boolean) =>
+    zohoRequest<{ invoice: ZohoInvoice }>("POST", "/invoices", {
+      customer_id: customerId,
+      reference_id: uid,
+      invoice_items: [
+        withProduct && cfg.dayPassItemId
+          ? { product_id: cfg.dayPassItemId, ...baseLineItem }
+          : baseLineItem,
+      ],
+    });
+
+  let created: { invoice: ZohoInvoice };
+  try {
+    created = await createInvoice(true);
+  } catch (e) {
+    // Linked product rejected → retry ad-hoc so the purchase still completes.
+    console.warn("[Zoho Day Pass] product-linked invoice failed, retrying ad-hoc:", (e as Error).message);
+    created = await createInvoice(false);
+  }
   const invoice = created.invoice;
 
   // 2) New invoices can be created as Draft; convert to Open so it's payable.

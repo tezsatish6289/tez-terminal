@@ -501,7 +501,7 @@ export function LevelsChartSideToolbar({
 
         <div className="my-0.5 h-px w-10 shrink-0 bg-white/[0.08]" aria-hidden />
 
-        <ToolbarHoverLabel label="Add to favourite">
+        <ToolbarHoverLabel label="Add to watchlist">
           <div
             data-favslide-tour="remove"
             onClick={() => trackCtaClick("favslide_toggle", { label: "Favorite", symbol, scope })}

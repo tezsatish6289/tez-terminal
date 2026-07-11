@@ -85,19 +85,19 @@ export function FnoNinjaFavslideToggle({
       }
       title={
         gateSignIn
-          ? "Sign in to use favslide"
+          ? "Sign in to use watchlist"
           : needsSignIn
-            ? "Sign in to use favslide"
+            ? "Sign in to use watchlist"
             : error
             ? error
             : favorited
-              ? "Remove from favslide"
-              : "Add to favslide"
+              ? "Remove from watchlist"
+              : "Add to watchlist"
       }
       aria-label={
         favorited
-          ? `Remove ${symbol} from favslide`
-          : `Add ${symbol} to favslide`
+          ? `Remove ${symbol} from watchlist`
+          : `Add ${symbol} to watchlist`
       }
       data-favslide-tour={removeOnly ? "remove" : undefined}
     >

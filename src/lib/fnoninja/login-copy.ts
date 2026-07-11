@@ -40,9 +40,9 @@ export const FNO_TOOLBAR_SIGN_IN_COPY = {
       "Sign in to join F&O trader discussions, ask questions, and follow community chat on live symbols.",
   },
   favorite: {
-    title: "Add to favourite",
+    title: "Add to watchlist",
     description:
-      "Sign in to save symbols to your favourites and build a personalised watchlist.",
+      "Sign in to save symbols to your watchlist.",
   },
   bubbles: {
     title: "View Bubble Chart",

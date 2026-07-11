@@ -14,7 +14,7 @@ const INCLUDED = [
   "Symbol deep-dive charts & levels",
   "Atlas AI setup coach",
   "Livelist & Watchlist autoplay",
-  "Favourites, community chat & news",
+  "Watchlist, community chat & news",
 ];
 
 const COPY: Record<

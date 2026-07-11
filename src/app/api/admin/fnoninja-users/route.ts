@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
+import { readStoredPhone } from "@/lib/phone";
 import { isSubscriptionActive, type SubscriptionDoc } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export interface FnoAdminUserRow {
   uid: string;
   displayName: string | null;
   email: string | null;
+  phone: string | null;
   photoURL: string | null;
   joinedAt: string | null;
   lastSeenAt: string | null;
@@ -76,6 +78,7 @@ export async function GET(request: NextRequest) {
         uid: d.id,
         displayName: u.displayName ?? null,
         email: u.email ?? null,
+        phone: readStoredPhone(u),
         photoURL: u.photoURL ?? null,
         joinedAt: u.fnoninjaJoinedAt ?? sub?.createdAt ?? null,
         lastSeenAt: u.fnoninjaLastSeenAt ?? u.lastSeenAt ?? null,

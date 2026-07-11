@@ -21,6 +21,7 @@ interface FnoUserRow {
   uid: string;
   displayName: string | null;
   email: string | null;
+  phone: string | null;
   photoURL: string | null;
   joinedAt: string | null;
   lastSeenAt: string | null;
@@ -144,7 +145,7 @@ export default function AdminFnoNinjaUsersPage() {
 
     return users.filter((u) => {
       if (q) {
-        const hay = `${u.displayName ?? ""} ${u.email ?? ""} ${u.uid}`.toLowerCase();
+        const hay = `${u.displayName ?? ""} ${u.email ?? ""} ${u.phone ?? ""} ${u.uid}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       if (planFilter !== "all" && u.planName !== planFilter) return false;
@@ -306,7 +307,7 @@ export default function AdminFnoNinjaUsersPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
               <input
                 type="text"
-                placeholder="Search name, email, or uid..."
+                placeholder="Search name, email, mobile, or uid..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent/30"
@@ -415,6 +416,9 @@ export default function AdminFnoNinjaUsersPage() {
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-white truncate">{u.displayName || "—"}</p>
                         <p className="text-[11px] text-muted-foreground truncate">{u.email || u.uid}</p>
+                        <p className="text-[11px] font-mono text-muted-foreground/70 truncate">
+                          {u.phone ? `+91 ${u.phone}` : "no mobile"}
+                        </p>
                       </div>
                     </div>
                     <span className="text-[10px] font-mono text-white/60">
@@ -578,7 +582,10 @@ function EditPlanModal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="text-xs text-muted-foreground mb-4 truncate">{row.email || row.uid}</p>
+        <p className="text-xs text-muted-foreground mb-4 truncate">
+          {row.email || row.uid}
+          {row.phone ? ` · +91 ${row.phone}` : ""}
+        </p>
 
         <label className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1">
           Plan

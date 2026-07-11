@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { FieldValue } from "firebase-admin/firestore";
 import { getAdminAuth, getAdminFirestore } from "@/firebase/admin";
 import { isSubscriptionActive, type SubscriptionDoc } from "@/lib/subscription";
+import { encryptPhone, normalizeIndianMobile, readStoredPhone } from "@/lib/phone";
 import {
   ZOHO_PLAN_CODES,
   createDayPassPaymentLink,
@@ -12,14 +14,6 @@ import {
 export const dynamic = "force-dynamic";
 
 type CheckoutTier = "silver" | "gold" | "daypass";
-
-/** Normalise to a valid 10-digit Indian mobile (6-9 leading), else null. */
-function normalizeIndianMobile(raw?: string | null): string | null {
-  if (!raw) return null;
-  const digits = String(raw).replace(/\D/g, "");
-  const ten = digits.length > 10 ? digits.slice(-10) : digits;
-  return /^[6-9]\d{9}$/.test(ten) ? ten : null;
-}
 
 /**
  * POST /api/subscription/zoho/checkout
@@ -87,7 +81,7 @@ export async function POST(request: NextRequest) {
     let phone = bodyPhone;
     if (!phone) {
       const userSnap = await userRef.get();
-      phone = normalizeIndianMobile(userSnap.data()?.phone as string | undefined);
+      phone = readStoredPhone(userSnap.data());
     }
     if (!phone) {
       return NextResponse.json(
@@ -95,7 +89,13 @@ export async function POST(request: NextRequest) {
         { status: 422 },
       );
     }
-    if (bodyPhone) await userRef.set({ phone: bodyPhone }, { merge: true });
+    // Store the number encrypted at rest (PII); drop any legacy plaintext field.
+    if (bodyPhone) {
+      await userRef.set(
+        { phoneEnc: encryptPhone(bodyPhone), phone: FieldValue.delete() },
+        { merge: true },
+      );
+    }
 
     // Find or create the Zoho customer (with mobile for Razorpay) and persist the
     // uid ↔ customer mapping so the webhook can resolve the buyer later.

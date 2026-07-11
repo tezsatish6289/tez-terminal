@@ -409,7 +409,8 @@ export function LevelsChartSideToolbar({
 
   const goToFavslide = useCallback(() => {
     runIfSignedIn("favslide", () => {
-      if (nudgeIfFeatureLocked("favslide")) return;
+      // No tier gate: Silver enters the manual Favourites view, everyone else
+      // gets auto-play FavSlide (expired users hit the paywall on arrival).
       trackCtaClick("toolbar_view_favslide", { label: "Favslide", symbol, scope });
       if (onNavigateFavslide) {
         onNavigateFavslide();
@@ -417,11 +418,12 @@ export function LevelsChartSideToolbar({
       }
       router.push(fnoFavslideHref(pathname));
     });
-  }, [router, pathname, onNavigateFavslide, symbol, scope, runIfSignedIn, nudgeIfFeatureLocked]);
+  }, [router, pathname, onNavigateFavslide, symbol, scope, runIfSignedIn]);
 
   const goToLiveslide = useCallback(() => {
     runIfSignedIn("liveslide", () => {
-      if (nudgeIfFeatureLocked("liveslide")) return;
+      // No tier gate: Silver enters manual Livelist, paid tiers get autoplay,
+      // expired users hit the paywall on arrival.
       trackCtaClick("toolbar_view_liveslide", { label: "Liveslide", symbol, scope });
       if (onNavigateLiveslide) {
         onNavigateLiveslide();
@@ -429,7 +431,7 @@ export function LevelsChartSideToolbar({
       }
       router.push(fnoLiveslideHref(pathname));
     });
-  }, [router, pathname, onNavigateLiveslide, symbol, scope, runIfSignedIn, nudgeIfFeatureLocked]);
+  }, [router, pathname, onNavigateLiveslide, symbol, scope, runIfSignedIn]);
 
   const goToLearn = useCallback(() => {
     trackCtaClick("toolbar_learn", { label: "Learn", symbol, scope });
@@ -537,10 +539,10 @@ export function LevelsChartSideToolbar({
         </ToolbarButton>
 
         <ToolbarButton
-          label="Favourite Slideshow"
+          label="Watchlist"
           flat
           onClick={goToFavslide}
-          title="Favourite Slideshow"
+          title="Watchlist"
           dataAttrs={{
             "data-favslide-tour": "fav-switch",
             "data-liveslide-tour": "fav-switch",
@@ -550,10 +552,10 @@ export function LevelsChartSideToolbar({
         </ToolbarButton>
 
         <ToolbarButton
-          label="Live Slideshow"
+          label="Livelist"
           flat
           onClick={goToLiveslide}
-          title="Live Slideshow"
+          title="Livelist"
           dataAttrs={{
             "data-liveslide-tour": "live-switch",
             "data-favslide-tour": "live-switch",

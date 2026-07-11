@@ -96,7 +96,8 @@ import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import { useUpgradePrompt } from "@/components/fnoninja/FnoNinjaUpgradePrompt";
 import { FnoNinjaAccessPaywall } from "@/components/fnoninja/FnoNinjaAccessPaywall";
-import { featureLockReason, type Feature } from "@/lib/entitlements";
+import { FnoNinjaAutoplayLock } from "@/components/fnoninja/FnoNinjaAutoplayLock";
+import { hasFeature } from "@/lib/entitlements";
 import { buildGuestBubbleLabels } from "@/lib/fnoninja/guest-map-preview";
 import {
   guestBubbleFilterSteps,
@@ -225,28 +226,21 @@ export default function LevelsPage() {
   );
 
   /**
-   * Gate for the two premium slideshow modes (FavSlide + LiveSlide are excluded
-   * from Silver). Two distinct locked states:
-   *   - upgrade_required  → active Silver user clicking a Gold mode. Block entry
-   *                         and show the upgrade prompt (they keep their plan).
-   *   - subscription_required → expired user. Let them ENTER the view; the page
-   *                         renders the paywall overlay on top of it.
-   * Guests (login_required) are handled by the sign-in gate. Returns true only
-   * when the caller should abort navigation (the Silver upgrade case).
+   * Autoplay (hands-free cycling of Watchlist / Livelist) is the paid capability.
+   * Everyone gets the list views; Silver must step through manually and sees a
+   * locked "Autoplay" control that nudges an upgrade. Free trial / Day Pass /
+   * Gold get autoplay. Expired users are walled off (paywall) — not "manual".
    */
-  const nudgeIfFeatureLocked = useCallback(
-    (feature: Feature): boolean => {
-      if (entSubscription.isLoading || !entAuthenticated) return false;
-      const reason = featureLockReason(feature, entitlementCtx);
-      if (reason === "upgrade_required") {
-        trackCtaClick("levels_feature_locked", { feature });
-        promptUpgrade(feature);
-        return true;
-      }
-      return false;
-    },
-    [entSubscription.isLoading, entAuthenticated, entitlementCtx, promptUpgrade],
-  );
+  const autoplayEntitled =
+    !entSubscription.isLoading && entAuthenticated && hasFeature("favslide", entitlementCtx);
+  const slideManualEligible =
+    !entSubscription.isLoading &&
+    entAuthenticated &&
+    entSubscription.isActive &&
+    !autoplayEntitled;
+  const slideManual =
+    (viewMode === "favslide" || viewMode === "liveslide") && slideManualEligible;
+
   const {
     entries: favslideEntries,
     loading: favslideLoading,
@@ -379,37 +373,24 @@ export default function LevelsPage() {
   }, []);
 
   const enterLiveslide = useCallback(() => {
-    if (nudgeIfFeatureLocked("liveslide")) return;
+    // No tier gate: Silver enters manual Livelist, paid tiers get autoplay,
+    // expired users enter and hit the paywall overlay.
     setViewMode("liveslide");
     setInZoneSlide(0);
-  }, [nudgeIfFeatureLocked]);
+  }, []);
 
   const enterFavslide = useCallback(() => {
     if (!isFnoNinjaHost) return;
-    if (nudgeIfFeatureLocked("favslide")) return;
+    // No tier gate here: Silver enters manual Favourites, Free/Gold/Day Pass get
+    // auto-play FavSlide, expired users enter and hit the paywall overlay.
     void refreshFavslide();
     setViewMode("favslide");
     setInZoneSlide(0);
-  }, [isFnoNinjaHost, refreshFavslide, nudgeIfFeatureLocked]);
+  }, [isFnoNinjaHost, refreshFavslide]);
 
   const enterBubbles = useCallback(() => {
     setViewMode("bubbles");
   }, []);
-
-  /**
-   * Safety net for an active Silver user who deep-links to a Gold slideshow mode
-   * (e.g. ?view=liveslide): bounce them back to the bubble map and show the
-   * upgrade prompt. Expired users are NOT bounced — they stay in the view and
-   * get the paywall overlay (see `slidePaywallReason` below).
-   */
-  useEffect(() => {
-    if (entSubscription.isLoading || !entAuthenticated) return;
-    if (viewMode !== "liveslide" && viewMode !== "favslide") return;
-    if (featureLockReason(viewMode, entitlementCtx) !== "upgrade_required") return;
-    setViewMode("bubbles");
-    trackCtaClick("levels_feature_locked_bounce", { feature: viewMode });
-    promptUpgrade(viewMode);
-  }, [viewMode, entSubscription.isLoading, entAuthenticated, entitlementCtx, promptUpgrade]);
 
   const walkthrough = useLiveslideWalkthroughOptional();
   const registerLevelsViewMode = walkthrough?.registerLevelsViewMode;
@@ -596,10 +577,14 @@ export default function LevelsPage() {
     [],
   );
 
-  const slideshowEnabled = isSlideView && inZoneCount > 1;
-  /** Favslide: keep transport + pill row even when empty; liveslide needs 2+ symbols to advance. */
+  const slideshowEnabled = isSlideView && inZoneCount > 1 && !slideManual;
+  /**
+   * Favslide: keep transport + pill row even when empty; liveslide needs 2+
+   * symbols to advance. Silver's manual list has no auto-advance, so no
+   * transport/timer at all (they get a locked Autoplay button instead).
+   */
   const showSlideshowStripTransport =
-    isSlideView && (viewMode === "favslide" || inZoneCount > 1);
+    isSlideView && !slideManual && (viewMode === "favslide" || inZoneCount > 1);
 
   const toggleSlideshowPause = useCallback(() => {
     setSlideshowPaused((p) => {
@@ -610,7 +595,7 @@ export default function LevelsPage() {
 
   const slideshowExploreHold = useMemo(
     () =>
-      isSlideView
+      isSlideView && !slideManual
         ? slideshowExplorePauseReason(
             slideshowChartViewMode,
             fynnDrawerOpen,
@@ -618,7 +603,7 @@ export default function LevelsPage() {
             chatDrawerOpen,
           )
         : null,
-    [isSlideView, slideshowChartViewMode, fynnDrawerOpen, newsDrawerOpen, chatDrawerOpen],
+    [isSlideView, slideManual, slideshowChartViewMode, fynnDrawerOpen, newsDrawerOpen, chatDrawerOpen],
   );
 
   const slideshowTimerPaused = slideshowPaused || Boolean(slideshowExploreHold);
@@ -801,19 +786,19 @@ export default function LevelsPage() {
   }, [inZoneCurrent, slideshowFilter, viewMode]);
 
   useEffect(() => {
-    if (slideshowTimerPaused || !isSlideView || inZoneCount <= 1) return;
+    if (slideManual || slideshowTimerPaused || !isSlideView || inZoneCount <= 1) return;
     const id = setInterval(() => {
       setSlideshowCountdown((c) => c - 1);
     }, 1000);
     return () => clearInterval(id);
-  }, [slideshowTimerPaused, isSlideView, inZoneCount, inZoneCurrent, slideshowFilter]);
+  }, [slideManual, slideshowTimerPaused, isSlideView, inZoneCount, inZoneCurrent, slideshowFilter]);
 
   useEffect(() => {
     if (slideshowCountdown > 0) return;
-    if (slideshowTimerPaused || !isSlideView || inZoneCount <= 1) return;
+    if (slideManual || slideshowTimerPaused || !isSlideView || inZoneCount <= 1) return;
     setInZoneSlide((s) => (s + 1) % inZoneCount);
     setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
-  }, [slideshowCountdown, slideshowTimerPaused, isSlideView, inZoneCount]);
+  }, [slideshowCountdown, slideManual, slideshowTimerPaused, isSlideView, inZoneCount]);
 
   useEffect(() => {
     if (inZoneCount === 0) setInZoneSlide(0);
@@ -1133,10 +1118,11 @@ export default function LevelsPage() {
     );
 
   const viewToggleLabel =
-    viewMode === "bubbles" ? "Liveslide" : "View Bubbles map";
+    viewMode === "bubbles" ? "Livelist" : "View Bubbles map";
   const bubblesBackTitle = "Back to Market Bubbles map. Press B or click.";
-  const liveslideCtaTitle = "Cycle aligned market setups. Press L or click.";
-  const favslideCtaTitle = "Cycle your favourited stocks. Press F or click.";
+  const liveslideCtaTitle = "Aligned market setups. Press L or click.";
+  const favslideCtaLabel = "Watchlist";
+  const favslideCtaTitle = "Your favourited stocks. Press F or click.";
 
   const chartHighConfidence =
     inZoneActive?.scope === "index" || isHighConfidenceLevels(chartLevelsForView);
@@ -1306,7 +1292,13 @@ export default function LevelsPage() {
             />
           }
           banner={
-            slideshowExploreHold ? (
+            slideManual ? (
+              <FnoNinjaAutoplayLock
+                onUpgrade={() =>
+                  promptUpgrade(viewMode === "favslide" ? "favslide" : "liveslide")
+                }
+              />
+            ) : slideshowExploreHold ? (
               <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
             ) : undefined
           }
@@ -1333,7 +1325,7 @@ export default function LevelsPage() {
                 slideCount={inZoneCount}
                 activeIndex={inZoneCurrent}
                 onGoTo={setInZoneSlide}
-                slideshowAdvanceHint
+                slideshowAdvanceHint={!slideManual}
                 slideshowPaused={slideshowTimerPaused}
               />
             </div>
@@ -1399,22 +1391,28 @@ export default function LevelsPage() {
           <div
             className={`flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:pb-4 ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
           >
+            {slideManual ? (
+              <div className="shrink-0 px-0.5">
+                <FnoNinjaAutoplayLock onUpgrade={() => promptUpgrade("favslide")} />
+              </div>
+            ) : null}
             <div className="flex flex-1 min-h-0 w-full items-center justify-center px-6 text-center">
               {favslideLoading ? (
                 <div className="flex flex-col items-center gap-3">
                   <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
                   <p className="text-sm" style={{ color: FNO_MUTED }}>
-                    Loading favslide…
+                    Loading watchlist…
                   </p>
                 </div>
               ) : (
                 <div className="max-w-md space-y-3">
                   <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                    Your personal favslide
+                    Your watchlist
                   </h2>
                   <p className="text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
-                    A private slideshow of the names you follow — charts, levels, and news, one pick at
-                    a time.
+                    {slideManual
+                      ? "The names you're tracking — charts, levels, and news. Step through them at your own pace."
+                      : "The names you follow — charts, levels, and news, auto-playing one at a time."}
                   </p>
                   <p className="text-xs leading-relaxed max-w-sm mx-auto" style={{ color: "#64748b" }}>
                     Tap{" "}
@@ -1579,8 +1577,8 @@ export default function LevelsPage() {
       favslideToggle={
         isFnoNinjaHost
           ? {
-              label: "Favslide",
-              shortLabel: "Favslide",
+              label: favslideCtaLabel,
+              shortLabel: favslideCtaLabel,
               onClick: enterFavslide,
               title: favslideCtaTitle,
               variant: "favslide" as const,
@@ -1591,7 +1589,7 @@ export default function LevelsPage() {
       }
       viewToggle={{
         label: viewToggleLabel,
-        shortLabel: viewMode === "bubbles" ? "Liveslide" : "Bubbles",
+        shortLabel: viewMode === "bubbles" ? "Livelist" : "Bubbles",
         onClick: viewMode === "bubbles" ? enterLiveslide : enterBubbles,
         title: viewMode === "bubbles" ? liveslideCtaTitle : bubblesBackTitle,
         variant: "liveslide" as const,

@@ -20,6 +20,7 @@ import {
 import type { FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { FNO_FAVSLIDE_ACCENT } from "@/lib/fnoninja/theme";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
+import { trackCtaClick } from "@/firebase/analytics";
 
 export function FnoNinjaFavslideAddButton({
   api,
@@ -32,9 +33,10 @@ export function FnoNinjaFavslideAddButton({
   onAdded?: (entry: { scope: LevelsTvScope; symbol: string }) => void;
   needsSignIn?: boolean;
   variant?: "strip" | "rail";
-  /** Favslide list size — shown beside Add in one box. */
+  /** Watchlist size — shown beside Add in one box. */
   count?: number;
 }) {
+  const listLabel = "watchlist";
   const isRail = variant === "rail";
   const boxClass = isRail ? LEVELS_RAIL_CONTROL_BOX_CLASS : LEVELS_STRIP_ICON_BOX_CLASS;
   const innerClass = isRail ? LEVELS_RAIL_CONTROL_INNER_CLASS : LEVELS_STRIP_ICON_INNER_CLASS;
@@ -64,6 +66,11 @@ export function FnoNinjaFavslideAddButton({
   const handleAdd = useCallback(
     async (entry: LevelsSymbolEntry) => {
       if (needsSignIn || api.isFavorite(entry.scope, entry.symbol) || api.mutating) return;
+      trackCtaClick("favslide_add", {
+        label: entry.label,
+        symbol: entry.symbol,
+        scope: entry.scope,
+      });
       const key = `${entry.scope}:${entry.symbol}`;
       setAddingKey(key);
       try {
@@ -94,12 +101,12 @@ export function FnoNinjaFavslideAddButton({
           }}
           aria-label={
             needsSignIn
-              ? "Sign in to add to favslide"
+              ? `Sign in to add to ${listLabel}`
               : count != null
-                ? `Add symbol to favslide, ${count} saved`
-                : "Add symbol to favslide"
+                ? `Add symbol to ${listLabel}, ${count} saved`
+                : `Add symbol to ${listLabel}`
           }
-          title={needsSignIn ? "Sign in to add to favslide" : "Search and add to favslide"}
+          title={needsSignIn ? `Sign in to add to ${listLabel}` : `Search and add to ${listLabel}`}
           data-favslide-tour={count != null ? "fav-count" : "add"}
         >
           <Plus
@@ -129,7 +136,7 @@ export function FnoNinjaFavslideAddButton({
             className="px-1 pb-2 text-[9px] font-black uppercase tracking-[0.14em]"
             style={{ color: "#64748b" }}
           >
-            Add to favslide
+            Add to watchlist
           </p>
           <LevelsToolbarSearchInput
             inputRef={inputRef}
@@ -168,7 +175,7 @@ export function FnoNinjaFavslideAddButton({
         <div className="max-h-56 overflow-y-auto py-1">
           {needsSignIn ? (
             <p className="px-3 py-4 text-xs leading-relaxed" style={{ color: "#64748b" }}>
-              Sign in to save symbols to your personal favslide list.
+              Sign in to save symbols to your personal watchlist.
             </p>
           ) : query.trim().length === 0 ? (
             <p className="px-3 py-4 text-xs leading-relaxed" style={{ color: "#64748b" }}>

@@ -13,7 +13,7 @@ const INCLUDED = [
   "Full NSE F&O bubble market map",
   "Symbol deep-dive charts & levels",
   "Atlas AI setup coach",
-  "FavSlide & LiveSlide slideshows",
+  "Livelist & Watchlist autoplay",
   "Favourites, community chat & news",
 ];
 
@@ -30,7 +30,7 @@ const COPY: Record<
   upgrade_required: {
     badge: "A Gold feature",
     title: "Upgrade to unlock this",
-    body: "Atlas AI, FavSlide and LiveSlide are included with Gold and the Day Pass. Upgrade to unlock them.",
+    body: "Atlas AI, plus hands-free Livelist & Watchlist autoplay, are included with Gold and the Day Pass. Upgrade to unlock them.",
     icon: Crown,
   },
   // Guests are handled by the sign-in gate elsewhere; included for completeness.

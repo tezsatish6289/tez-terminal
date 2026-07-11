@@ -3,21 +3,21 @@ import type { LiveslideWalkthroughTourStep } from "@/lib/fnoninja/liveslide-walk
 export type FavslideWalkthroughTourStep = LiveslideWalkthroughTourStep;
 
 export const FAVSLIDE_WALKTHROUGH_INTRO = {
-  title: "What is Favslide and how to use it",
+  title: "What is Watchlist and how to use it",
   readLabel: "5 min read",
   excerpt:
-    "Build a personal watchlist and cycle through your favourite indices and F&O stocks — charts, zones, and news in one view.",
+    "Build a personal watchlist of your favourite indices and F&O stocks — charts, zones, and news in one view, with hands-free autoplay on Gold.",
   purpose: [
-    "Liveslide rotates aligned market setups across the full universe. Favslide is your personal shortlist: only symbols you chose, in the order you saved them — one at a time with the same chart, zone overlays, and news panel.",
-    "Add names from the + button on the strip or from any symbol chart. Remove when you are done monitoring. Favslide is for your own research rhythm — we show structure and context, never hold/exit calls.",
+    "Livelist surfaces aligned market setups across the full universe. Watchlist is your personal shortlist: only symbols you chose, in the order you saved them — one at a time with the same chart, zone overlays, and news panel.",
+    "Add names from the + button on the strip or from any symbol chart. Remove when you are done monitoring. Watchlist is for your own research rhythm — we show structure and context, never hold/exit calls.",
   ],
   advantages: [
-    "Your list, your pace: cycle only the indices and stocks you care about.",
+    "Your list, your pace: step through only the indices and stocks you care about.",
     "Add in-place: tap + on the strip to search and add without leaving the page.",
-    "Same chart depth: zones, OI peaks, and Max Pain on live candles — identical to Liveslide.",
+    "Same chart depth: zones, OI peaks, and Max Pain on live candles — identical to Livelist.",
+    "Hands-free autoplay on Gold / Day Pass: your list rotates automatically; Silver steps through manually.",
     "Quick cleanup: remove a symbol from the chart header when it drops off your list.",
-    "Pause to study: stop auto-advance when a name needs a longer look.",
-    "Monitor positions: revisit symbols you are already tracking on a schedule you define.",
+    "Monitor positions: revisit symbols you are already tracking whenever you like.",
   ],
 };
 
@@ -25,7 +25,7 @@ export const FAVSLIDE_WALKTHROUGH_TOUR_STEPS: FavslideWalkthroughTourStep[] = [
   {
     id: "fav-count",
     selector: '[data-favslide-tour="fav-count"]',
-    title: "Your favslide count",
+    title: "Your watchlist count",
     body: "Shows how many symbols are in your personal watchlist. The list is saved to your account — add or remove anytime.",
     placement: "bottom",
   },
@@ -33,7 +33,7 @@ export const FAVSLIDE_WALKTHROUGH_TOUR_STEPS: FavslideWalkthroughTourStep[] = [
     id: "pause",
     selector: '[data-favslide-tour="pause"]',
     title: "Pause or play",
-    body: "Favslide auto-advances every 60 seconds through your list. Pause when something needs more time — the countdown shows seconds until the next symbol.",
+    body: "On Gold and the Day Pass, Watchlist auto-advances every 60 seconds through your list — pause when something needs more time. Silver steps through manually; upgrade to unlock autoplay.",
     placement: "bottom",
   },
   {
@@ -47,7 +47,7 @@ export const FAVSLIDE_WALKTHROUGH_TOUR_STEPS: FavslideWalkthroughTourStep[] = [
     id: "add",
     selector: '[data-favslide-tour="add"]',
     title: "Add symbols",
-    body: "Tap + to search any NSE F&O index or stock and add it to favslide — without leaving this page.",
+    body: "Tap + to search any NSE F&O index or stock and add it to your watchlist — without leaving this page.",
     placement: "bottom",
   },
   {
@@ -61,14 +61,14 @@ export const FAVSLIDE_WALKTHROUGH_TOUR_STEPS: FavslideWalkthroughTourStep[] = [
     id: "chart",
     selector: '[data-favslide-tour="chart"]',
     title: "Live chart with zones",
-    body: "Support and resistance bands, Put/Call OI peaks, and Max Pain on live 15M candles — full chart context for each favourite.",
+    body: "Support and resistance bands, Put/Call OI peaks, and Max Pain on live 15M candles — full chart context for each name on your watchlist.",
     placement: "top",
   },
   {
     id: "remove",
     selector: '[data-favslide-tour="remove"]',
-    title: "Remove from favslide",
-    body: "Done monitoring a symbol? Tap Remove from favslide in the left toolbar to drop it from your list.",
+    title: "Remove from watchlist",
+    body: "Done monitoring a symbol? Tap Remove from watchlist in the left toolbar to drop it from your list.",
     placement: "bottom",
   },
   {
@@ -88,8 +88,8 @@ export const FAVSLIDE_WALKTHROUGH_TOUR_STEPS: FavslideWalkthroughTourStep[] = [
   {
     id: "footer",
     selector: '[data-favslide-tour="footer"]',
-    title: "Auto-advance or pick a slide",
-    body: "Dot indicators jump to any symbol in your list. When playing, favslide advances every 60s — or pause to stay on one name.",
+    title: "Auto-advance or pick a symbol",
+    body: "Dot indicators jump to any symbol in your list. With autoplay (Gold / Day Pass), Watchlist advances every 60s — or pause to stay on one name.",
     placement: "top",
   },
 ];

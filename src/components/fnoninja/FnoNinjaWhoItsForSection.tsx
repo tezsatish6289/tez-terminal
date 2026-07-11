@@ -11,8 +11,8 @@ const PERSONAS = [
     icon: Zap,
     title: "Intraday Trader",
     subtitle: "Same-day · index & momentum",
-    body: "Live NIFTY, BANKNIFTY, and FINNIFTY zones with a slideshow that cycles the heavy hitters.",
-    tags: ["Slideshow mode", "Zone dashboard", "Index views"],
+    body: "Live NIFTY, BANKNIFTY, and FINNIFTY zones with a Livelist that auto-plays the heavy hitters.",
+    tags: ["Livelist Autoplay", "Zone dashboard", "Index views"],
   },
   {
     icon: BarChart3,

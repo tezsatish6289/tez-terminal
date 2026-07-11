@@ -19,11 +19,11 @@ const COMMON_FEATURES = [
   "Bubble market map",
   "Trend, Intraday, Outlook & History charts",
   "Sentiment & News",
-  "Favourites",
+  "Watchlist & Livelist",
   "Community chat",
 ];
 
-const PREMIUM_FEATURES = ["Atlas AI", "FavSlide", "LiveSlide"];
+const PREMIUM_FEATURES = ["Atlas AI setup coach", "Watchlist & Livelist Autoplay"];
 
 type PrimaryCard =
   | {
@@ -65,7 +65,7 @@ const PRIMARY_CARDS: PrimaryCard[] = [
     periodLabel: "6 months",
     tagline: "Core analytics for focused swing traders.",
     features: COMMON_FEATURES,
-    note: "Does not include Atlas AI, FavSlide or LiveSlide.",
+    note: "Watchlist & Livelist are manual. Autoplay and Atlas AI are Gold features.",
   },
   {
     kind: "checkout",

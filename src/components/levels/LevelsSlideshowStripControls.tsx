@@ -148,8 +148,8 @@ export function LevelsSlideModePill({
       data-favslide-tour={isFav ? "fav-count" : undefined}
       aria-label={
         isFav
-          ? `Favslide${count != null ? `, ${count} stocks` : ""}`
-          : `Liveslide${count != null ? `, ${count} setups` : ", aligned market setups"}`
+          ? `Watchlist${count != null ? `, ${count} stocks` : ""}`
+          : `Livelist${count != null ? `, ${count} setups` : ", aligned market setups"}`
       }
     >
       {isFav ? (
@@ -166,8 +166,8 @@ export function LevelsSlideModePill({
       >
         {isFav
           ? count != null
-            ? `Fav · ${count}`
-            : "Favslide"
+            ? `Watch · ${count}`
+            : "Watchlist"
           : count != null
             ? `Live · ${count}`
             : "Live"}
@@ -198,7 +198,7 @@ const DESTINATION_ACCENT: Record<
   },
   favslide: {
     color: FNO_FAVSLIDE_ACCENT,
-    label: "Fav",
+    label: "Watch",
     border: "rgba(251, 191, 36, 0.32)",
     bg: "rgba(251, 191, 36, 0.08)",
     hoverBorder: "rgba(251, 191, 36, 0.5)",
@@ -331,8 +331,8 @@ export function LevelsSlideViewSwitchGroup({
 
   const altDefaultTitle =
     alternateMode === "favslide"
-      ? "Switch to favslide. Press F or click."
-      : "Switch to liveslide. Press L or click.";
+      ? "Switch to watchlist. Press F or click."
+      : "Switch to livelist. Press L or click.";
 
   return (
     <div

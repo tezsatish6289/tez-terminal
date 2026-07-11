@@ -104,7 +104,7 @@ export default function FnoNinjaTermsPage() {
 
         <FnoNinjaLegalSection title="4. Your account" icon={<Settings className="h-5 w-5" />}>
           <LegalP>
-            Certain features (such as the NSE F&amp;O market map and slideshow views) require sign-in
+            Certain features (such as the NSE F&amp;O market map, Watchlist and Livelist views) require sign-in
             via Google. Symbol chart deep-dives may be viewed without an account. You are
             responsible for maintaining the confidentiality of your account and for all activity under
             it. Provide accurate information and notify us promptly of unauthorized use via our{" "}

@@ -1,7 +1,7 @@
 /** Shared sign-in copy — no trial/pricing language (shown to all visitors, including subscribers). */
 
 export const FNO_LOGIN_PAGE_SUBTITLE =
-  "Sign in with Google to access symbol charts, liveslide, and deep-dive analytics for your account.";
+  "Sign in with Google to access symbol charts, livelist, and deep-dive analytics for your account.";
 
 export const FNO_LOGIN_GATE_DESCRIPTION =
   "Sign in with Google to access option-chain zones, charts, and symbol analytics. Market Map is open to all.";
@@ -50,14 +50,14 @@ export const FNO_TOOLBAR_SIGN_IN_COPY = {
       "Sign in to open the full NSE F&O market map with option-chain zones across the universe.",
   },
   favslide: {
-    title: "Favourite Slideshow",
+    title: "Watchlist",
     description:
-      "Sign in to cycle through your favourited symbols in a hands-free slideshow with live charts.",
+      "Sign in to build your watchlist and browse your favourited symbols with live charts.",
   },
   liveslide: {
-    title: "Live Slideshow",
+    title: "Livelist",
     description:
-      "Sign in to browse aligned market setups in liveslide — auto-rotating symbols near support or resistance.",
+      "Sign in to browse aligned market setups — symbols sitting near support or resistance, with live charts.",
   },
 } as const;
 

@@ -12,7 +12,7 @@ export function FnoNinjaNavLiveslideHelp() {
 
   if (levelsViewMode === "bubbles") return null;
 
-  const label = levelsViewMode === "favslide" ? "Favslide guide" : "Liveslide guide";
+  const label = levelsViewMode === "favslide" ? "Watchlist guide" : "Livelist guide";
 
   return (
     <button

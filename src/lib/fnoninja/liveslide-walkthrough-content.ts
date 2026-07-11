@@ -7,20 +7,21 @@ export type LiveslideWalkthroughTourStep = {
 };
 
 export const LIVESLIDE_WALKTHROUGH_INTRO = {
-  title: "What is Liveslide and how to use it",
+  title: "What is Livelist and how to use it",
   readLabel: "5 min read",
   excerpt:
-    "Cycle through market setups that are aligned right now — filters, auto-advance, charts, and news in one view.",
+    "Step through market setups that are aligned right now — filters, charts, and news in one view, with hands-free autoplay on Gold.",
   purpose: [
-    "The Market Map shows hundreds of NSE F&O names at once. Liveslide is the opposite focus: one aligned setup at a time, with a live chart, zone overlays, filters, and news — cycling automatically so you can scan the whole market without clicking every symbol.",
-    "“Aligned” means price has reached a meaningful position relative to derived support / resistance and Max Pain — the same rules shown on the map. Liveslide exists to make that subset effortless to watch. It is for research and monitoring, not trade signals from us.",
+    "The Market Map shows hundreds of NSE F&O names at once. Livelist is the opposite focus: one aligned setup at a time, with a live chart, zone overlays, filters, and news — so you can scan the whole market without clicking every symbol.",
+    "“Aligned” means price has reached a meaningful position relative to derived support / resistance and Max Pain — the same rules shown on the map. Livelist exists to make that subset effortless to watch. It is for research and monitoring, not trade signals from us.",
   ],
   advantages: [
-    "Hands-free: the market comes to you — qualifying setups rotate automatically so you never scroll a giant grid.",
-    "Pre-filtered for quality: only zone-qualified setups (a 2:1 reward to Max Pain) ever enter the rotation.",
+    "Focused: qualifying setups line up for you so you never scroll a giant grid — step through one at a time.",
+    "Hands-free autoplay on Gold / Day Pass: setups rotate automatically every 60 seconds; Silver steps through manually.",
+    "Pre-filtered for quality: only zone-qualified setups (a 2:1 reward to Max Pain) ever enter the list.",
     "Full chart context: zones, OI peaks, and Max Pain are drawn on a live candlestick chart, not tiny map bubbles.",
     "Focus on your side: filter to support or resistance setups depending on what you are hunting.",
-    "Study on demand: pause any slide to read the chart and news for as long as you like.",
+    "Study on demand: stay on any setup to read the chart and news for as long as you like.",
     "See long-term trends as well — open a TradingView chart by clicking the link at the bottom of the chart or pressing T on your keyboard.",
   ],
 };
@@ -30,7 +31,7 @@ export const LIVESLIDE_WALKTHROUGH_TOUR_STEPS: LiveslideWalkthroughTourStep[] = 
     id: "filter",
     selector: '[data-liveslide-tour="filter"]',
     title: "Zone filter",
-    body: "Tap ALL to narrow to At Support, Near Support, At Resistance, or Near Resistance. Only zone-qualified setups with a healthy reward to Max Pain appear in Liveslide.",
+    body: "Tap ALL to narrow to At Support, Near Support, At Resistance, or Near Resistance. Only zone-qualified setups with a healthy reward to Max Pain appear in Livelist.",
     placement: "bottom",
   },
   {
@@ -44,7 +45,7 @@ export const LIVESLIDE_WALKTHROUGH_TOUR_STEPS: LiveslideWalkthroughTourStep[] = 
     id: "pause",
     selector: '[data-liveslide-tour="pause"]',
     title: "Pause or play",
-    body: "Liveslide auto-advances every 60 seconds. Pause when something catches your eye — the countdown shows seconds until the next symbol.",
+    body: "On Gold and the Day Pass, Livelist auto-advances every 60 seconds — pause when something catches your eye. Silver steps through manually; upgrade to unlock autoplay.",
     placement: "bottom",
   },
   {
@@ -85,8 +86,8 @@ export const LIVESLIDE_WALKTHROUGH_TOUR_STEPS: LiveslideWalkthroughTourStep[] = 
   {
     id: "footer",
     selector: '[data-liveslide-tour="footer"]',
-    title: "Auto-advance or pick a slide",
-    body: "Dot indicators jump to any slide. When playing, Liveslide advances every 60s — sit back and scan, or pause to study one name.",
+    title: "Auto-advance or pick a setup",
+    body: "Dot indicators jump to any setup. With autoplay (Gold / Day Pass), Livelist advances every 60s — sit back and scan, or pause to study one name.",
     placement: "top",
   },
 ];

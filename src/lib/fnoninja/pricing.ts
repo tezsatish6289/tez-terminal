@@ -38,7 +38,7 @@ export const FNONINJA_PRICING_TIERS: FnoNinjaPricingTier[] = [
     features: [
       "All analytics features",
       "Live session data refresh",
-      "Slideshow & filters",
+      "Watchlist & Livelist (manual)",
       "Best for active swing traders",
     ],
   },
@@ -52,7 +52,7 @@ export const FNONINJA_PRICING_TIERS: FnoNinjaPricingTier[] = [
     features: [
       "All analytics features",
       "Live session data refresh",
-      "Slideshow & filters",
+      "Watchlist & Livelist Autoplay + Atlas AI",
       "Full-year market structure access",
     ],
   },

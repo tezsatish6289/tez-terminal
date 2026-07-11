@@ -19,8 +19,8 @@ import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_MUTED } from "@/lib/fnoninja/them
 /** Human labels for the tier-gated (Gold) features. */
 const FEATURE_LABEL: Partial<Record<Feature, string>> = {
   atlas_ai: "Atlas AI",
-  favslide: "FavSlide",
-  liveslide: "LiveSlide",
+  favslide: "Watchlist Autoplay",
+  liveslide: "Livelist Autoplay",
 };
 
 interface UpgradePromptContextValue {
@@ -100,8 +100,8 @@ export function FnoNinjaUpgradePromptProvider({ children }: { children: ReactNod
 
             <p className="mt-4 text-base font-bold text-white">{label} is a Gold feature</p>
             <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
-              Atlas AI, FavSlide and LiveSlide are included with Gold and the Day Pass. Upgrade to
-              unlock {label} — you keep everything you already have.
+              Atlas AI, plus hands-free Livelist &amp; Watchlist autoplay, are included with Gold and
+              the Day Pass. Upgrade to unlock {label} — you keep everything you already have.
             </p>
 
             <Link

@@ -23,7 +23,7 @@ const LOCK_COPY: Record<LockReason, { title: string; body: string; cta: string }
   },
   upgrade_required: {
     title: "A Gold feature",
-    body: "Atlas AI, FavSlide and LiveSlide are included with Gold and the Day Pass. Upgrade to unlock.",
+    body: "Atlas AI, plus hands-free Livelist & Watchlist autoplay, are included with Gold and the Day Pass. Upgrade to unlock.",
     cta: "upgrade",
   },
 };

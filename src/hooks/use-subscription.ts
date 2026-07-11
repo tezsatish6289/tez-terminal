@@ -42,8 +42,14 @@ export function useSubscription(
       isLoading: true,
     });
 
+  // The uid the current state was actually fetched for. Lets us treat the state
+  // as "still loading" the moment `uid` changes (e.g. auth resolves) until the
+  // fetch for THAT uid lands — synchronously, so no stale-state paywall flash.
+  const [loadedUid, setLoadedUid] = useState<string | null>(null);
+
   const fetchStatus = useCallback(async () => {
     if (!uid) {
+      setLoadedUid(null);
       setState({
         status: "loading",
         tier: null,
@@ -88,8 +94,12 @@ export function useSubscription(
         subscriptionEndDate: data.subscriptionEndDate,
         isLoading: false,
       });
+      setLoadedUid(uid);
     } catch {
+      // Keep prior values (don't drop an active user to the paywall on a
+      // transient error) but mark this uid as attempted so we stop "loading".
       setState((prev) => ({ ...prev, isLoading: false }));
+      setLoadedUid(uid);
     }
   }, [uid, profile?.name, profile?.email, profile?.photo]);
 
@@ -126,5 +136,9 @@ export function useSubscription(
     return () => document.removeEventListener("visibilitychange", onFocus);
   }, [uid, fetchStatus]);
 
-  return { ...state, refresh: fetchStatus };
+  // Derived: authenticated but the fetch for this uid hasn't landed yet → still
+  // loading. Prevents the "stale not-active" render from flashing the paywall.
+  const isLoading = state.isLoading || (!!uid && loadedUid !== uid);
+
+  return { ...state, isLoading, refresh: fetchStatus };
 }

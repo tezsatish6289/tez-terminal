@@ -148,37 +148,9 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, signedIn]);
 
-  // Self-heal the one-time Day Pass. Payment links don't reliably fire the Zoho
-  // webhook (and don't redirect back), so when a user returns to this page —
-  // after checkout, or simply lands here without active access — we ask the
-  // server to reconcile against Zoho and grant the pass if they actually paid.
-  const verifiedRef = useRef(false);
-  useEffect(() => {
-    if (!user || sub.isLoading || verifiedRef.current) return;
-    const returnedFromCheckout = searchParams.get("status") === "success";
-    if (!returnedFromCheckout && sub.isActive) return;
-    verifiedRef.current = true;
-    void (async () => {
-      try {
-        const idToken = await user.getIdToken();
-        const res = await fetch("/api/subscription/zoho/verify-daypass", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        const data = await res.json();
-        if (data?.applied) {
-          toast({
-            title: "Day Pass activated",
-            description: "You now have 24 hours of full access.",
-          });
-          sub.refresh();
-        }
-      } catch {
-        /* best-effort */
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, sub.isLoading, sub.isActive, searchParams]);
+  // Day Pass self-heal/activation now runs app-wide via FnoNinjaDayPassReconciler
+  // (payment links can't redirect back), so it's handled regardless of which
+  // page the buyer returns to — no per-page verification needed here.
 
   // Login destination that resumes the chosen action after OAuth.
   const loginForCheckout = (tier: CheckoutTier) =>

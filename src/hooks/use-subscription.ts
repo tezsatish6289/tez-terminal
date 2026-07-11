@@ -136,6 +136,15 @@ export function useSubscription(
     return () => document.removeEventListener("visibilitychange", onFocus);
   }, [uid, fetchStatus]);
 
+  // Re-fetch on demand when another part of the app just changed entitlements
+  // (e.g. the Day Pass reconciler activated a pass after payment).
+  useEffect(() => {
+    if (!uid) return;
+    const onRefresh = () => fetchStatus();
+    window.addEventListener("fnoninja:subscription-refresh", onRefresh);
+    return () => window.removeEventListener("fnoninja:subscription-refresh", onRefresh);
+  }, [uid, fetchStatus]);
+
   // Derived: authenticated but the fetch for this uid hasn't landed yet → still
   // loading. Prevents the "stale not-active" render from flashing the paywall.
   const isLoading = state.isLoading || (!!uid && loadedUid !== uid);

@@ -4,6 +4,7 @@ import type { SubscriptionStatus, SubscriptionDoc } from "@/lib/subscription";
 import type { Tier } from "@/lib/entitlements";
 import { syncChatAccess } from "@/lib/chat/access";
 import { DAY_PASS_INR } from "@/lib/zoho/billing";
+import { ensureDayPassInvoice } from "@/lib/zoho/dayPassInvoice";
 
 export const dynamic = "force-dynamic";
 
@@ -210,15 +211,28 @@ export async function POST(request: NextRequest) {
 
       const nowIso = new Date().toISOString();
       const endDateIso = new Date(Date.now() + DAY_MS).toISOString();
+      const paymentId: string | undefined = payment.payment_id ?? payment.customer_payment_id;
       await applyEntitlement(db, {
         uid,
         tier: "daypass",
         endDateIso,
         planCode: "daypass",
         autoRenew: false,
-        lastDayPassPaymentId: payment.payment_id ?? payment.customer_payment_id,
+        lastDayPassPaymentId: paymentId,
         startDateIso: nowIso,
       });
+
+      // Generate the Paid tax invoice now that payment is confirmed. Idempotent
+      // with the on-return verify-daypass path (whichever fires first wins).
+      if (paymentId && payment.customer_id) {
+        await ensureDayPassInvoice({
+          db,
+          uid,
+          customerId: payment.customer_id,
+          paymentId,
+          amountInr,
+        });
+      }
 
       return NextResponse.json({ ok: true, tier: "daypass", uid });
     }

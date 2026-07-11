@@ -236,31 +236,42 @@ interface ZohoInvoice {
 }
 
 /**
- * Day Pass via a real invoice (not a bare payment link) so the customer gets a
- * proper tax invoice, consistent with subscriptions. Creates an invoice for the
- * Day Pass item, ensures it's open/payable, then returns a hosted invoice-payment
- * page the buyer is redirected to. On payment, Zoho records a ₹99 customer
- * payment → the webhook (and on-return verification) grant the 24h pass.
+ * Generates a PAID Day Pass invoice AFTER the buyer has actually paid (via the
+ * one-time payment link). We deliberately do NOT create an invoice up front —
+ * an Open invoice recognises revenue/receivables in Zoho immediately, so every
+ * checkout drop-off would inflate sales and future GST liability. Instead:
+ *
+ *   1. buyer pays the payment link  → Zoho records a ₹99 customer payment
+ *   2. THIS runs (webhook / on-return reconciliation) → create the invoice and
+ *      apply that existing payment to it, so the invoice is born `Paid`.
+ *
+ * Result: an invoice exists only for real payers, already settled — no phantom
+ * revenue. If applying the payment fails, the fresh invoice is voided so we
+ * never leave an unpaid Open invoice behind.
+ *
+ * Returns the created invoice id.
  */
-export async function createDayPassInvoice(args: {
+export async function createPaidDayPassInvoice(args: {
   customerId: string;
   uid: string;
-  redirectUrl: string;
-}): Promise<{ url: string; invoiceId: string }> {
+  /** Zoho customer payment id recorded when the payment link was paid. */
+  paymentId: string;
+  amountInr?: number;
+}): Promise<string> {
   const cfg = requireConfig();
-  const { customerId, uid, redirectUrl } = args;
+  const { customerId, uid, paymentId, amountInr = DAY_PASS_INR } = args;
 
-  // 1) Create the invoice for the Day Pass.
-  //    Zoho Billing's create-invoice API keys the line item on `product_id`
-  //    (NOT `item_id`, which only appears in GET/response shapes — sending
-  //    `item_id` fails with "Invalid Element item_id"). name/rate make the
-  //    invoice self-describing and pin the ₹99 amount. If the configured
-  //    product id is missing/invalid we fall back to a pure ad-hoc line item so
-  //    a mis-set env can never block a Day Pass sale.
+  // Create the invoice for the Day Pass.
+  //   Zoho Billing's create-invoice API keys the line item on `product_id`
+  //   (NOT `item_id`, which only appears in GET/response shapes — sending
+  //   `item_id` fails with "Invalid Element item_id"). name/rate make the
+  //   invoice self-describing and pin the amount. If the configured product id
+  //   is missing/invalid we fall back to a pure ad-hoc line item so a mis-set
+  //   env can never block invoicing.
   const baseLineItem = {
     name: "FnoNinja Day Pass",
     description: "24 hours of full access to FnoNinja",
-    rate: DAY_PASS_INR,
+    rate: amountInr,
     quantity: 1,
   };
   const createInvoice = (withProduct: boolean) =>
@@ -278,28 +289,30 @@ export async function createDayPassInvoice(args: {
   try {
     created = await createInvoice(true);
   } catch (e) {
-    // Linked product rejected → retry ad-hoc so the purchase still completes.
     console.warn("[Zoho Day Pass] product-linked invoice failed, retrying ad-hoc:", (e as Error).message);
     created = await createInvoice(false);
   }
   const invoice = created.invoice;
 
-  // 2) New invoices can be created as Draft; convert to Open so it's payable.
+  // New invoices can be created as Draft; convert to Open so a payment applies.
   if ((invoice.status ?? "").toLowerCase() === "draft") {
-    try {
-      await zohoRequest("POST", `/invoices/${invoice.invoice_id}/converttoopen`);
-    } catch {
-      /* already open / not applicable — ignore */
-    }
+    await zohoRequest("POST", `/invoices/${invoice.invoice_id}/converttoopen`).catch(() => {});
   }
 
-  // 3) Hosted payment page for that invoice (redirects back on success).
-  const hp = await zohoRequest<{ hostedpage: HostedPage }>("POST", "/hostedpages/invoicepayment", {
-    invoice_id: invoice.invoice_id,
-    redirect_url: redirectUrl,
-  });
+  // Apply the already-recorded payment-link payment to this invoice → `Paid`.
+  try {
+    await zohoRequest("PUT", `/customerpayments/${paymentId}`, {
+      customer_id: customerId,
+      invoices: [{ invoice_id: invoice.invoice_id, amount_applied: amountInr }],
+    });
+  } catch (e) {
+    // Never leave an unpaid Open invoice (that's the phantom-revenue we're
+    // avoiding). Void the invoice, then surface the error to the caller.
+    await zohoRequest("POST", `/invoices/${invoice.invoice_id}/void`).catch(() => {});
+    throw e;
+  }
 
-  return { url: hp.hostedpage.url, invoiceId: invoice.invoice_id };
+  return invoice.invoice_id;
 }
 
 // ── Reads (webhook enrichment / admin) ───────────────────────────────────────

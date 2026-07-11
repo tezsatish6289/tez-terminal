@@ -54,6 +54,8 @@ export interface SubscriptionDoc {
   subscriptionStartDate?: string;
   /** Zoho payment_id of the last Day Pass we granted — dedupes webhook + on-return reconciliation. */
   lastDayPassPaymentId?: string;
+  /** Zoho invoice_id of the Paid Day Pass invoice we generated post-payment (for the current payment). */
+  dayPassInvoiceId?: string;
 }
 
 export type PaymentStatus =

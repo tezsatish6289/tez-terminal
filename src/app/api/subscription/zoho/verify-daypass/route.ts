@@ -3,6 +3,7 @@ import { getAdminAuth, getAdminFirestore } from "@/firebase/admin";
 import { isSubscriptionActive, type SubscriptionDoc } from "@/lib/subscription";
 import { syncChatAccess } from "@/lib/chat/access";
 import { DAY_PASS_INR, getLatestCustomerPayment, getZohoBillingConfig } from "@/lib/zoho/billing";
+import { ensureDayPassInvoice } from "@/lib/zoho/dayPassInvoice";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,16 @@ export async function POST(request: NextRequest) {
     void syncChatAccess(uid, true).catch((e) =>
       console.error("[Verify Day Pass] chat access sync failed", e),
     );
+
+    // Now that the payment is confirmed, generate the Paid tax invoice (never
+    // before payment — that would inflate revenue on drop-offs). Idempotent.
+    await ensureDayPassInvoice({
+      db,
+      uid,
+      customerId,
+      paymentId: payment.paymentId,
+      amountInr: payment.amountInr,
+    });
 
     return NextResponse.json({ applied: true, tier: "daypass", endDate: endDateIso });
   } catch (error: any) {

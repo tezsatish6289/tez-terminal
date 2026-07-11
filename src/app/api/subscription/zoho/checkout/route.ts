@@ -3,7 +3,7 @@ import { getAdminAuth, getAdminFirestore } from "@/firebase/admin";
 import { isSubscriptionActive, type SubscriptionDoc } from "@/lib/subscription";
 import {
   ZOHO_PLAN_CODES,
-  createDayPassInvoice,
+  createDayPassPaymentLink,
   createSubscriptionHostedPage,
   findOrCreateCustomer,
   getZohoBillingConfig,
@@ -110,12 +110,15 @@ export async function POST(request: NextRequest) {
     const redirectUrl = `${protocol}://${host}${subscribePath}?status=success`;
 
     if (tier === "daypass") {
-      const invoice = await createDayPassInvoice({
+      // One-time payment link only — NO invoice up front. Creating an Open
+      // invoice before payment would recognise revenue immediately and every
+      // drop-off would inflate sales + future GST liability. The Paid invoice is
+      // generated post-payment (webhook / on-return verify-daypass).
+      const link = await createDayPassPaymentLink({
         customerId: customer.customer_id,
         uid,
-        redirectUrl,
       });
-      return NextResponse.json({ url: invoice.url, kind: "invoice" });
+      return NextResponse.json({ url: link.url, kind: "paymentlink" });
     }
 
     const hostedPage = await createSubscriptionHostedPage({

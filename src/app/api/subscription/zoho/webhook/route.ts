@@ -201,8 +201,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true, skipped: "non-daypass payment" });
       }
 
+      // Ignore reversed/refunded payments — a refund webhook fires for the same
+      // payment with amount_refunded set; that must not grant access.
+      const refundedInr = Number(payment.amount_refunded) || 0;
+      if (refundedInr >= amountInr) {
+        return NextResponse.json({ ok: true, skipped: "refunded payment" });
+      }
+
+      // Payment-link payloads carry NO `reference_id` (only `reference_number`,
+      // which is the Razorpay txn id — NOT our uid). Resolve via the Zoho
+      // customer id → the user whose zohoCustomerId matches.
       const uid = await resolveUid(db, {
-        referenceId: payment.reference_id ?? payment.reference_number,
+        referenceId: payment.reference_id,
         customerId: payment.customer_id,
       });
       if (!uid) {

@@ -57,16 +57,23 @@ export async function POST(request: NextRequest) {
     const payment = await getLatestCustomerPayment(customerId);
     if (!payment) return NextResponse.json({ applied: false, reason: "no_payment" });
 
-    // Must look like a Day Pass (₹99), be recent, and not already applied.
+    // Must look like a Day Pass (₹99), be recent, not refunded, not already applied.
     const isDayPassAmount = Math.abs(payment.amountInr - DAY_PASS_INR) < 1;
     const paidAt = payment.dateIso ? new Date(payment.dateIso).getTime() : 0;
     const isRecent = paidAt > 0 && Date.now() - paidAt <= RECENT_WINDOW_MS;
+    const isRefunded = payment.refundedInr >= payment.amountInr;
     const alreadyApplied = sub?.lastDayPassPaymentId === payment.paymentId;
 
-    if (!isDayPassAmount || !isRecent || alreadyApplied) {
+    if (!isDayPassAmount || !isRecent || isRefunded || alreadyApplied) {
       return NextResponse.json({
         applied: false,
-        reason: alreadyApplied ? "already_applied" : !isDayPassAmount ? "amount_mismatch" : "stale",
+        reason: alreadyApplied
+          ? "already_applied"
+          : isRefunded
+            ? "refunded"
+            : !isDayPassAmount
+              ? "amount_mismatch"
+              : "stale",
       });
     }
 

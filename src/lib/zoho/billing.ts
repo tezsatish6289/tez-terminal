@@ -300,8 +300,10 @@ export async function createPaidDayPassInvoice(args: {
   }
 
   // Apply the already-recorded payment-link payment to this invoice → `Paid`.
+  // Zoho Billing v1 uses `/payments` (NOT `/customerpayments`). PUT updates the
+  // payment to allocate its amount against the invoice.
   try {
-    await zohoRequest("PUT", `/customerpayments/${paymentId}`, {
+    await zohoRequest("PUT", `/payments/${paymentId}`, {
       customer_id: customerId,
       invoices: [{ invoice_id: invoice.invoice_id, amount_applied: amountInr }],
     });
@@ -347,6 +349,8 @@ interface ZohoCustomerPayment {
   amount?: number;
   date?: string;
   currency_code?: string;
+  amount_refunded?: number;
+  unused_amount?: number;
 }
 
 export interface LatestCustomerPayment {
@@ -354,43 +358,73 @@ export interface LatestCustomerPayment {
   amountInr: number;
   /** Payment date as reported by Zoho (ISO), or null if unparseable. */
   dateIso: string | null;
+  /** Amount refunded so far (used to ignore refunded/reversed payments). */
+  refundedInr: number;
+  /** Amount not yet applied to an invoice (advance/excess). */
+  unusedInr: number;
+}
+
+function sortByDateDesc(payments: ZohoCustomerPayment[]): ZohoCustomerPayment[] {
+  return [...payments].sort(
+    (a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime(),
+  );
 }
 
 /**
  * Returns the most recent recorded payment for a customer (or null). Used to
  * reconcile a Day Pass when the user returns to the app, since one-time payment
  * links don't reliably fire the subscription webhook.
+ *
+ * NOTE: Zoho *Billing* v1 exposes payments at `/payments` (the `/customerpayments`
+ * path is Zoho Books naming and 404s here). Fetches the top payment's detail to
+ * surface refunded/unused amounts for reconciliation.
  */
 export async function getLatestCustomerPayment(
   customerId: string,
 ): Promise<LatestCustomerPayment | null> {
-  const res = await zohoRequest<{ customerpayments?: ZohoCustomerPayment[] }>(
+  const res = await zohoRequest<{ payments?: ZohoCustomerPayment[] }>(
     "GET",
-    `/customerpayments?customer_id=${encodeURIComponent(customerId)}&sort_column=date&sort_order=D`,
+    `/payments?customer_id=${encodeURIComponent(customerId)}`,
   );
-  const p = res.customerpayments?.[0];
+  const p = sortByDateDesc(res.payments ?? [])[0];
   if (!p) return null;
+
+  // The list view omits refund/unused fields — fetch the detail to get them.
+  let detail: ZohoCustomerPayment = p;
+  try {
+    const d = await zohoRequest<{ payment?: ZohoCustomerPayment }>("GET", `/payments/${p.payment_id}`);
+    if (d.payment) detail = d.payment;
+  } catch {
+    /* best-effort — fall back to list fields */
+  }
+
+  const amountInr = Number(detail.amount) || 0;
   return {
     paymentId: p.payment_id,
-    amountInr: Number(p.amount) || 0,
-    dateIso: p.date ? new Date(p.date).toISOString() : null,
+    amountInr,
+    dateIso: detail.date ? new Date(detail.date).toISOString() : null,
+    refundedInr: Number(detail.amount_refunded) || 0,
+    unusedInr: detail.unused_amount == null ? amountInr : Number(detail.unused_amount) || 0,
   };
 }
 
 /**
- * Sums the actual money received from a Zoho customer (all recorded customer
- * payments — covers both subscription invoices and one-time Day Pass links).
- * Used by the admin dashboard's on-demand "Sync from Zoho" so the list stays
- * fast (we cache the result on the subscription doc rather than calling Zoho per
- * row on every load).
+ * Sums the actual money received from a Zoho customer (all recorded payments —
+ * covers both subscription invoices and one-time Day Pass links). Used by the
+ * admin dashboard's on-demand "Sync from Zoho" so the list stays fast (we cache
+ * the result on the subscription doc rather than calling Zoho per row on load).
  */
 export async function getCustomerPaymentTotals(customerId: string): Promise<CustomerPaymentTotals> {
-  const res = await zohoRequest<{ customerpayments?: ZohoCustomerPayment[] }>(
+  const res = await zohoRequest<{ payments?: ZohoCustomerPayment[] }>(
     "GET",
-    `/customerpayments?customer_id=${encodeURIComponent(customerId)}&sort_column=date&sort_order=D`,
+    `/payments?customer_id=${encodeURIComponent(customerId)}`,
   );
-  const payments = res.customerpayments ?? [];
-  const totalPaidInr = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const payments = sortByDateDesc(res.payments ?? []);
+  // Net of refunds so the admin total reflects money actually retained.
+  const totalPaidInr = payments.reduce(
+    (sum, p) => sum + (Number(p.amount) || 0) - (Number(p.amount_refunded) || 0),
+    0,
+  );
   const lastPaymentAt = payments[0]?.date ? new Date(payments[0].date).toISOString() : null;
   return {
     totalPaidInr: Math.round(totalPaidInr * 100) / 100,

@@ -32,6 +32,18 @@ export async function ensureDayPassInvoice(args: {
     const invoiceId = await createPaidDayPassInvoice({ customerId, uid, paymentId, amountInr });
     await subRef.set({ dayPassInvoiceId: invoiceId, lastDayPassPaymentId: paymentId }, { merge: true });
   } catch (e) {
-    console.error("[Day Pass invoice] generation failed:", (e as Error).message);
+    const msg = (e as Error).message;
+    console.error("[Day Pass invoice] generation failed:", msg);
+    // Persist so we can diagnose from the admin logs without shell access.
+    void db
+      .collection("logs")
+      .add({
+        timestamp: new Date().toISOString(),
+        level: "ERROR",
+        message: `Day Pass invoice generation failed: ${msg}`,
+        details: JSON.stringify({ uid, customerId, paymentId }),
+        webhookId: "ZOHO_BILLING",
+      })
+      .catch(() => {});
   }
 }

@@ -1105,11 +1105,6 @@ export default function LevelsPage() {
         ) : null}
         {isSlideView && slideshowExploreHold ? (
           <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
-        ) : isSlideView && slideshowEnabled ? (
-          <FnoNinjaAutoplayToggle
-            playing={!slideshowPaused}
-            onToggle={toggleSlideshowPause}
-          />
         ) : null}
         {slideshowChartPane}
       </div>
@@ -1220,16 +1215,35 @@ export default function LevelsPage() {
     "data-favslide-tour": "strip",
   };
 
+  // Autoplay control lives atop the symbol list so its relation to the list it
+  // advances is obvious. Silver sees a locked pill (→ upgrade); entitled tiers
+  // get a working on/off toggle. Hidden when there's nothing to auto-advance.
+  const railAutoplayControl = slideManual ? (
+    <FnoNinjaAutoplayLock
+      variant="rail"
+      onUpgrade={() => promptUpgrade(viewMode === "favslide" ? "favslide" : "liveslide")}
+    />
+  ) : slideshowEnabled ? (
+    <FnoNinjaAutoplayToggle
+      variant="rail"
+      playing={!slideshowPaused}
+      onToggle={toggleSlideshowPause}
+    />
+  ) : null;
+
   const slideshowSymbolRailMobile =
     isSlideView && inZoneCount > 0 ? (
       <LevelsSlideshowSymbolRailMobile
         tourAttrs={slideshowSymbolRailTourAttrs}
         controls={
-          <LevelsSlideshowStripControls
-            {...slideshowStripControlProps}
-            orientation="horizontal"
-            stripTrailing={favslideAddTrailing}
-          />
+          <>
+            {railAutoplayControl}
+            <LevelsSlideshowStripControls
+              {...slideshowStripControlProps}
+              orientation="horizontal"
+              stripTrailing={favslideAddTrailing}
+            />
+          </>
         }
         symbolList={
           <LevelsSymbolList
@@ -1250,11 +1264,14 @@ export default function LevelsPage() {
       <LevelsSlideshowSymbolRailDesktop
         tourAttrs={slideshowSymbolRailTourAttrs}
         controls={
-          <LevelsSlideshowStripControls
-            {...slideshowStripControlProps}
-            orientation="vertical"
-            stripTrailing={favslideAddTrailingRail}
-          />
+          <>
+            {railAutoplayControl}
+            <LevelsSlideshowStripControls
+              {...slideshowStripControlProps}
+              orientation="vertical"
+              stripTrailing={favslideAddTrailingRail}
+            />
+          </>
         }
         symbolList={
           <LevelsSymbolList
@@ -1297,19 +1314,8 @@ export default function LevelsPage() {
             />
           }
           banner={
-            slideManual ? (
-              <FnoNinjaAutoplayLock
-                onUpgrade={() =>
-                  promptUpgrade(viewMode === "favslide" ? "favslide" : "liveslide")
-                }
-              />
-            ) : slideshowExploreHold ? (
+            slideshowExploreHold ? (
               <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
-            ) : slideshowEnabled ? (
-              <FnoNinjaAutoplayToggle
-                playing={!slideshowPaused}
-                onToggle={toggleSlideshowPause}
-              />
             ) : undefined
           }
           toolbar={

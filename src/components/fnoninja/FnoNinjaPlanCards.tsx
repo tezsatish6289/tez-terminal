@@ -93,6 +93,7 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
   const autoFired = useRef(false);
 
   const signedIn = !!user && !isUserLoading;
+  const trialEnded = signedIn && sub.isExpired;
 
   async function handleSubscribe(tier: CheckoutTier) {
     if (!user) return;
@@ -197,6 +198,18 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
           </span>
         );
       }
+      // Trial was used and has ended — can't be restarted. Grey it out so the
+      // user knows to subscribe or grab a Day Pass instead.
+      if (sub.isExpired) {
+        return (
+          <span
+            className={`${outlineBtn} opacity-60`}
+            style={{ borderColor: FNO_BORDER, color: "#64748b" }}
+          >
+            Trial ended
+          </span>
+        );
+      }
       return (
         <Link href={fnoAnalyticsHref(pathname)} className={gradientBtn} style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}>
           Open app
@@ -251,7 +264,7 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
               card.highlight
                 ? "border border-[#3b82f6]/40 bg-gradient-to-b from-[#3b82f6]/[0.14] via-[#0b1428] to-[#0a1120] shadow-[0_20px_60px_-20px_rgba(59,130,246,0.4)]"
                 : ""
-            }`}
+            } ${card.kind === "trial" && trialEnded ? "opacity-60" : ""}`}
             style={card.highlight ? undefined : { border: `1px solid ${FNO_BORDER}`, backgroundColor: "#0d1830" }}
           >
             <div className="mb-5 flex items-start justify-between gap-2">

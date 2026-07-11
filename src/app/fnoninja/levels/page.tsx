@@ -90,12 +90,11 @@ import { LevelsViewUrlSync } from "@/components/levels/LevelsViewUrlSync";
 import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughBridge";
 import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
-import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/firebase";
 import { trackCtaClick } from "@/firebase/analytics";
 import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
-import { fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import { useEntitlements } from "@/hooks/use-entitlements";
+import { useUpgradePrompt } from "@/components/fnoninja/FnoNinjaUpgradePrompt";
 import { hasFeature as checkFeature, type Feature } from "@/lib/entitlements";
 import { buildGuestBubbleLabels } from "@/lib/fnoninja/guest-map-preview";
 import {
@@ -213,9 +212,8 @@ export default function LevelsPage() {
   const chartLevelsSymbolRef = useRef<string | null>(null);
   const isFnoNinjaHost = true;
 
-  const router = useRouter();
-  const pathname = usePathname();
   const { subscription: entSubscription, isAuthenticated: entAuthenticated } = useEntitlements();
+  const { promptUpgrade } = useUpgradePrompt();
   const entitlementCtx = useMemo(
     () => ({
       tier: entSubscription.tier,
@@ -228,18 +226,19 @@ export default function LevelsPage() {
   /**
    * Tier gate for the two premium slideshow modes (FavSlide + LiveSlide are
    * excluded from Silver). Fires only for a signed-in user whose active tier
-   * doesn't include the mode; routes them to /subscribe and returns true so the
-   * caller aborts. Guests are handled separately by the sign-in gate below.
+   * doesn't include the mode. The view pill stays visible; clicking it surfaces
+   * the upgrade prompt (rather than hiding it or redirecting) and returns true
+   * so the caller aborts. Guests are handled separately by the sign-in gate.
    */
   const nudgeIfFeatureLocked = useCallback(
     (feature: Feature): boolean => {
       if (entSubscription.isLoading || !entAuthenticated) return false;
       if (checkFeature(feature, entitlementCtx)) return false;
       trackCtaClick("levels_feature_locked", { feature });
-      router.push(fnoSubscribeHref(pathname));
+      promptUpgrade(feature);
       return true;
     },
-    [entSubscription.isLoading, entAuthenticated, entitlementCtx, router, pathname],
+    [entSubscription.isLoading, entAuthenticated, entitlementCtx, promptUpgrade],
   );
   const {
     entries: favslideEntries,
@@ -394,8 +393,8 @@ export default function LevelsPage() {
    * Safety net: if entitlements resolve (or change) while the user is already in
    * a premium slideshow mode their tier doesn't include — e.g. a Silver user who
    * deep-linked to ?view=liveslide before the subscription loaded — bounce them
-   * back to the bubble map and nudge to /subscribe. Prevents the enter-time race
-   * from leaving them stuck in a locked view.
+   * back to the bubble map and surface the upgrade prompt. Prevents the
+   * enter-time race from leaving them stuck in a locked view.
    */
   useEffect(() => {
     if (entSubscription.isLoading || !entAuthenticated) return;
@@ -403,8 +402,8 @@ export default function LevelsPage() {
     if (checkFeature(viewMode, entitlementCtx)) return;
     setViewMode("bubbles");
     trackCtaClick("levels_feature_locked_bounce", { feature: viewMode });
-    router.push(fnoSubscribeHref(pathname));
-  }, [viewMode, entSubscription.isLoading, entAuthenticated, entitlementCtx, router, pathname]);
+    promptUpgrade(viewMode);
+  }, [viewMode, entSubscription.isLoading, entAuthenticated, entitlementCtx, promptUpgrade]);
 
   const walkthrough = useLiveslideWalkthroughOptional();
   const registerLevelsViewMode = walkthrough?.registerLevelsViewMode;

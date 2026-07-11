@@ -41,7 +41,6 @@ import {
   fnoFavslideHref,
   fnoLearnHref,
   fnoLiveslideHref,
-  fnoSubscribeHref,
 } from "@/lib/fnoninja/paths";
 import {
   FNO_BG_CANVAS,
@@ -51,6 +50,7 @@ import { trackCtaClick } from "@/firebase/analytics";
 import { useAuth, useUser } from "@/firebase";
 import { isFnoNinjaAppContext, isFnoNinjaChartPath } from "@/lib/fnoninja/auth";
 import { useEntitlements } from "@/hooks/use-entitlements";
+import { useUpgradePrompt } from "@/components/fnoninja/FnoNinjaUpgradePrompt";
 import type { Feature } from "@/lib/entitlements";
 
 const TOOLBAR_WIDTH_CLASS = LEVELS_CHART_TOOLBAR_WIDTH_CLASS;
@@ -259,23 +259,25 @@ export function LevelsChartSideToolbar({
   const isSignedIn = Boolean(user ?? auth.currentUser);
 
   const { has: hasFeature, isLoading: entitlementsLoading } = useEntitlements();
+  const { promptUpgrade } = useUpgradePrompt();
 
   /**
    * Upsell nudge for tier-gated features (Atlas / FavSlide / LiveSlide are
    * excluded from Silver). Only fires for a signed-in user on the FnoNinja app
    * whose active tier does NOT include the feature — the guest preview and the
-   * sign-in gate are left untouched. Returns true (and routes to /subscribe)
-   * when the feature is locked, so callers can bail out of the action.
+   * sign-in gate are left untouched. The entry point stays visible; clicking it
+   * surfaces the upgrade prompt (rather than hiding it or redirecting). Returns
+   * true when locked so callers can bail out of the action.
    */
   const nudgeIfFeatureLocked = useCallback(
     (feature: Feature): boolean => {
       if (!gateToolbarActions || entitlementsLoading || !isSignedIn) return false;
       if (hasFeature(feature)) return false;
       trackCtaClick("toolbar_feature_locked", { feature, symbol, scope });
-      router.push(fnoSubscribeHref(pathname));
+      promptUpgrade(feature);
       return true;
     },
-    [gateToolbarActions, entitlementsLoading, isSignedIn, hasFeature, router, pathname, symbol, scope],
+    [gateToolbarActions, entitlementsLoading, isSignedIn, hasFeature, promptUpgrade, symbol, scope],
   );
 
   const dismissSignInPrompt = useCallback(() => {

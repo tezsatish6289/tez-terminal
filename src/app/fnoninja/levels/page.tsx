@@ -95,7 +95,8 @@ import { trackCtaClick } from "@/firebase/analytics";
 import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import { useUpgradePrompt } from "@/components/fnoninja/FnoNinjaUpgradePrompt";
-import { hasFeature as checkFeature, type Feature } from "@/lib/entitlements";
+import { FnoNinjaAccessPaywall } from "@/components/fnoninja/FnoNinjaAccessPaywall";
+import { featureLockReason, type Feature } from "@/lib/entitlements";
 import { buildGuestBubbleLabels } from "@/lib/fnoninja/guest-map-preview";
 import {
   guestBubbleFilterSteps,
@@ -224,19 +225,25 @@ export default function LevelsPage() {
   );
 
   /**
-   * Tier gate for the two premium slideshow modes (FavSlide + LiveSlide are
-   * excluded from Silver). Fires only for a signed-in user whose active tier
-   * doesn't include the mode. The view pill stays visible; clicking it surfaces
-   * the upgrade prompt (rather than hiding it or redirecting) and returns true
-   * so the caller aborts. Guests are handled separately by the sign-in gate.
+   * Gate for the two premium slideshow modes (FavSlide + LiveSlide are excluded
+   * from Silver). Two distinct locked states:
+   *   - upgrade_required  → active Silver user clicking a Gold mode. Block entry
+   *                         and show the upgrade prompt (they keep their plan).
+   *   - subscription_required → expired user. Let them ENTER the view; the page
+   *                         renders the paywall overlay on top of it.
+   * Guests (login_required) are handled by the sign-in gate. Returns true only
+   * when the caller should abort navigation (the Silver upgrade case).
    */
   const nudgeIfFeatureLocked = useCallback(
     (feature: Feature): boolean => {
       if (entSubscription.isLoading || !entAuthenticated) return false;
-      if (checkFeature(feature, entitlementCtx)) return false;
-      trackCtaClick("levels_feature_locked", { feature });
-      promptUpgrade(feature);
-      return true;
+      const reason = featureLockReason(feature, entitlementCtx);
+      if (reason === "upgrade_required") {
+        trackCtaClick("levels_feature_locked", { feature });
+        promptUpgrade(feature);
+        return true;
+      }
+      return false;
     },
     [entSubscription.isLoading, entAuthenticated, entitlementCtx, promptUpgrade],
   );
@@ -390,16 +397,15 @@ export default function LevelsPage() {
   }, []);
 
   /**
-   * Safety net: if entitlements resolve (or change) while the user is already in
-   * a premium slideshow mode their tier doesn't include — e.g. a Silver user who
-   * deep-linked to ?view=liveslide before the subscription loaded — bounce them
-   * back to the bubble map and surface the upgrade prompt. Prevents the
-   * enter-time race from leaving them stuck in a locked view.
+   * Safety net for an active Silver user who deep-links to a Gold slideshow mode
+   * (e.g. ?view=liveslide): bounce them back to the bubble map and show the
+   * upgrade prompt. Expired users are NOT bounced — they stay in the view and
+   * get the paywall overlay (see `slidePaywallReason` below).
    */
   useEffect(() => {
     if (entSubscription.isLoading || !entAuthenticated) return;
     if (viewMode !== "liveslide" && viewMode !== "favslide") return;
-    if (checkFeature(viewMode, entitlementCtx)) return;
+    if (featureLockReason(viewMode, entitlementCtx) !== "upgrade_required") return;
     setViewMode("bubbles");
     trackCtaClick("levels_feature_locked_bounce", { feature: viewMode });
     promptUpgrade(viewMode);
@@ -1647,6 +1653,15 @@ export default function LevelsPage() {
 
   const hideTopSlideshowToolbar = isSlideView && slideshowDeepDiveLayout && inZoneCount > 0;
 
+  // Expired member sitting on a premium slideshow view → wall the centre while
+  // the (blurred) content stays behind it. Bubble map is deliberately never
+  // walled; guests are handled by the sign-in gate above.
+  const showSlidePaywall =
+    isSlideView &&
+    entAuthenticated &&
+    !entSubscription.isLoading &&
+    !entSubscription.isActive;
+
   const levelsWorkspace = (
     <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">
       {!hideTopSlideshowToolbar ? (
@@ -1706,6 +1721,17 @@ export default function LevelsPage() {
             className={`flex flex-1 min-h-0 w-full flex-col items-center justify-center ${FNO_MOBILE_SLIDE_BODY_MIN_CLASS}`}
           >
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
+          </div>
+        ) : showSlidePaywall ? (
+          <div className="relative flex flex-1 min-h-0 w-full flex-col max-md:flex-none max-md:overflow-visible md:overflow-hidden">
+            <div className="flex flex-1 min-h-0 w-full flex-col pointer-events-none select-none max-md:flex-none max-md:overflow-visible md:overflow-hidden">
+              {levelsWorkspace}
+            </div>
+            <FnoNinjaAccessPaywall
+              reason="subscription_required"
+              onBack={enterBubbles}
+              backLabel="Back to Market Map"
+            />
           </div>
         ) : (
           levelsWorkspace

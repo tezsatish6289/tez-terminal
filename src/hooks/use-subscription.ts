@@ -97,5 +97,34 @@ export function useSubscription(
     fetchStatus();
   }, [fetchStatus]);
 
+  // Flip to "expired" exactly when access lapses, even if the user is idle on a
+  // page. We know the end timestamp client-side, so schedule a re-fetch for that
+  // moment rather than polling — the status route recomputes expiry on read.
+  useEffect(() => {
+    if (state.isLoading || !state.isActive) return;
+    const endIso = state.status === "trial" ? state.trialEndDate : state.subscriptionEndDate;
+    if (!endIso) return;
+    const ms = new Date(endIso).getTime() - Date.now();
+    if (ms <= 0) {
+      fetchStatus();
+      return;
+    }
+    // setTimeout caps at ~24.8 days (2^31-1 ms); clamp to stay safe.
+    const delay = Math.min(ms + 1000, 2 ** 31 - 1);
+    const t = window.setTimeout(() => fetchStatus(), delay);
+    return () => window.clearTimeout(t);
+  }, [state.isLoading, state.isActive, state.status, state.trialEndDate, state.subscriptionEndDate, fetchStatus]);
+
+  // Re-validate when the tab regains focus (e.g. machine woke from sleep and the
+  // scheduled timer may have drifted).
+  useEffect(() => {
+    if (!uid) return;
+    const onFocus = () => {
+      if (document.visibilityState === "visible") fetchStatus();
+    };
+    document.addEventListener("visibilitychange", onFocus);
+    return () => document.removeEventListener("visibilitychange", onFocus);
+  }, [uid, fetchStatus]);
+
   return { ...state, refresh: fetchStatus };
 }

@@ -14,6 +14,8 @@ import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradin
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { LevelsChartDeepDiveLayout } from "@/components/levels/LevelsChartDeepDiveLayout";
 import { LevelsChartSideToolbar } from "@/components/levels/LevelsChartSideToolbar";
+import { FnoNinjaAccessPaywall } from "@/components/fnoninja/FnoNinjaAccessPaywall";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { LevelsChartExpiryPicker } from "@/components/levels/LevelsChartExpiryPicker";
 import {
   LevelsOutlookViewToggle,
@@ -42,6 +44,13 @@ function ChartContent() {
   const scope: LevelsTvScope | null =
     scopeParam === "index" || scopeParam === "stock" ? scopeParam : null;
   const symbol = (searchParams.get("symbol") ?? "").trim().toUpperCase();
+
+  // Deep dive is walled for a logged-in member whose access has lapsed. Guests
+  // (no auth) still get the public charts — that's the acquisition preview.
+  const { subscription, isAuthenticated } = useEntitlements();
+  const showPaywall =
+    isAuthenticated && !subscription.isLoading && !subscription.isActive;
+
   const [levels, setLevels] = useState<PublicLevels | null>(null);
   const [displayTone, setDisplayTone] = useState<BubbleTone | null>(null);
   const [label, setLabel] = useState("");
@@ -219,7 +228,8 @@ function ChartContent() {
   }
 
   return (
-    <main className={`${FNO_LEVELS_MAIN} min-w-0`} style={FNO_APP_SURFACE_STYLE}>
+    <main className={`${FNO_LEVELS_MAIN} min-w-0 relative`} style={FNO_APP_SURFACE_STYLE}>
+      {showPaywall ? <FnoNinjaAccessPaywall reason="subscription_required" /> : null}
       <div className={`${FNO_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
         <div className={`${CHART_PAGE_SHELL} py-2 sm:py-2.5 overflow-hidden min-w-0`}>
         {error ? (

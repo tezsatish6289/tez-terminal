@@ -314,6 +314,20 @@ export async function createPaidDayPassInvoice(args: {
     throw e;
   }
 
+  // Email the paid invoice to the buyer (best-effort — don't fail the sale if
+  // delivery hiccups). Zoho's default send relies on customer contact-person
+  // emails, which our API-created customers don't have, so we pass the recipient
+  // explicitly via `to_mail_ids`.
+  try {
+    const cust = await zohoRequest<{ customer?: { email?: string } }>("GET", `/customers/${customerId}`);
+    const email = cust.customer?.email;
+    if (email) {
+      await zohoRequest("POST", `/invoices/${invoice.invoice_id}/email`, { to_mail_ids: [email] });
+    }
+  } catch (e) {
+    console.warn("[Zoho Day Pass] invoice email failed:", (e as Error).message);
+  }
+
   return invoice.invoice_id;
 }
 

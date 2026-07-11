@@ -90,12 +90,13 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
   );
 
   const [loadingTier, setLoadingTier] = useState<CheckoutTier | null>(null);
+  const [phonePromptTier, setPhonePromptTier] = useState<CheckoutTier | null>(null);
   const autoFired = useRef(false);
 
   const signedIn = !!user && !isUserLoading;
   const trialEnded = signedIn && sub.isExpired;
 
-  async function handleSubscribe(tier: CheckoutTier) {
+  async function handleSubscribe(tier: CheckoutTier, phone?: string) {
     if (!user) return;
     setLoadingTier(tier);
     try {
@@ -103,9 +104,16 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
       const res = await fetch("/api/subscription/zoho/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ tier }),
+        body: JSON.stringify({ tier, phone }),
       });
       const data = await res.json();
+      // Razorpay needs a contact number and we don't have one on file yet —
+      // collect it, then this same call is retried with the number.
+      if (res.status === 422 && data?.code === "phone_required") {
+        setLoadingTier(null);
+        setPhonePromptTier(tier);
+        return;
+      }
       if (!res.ok || !data.url) throw new Error(data.error || "Could not start checkout");
       window.location.href = data.url;
     } catch (e: any) {
@@ -319,7 +327,101 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
         onSelect={() => handleSubscribe("daypass")}
         loginHref={loginForCheckout("daypass")}
       />
+
+      {phonePromptTier ? (
+        <MobilePrompt
+          onClose={() => setPhonePromptTier(null)}
+          onSubmit={(phone) => {
+            const tier = phonePromptTier;
+            setPhonePromptTier(null);
+            void handleSubscribe(tier, phone);
+          }}
+        />
+      ) : null}
     </>
+  );
+}
+
+function MobilePrompt({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (phone: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function submit() {
+    const digits = value.replace(/\D/g, "");
+    const ten = digits.length > 10 ? digits.slice(-10) : digits;
+    if (!/^[6-9]\d{9}$/.test(ten)) {
+      setError("Enter a valid 10-digit Indian mobile number.");
+      return;
+    }
+    onSubmit(ten);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl border p-6"
+        style={{ border: `1px solid ${FNO_BORDER}`, backgroundColor: "#0d1830" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-lg font-bold text-white">Add your mobile number</p>
+        <p className="mt-1 text-[13px] leading-relaxed text-slate-400">
+          Our payment partner needs a contact number to process the payment. We'll save it for
+          your next purchase.
+        </p>
+
+        <div
+          className="mt-5 flex items-center rounded-xl border px-3"
+          style={{ borderColor: error ? "#ef4444" : FNO_BORDER, backgroundColor: "#0a1120" }}
+        >
+          <span className="pr-2 text-sm font-semibold text-slate-400">+91</span>
+          <input
+            type="tel"
+            inputMode="numeric"
+            autoFocus
+            maxLength={14}
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              if (error) setError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+            placeholder="10-digit mobile number"
+            className="w-full bg-transparent py-3 text-sm text-white outline-none placeholder:text-slate-600"
+          />
+        </div>
+        {error ? <p className="mt-2 text-xs text-red-400">{error}</p> : null}
+
+        <div className="mt-5 flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border py-2.5 text-sm font-semibold text-slate-300"
+            style={{ borderColor: FNO_BORDER }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            className="flex-1 rounded-xl py-2.5 text-sm font-bold text-white transition-all hover:scale-[1.02]"
+            style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

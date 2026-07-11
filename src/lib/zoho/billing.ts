@@ -141,8 +141,10 @@ export async function findOrCreateCustomer(args: {
   uid: string;
   email: string;
   displayName: string;
+  /** 10-digit Indian mobile — required by Razorpay to process payments. */
+  phone?: string;
 }): Promise<ZohoCustomer> {
-  const { uid, email, displayName } = args;
+  const { uid, email, displayName, phone } = args;
 
   if (email) {
     const found = await zohoRequest<{ customers?: ZohoCustomer[] }>(
@@ -150,7 +152,15 @@ export async function findOrCreateCustomer(args: {
       `/customers?email=${encodeURIComponent(email)}`,
     );
     if (found.customers && found.customers.length > 0) {
-      return found.customers[0];
+      const existing = found.customers[0];
+      // Backfill the mobile on an existing customer so Razorpay can charge them.
+      if (phone) {
+        await zohoRequest("PUT", `/customers/${existing.customer_id}`, {
+          mobile: phone,
+          phone,
+        }).catch((e) => console.warn("[Zoho] customer mobile update failed:", (e as Error).message));
+      }
+      return existing;
     }
   }
 
@@ -158,6 +168,7 @@ export async function findOrCreateCustomer(args: {
     display_name: displayName || email || uid,
     email,
     reference_id: uid,
+    ...(phone ? { mobile: phone, phone } : {}),
   });
   return created.customer;
 }

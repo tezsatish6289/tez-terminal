@@ -13,6 +13,14 @@ export const dynamic = "force-dynamic";
 
 type CheckoutTier = "silver" | "gold" | "daypass";
 
+/** Normalise to a valid 10-digit Indian mobile (6-9 leading), else null. */
+function normalizeIndianMobile(raw?: string | null): string | null {
+  if (!raw) return null;
+  const digits = String(raw).replace(/\D/g, "");
+  const ten = digits.length > 10 ? digits.slice(-10) : digits;
+  return /^[6-9]\d{9}$/.test(ten) ? ten : null;
+}
+
 /**
  * POST /api/subscription/zoho/checkout
  * Body: { tier: "silver" | "gold" | "daypass" }
@@ -46,13 +54,14 @@ export async function POST(request: NextRequest) {
     const email = decoded.email ?? "";
     const displayName = decoded.name ?? email ?? uid;
 
-    const body = (await request.json().catch(() => ({}))) as { tier?: string };
+    const body = (await request.json().catch(() => ({}))) as { tier?: string; phone?: string };
     const tier = body.tier as CheckoutTier | undefined;
     if (tier !== "silver" && tier !== "gold" && tier !== "daypass") {
       return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
     }
 
     const db = getAdminFirestore();
+    const userRef = db.collection("users").doc(uid);
 
     // A Day Pass only makes sense for users WITHOUT current access. Someone on a
     // trial or an active plan already has full access, so block the redundant
@@ -68,13 +77,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Find or create the Zoho customer and persist the uid ↔ customer mapping so
-    // the webhook can resolve the buyer later.
-    const customer = await findOrCreateCustomer({ uid, email, displayName });
-    await db
-      .collection("users")
-      .doc(uid)
-      .set({ zohoCustomerId: customer.customer_id }, { merge: true });
+    // Razorpay won't process a payment without a contact number. Use the mobile
+    // just entered, else the one saved on the profile; if we have neither, ask
+    // the client to collect it (422 phone_required).
+    const bodyPhone = normalizeIndianMobile(body.phone);
+    if (body.phone && !bodyPhone) {
+      return NextResponse.json({ error: "Enter a valid 10-digit mobile number." }, { status: 400 });
+    }
+    let phone = bodyPhone;
+    if (!phone) {
+      const userSnap = await userRef.get();
+      phone = normalizeIndianMobile(userSnap.data()?.phone as string | undefined);
+    }
+    if (!phone) {
+      return NextResponse.json(
+        { error: "Mobile number required", code: "phone_required" },
+        { status: 422 },
+      );
+    }
+    if (bodyPhone) await userRef.set({ phone: bodyPhone }, { merge: true });
+
+    // Find or create the Zoho customer (with mobile for Razorpay) and persist the
+    // uid ↔ customer mapping so the webhook can resolve the buyer later.
+    const customer = await findOrCreateCustomer({ uid, email, displayName, phone });
+    await userRef.set({ zohoCustomerId: customer.customer_id }, { merge: true });
 
     const host = request.headers.get("host") || "fnoninja.com";
     const protocol = host.includes("localhost") ? "http" : "https";

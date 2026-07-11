@@ -548,7 +548,7 @@ export function LevelsChartSideToolbar({
             "data-liveslide-tour": "fav-switch",
           }}
         >
-          <ToolbarCircleLetter letter="F" />
+          <ToolbarCircleLetter letter="W" />
         </ToolbarButton>
 
         <ToolbarButton

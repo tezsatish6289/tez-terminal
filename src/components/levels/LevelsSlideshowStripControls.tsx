@@ -331,7 +331,7 @@ export function LevelsSlideViewSwitchGroup({
 
   const altDefaultTitle =
     alternateMode === "favslide"
-      ? "Switch to watchlist. Press F or click."
+      ? "Switch to watchlist. Press W or click."
       : "Switch to livelist. Press L or click.";
 
   return (

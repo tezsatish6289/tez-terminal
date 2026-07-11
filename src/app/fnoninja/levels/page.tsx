@@ -96,7 +96,7 @@ import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import { useUpgradePrompt } from "@/components/fnoninja/FnoNinjaUpgradePrompt";
 import { FnoNinjaAccessPaywall } from "@/components/fnoninja/FnoNinjaAccessPaywall";
-import { FnoNinjaAutoplayLock } from "@/components/fnoninja/FnoNinjaAutoplayLock";
+import { FnoNinjaAutoplayLock, FnoNinjaAutoplayToggle } from "@/components/fnoninja/FnoNinjaAutoplayLock";
 import { hasFeature } from "@/lib/entitlements";
 import { buildGuestBubbleLabels } from "@/lib/fnoninja/guest-map-preview";
 import {
@@ -425,7 +425,7 @@ export default function LevelsPage() {
         enterLiveslide();
         return;
       }
-      if ((e.key === "f" || e.key === "F") && isFnoNinjaHost) {
+      if ((e.key === "w" || e.key === "W") && isFnoNinjaHost) {
         e.preventDefault();
         enterFavslide();
         return;
@@ -1105,6 +1105,11 @@ export default function LevelsPage() {
         ) : null}
         {isSlideView && slideshowExploreHold ? (
           <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
+        ) : isSlideView && slideshowEnabled ? (
+          <FnoNinjaAutoplayToggle
+            playing={!slideshowPaused}
+            onToggle={toggleSlideshowPause}
+          />
         ) : null}
         {slideshowChartPane}
       </div>
@@ -1122,7 +1127,7 @@ export default function LevelsPage() {
   const bubblesBackTitle = "Back to Market Bubbles map. Press B or click.";
   const liveslideCtaTitle = "Aligned market setups. Press L or click.";
   const favslideCtaLabel = "Watchlist";
-  const favslideCtaTitle = "Your favourited stocks. Press F or click.";
+  const favslideCtaTitle = "Your watchlist. Press W or click.";
 
   const chartHighConfidence =
     inZoneActive?.scope === "index" || isHighConfidenceLevels(chartLevelsForView);
@@ -1300,6 +1305,11 @@ export default function LevelsPage() {
               />
             ) : slideshowExploreHold ? (
               <SlideshowAutoPauseBanner reason={slideshowExploreHold} />
+            ) : slideshowEnabled ? (
+              <FnoNinjaAutoplayToggle
+                playing={!slideshowPaused}
+                onToggle={toggleSlideshowPause}
+              />
             ) : undefined
           }
           toolbar={

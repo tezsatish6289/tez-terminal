@@ -144,36 +144,6 @@ function ToolbarCircleLetter({ letter }: { letter: string }) {
   );
 }
 
-interface AtlasScore {
-  composite: number;
-  directionLabel: "bullish" | "neutral" | "bearish";
-}
-
-function atlasScoreColor(v: number): string {
-  if (v >= 70) return "#86efac";
-  if (v >= 50) return "#fcd34d";
-  return "#fca5a5";
-}
-
-function AtlasScoreTag({ score }: { score: AtlasScore | null }) {
-  if (!score) {
-    return (
-      <span className={LEVELS_CHART_TOOLBAR_TAG_CLASS} style={{ color: FNO_MUTED }}>
-        ···
-      </span>
-    );
-  }
-  return (
-    <span
-      className={`${LEVELS_CHART_TOOLBAR_TAG_CLASS} tabular-nums`}
-      style={{ color: atlasScoreColor(score.composite) }}
-      title={`Setup score ${score.composite}/100 · ${score.directionLabel}`}
-    >
-      {score.composite}
-    </span>
-  );
-}
-
 function NewsSentimentTag({ sentiment }: { sentiment: NewsSentiment | null }) {
   if (!sentiment) {
     return (
@@ -245,7 +215,6 @@ export function LevelsChartSideToolbar({
   const [signInAction, setSignInAction] = useState<FnoToolbarSignInAction | null>(null);
   const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
-  const [atlasScore, setAtlasScore] = useState<AtlasScore | null>(null);
   const pendingToolbarActionRef = useRef<(() => void) | null>(null);
   const wasSignedInRef = useRef(false);
 
@@ -346,25 +315,6 @@ export function LevelsChartSideToolbar({
   useEffect(() => {
     void loadNewsSentiment();
   }, [loadNewsSentiment]);
-
-  const loadAtlasScore = useCallback(async () => {
-    if (!symbol || (scope !== "stock" && scope !== "index")) return;
-    setAtlasScore(null);
-    try {
-      const res = await fetch(
-        `/api/freedombot/levels/score?scope=${encodeURIComponent(scope)}&symbol=${encodeURIComponent(symbol)}`,
-        { cache: "no-store" },
-      );
-      const json = (await res.json()) as { ok?: boolean; score?: AtlasScore };
-      setAtlasScore(json.ok && json.score ? json.score : null);
-    } catch {
-      setAtlasScore(null);
-    }
-  }, [scope, symbol]);
-
-  useEffect(() => {
-    void loadAtlasScore();
-  }, [loadAtlasScore]);
 
   const handleAtlasOpenChange = useCallback(
     (open: boolean) => {
@@ -474,10 +424,9 @@ export function LevelsChartSideToolbar({
             if (nudgeIfFeatureLocked("atlas_ai")) return;
             setAtlasOpen(true);
           }}
-          title="Atlas AI coach — setup score"
+          title="Atlas AI — validate your trade idea"
         >
           <Sparkles className={`${TOOLBAR_ICON_CLASS} fynn-sparkle-glow`} strokeWidth={1.5} />
-          <AtlasScoreTag score={atlasScore} />
         </ToolbarButton>
 
         <ToolbarButton

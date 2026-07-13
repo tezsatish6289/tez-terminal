@@ -2,18 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Activity,
   ArrowLeft,
-  ChevronRight,
+  Check,
   HelpCircle,
-  LineChart,
   Loader2,
-  Plus,
   Minus,
-  Sparkles,
-  ShieldAlert,
+  Plus,
   RefreshCw,
-  type LucideIcon,
+  ShieldAlert,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+  X,
 } from "lucide-react";
 import {
   Sheet,
@@ -26,98 +26,19 @@ import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { FNO_ACCENT, FNO_MUTED, FNO_TEXT, FNO_CARD_BG } from "@/lib/fnoninja/theme";
 import { trackCtaClick } from "@/firebase/analytics";
 import { useAuth } from "@/firebase";
+import type {
+  AtlasValidateResult,
+  CheckStatus,
+  IdeaBias,
+  ValidateVerdict,
+} from "@/lib/levels/atlas-validate";
 
-const ATLAS_INTENT_CTA_ID: Record<AtlasView, string> = {
-  menu: "atlas_intent_menu",
-  options: "atlas_intent_options",
-  futures: "atlas_intent_futures",
-  faq: "atlas_intent_faq",
-};
-
-interface StrategyEconomics {
-  netDebit: number;
-  kind: "debit" | "credit" | "flat";
-  maxProfit: number | null;
-  maxLoss: number | null;
-  breakevens: number[];
-  riskReward: number | null;
-  scenario?: { label: string; pnl: number; rewardRisk?: number | null } | null;
-}
-
-interface StrategyScore {
-  composite: number;
-  direction: number;
-  directionLabel: "bullish" | "neutral" | "bearish";
-  posture: "long-vol" | "short-vol" | "directional" | "neutral-vol";
-  subScores: { direction: number; volFit: number; context: number };
-  reason: string;
-}
-
-interface FynnStrategy {
-  name: string;
-  stance: "bullish" | "bearish" | "neutral" | "volatility";
-  whyNow: string;
-  structure: string;
-  maxRisk: string;
-  maxReward: string;
-  invalidation: string;
-  economics?: StrategyEconomics | null;
-  score?: StrategyScore | null;
-}
-
-interface FynnPlan {
-  bias: "bullish" | "lean-bullish" | "neutral" | "lean-bearish" | "bearish";
-  headline: string;
-  rationale: string;
-  keyLevels: {
-    support: string | null;
-    resistance: string | null;
-    maxPain: string | null;
-    putWall: string | null;
-    callWall: string | null;
-  };
-  strategies: FynnStrategy[];
-  caveats: string[];
-}
-
-type FynnMode = "options" | "futures";
-
-/** What the user explicitly asked for. "menu" fetches nothing. */
-type AtlasView = "menu" | "options" | "futures" | "faq";
-
-const FYNN_MODES: { id: FynnMode; label: string }[] = [
-  { id: "options", label: "Options · hedged" },
-  { id: "futures", label: "Futures · hedged" },
-];
-
-const ATLAS_INTENTS: {
-  id: AtlasView;
-  icon: LucideIcon;
-  title: string;
-  subtitle: string;
-}[] = [
-  {
-    id: "options",
-    icon: LineChart,
-    title: "Build an option strategy",
-    subtitle: "Hedged, defined-risk option structures from this symbol's data.",
-  },
-  {
-    id: "futures",
-    icon: Activity,
-    title: "Build a futures strategy",
-    subtitle: "A futures view paired with a protective option to cap risk.",
-  },
-  {
-    id: "faq",
-    icon: HelpCircle,
-    title: "I have a different question",
-    subtitle: "Learn how to read the zones, OI walls and IV — no strategy generated.",
-  },
-];
-
-/** Static educational answers — NO AI call, so these cost nothing to serve. */
+/** Static educational answers — no AI call. */
 const ATLAS_FAQ: { q: string; a: string }[] = [
+  {
+    q: "What does Atlas validate?",
+    a: "You state whether you are bullish or bearish. Atlas checks that idea against spot vs support/resistance, day OI wall buildup, multi-day OI history, news sentiment, and intraday PVT — then tells you if the idea lines up, partially lines up, or conflicts, and why.",
+  },
   {
     q: "What does \u201cmax pain\u201d mean?",
     a: "Max pain is the strike where the most options (calls + puts) would expire worthless \u2014 i.e. where option buyers collectively lose the most. It's often described as a mild magnet into expiry because option writers benefit if price drifts there. Treat it as a soft bias, never a target or a prediction.",
@@ -127,80 +48,56 @@ const ATLAS_FAQ: { q: string; a: string }[] = [
     a: "An open-interest (OI) wall is a strike with an unusually large number of open option contracts. A heavy put wall below price often behaves like a support floor; a heavy call wall above often behaves like a resistance cap. They show where positioning is concentrated \u2014 not where price must go.",
   },
   {
-    q: "What is the IV regime telling me?",
-    a: "Implied volatility (IV) regime describes whether options are currently cheap (calm) or expensive (elevated) versus normal. Calm IV favours buying / debit structures; elevated IV favours defined-risk premium-selling structures. It's a read on option pricing conditions, not a market call.",
-  },
-  {
-    q: "Why does Atlas only show hedged ideas?",
-    a: "Atlas is built for education and risk-awareness, not speculation. Every structure it lays out has defined or capped risk \u2014 a spread, or a futures leg paired with a protective option \u2014 so the worst case is always visible up front. It will never present a naked, unlimited-risk position.",
-  },
-  {
-    q: "How are the risk / reward numbers calculated?",
-    a: "The rupee figures are estimated from current at-the-money implied volatility using the Black-Scholes model, shown per share. Multiply by the lot size for the per-lot total. They describe the shape of the structure \u2014 they are estimates, not live tradeable quotes.",
-  },
-  {
     q: "Is this financial advice?",
-    a: "No. Atlas is an educational research tool. It explains scenarios, structures and trade-offs grounded in the option data \u2014 it does not tell you to buy or sell, does not predict prices, and does not consider your personal circumstances. Always do your own research or consult a registered adviser.",
+    a: "No. Atlas is an educational research tool. It pressure-tests your stated idea against market data — it does not tell you to buy or sell, does not predict prices, and does not consider your personal circumstances. Always do your own research or consult a registered adviser.",
   },
 ];
 
-interface FynnResponse {
-  plan?: FynnPlan;
-  label?: string;
-  mode?: FynnMode;
-  pricing?: "estimated" | "unavailable";
-  disclaimer?: string;
-  error?: string;
-}
+type AtlasView = "menu" | "result" | "faq";
 
-interface ModeState {
-  data?: FynnResponse;
-  error?: string;
-}
-
-function fmtMoney(n: number): string {
-  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function fmtLevel(n: number): string {
-  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: n < 100 ? 2 : 0 })}`;
-}
-
-const BIAS_COLOR: Record<FynnPlan["bias"], string> = {
-  bullish: "#34d399",
-  "lean-bullish": "#6ee7b7",
-  neutral: "#94a3b8",
-  "lean-bearish": "#fca5a5",
-  bearish: "#f87171",
-};
-
-const STANCE_COLOR: Record<FynnStrategy["stance"], string> = {
-  bullish: "#34d399",
-  bearish: "#f87171",
-  neutral: "#94a3b8",
-  volatility: "#c084fc",
-};
-
-/** Traffic-light colour for a 0–100 setup score. */
-function scoreColor(v: number): string {
-  if (v >= 70) return "#34d399";
-  if (v >= 50) return "#fcd34d";
-  return "#fca5a5";
-}
-
-const POSTURE_LABEL: Record<StrategyScore["posture"], string> = {
-  "long-vol": "Buys volatility",
-  "short-vol": "Sells volatility",
-  directional: "Directional (futures)",
-  "neutral-vol": "Vol-neutral",
-};
-
-const ATLAS_LABEL = "Atlas AI coach";
+const ATLAS_LABEL = "Atlas AI";
 
 const CARD_STYLE = {
   backgroundColor: FNO_CARD_BG,
   border: "1px solid rgba(96,165,250,0.2)",
 } as const;
+
+const VERDICT_STYLE: Record<
+  ValidateVerdict,
+  { label: string; color: string; blurb: string }
+> = {
+  aligned: {
+    label: "Aligned",
+    color: "#34d399",
+    blurb: "Checks support your idea",
+  },
+  partially_aligned: {
+    label: "Partially aligned",
+    color: "#fcd34d",
+    blurb: "Mixed evidence — some support, some conflict",
+  },
+  not_aligned: {
+    label: "Not aligned",
+    color: "#f87171",
+    blurb: "Checks push against your idea",
+  },
+};
+
+function statusIcon(status: CheckStatus) {
+  if (status === "support") {
+    return <Check className="h-3.5 w-3.5 shrink-0" style={{ color: "#34d399" }} strokeWidth={2.5} />;
+  }
+  if (status === "conflict") {
+    return <X className="h-3.5 w-3.5 shrink-0" style={{ color: "#f87171" }} strokeWidth={2.5} />;
+  }
+  return <Minus className="h-3.5 w-3.5 shrink-0" style={{ color: FNO_MUTED }} strokeWidth={2.5} />;
+}
+
+function statusLabel(status: CheckStatus): string {
+  if (status === "support") return "Supports";
+  if (status === "conflict") return "Conflicts";
+  return "Neutral";
+}
 
 export function AskFynn({
   scope,
@@ -228,125 +125,112 @@ export function AskFynn({
   const [internalOpen, setInternalOpen] = useState(false);
   const open = isControlled ? controlledOpen : internalOpen;
   const [view, setView] = useState<AtlasView>("menu");
-  const [loadingMode, setLoadingMode] = useState<FynnMode | null>(null);
-  const [byMode, setByMode] = useState<Record<FynnMode, ModeState>>({
-    options: {},
-    futures: {},
-  });
+  const [bias, setBias] = useState<IdeaBias | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<AtlasValidateResult | null>(null);
+  const [disclaimer, setDisclaimer] = useState<string | null>(null);
 
-  /** Slideshow: reset to the request menu when the active symbol changes. */
   useEffect(() => {
-    setByMode({ options: {}, futures: {} });
-    setLoadingMode(null);
+    setBias(null);
+    setResult(null);
+    setError(null);
+    setDisclaimer(null);
+    setLoading(false);
     setView("menu");
     if (!isControlled) setInternalOpen(false);
     onOpenChange?.(false);
   }, [scope, symbol, onOpenChange, isControlled]);
 
-  const ask = useCallback(
-    async (target: FynnMode, force = false) => {
-      if (!force) {
-        if (byMode[target].data || loadingMode === target) return;
-      }
-      setLoadingMode(target);
-      setByMode((prev) => ({ ...prev, [target]: { ...prev[target], error: undefined } }));
+  const validate = useCallback(
+    async (nextBias: IdeaBias, force = false) => {
+      if (!force && loading) return;
+      setBias(nextBias);
+      setView("result");
+      setLoading(true);
+      setError(null);
+      trackCtaClick("atlas_validate_bias", {
+        label: nextBias,
+        symbol,
+        scope,
+        bias: nextBias,
+      });
       try {
-        // Atlas AI is entitlement-gated server-side; attach the Firebase ID token
-        // so eligible tiers (trial / Gold / Day Pass) pass the guard.
         const idToken = await auth.currentUser?.getIdToken().catch(() => null);
-        const res = await fetch("/api/freedombot/levels/fynn", {
+        const res = await fetch("/api/freedombot/levels/atlas/validate", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
           },
-          body: JSON.stringify({ scope, symbol, mode: target }),
+          body: JSON.stringify({ scope, symbol, bias: nextBias }),
           cache: "no-store",
         });
-        const json = (await res.json()) as FynnResponse;
-        if (!res.ok || !json.plan) {
-          setByMode((prev) => ({
-            ...prev,
-            [target]: { error: json.error ?? "Atlas couldn't put together a plan right now." },
-          }));
+        const json = (await res.json()) as {
+          ok?: boolean;
+          result?: AtlasValidateResult;
+          disclaimer?: string;
+          error?: string;
+        };
+        if (!res.ok || !json.result) {
+          setResult(null);
+          setError(json.error ?? "Atlas couldn't validate this idea right now.");
           return;
         }
-        setByMode((prev) => ({ ...prev, [target]: { data: json } }));
+        setResult(json.result);
+        setDisclaimer(json.disclaimer ?? null);
       } catch {
-        setByMode((prev) => ({
-          ...prev,
-          [target]: { error: "Network error reaching Atlas. Please try again." },
-        }));
+        setResult(null);
+        setError("Network error reaching Atlas. Please try again.");
       } finally {
-        setLoadingMode((curr) => (curr === target ? null : curr));
+        setLoading(false);
       }
     },
-    [scope, symbol, byMode, loadingMode, auth],
+    [scope, symbol, auth, loading],
   );
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!isControlled) setInternalOpen(next);
       onOpenChange?.(next);
-      // Land on the request menu — fetch nothing until the user explicitly asks.
-      if (next) setView("menu");
+      if (next) {
+        setView("menu");
+        setError(null);
+      }
     },
     [isControlled, onOpenChange],
   );
 
-  /** User picked an intent — only here do we (maybe) call the model. */
-  const handleSelectIntent = useCallback(
-    (intent: AtlasView) => {
-      trackCtaClick(ATLAS_INTENT_CTA_ID[intent], {
-        label: intent,
-        symbol,
-        scope,
-        intent,
-      });
-      setView(intent);
-      if (intent === "options" || intent === "futures") {
-        if (!byMode[intent].data && loadingMode !== intent) void ask(intent);
-      }
-    },
-    [ask, byMode, loadingMode, symbol, scope],
-  );
-
-  const strategyMode: FynnMode | null =
-    view === "options" || view === "futures" ? view : null;
-  const current = strategyMode ? byMode[strategyMode] : undefined;
-  const data = current?.data ?? null;
-  const error = current?.error ?? null;
-  const loading = strategyMode != null && loadingMode === strategyMode;
-  const plan = data?.plan;
+  const displayName = label || symbol;
 
   return (
     <>
       {!hideTrigger ? (
-      <button
-        type="button"
-        onClick={() => {
-          trackCtaClick("atlas_open", { label: ATLAS_LABEL, symbol, scope });
-          handleOpenChange(true);
-        }}
-        className={`fynn-sparkle-btn${open ? " fynn-sparkle-btn-open" : ""} ${
-          iconOnly
-            ? "inline-flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-[1.06] shrink-0"
-            : "inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] shrink-0"
-        }`}
-        style={{
-          color: FNO_ACCENT,
-          backgroundColor: "rgba(96,165,250,0.06)",
-          border: "1px solid rgba(96,165,250,0.4)",
-        }}
-        aria-label={`${ATLAS_LABEL} — ${symbol}`}
-        title={`${ATLAS_LABEL} — hedged strategy ideas for this symbol`}
-      >
-        <Sparkles
-          className={`fynn-sparkle-glow ${iconOnly ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"}`}
-          strokeWidth={2}
-        />
-        {!iconOnly ? <span className="whitespace-nowrap">{ATLAS_LABEL}</span> : null}
-      </button>
+        <button
+          type="button"
+          onClick={() => {
+            trackCtaClick("atlas_open", { label: ATLAS_LABEL, symbol, scope });
+            handleOpenChange(true);
+          }}
+          className={`fynn-sparkle-btn${open ? " fynn-sparkle-btn-open" : ""} ${
+            iconOnly
+              ? "inline-flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-[1.06] shrink-0"
+              : "inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] shrink-0"
+          }`}
+          style={{
+            color: FNO_ACCENT,
+            backgroundColor: "rgba(96,165,250,0.06)",
+            border: "1px solid rgba(96,165,250,0.4)",
+          }}
+          aria-label={`${ATLAS_LABEL} — ${symbol}`}
+          title={`${ATLAS_LABEL} — validate your trade idea`}
+        >
+          <Sparkles
+            className={`fynn-sparkle-glow ${iconOnly ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"}`}
+            strokeWidth={2}
+          />
+          {!iconOnly ? <span className="whitespace-nowrap">{ATLAS_LABEL}</span> : null}
+        </button>
       ) : null}
 
       <Sheet open={open} onOpenChange={handleOpenChange} modal={false}>
@@ -371,129 +255,161 @@ export function AskFynn({
                 </span>
               </div>
               <SheetTitle className="text-base" style={{ color: FNO_TEXT }}>
-                {label || symbol}
+                {displayName}
               </SheetTitle>
               <SheetDescription style={{ color: FNO_MUTED }}>
                 {view === "menu"
-                  ? "What would you like Atlas to help you explore for this symbol?"
+                  ? "I can help validate your trade idea — are you bullish or bearish on this script right now?"
                   : view === "faq"
-                    ? "Educational answers about the data — no strategy is generated here."
-                    : "You asked Atlas to build this. It's an educational scenario, not advice."}
+                    ? "Educational answers about how Atlas reads the data."
+                    : "Pressure-test of your stated idea against levels, OI, news, and intraday trend."}
               </SheetDescription>
             </SheetHeader>
 
             {view !== "menu" ? (
               <button
                 type="button"
-                onClick={() => setView("menu")}
+                onClick={() => {
+                  setView("menu");
+                  setError(null);
+                }}
                 className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold"
                 style={{ color: FNO_ACCENT }}
               >
-                <ArrowLeft className="h-3.5 w-3.5" /> Back to requests
+                <ArrowLeft className="h-3.5 w-3.5" /> Back
               </button>
             ) : null}
 
             {view === "menu" ? (
               <div className="mt-4 space-y-2.5">
-                {ATLAS_INTENTS.map(({ id, icon: Icon, title, subtitle }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => handleSelectIntent(id)}
-                    className="group flex w-full items-center gap-3 rounded-xl p-3.5 text-left transition-all hover:scale-[1.01]"
+                <button
+                  type="button"
+                  onClick={() => void validate("bullish")}
+                  className="group flex w-full items-center gap-3 rounded-xl p-3.5 text-left transition-all hover:scale-[1.01]"
+                  style={{
+                    backgroundColor: FNO_CARD_BG,
+                    border: "1px solid rgba(52,211,153,0.35)",
+                  }}
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
                     style={{
-                      backgroundColor: FNO_CARD_BG,
-                      border: "1px solid rgba(96,165,250,0.22)",
+                      backgroundColor: "rgba(52,211,153,0.14)",
+                      border: "1px solid rgba(52,211,153,0.35)",
                     }}
                   >
-                    <span
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                      style={{
-                        backgroundColor: "rgba(59,130,246,0.14)",
-                        border: "1px solid rgba(96,165,250,0.3)",
-                      }}
-                    >
-                      <Icon className="h-4 w-4" style={{ color: FNO_ACCENT }} strokeWidth={2} />
+                    <TrendingUp className="h-4 w-4" style={{ color: "#34d399" }} strokeWidth={2} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold" style={{ color: FNO_TEXT }}>
+                      I&apos;m bullish
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-bold" style={{ color: FNO_TEXT }}>
-                        {title}
-                      </span>
-                      <span className="mt-0.5 block text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
-                        {subtitle}
-                      </span>
+                    <span className="mt-0.5 block text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
+                      Check if support, OI, news, and intraday trend agree.
                     </span>
-                    <ChevronRight
-                      className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5"
-                      style={{ color: FNO_MUTED }}
-                    />
-                  </button>
-                ))}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void validate("bearish")}
+                  className="group flex w-full items-center gap-3 rounded-xl p-3.5 text-left transition-all hover:scale-[1.01]"
+                  style={{
+                    backgroundColor: FNO_CARD_BG,
+                    border: "1px solid rgba(248,113,113,0.35)",
+                  }}
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                    style={{
+                      backgroundColor: "rgba(248,113,113,0.12)",
+                      border: "1px solid rgba(248,113,113,0.35)",
+                    }}
+                  >
+                    <TrendingDown className="h-4 w-4" style={{ color: "#f87171" }} strokeWidth={2} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold" style={{ color: FNO_TEXT }}>
+                      I&apos;m bearish
+                    </span>
+                    <span className="mt-0.5 block text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
+                      Check if resistance, OI, news, and intraday trend agree.
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    trackCtaClick("atlas_intent_faq", {
+                      label: "faq",
+                      symbol,
+                      scope,
+                      intent: "faq",
+                    });
+                    setView("faq");
+                  }}
+                  className="group flex w-full items-center gap-3 rounded-xl p-3.5 text-left transition-all hover:scale-[1.01]"
+                  style={{
+                    backgroundColor: FNO_CARD_BG,
+                    border: "1px solid rgba(96,165,250,0.22)",
+                  }}
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                    style={{
+                      backgroundColor: "rgba(59,130,246,0.14)",
+                      border: "1px solid rgba(96,165,250,0.3)",
+                    }}
+                  >
+                    <HelpCircle className="h-4 w-4" style={{ color: FNO_ACCENT }} strokeWidth={2} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold" style={{ color: FNO_TEXT }}>
+                      How does this work?
+                    </span>
+                    <span className="mt-0.5 block text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
+                      Short explainers — no validation run.
+                    </span>
+                  </span>
+                </button>
+
                 <p className="pt-1 text-[10px] leading-relaxed" style={{ color: FNO_MUTED }}>
-                  Atlas only runs when you pick a request above. It&apos;s an educational research
-                  assistant — not investment advice.
+                  You own the idea. Atlas only checks whether the data lines up — not investment
+                  advice.
                 </p>
               </div>
             ) : view === "faq" ? (
               <AtlasFaqView />
             ) : (
-              <>
-                <div className="mt-4 flex gap-1.5" role="tablist" aria-label="Strategy mode">
-                  {FYNN_MODES.map((m) => {
-                    const active = m.id === strategyMode;
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={active}
-                        onClick={() => handleSelectIntent(m.id)}
-                        className="flex-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all"
-                        style={{
-                          color: active ? "#e0f2fe" : FNO_MUTED,
-                          background: active ? "rgba(59,130,246,0.12)" : "transparent",
-                          border: `1px solid ${active ? "rgba(96,165,250,0.45)" : "rgba(90,140,220,0.2)"}`,
-                        }}
-                      >
-                        {m.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-4 space-y-4">
-                  {loading ? (
-                    <div
-                      className="flex flex-col items-center justify-center gap-3 py-16 rounded-xl"
-                      style={{
-                        color: FNO_MUTED,
-                        border: "1px solid rgba(96,165,250,0.2)",
-                        background: FNO_CARD_BG,
-                      }}
-                    >
-                      <Loader2
-                        className="h-7 w-7 animate-spin fynn-coach-sparkle"
-                        style={{ color: FNO_ACCENT }}
-                      />
-                      <p className="text-xs">Atlas is reading the option data…</p>
-                    </div>
-                  ) : error ? (
-                    <div className="flex flex-col items-center gap-3 py-12 text-center">
-                      <ShieldAlert className="h-7 w-7" style={{ color: "#f87171" }} />
-                      <p className="text-xs" style={{ color: "#fca5a5" }}>
-                        {error}
-                      </p>
+              <div className="mt-4 space-y-4">
+                {loading ? (
+                  <div
+                    className="flex flex-col items-center justify-center gap-3 py-16 rounded-xl"
+                    style={{
+                      color: FNO_MUTED,
+                      border: "1px solid rgba(96,165,250,0.2)",
+                      background: FNO_CARD_BG,
+                    }}
+                  >
+                    <Loader2
+                      className="h-7 w-7 animate-spin fynn-coach-sparkle"
+                      style={{ color: FNO_ACCENT }}
+                    />
+                    <p className="text-xs">
+                      Checking levels, OI, news, and intraday trend…
+                    </p>
+                  </div>
+                ) : error ? (
+                  <div className="flex flex-col items-center gap-3 py-12 text-center">
+                    <ShieldAlert className="h-7 w-7" style={{ color: "#f87171" }} />
+                    <p className="text-xs" style={{ color: "#fca5a5" }}>
+                      {error}
+                    </p>
+                    {bias ? (
                       <button
                         type="button"
-                        onClick={() => {
-                          trackCtaClick("atlas_refresh", {
-                            label: "Try again",
-                            symbol,
-                            scope,
-                            mode: strategyMode,
-                          });
-                          if (strategyMode) void ask(strategyMode, true);
-                        }}
+                        onClick={() => void validate(bias, true)}
                         className="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-full text-[11px] font-semibold"
                         style={{
                           color: FNO_ACCENT,
@@ -502,29 +418,23 @@ export function AskFynn({
                       >
                         <RefreshCw className="h-3 w-3" /> Try again
                       </button>
-                    </div>
-                  ) : plan ? (
-                    <FynnPlanView
-                      plan={plan}
-                      onRefresh={() => {
-                        trackCtaClick("atlas_refresh", {
-                          label: "Refresh",
-                          symbol,
-                          scope,
-                          mode: strategyMode,
-                        });
-                        if (strategyMode) void ask(strategyMode, true);
-                      }}
-                    />
-                  ) : null}
-                </div>
+                    ) : null}
+                  </div>
+                ) : result ? (
+                  <ValidateResultView
+                    result={result}
+                    onRefresh={() => {
+                      if (bias) void validate(bias, true);
+                    }}
+                  />
+                ) : null}
 
-                {data?.disclaimer ? (
-                  <p className="mt-6 text-[10px] leading-relaxed" style={{ color: FNO_MUTED }}>
-                    {data.disclaimer}
+                {disclaimer && result && !loading ? (
+                  <p className="text-[10px] leading-relaxed" style={{ color: FNO_MUTED }}>
+                    {disclaimer}
                   </p>
                 ) : null}
-              </>
+              </div>
             )}
           </div>
         </SheetContent>
@@ -578,15 +488,18 @@ function AtlasFaqView() {
   );
 }
 
-function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => void }) {
-  const biasColor = BIAS_COLOR[plan.bias] ?? FNO_MUTED;
-  const levelRows: [string, string | null][] = [
-    ["Support", plan.keyLevels.support],
-    ["Resistance", plan.keyLevels.resistance],
-    ["Max pain", plan.keyLevels.maxPain],
-    ["Put OI wall", plan.keyLevels.putWall],
-    ["Call OI wall", plan.keyLevels.callWall],
-  ];
+function ValidateResultView({
+  result,
+  onRefresh,
+}: {
+  result: AtlasValidateResult;
+  onRefresh: () => void;
+}) {
+  const verdict = VERDICT_STYLE[result.verdict];
+  const biasColor = result.bias === "bullish" ? "#34d399" : "#f87171";
+  const supports = result.checks.filter((c) => c.status === "support");
+  const conflicts = result.checks.filter((c) => c.status === "conflict");
+  const neutrals = result.checks.filter((c) => c.status === "neutral");
 
   return (
     <>
@@ -595,97 +508,68 @@ function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => vo
           className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide"
           style={{ color: biasColor, border: `1px solid ${biasColor}55`, backgroundColor: `${biasColor}1a` }}
         >
-          {plan.bias.replace("-", " ")}
+          Your idea · {result.bias}
         </span>
         <button
           type="button"
           onClick={onRefresh}
           className="inline-flex items-center gap-1 text-[10px]"
           style={{ color: FNO_MUTED }}
-          title="Regenerate"
+          title="Re-check"
         >
           <RefreshCw className="h-3 w-3" /> Refresh
         </button>
       </div>
 
-      <p className="text-sm font-semibold" style={{ color: FNO_TEXT }}>
-        {plan.headline}
-      </p>
-      <p className="text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>
-        {plan.rationale}
-      </p>
-
-      <div className="grid grid-cols-2 gap-2">
-        {levelRows
-          .filter(([, v]) => v)
-          .map(([k, v]) => (
-            <div key={k} className="rounded-lg px-3 py-2" style={CARD_STYLE}>
-              <p className="text-[9px] uppercase tracking-wide" style={{ color: FNO_MUTED }}>
-                {k}
-              </p>
-              <p className="text-xs font-semibold" style={{ color: FNO_TEXT }}>
-                {v}
-              </p>
-            </div>
-          ))}
+      <div className="rounded-xl p-3.5" style={CARD_STYLE}>
+        <p
+          className="text-[10px] font-bold uppercase tracking-wide"
+          style={{ color: verdict.color }}
+        >
+          {verdict.label}
+        </p>
+        <p className="mt-1 text-sm font-semibold" style={{ color: FNO_TEXT }}>
+          {result.summary}
+        </p>
+        <p className="mt-1 text-[11px]" style={{ color: FNO_MUTED }}>
+          {verdict.blurb}
+        </p>
       </div>
 
-      <div className="space-y-3">
-        {plan.strategies.map((s, i) => {
-          const stanceColor = STANCE_COLOR[s.stance] ?? FNO_MUTED;
-          return (
-            <div key={`${s.name}-${i}`} className="rounded-xl p-3.5" style={CARD_STYLE}>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  {s.score ? <ScoreBadge value={s.score.composite} rank={i} /> : null}
-                  <p className="text-sm font-bold truncate" style={{ color: FNO_TEXT }}>
-                    {s.name}
-                  </p>
-                </div>
-                <span
-                  className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0"
-                  style={{ color: stanceColor, backgroundColor: `${stanceColor}1a` }}
-                >
-                  {s.stance}
-                </span>
-              </div>
-              {s.score ? <StrategyScoreView score={s.score} /> : null}
-              <p className="mt-1.5 text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>
-                {s.whyNow}
-              </p>
-              <div
-                className="mt-2 rounded-lg px-2.5 py-2 text-[11px] font-mono"
-                style={{
-                  background: FNO_CARD_BG,
-                  color: "#bfdbfe",
-                  border: "1px solid rgba(96,165,250,0.25)",
-                }}
-              >
-                {s.structure}
-              </div>
-              <dl className="mt-2.5 space-y-1 text-[11px]">
-                {s.economics ? (
-                  <StrategyEconomicsRows econ={s.economics} />
-                ) : (
-                  <>
-                    <PlanRow label="Max risk" value={s.maxRisk} />
-                    <PlanRow label="Max reward" value={s.maxReward} />
-                  </>
-                )}
-                <PlanRow label="Invalidation" value={s.invalidation} valueColor="#fca5a5" />
-              </dl>
-            </div>
-          );
-        })}
-      </div>
+      {supports.length > 0 ? (
+        <CheckGroup title="Supported by" tone="#34d399" checks={supports} />
+      ) : null}
+      {conflicts.length > 0 ? (
+        <CheckGroup title="Conflicts" tone="#f87171" checks={conflicts} />
+      ) : null}
+      {neutrals.length > 0 ? (
+        <CheckGroup title="Neutral / unavailable" tone={FNO_MUTED} checks={neutrals} />
+      ) : null}
 
-      {plan.caveats.length > 0 ? (
-        <div className="rounded-xl p-3.5" style={{ ...CARD_STYLE, borderColor: "rgba(251,191,36,0.3)" }}>
+      {result.invalidation ? (
+        <div
+          className="rounded-xl px-3.5 py-3"
+          style={{ ...CARD_STYLE, borderColor: "rgba(248,113,113,0.3)" }}
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#fca5a5" }}>
+            Invalidation
+          </p>
+          <p className="mt-1 text-[12px] leading-relaxed" style={{ color: "#cbd5e1" }}>
+            {result.invalidation}
+          </p>
+        </div>
+      ) : null}
+
+      {result.caveats.length > 0 ? (
+        <div
+          className="rounded-xl p-3.5"
+          style={{ ...CARD_STYLE, borderColor: "rgba(251,191,36,0.3)" }}
+        >
           <p className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "#fcd34d" }}>
             Watch-outs
           </p>
           <ul className="space-y-1">
-            {plan.caveats.map((c, i) => (
+            {result.caveats.map((c, i) => (
               <li key={i} className="text-[11px] leading-relaxed flex gap-1.5" style={{ color: "#cbd5e1" }}>
                 <span style={{ color: "#fcd34d" }}>•</span>
                 <span>{c}</span>
@@ -698,120 +582,36 @@ function FynnPlanView({ plan, onRefresh }: { plan: FynnPlan; onRefresh: () => vo
   );
 }
 
-function ScoreBadge({ value, rank }: { value: number; rank: number }) {
-  const color = scoreColor(value);
-  return (
-    <span
-      className="inline-flex items-center justify-center h-7 min-w-[1.75rem] px-1.5 rounded-lg text-[13px] font-black tabular-nums shrink-0"
-      style={{ color, backgroundColor: `${color}1f`, border: `1px solid ${color}55` }}
-      title={`Setup score ${value}/100${rank === 0 ? " — top-ranked" : ""}`}
-    >
-      {value}
-    </span>
-  );
-}
-
-function SubScoreBar({ label, value }: { label: string; value: number }) {
-  const color = scoreColor(value);
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="w-8 text-[9px] font-bold uppercase tracking-wide" style={{ color: FNO_MUTED }}>
-        {label}
-      </span>
-      <span className="relative h-1.5 flex-1 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(148,163,184,0.18)" }}>
-        <span
-          className="absolute inset-y-0 left-0 rounded-full"
-          style={{ width: `${Math.max(2, value)}%`, backgroundColor: color }}
-        />
-      </span>
-      <span className="w-6 text-right text-[9px] font-semibold tabular-nums" style={{ color: "#cbd5e1" }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function StrategyScoreView({ score }: { score: StrategyScore }) {
-  return (
-    <div className="mt-2 rounded-lg px-2.5 py-2 space-y-1" style={{ background: FNO_CARD_BG, border: "1px solid rgba(96,165,250,0.18)" }}>
-      <div className="flex items-center justify-between">
-        <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: FNO_MUTED }}>
-          Setup score
-        </span>
-        <span className="text-[9px] font-semibold" style={{ color: FNO_MUTED }}>
-          {POSTURE_LABEL[score.posture]}
-        </span>
-      </div>
-      <SubScoreBar label="Dir" value={score.subScores.direction} />
-      <SubScoreBar label="Vol" value={score.subScores.volFit} />
-      <SubScoreBar label="Fit" value={score.subScores.context} />
-      <p className="text-[10px] leading-snug pt-0.5" style={{ color: "#94a3b8" }}>
-        {score.reason}
-      </p>
-    </div>
-  );
-}
-
-function StrategyEconomicsRows({ econ }: { econ: StrategyEconomics }) {
-  const risk = econ.maxLoss == null ? "Unbounded" : `${fmtMoney(econ.maxLoss)} / share`;
-  const reward =
-    econ.maxProfit == null
-      ? econ.scenario
-        ? "Open-ended"
-        : "Unbounded"
-      : `${fmtMoney(econ.maxProfit)} / share`;
-  const net =
-    econ.kind === "flat"
-      ? null
-      : `${fmtMoney(Math.abs(econ.netDebit))} / share ${econ.kind}`;
-  return (
-    <>
-      {net ? <PlanRow label="Net" value={net} /> : null}
-      <PlanRow label="Max risk" value={risk} valueColor="#fca5a5" />
-      <PlanRow label="Max reward" value={reward} valueColor="#6ee7b7" />
-      {econ.scenario ? (
-        <div className="flex flex-wrap items-baseline gap-x-1.5" style={{ color: FNO_MUTED }}>
-          <span>{econ.scenario.label} →</span>
-          <span
-            className="font-semibold"
-            style={{ color: econ.scenario.pnl >= 0 ? "#6ee7b7" : "#fca5a5" }}
-          >
-            {econ.scenario.pnl >= 0 ? "+" : ""}
-            {fmtMoney(econ.scenario.pnl)} / share
-          </span>
-          {econ.scenario.rewardRisk != null ? (
-            <span>(~{econ.scenario.rewardRisk} : 1 vs risk)</span>
-          ) : null}
-        </div>
-      ) : null}
-      {econ.breakevens.length > 0 ? (
-        <PlanRow label="Break-even" value={econ.breakevens.map(fmtLevel).join(" / ")} />
-      ) : null}
-      {econ.riskReward != null ? (
-        <PlanRow label="Reward:risk" value={`${econ.riskReward} : 1`} />
-      ) : null}
-      <p className="text-[9px] pt-0.5" style={{ color: FNO_MUTED }}>
-        Estimated from ATM IV (Black-Scholes), per share — multiply by lot size for total.
-      </p>
-    </>
-  );
-}
-
-function PlanRow({
-  label,
-  value,
-  valueColor = "#e2e8f0",
+function CheckGroup({
+  title,
+  tone,
+  checks,
 }: {
-  label: string;
-  value: string;
-  valueColor?: string;
+  title: string;
+  tone: string;
+  checks: AtlasValidateResult["checks"];
 }) {
   return (
-    <div className="flex gap-2">
-      <dt className="shrink-0 w-20" style={{ color: FNO_MUTED }}>
-        {label}
-      </dt>
-      <dd style={{ color: valueColor }}>{value}</dd>
+    <div className="space-y-2">
+      <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: tone }}>
+        {title}
+      </p>
+      {checks.map((c) => (
+        <div key={c.id} className="rounded-xl px-3.5 py-3" style={CARD_STYLE}>
+          <div className="flex items-center gap-2">
+            {statusIcon(c.status)}
+            <p className="text-[12px] font-semibold" style={{ color: FNO_TEXT }}>
+              {c.label}
+            </p>
+            <span className="ml-auto text-[9px] font-bold uppercase tracking-wide" style={{ color: tone }}>
+              {statusLabel(c.status)}
+            </span>
+          </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: "#cbd5e1" }}>
+            {c.reason}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }

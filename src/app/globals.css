@@ -97,6 +97,107 @@
     drop-shadow(0 0 10px rgba(96, 165, 250, 0.75));
 }
 
+/**
+ * Toolbar Atlas CTA — Gemini-style “intelligence here” mark:
+ * gradient four-point sparkle, soft pulse ring, gradient AI label.
+ * Intentionally louder than flat B/W/L nav letters.
+ */
+.atlas-ai-cta {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  line-height: 1;
+}
+
+.atlas-ai-cta-orb {
+  position: relative;
+  display: flex;
+  height: 26px;
+  width: 26px;
+  align-items: center;
+  justify-content: center;
+}
+
+.atlas-ai-cta-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: linear-gradient(
+    135deg,
+    rgba(96, 165, 250, 0.35),
+    rgba(167, 139, 250, 0.28),
+    rgba(244, 114, 182, 0.3)
+  );
+  opacity: 0.55;
+  filter: blur(0.5px);
+  animation: atlas-ai-pulse 2.4s ease-in-out infinite;
+}
+
+.atlas-ai-cta-sparkle {
+  position: relative;
+  z-index: 1;
+  filter:
+    drop-shadow(0 0 3px rgba(167, 139, 250, 0.85))
+    drop-shadow(0 0 8px rgba(96, 165, 250, 0.45));
+  animation: atlas-ai-twinkle 3.2s ease-in-out infinite;
+}
+
+.atlas-ai-cta-label {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #93c5fd 0%, #c4b5fd 48%, #f9a8d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.atlas-ai-cta-open .atlas-ai-cta-ring {
+  opacity: 0.9;
+  animation-duration: 1.4s;
+}
+
+.atlas-ai-cta-open .atlas-ai-cta-sparkle {
+  filter:
+    drop-shadow(0 0 4px rgba(196, 181, 253, 1))
+    drop-shadow(0 0 12px rgba(96, 165, 250, 0.75));
+}
+
+@keyframes atlas-ai-pulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.75;
+  }
+}
+
+@keyframes atlas-ai-twinkle {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  40% {
+    transform: scale(1.06) rotate(-4deg);
+  }
+  70% {
+    transform: scale(0.98) rotate(3deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-ai-cta-ring,
+  .atlas-ai-cta-sparkle {
+    animation: none;
+  }
+}
+
 /** Atlas AI featured tile on home — gradient border, flat readable interior */
 .features-atlas-shell {
   background: linear-gradient(

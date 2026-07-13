@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   GraduationCap,
@@ -128,26 +128,49 @@ function ToolbarButton({
   );
 }
 
-function ToolbarCircleLetter({
-  letter,
-  accent = false,
-}: {
-  letter: string;
-  /** Stronger border/glow — used when the control is the active panel (e.g. Atlas open). */
-  accent?: boolean;
-}) {
+function ToolbarCircleLetter({ letter }: { letter: string }) {
   return (
     <span
       className="flex h-[22px] w-[22px] items-center justify-center rounded-full border text-[11px] font-bold leading-none tabular-nums"
       style={{
-        color: accent ? "#93c5fd" : "#94a3b8",
-        borderColor: accent ? "rgba(96,165,250,0.75)" : "rgba(148,163,184,0.4)",
-        boxShadow: accent ? "0 0 0 1px rgba(96,165,250,0.25), 0 0 10px rgba(96,165,250,0.35)" : undefined,
-        backgroundColor: accent ? "rgba(59,130,246,0.12)" : undefined,
+        color: "#94a3b8",
+        borderColor: "rgba(148,163,184,0.4)",
       }}
       aria-hidden
     >
       {letter}
+    </span>
+  );
+}
+
+/** Gemini-style AI mark — gradient sparkle + soft pulse; stands apart from B/W/L nav. */
+function AtlasAiToolbarMark({ open }: { open: boolean }) {
+  const gradId = useId().replace(/:/g, "");
+  return (
+    <span className={`atlas-ai-cta${open ? " atlas-ai-cta-open" : ""}`} aria-hidden>
+      <span className="atlas-ai-cta-orb">
+        <span className="atlas-ai-cta-ring" />
+        <svg className="atlas-ai-cta-sparkle" viewBox="0 0 24 24" width="18" height="18">
+          <defs>
+            <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#60a5fa" />
+              <stop offset="45%" stopColor="#a78bfa" />
+              <stop offset="100%" stopColor="#f472b6" />
+            </linearGradient>
+          </defs>
+          {/* Four-point sparkle — AI signifier */}
+          <path
+            fill={`url(#${gradId})`}
+            d="M12 1.6c.35 3.7 2.05 6.4 5.55 8.05C14.05 11.3 12.35 14 12 17.7c-.35-3.7-2.05-6.4-5.55-8.05C9.95 8 11.65 5.3 12 1.6Z"
+          />
+          <path
+            fill={`url(#${gradId})`}
+            opacity="0.9"
+            d="M18.8 3.2c.18 1.55.9 2.65 2.35 3.35-1.45.7-2.17 1.8-2.35 3.35-.18-1.55-.9-2.65-2.35-3.35 1.45-.7 2.17-1.8 2.35-3.35Z"
+          />
+        </svg>
+      </span>
+      <span className="atlas-ai-cta-label">AI</span>
     </span>
   );
 }
@@ -438,7 +461,7 @@ export function LevelsChartSideToolbar({
             "data-favslide-tour": "atlas",
           }}
         >
-          <ToolbarCircleLetter letter="A" accent={atlasOpen} />
+          <AtlasAiToolbarMark open={atlasOpen} />
         </ToolbarButton>
 
         <ToolbarButton

@@ -22,6 +22,7 @@ export type ValidateCheckId =
   | "oi_day"
   | "oi_history"
   | "news"
+  | "daily_pvt"
   | "intraday_pvt";
 
 export interface ValidateCheck {
@@ -46,7 +47,10 @@ export interface AtlasValidateInputs {
   newsScore: number | null;
   newsLabel?: NewsSentimentLabel | null;
   newsNote?: string | null;
-  pvtSlope: number | null;
+  /** Daily PVT slope since zone entry (toe-dip), −1…+1. */
+  dailyPvtSlope: number | null;
+  /** 15m intraday PVT slope (zone-anchored when possible), −1…+1. */
+  intradayPvtSlope: number | null;
   ivPercentile?: number | null;
   volRegimeFlag?: string | null;
 }
@@ -334,38 +338,74 @@ export function checkNews(inputs: AtlasValidateInputs): ValidateCheck {
   };
 }
 
-/** Intraday / PVT confirmation near the idea. */
+/** Daily PVT confirmation since price entered the S/R zone. */
+export function checkDailyPvt(inputs: AtlasValidateInputs): ValidateCheck {
+  const label = "Daily PVT since zone";
+  if (!isNum(inputs.dailyPvtSlope)) {
+    return {
+      id: "daily_pvt",
+      label,
+      status: "neutral",
+      reason:
+        "No open support/resistance event yet, or not enough daily sessions since the zone hit for a PVT read.",
+    };
+  }
+  if (Math.abs(inputs.dailyPvtSlope) < PVT_NEUTRAL) {
+    return {
+      id: "daily_pvt",
+      label,
+      status: "neutral",
+      reason: "Daily PVT since the zone hit is flat — no clear multi-session volume confirmation yet.",
+    };
+  }
+  if (inputs.dailyPvtSlope > 0) {
+    return {
+      id: "daily_pvt",
+      label,
+      status: statusFromSignal(inputs.bias, "bullish"),
+      reason: "Daily PVT has risen since the zone hit — volume-backed accumulation after entry.",
+    };
+  }
+  return {
+    id: "daily_pvt",
+    label,
+    status: statusFromSignal(inputs.bias, "bearish"),
+    reason: "Daily PVT has fallen since the zone hit — volume-backed distribution after entry.",
+  };
+}
+
+/** 15m intraday PVT — zone-anchored when an open event exists, else recent session. */
 export function checkIntradayPvt(inputs: AtlasValidateInputs): ValidateCheck {
-  const label = "Intraday trend (PVT)";
-  if (!isNum(inputs.pvtSlope)) {
+  const label = "Intraday PVT (15m)";
+  if (!isNum(inputs.intradayPvtSlope)) {
     return {
       id: "intraday_pvt",
       label,
       status: "neutral",
-      reason: "No open support/resistance event to anchor an intraday PVT read.",
+      reason: "Intraday PVT is not available (no usable volume or candles yet).",
     };
   }
-  if (Math.abs(inputs.pvtSlope) < PVT_NEUTRAL) {
+  if (Math.abs(inputs.intradayPvtSlope) < PVT_NEUTRAL) {
     return {
       id: "intraday_pvt",
       label,
       status: "neutral",
-      reason: "Intraday PVT is flat — no clear volume-backed push yet.",
+      reason: "Intraday PVT is flat — no clear volume-backed push on the 15m chart yet.",
     };
   }
-  if (inputs.pvtSlope > 0) {
+  if (inputs.intradayPvtSlope > 0) {
     return {
       id: "intraday_pvt",
       label,
       status: statusFromSignal(inputs.bias, "bullish"),
-      reason: "Intraday PVT slopes up — volume-backed buying into the current zone.",
+      reason: "Intraday PVT slopes up on 15m — volume-backed buying into the current zone.",
     };
   }
   return {
     id: "intraday_pvt",
     label,
     status: statusFromSignal(inputs.bias, "bearish"),
-    reason: "Intraday PVT slopes down — volume-backed selling into the current zone.",
+    reason: "Intraday PVT slopes down on 15m — volume-backed selling into the current zone.",
   };
 }
 
@@ -458,6 +498,7 @@ export function validateTradeIdea(inputs: AtlasValidateInputs): AtlasValidateRes
     checkOiDay(inputs),
     checkOiHistory(inputs),
     checkNews(inputs),
+    checkDailyPvt(inputs),
     checkIntradayPvt(inputs),
   ];
   const verdict = tallyVerdict(checks, inputs);

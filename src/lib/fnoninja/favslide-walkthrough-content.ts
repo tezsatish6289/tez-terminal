@@ -89,7 +89,7 @@ export const FAVSLIDE_WALKTHROUGH_TOUR_STEPS: FavslideWalkthroughTourStep[] = [
     id: "atlas",
     selector: '[data-favslide-tour="atlas"]',
     title: "Atlas AI",
-    body: "Tap A to validate your own trade idea. Tell Atlas if you are bullish or bearish — it checks support/resistance, OI, news, and intraday trend, then tells you if your idea lines up.",
+    body: "Tap A to validate your own trade idea. Tell Atlas if you are bullish or bearish — it checks support/resistance, OI, news, daily PVT since the zone, and intraday PVT, then tells you if your idea lines up.",
     placement: "left",
   },
   {

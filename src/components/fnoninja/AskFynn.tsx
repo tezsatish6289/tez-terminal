@@ -37,7 +37,7 @@ import type {
 const ATLAS_FAQ: { q: string; a: string }[] = [
   {
     q: "What does Atlas validate?",
-    a: "You state whether you are bullish or bearish. Atlas checks that idea against spot vs support/resistance, day OI wall buildup, multi-day OI history, news sentiment, and intraday PVT — then tells you if the idea lines up, partially lines up, or conflicts, and why.",
+    a: "You state whether you are bullish or bearish. Atlas checks that idea against spot vs support/resistance, day OI wall buildup, multi-day OI history, news sentiment, daily PVT since the zone hit, and 15m intraday PVT — then tells you if the idea lines up, partially lines up, or conflicts, and why.",
   },
   {
     q: "What does \u201cmax pain\u201d mean?",
@@ -262,7 +262,7 @@ export function AskFynn({
                   ? "I can help validate your trade idea — are you bullish or bearish on this script right now?"
                   : view === "faq"
                     ? "Educational answers about how Atlas reads the data."
-                    : "Pressure-test of your stated idea against levels, OI, news, and intraday trend."}
+                    : "Pressure-test of your stated idea against levels, OI, news, and PVT (daily since zone + intraday)."}
               </SheetDescription>
             </SheetHeader>
 
@@ -305,7 +305,7 @@ export function AskFynn({
                       I&apos;m bullish
                     </span>
                     <span className="mt-0.5 block text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
-                      Check if support, OI, news, and intraday trend agree.
+                      Check if support, OI, news, and PVT agree.
                     </span>
                   </span>
                 </button>
@@ -333,7 +333,7 @@ export function AskFynn({
                       I&apos;m bearish
                     </span>
                     <span className="mt-0.5 block text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
-                      Check if resistance, OI, news, and intraday trend agree.
+                      Check if resistance, OI, news, and PVT agree.
                     </span>
                   </span>
                 </button>
@@ -397,7 +397,7 @@ export function AskFynn({
                       style={{ color: FNO_ACCENT }}
                     />
                     <p className="text-xs">
-                      Checking levels, OI, news, and intraday trend…
+                      Checking levels, OI, news, and PVT…
                     </p>
                   </div>
                 ) : error ? (

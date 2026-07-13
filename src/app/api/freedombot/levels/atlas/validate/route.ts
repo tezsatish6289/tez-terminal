@@ -2,7 +2,8 @@
  * POST /api/freedombot/levels/atlas/validate
  *
  * Atlas idea validation — user supplies bullish|bearish; we load zone + news +
- * OI history + PVT and run the deterministic rule engine. No LLM for the verdict.
+ * OI history + daily/intraday PVT and run the deterministic rule engine. No LLM
+ * for the verdict.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -17,7 +18,7 @@ import { LEVELS_NEWS_WINDOW_DAYS } from "@/lib/levels/news-types";
 import { loadOiHistory } from "@/lib/oi-history";
 import { loadIvHistory } from "@/lib/iv-history";
 import { ivPercentile } from "@/lib/zones/vol-regime";
-import { fetchPvtSlope } from "@/lib/levels/pvt-signal";
+import { fetchIntradayPvtSlope, fetchPvtSlope } from "@/lib/levels/pvt-signal";
 import { getOpenSrEventAnchorSec } from "@/lib/sr-audit/open-event-anchor";
 import {
   validateTradeIdea,
@@ -140,7 +141,8 @@ export async function POST(request: NextRequest) {
   // Touch expiry resolve so stale docs without a resolved expiry still work.
   resolveZonesExpiryFromStored(raw);
 
-  const [news, oiHist, ivPct, pvtSlope] = await Promise.all([
+  const zoneAnchorSec = await getOpenSrEventAnchorSec(db, symbol);
+  const [news, oiHist, ivPct, dailyPvtSlope, intradayPvtSlope] = await Promise.all([
     getLevelsNews(scope, symbol, String(LEVELS_NEWS_WINDOW_DAYS)).catch(() => null),
     loadOiHistory(db, symbol),
     (async () => {
@@ -150,7 +152,8 @@ export async function POST(request: NextRequest) {
         return null;
       }
     })(),
-    fetchPvtSlope(scope, symbol, await getOpenSrEventAnchorSec(db, symbol)),
+    fetchPvtSlope(scope, symbol, zoneAnchorSec),
+    fetchIntradayPvtSlope(scope, symbol, zoneAnchorSec),
   ]);
 
   const result = validateTradeIdea({
@@ -168,7 +171,8 @@ export async function POST(request: NextRequest) {
     newsScore: news?.sentiment?.score ?? null,
     newsLabel: news?.sentiment?.label ?? null,
     newsNote: news?.sentiment?.note ?? null,
-    pvtSlope,
+    dailyPvtSlope,
+    intradayPvtSlope,
     ivPercentile: ivPct,
     volRegimeFlag: typeof raw.volRegimeFlag === "string" ? raw.volRegimeFlag : null,
   });

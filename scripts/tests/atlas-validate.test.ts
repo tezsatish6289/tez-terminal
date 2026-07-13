@@ -1,4 +1,5 @@
 import {
+  checkDailyPvt,
   checkIntradayPvt,
   checkNews,
   checkOiDay,
@@ -23,7 +24,8 @@ const base = (over: Partial<AtlasValidateInputs> = {}): AtlasValidateInputs => (
   callOiChangePct: null,
   oiHistory: null,
   newsScore: null,
-  pvtSlope: null,
+  dailyPvtSlope: null,
+  intradayPvtSlope: null,
   ...over,
 });
 
@@ -83,10 +85,21 @@ describe("checkNews", () => {
   });
 });
 
-describe("checkIntradayPvt", () => {
-  test("up PVT supports bullish", () => {
-    const c = checkIntradayPvt(base({ pvtSlope: 0.8, bias: "bullish" }));
+describe("checkDailyPvt", () => {
+  test("up daily PVT since zone supports bullish", () => {
+    const c = checkDailyPvt(base({ dailyPvtSlope: 0.8, bias: "bullish" }));
     assertTrue(c.status === "support", c.reason);
+    assertTrue(c.id === "daily_pvt");
+    assertTrue(c.label.includes("Daily"));
+  });
+});
+
+describe("checkIntradayPvt", () => {
+  test("up intraday PVT supports bullish", () => {
+    const c = checkIntradayPvt(base({ intradayPvtSlope: 0.8, bias: "bullish" }));
+    assertTrue(c.status === "support", c.reason);
+    assertTrue(c.id === "intraday_pvt");
+    assertTrue(c.label.includes("Intraday"));
   });
 });
 
@@ -98,11 +111,14 @@ describe("validateTradeIdea", () => {
         putOiChangePct: 20,
         callOiChangePct: 0,
         newsScore: 70,
-        pvtSlope: 0.5,
+        dailyPvtSlope: 0.5,
+        intradayPvtSlope: 0.4,
       }),
     );
     assertTrue(r.verdict === "aligned", r.summary);
     assertTrue(r.checks.some((c) => c.status === "support"));
+    assertTrue(r.checks.some((c) => c.id === "daily_pvt"));
+    assertTrue(r.checks.some((c) => c.id === "intraday_pvt"));
     assertTrue(r.invalidation != null && /2,?820/.test(r.invalidation), r.invalidation ?? "no invalidation");
   });
 
@@ -113,7 +129,8 @@ describe("validateTradeIdea", () => {
         putOiChangePct: 20,
         callOiChangePct: 0,
         newsScore: 25,
-        pvtSlope: -0.6,
+        dailyPvtSlope: -0.6,
+        intradayPvtSlope: -0.5,
       }),
     );
     assertTrue(r.verdict === "partially_aligned", r.summary);
@@ -127,7 +144,8 @@ describe("validateTradeIdea", () => {
         putOiChangePct: 0,
         callOiChangePct: 30,
         newsScore: 20,
-        pvtSlope: -0.8,
+        dailyPvtSlope: -0.8,
+        intradayPvtSlope: -0.7,
       }),
     );
     assertTrue(r.verdict === "not_aligned", r.summary);

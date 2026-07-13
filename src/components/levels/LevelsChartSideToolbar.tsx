@@ -7,7 +7,6 @@ import {
   Loader2,
   MessageCircle,
   Newspaper,
-  Sparkles,
 } from "lucide-react";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
 import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
@@ -129,13 +128,22 @@ function ToolbarButton({
   );
 }
 
-function ToolbarCircleLetter({ letter }: { letter: string }) {
+function ToolbarCircleLetter({
+  letter,
+  accent = false,
+}: {
+  letter: string;
+  /** Stronger border/glow — used when the control is the active panel (e.g. Atlas open). */
+  accent?: boolean;
+}) {
   return (
     <span
       className="flex h-[22px] w-[22px] items-center justify-center rounded-full border text-[11px] font-bold leading-none tabular-nums"
       style={{
-        color: "#94a3b8",
-        borderColor: "rgba(148,163,184,0.4)",
+        color: accent ? "#93c5fd" : "#94a3b8",
+        borderColor: accent ? "rgba(96,165,250,0.75)" : "rgba(148,163,184,0.4)",
+        boxShadow: accent ? "0 0 0 1px rgba(96,165,250,0.25), 0 0 10px rgba(96,165,250,0.35)" : undefined,
+        backgroundColor: accent ? "rgba(59,130,246,0.12)" : undefined,
       }}
       aria-hidden
     >
@@ -422,11 +430,15 @@ export function LevelsChartSideToolbar({
           onClick={() => {
             trackCtaClick("toolbar_atlas", { label: "Atlas AI", symbol, scope });
             if (nudgeIfFeatureLocked("atlas_ai")) return;
-            setAtlasOpen(true);
+            handleAtlasOpenChange(true);
           }}
           title="Atlas AI — validate your trade idea"
+          dataAttrs={{
+            "data-liveslide-tour": "atlas",
+            "data-favslide-tour": "atlas",
+          }}
         >
-          <Sparkles className={`${TOOLBAR_ICON_CLASS} fynn-sparkle-glow`} strokeWidth={1.5} />
+          <ToolbarCircleLetter letter="A" accent={atlasOpen} />
         </ToolbarButton>
 
         <ToolbarButton

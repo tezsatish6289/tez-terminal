@@ -84,6 +84,13 @@ export const LIVESLIDE_WALKTHROUGH_TOUR_STEPS: LiveslideWalkthroughTourStep[] = 
     placement: "left",
   },
   {
+    id: "atlas",
+    selector: '[data-liveslide-tour="atlas"]',
+    title: "Atlas AI",
+    body: "Tap A to validate your own trade idea. Tell Atlas if you are bullish or bearish — it checks support/resistance, OI, news, and intraday trend, then tells you if your idea lines up.",
+    placement: "left",
+  },
+  {
     id: "footer",
     selector: '[data-liveslide-tour="footer"]',
     title: "Auto-advance or pick a setup",

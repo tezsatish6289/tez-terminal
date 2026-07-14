@@ -11,6 +11,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { useUser } from "@/firebase";
+import { trackCtaClick } from "@/firebase/analytics";
 import { usePublicBots } from "@/hooks/use-public-bots";
 import { CRYPTO_BOTS } from "@/lib/crypto-bots";
 import { freedombotDashboardBase, freedombotHomePath } from "@/lib/freedombot/dashboard-path";
@@ -328,7 +329,10 @@ export default function BotDetailPage() {
             <div className="flex flex-col items-end gap-2 flex-shrink-0">
               <button
                 type="button"
-                onClick={() => setSettingsOpen(true)}
+                onClick={() => {
+                  trackCtaClick("fb_dashboard_bot_settings", { label: "Settings", bot: deployment.bot, exchange: deployment.exchange });
+                  setSettingsOpen(true);
+                }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105"
                 style={{
                   backgroundColor: "rgba(90,140,220,0.08)",

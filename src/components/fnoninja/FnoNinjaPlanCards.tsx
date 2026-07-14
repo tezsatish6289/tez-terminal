@@ -80,7 +80,13 @@ const PRIMARY_CARDS: PrimaryCard[] = [
   },
 ];
 
-function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
+function PlanCardsInner({
+  showStatusBanner,
+  ctaSource,
+}: {
+  showStatusBanner: boolean;
+  ctaSource: string;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, isUserLoading } = useUser();
@@ -152,10 +158,18 @@ function PlanCardsInner({ showStatusBanner }: { showStatusBanner: boolean }) {
   // (payment links can't redirect back), so it's handled regardless of which
   // page the buyer returns to — no per-page verification needed here.
 
-  // Login destination that resumes the chosen action after OAuth.
+  // Login destination that resumes the chosen action after OAuth. The ?src/?cta
+  // stamp the sign_up-collection attribution (e.g. landing · select_silver).
   const loginForCheckout = (tier: CheckoutTier) =>
-    fnoLoginHref(pathname, `${fnoSubscribeHref(pathname)}?checkout=${tier}`);
-  const loginForTrial = () => fnoLoginHref(pathname, fnoAnalyticsHref(pathname));
+    fnoLoginHref(pathname, `${fnoSubscribeHref(pathname)}?checkout=${tier}`, {
+      src: ctaSource,
+      cta: `select_${tier === "daypass" ? "daypass" : tier}`,
+    });
+  const loginForTrial = () =>
+    fnoLoginHref(pathname, fnoAnalyticsHref(pathname), {
+      src: ctaSource,
+      cta: "select_free_trial",
+    });
 
   function renderCta(card: PrimaryCard) {
     const gradientBtn =
@@ -492,14 +506,17 @@ function StatusBanner({ sub }: { sub: ReturnType<typeof useSubscription> }) {
 export function FnoNinjaPlanCards({
   showStatusBanner = false,
   className,
+  ctaSource = "landing",
 }: {
   showStatusBanner?: boolean;
   className?: string;
+  /** sign_up-collection origin bucket for the plan CTAs (landing | subscribe). */
+  ctaSource?: string;
 }) {
   return (
     <Suspense fallback={null}>
       <div className={className}>
-        <PlanCardsInner showStatusBanner={showStatusBanner} />
+        <PlanCardsInner showStatusBanner={showStatusBanner} ctaSource={ctaSource} />
       </div>
     </Suspense>
   );

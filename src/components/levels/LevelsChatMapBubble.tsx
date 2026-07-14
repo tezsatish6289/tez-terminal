@@ -5,6 +5,7 @@ import { MessageCircle } from "lucide-react";
 import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { FNO_ACCENT, FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
+import { trackCtaClick } from "@/firebase/analytics";
 
 /** Community chat as a distinct brand-blue bubble on the market map. */
 export function LevelsChatMapBubble({
@@ -38,7 +39,10 @@ export function LevelsChatMapBubble({
     >
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          trackCtaClick("map_chat_open", { label: "Community chat" });
+          setOpen(true);
+        }}
         className="relative flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-full hover:scale-[1.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 active:scale-[0.97] cursor-pointer touch-manipulation"
         style={{
           background: FNO_CTA_GRADIENT,

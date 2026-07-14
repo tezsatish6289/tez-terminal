@@ -1,7 +1,9 @@
 "use client";
 
+import { getAdditionalUserInfo } from "firebase/auth";
 import { useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
+import { trackCtaClick, trackFnoSignIn, trackFnoSignUp } from "@/firebase/analytics";
 import { toast } from "@/hooks/use-toast";
 import { setFnoPostLoginRedirect } from "@/lib/fnoninja/post-login-redirect";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
@@ -13,6 +15,9 @@ export function FnoNinjaGoogleSignInButton({
   showGoogleIcon = true,
   postSignInHref,
   onSignedIn,
+  ctaId = "google_sign_in",
+  signUpSource = "login_page",
+  signUpSourceCta,
 }: {
   className?: string;
   size?: "nav" | "hero";
@@ -21,14 +26,32 @@ export function FnoNinjaGoogleSignInButton({
   /** After sign-in, navigate here (stored for redirect auth as well). */
   postSignInHref?: string;
   onSignedIn?: () => void;
+  ctaId?: string;
+  /** sign_up-collection origin bucket (landing | toolbar | bubble_chart | nav | …). */
+  signUpSource?: string;
+  /** The originating CTA within that source (defaults to ctaId). */
+  signUpSourceCta?: string;
 }) {
   const auth = useAuth();
 
   const handleSignIn = async () => {
+    trackCtaClick(ctaId, { label, post_sign_in_href: postSignInHref });
     if (!auth) return;
     if (postSignInHref) setFnoPostLoginRedirect(postSignInHref);
     try {
-      await initiateGoogleSignIn(auth);
+      const cred = await initiateGoogleSignIn(auth);
+      if (cred) {
+        const attr = {
+          signup_source: signUpSource,
+          source_cta: signUpSourceCta ?? ctaId,
+          signup_cta: ctaId,
+        };
+        if (getAdditionalUserInfo(cred)?.isNewUser) {
+          trackFnoSignUp(attr);
+        } else {
+          trackFnoSignIn(attr);
+        }
+      }
       onSignedIn?.();
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Could not authenticate with Google.";

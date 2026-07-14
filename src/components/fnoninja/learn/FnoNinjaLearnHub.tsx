@@ -8,6 +8,7 @@ import { Clock } from "lucide-react";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
 import type { LucideIcon } from "lucide-react";
 import { LEARN_ARTICLES, type LearnArticleMeta } from "@/lib/fnoninja/learn-content";
+import { trackCtaClick } from "@/firebase/analytics";
 import { fnoLearnHref } from "@/lib/fnoninja/paths";
 import { FnoNinjaLearnDisclaimer } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
 import { LearnHistoryCardThumbnail } from "@/components/fnoninja/learn/LearnHistoryCardThumbnail";
@@ -105,6 +106,9 @@ export function FnoNinjaLearnHub() {
             <Link
               key={article.slug}
               href={href}
+              onClick={() =>
+                trackCtaClick("learn_article_open", { slug: article.slug, label: article.title })
+              }
               className="group flex flex-col rounded-2xl overflow-hidden transition-transform hover:-translate-y-0.5 h-full"
               style={{ backgroundColor: FNO_CARD_BG, border: FNO_CARD_BORDER }}
             >

@@ -74,6 +74,8 @@ function FnoNinjaCommunityPageInner() {
                 size="hero"
                 className="w-full sm:w-auto"
                 ctaId="community_page_sign_in"
+                signUpSource="community_page"
+                signUpSourceCta="join_community"
                 postSignInHref={postSignInHref}
               />
             </Suspense>

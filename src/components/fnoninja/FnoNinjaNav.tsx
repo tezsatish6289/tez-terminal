@@ -64,7 +64,7 @@ function FnoNinjaLandingNavCta({
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
   const bubblesHref = fnoAnalyticsHref(pathname);
-  const loginHref = fnoLoginHref(pathname, bubblesHref);
+  const loginHref = fnoLoginHref(pathname, bubblesHref, { src: "landing", cta: "login" });
 
   if (isUserLoading) return null;
 
@@ -293,6 +293,9 @@ export function FnoNinjaNav() {
                   </p>
                   <FnoNinjaGoogleSignInButton
                     className="w-full"
+                    ctaId="nav_account_signin"
+                    signUpSource="nav"
+                    signUpSourceCta="account_menu"
                     onSignedIn={() => setMenuOpen(false)}
                   />
                 </div>

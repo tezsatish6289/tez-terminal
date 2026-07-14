@@ -9,6 +9,7 @@ import {
   type BubbleMapFilter,
   type SlideshowMapFilter,
 } from "@/lib/zones/bubble-map-filter";
+import { trackCtaClick } from "@/firebase/analytics";
 
 function filterTone(
   key: BubbleMapFilter,
@@ -66,7 +67,10 @@ export function LevelsBubbleMapFilters({
         id: `bubble-filter-${key}`,
         label,
         count,
-        onClick: () => onFilterChange(key as BubbleMapFilter & SlideshowMapFilter),
+        onClick: () => {
+          trackCtaClick("map_filter", { label, filter: key });
+          onFilterChange(key as BubbleMapFilter & SlideshowMapFilter);
+        },
         tone: filterTone(key, active),
         ringStyle: isNear ? ("dotted" as const) : ("solid" as const),
         ariaLabel: `${label}, ${count} symbols`,

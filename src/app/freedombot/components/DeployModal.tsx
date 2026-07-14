@@ -25,6 +25,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
+import { trackCtaClick } from "@/firebase/analytics";
 import { freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
 import { DEFAULT_TRADING_PREFS } from "@/lib/freedombot/trading-prefs-shared";
 import { RiskControls, type TradingPrefs } from "./risk-controls";
@@ -459,6 +460,12 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
   };
 
   const handleSubmit = async () => {
+    trackCtaClick("fb_deploy_submit", {
+      label: useExistingCredentials ? "Deploy with saved key" : "Deploy Bot",
+      bot: selectedBot,
+      exchange: selectedExchange,
+      use_existing_credentials: useExistingCredentials,
+    });
     if (!user || !selectedExchange) return;
     if (!useExistingCredentials && !currentExchangeDef) return;
     setIsSubmitting(true);
@@ -587,7 +594,10 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                 Sign in with Google to deploy and manage your trading bots.
               </p>
               <button
-                onClick={handleSignIn}
+                onClick={() => {
+                  trackCtaClick("fb_deploy_sign_in", { label: "Continue with Google" });
+                  void handleSignIn();
+                }}
                 disabled={isSigningIn}
                 className="w-full flex items-center justify-center gap-3 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-[0.99] disabled:opacity-70"
                 style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 0 30px rgba(37,99,235,0.25)" }}
@@ -621,7 +631,11 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                   return (
                     <button
                       key={bot.key}
-                      onClick={() => bot.live && setSelectedBot(bot.key)}
+                      onClick={() => {
+                        if (!bot.live) return;
+                        trackCtaClick("fb_deploy_select_bot", { label: bot.name, bot: bot.key });
+                        setSelectedBot(bot.key);
+                      }}
                       disabled={!bot.live}
                       className="w-full flex items-center justify-between p-4 rounded-2xl text-left transition-all"
                       style={{
@@ -667,7 +681,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
           {/* ── STEP: Choose Exchange ── */}
           {step === "choose-exchange" && (
             <div>
-              <button onClick={() => setStep("choose-bot")} className="flex items-center gap-1.5 text-xs font-bold mb-5 transition-colors" style={{ color: "#475569" }}>
+              <button onClick={() => { trackCtaClick("fb_deploy_wizard_nav", { label: "Back", direction: "back", from: "choose-exchange" }); setStep("choose-bot"); }} className="flex items-center gap-1.5 text-xs font-bold mb-5 transition-colors" style={{ color: "#475569" }}>
                 <ArrowLeft className="h-3.5 w-3.5" /> Back
               </button>
               <h2 className="text-xl font-black text-white mb-1 tracking-tight">Choose your exchange</h2>
@@ -680,7 +694,10 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                   return (
                     <button
                       key={exchange.key}
-                      onClick={() => setSelectedExchange(exchange.key)}
+                      onClick={() => {
+                        trackCtaClick("fb_deploy_select_exchange", { label: exchange.name, exchange: exchange.key });
+                        setSelectedExchange(exchange.key);
+                      }}
                       className="w-full flex items-center justify-between p-4 rounded-2xl text-left transition-all"
                       style={{
                         backgroundColor: isSelected ? "rgba(37,99,235,0.1)" : "rgba(10,22,40,0.6)",
@@ -788,6 +805,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
             <div>
               <button
                 onClick={() => {
+                  trackCtaClick("fb_deploy_wizard_nav", { label: "Back", direction: "back", from: "reuse-existing" });
                   setUseExistingCredentials(false);
                   setStep("choose-exchange");
                 }}
@@ -880,7 +898,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
           {/* ── STEP: Enter Credentials ── */}
           {step === "enter-creds" && currentExchangeDef && (
             <div>
-              <button onClick={() => { setStep("choose-exchange"); setShowHelp(false); }} className="flex items-center gap-1.5 text-xs font-bold mb-5 transition-colors" style={{ color: "#475569" }}>
+              <button onClick={() => { trackCtaClick("fb_deploy_wizard_nav", { label: "Back", direction: "back", from: "enter-creds" }); setStep("choose-exchange"); setShowHelp(false); }} className="flex items-center gap-1.5 text-xs font-bold mb-5 transition-colors" style={{ color: "#475569" }}>
                 <ArrowLeft className="h-3.5 w-3.5" /> Back
               </button>
               <h2 className="text-xl font-black text-white mb-1 tracking-tight">API Credentials</h2>
@@ -1115,7 +1133,10 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
           <DeployModalFooter>
             <OnboardingSupportLink />
             <button
-              onClick={() => setStep("choose-exchange")}
+              onClick={() => {
+                trackCtaClick("fb_deploy_wizard_nav", { label: "Continue", direction: "forward", from: "choose-bot", bot: selectedBot });
+                setStep("choose-exchange");
+              }}
               className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99]"
               style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
             >
@@ -1128,7 +1149,10 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
           <DeployModalFooter>
             <OnboardingSupportLink />
             <button
-              onClick={() => void handleExchangeContinue()}
+              onClick={() => {
+                trackCtaClick("fb_deploy_wizard_nav", { label: "Continue", direction: "forward", from: "choose-exchange", bot: selectedBot, exchange: selectedExchange });
+                void handleExchangeContinue();
+              }}
               disabled={!selectedExchange || isCheckingExisting}
               className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}

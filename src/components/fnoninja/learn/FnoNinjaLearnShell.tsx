@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowLeft, Clock } from "lucide-react";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_LEARN_ARTICLE_SHELL, FNO_LEARN_WIDE_SHELL } from "@/lib/freedombot/responsive";
 import { FnoNinjaLearnDisclaimer } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
 import type { LearnArticleMeta } from "@/lib/fnoninja/learn-content";
@@ -29,6 +32,9 @@ export function FnoNinjaLearnArticleShell({
     <article className={`${shellClass} py-10 sm:py-16 min-w-0`}>
       <Link
         href={learnHubHref}
+        onClick={() =>
+          trackCtaClick("learn_back_hub", { label: "All guides", href: learnHubHref, slug: article.slug })
+        }
         className="flex items-center gap-2 text-sm mb-8 transition-colors hover:text-white w-fit"
         style={{ color: FNO_MUTED }}
       >
@@ -84,6 +90,9 @@ export function FnoNinjaLearnArticleShell({
         <div className="flex flex-wrap gap-3">
           <Link
             href="/levels"
+            onClick={() =>
+              trackCtaClick("learn_open_map", { label: "Open market map", href: "/levels" })
+            }
             className="inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-bold text-white"
             style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
           >
@@ -91,6 +100,12 @@ export function FnoNinjaLearnArticleShell({
           </Link>
           <Link
             href="/levels/chart?scope=index&symbol=NIFTY"
+            onClick={() =>
+              trackCtaClick("learn_sample_chart", {
+                label: "Sample NIFTY chart",
+                href: "/levels/chart?scope=index&symbol=NIFTY",
+              })
+            }
             className="inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold"
             style={{ color: FNO_ACCENT, border: "1px solid rgba(96,165,250,0.35)" }}
           >

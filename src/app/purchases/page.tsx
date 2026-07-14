@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { trackPurchasesPageView } from "@/firebase/analytics";
+import { trackPurchasesPageView, trackCtaClick } from "@/firebase/analytics";
 
 interface Payment {
   id: string;
@@ -165,6 +165,7 @@ export default function PurchasesPage() {
             </div>
             <Link
               href="/subscribe"
+              onClick={() => trackCtaClick("tt_extend_access", { label: isExpired ? "Get Access" : "Extend Access" })}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-accent-foreground font-bold text-[11px] uppercase tracking-wider hover:bg-accent/90 transition-colors"
             >
               {isExpired ? "Get Access" : "Extend Access"}

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Rocket, Loader2 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
+import { trackCtaClick } from "@/firebase/analytics";
 import { usePublicBots } from "@/hooks/use-public-bots";
 import { DeployModal } from "../components/DeployModal";
 import type { DeploymentWallet } from "../components/BotSettings";
@@ -59,7 +60,10 @@ function NotConnected({ onDeploy }: { onDeploy: () => void }) {
 
         <button
           type="button"
-          onClick={onDeploy}
+          onClick={() => {
+            trackCtaClick("fb_deploy_open", { label: "Deploy Your Bot", placement: "dashboard_empty" });
+            onDeploy();
+          }}
           className="h-14 px-10 rounded-2xl font-bold text-base text-white flex items-center gap-2.5 mx-auto transition-all hover:scale-105 shadow-lg"
           style={{
             background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",

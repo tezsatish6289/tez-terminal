@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { trackCtaClick } from "@/firebase/analytics";
 import { fnoAnalyticsHref, fnoLoginHref } from "@/lib/fnoninja/paths";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
 
@@ -13,6 +14,9 @@ export function FnoNinjaPricingTrialCta({ className = "" }: { className?: string
   return (
     <Link
       href={fnoLoginHref(pathname, returnTo)}
+      onClick={() =>
+        trackCtaClick("pricing_trial_sign_in", { label: "Sign in with Google", tier: "trial" })
+      }
       className={`inline-flex items-center justify-center font-bold text-white transition-all hover:scale-[1.02] gap-2.5 rounded-xl px-8 py-3.5 text-sm w-full ${className}`}
       style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
     >

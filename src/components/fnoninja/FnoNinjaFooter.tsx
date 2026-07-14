@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FB_DOC_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
@@ -40,6 +43,7 @@ export function FnoNinjaFooter() {
                 <a
                   key={l.label}
                   href={l.href}
+                  onClick={() => trackCtaClick("footer_link", { label: l.label, href: l.href })}
                   className="text-sm transition-colors hover:text-white"
                   style={{ color: "#475569" }}
                 >
@@ -65,6 +69,7 @@ export function FnoNinjaFooter() {
                 <Link
                   key={l.label}
                   href={l.href}
+                  onClick={() => trackCtaClick("footer_link", { label: l.label, href: l.href })}
                   className="text-sm transition-colors hover:text-white"
                   style={{ color: "#475569" }}
                 >

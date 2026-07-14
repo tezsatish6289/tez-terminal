@@ -1,8 +1,16 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { trackCtaClick } from "@/firebase/analytics";
 
 export type LevelsViewMode = "chart" | "outlook" | "history" | "pvt";
+
+const CHART_VIEW_CTA_ID: Record<LevelsViewMode, string> = {
+  pvt: "chart_view_pvt",
+  chart: "chart_view_intraday",
+  outlook: "chart_view_outlook",
+  history: "chart_view_history",
+};
 
 export function LevelsOutlookViewToggle({
   value,
@@ -29,7 +37,10 @@ export function LevelsOutlookViewToggle({
             <button
               key={o.id}
               type="button"
-              onClick={() => onChange(o.id)}
+              onClick={() => {
+                trackCtaClick(CHART_VIEW_CTA_ID[o.id], { label: o.label, view: o.id });
+                onChange(o.id);
+              }}
               title={o.kbd ? `${o.label} (${o.kbd})` : o.label}
               className="inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-[11px] font-semibold transition-colors"
               style={{

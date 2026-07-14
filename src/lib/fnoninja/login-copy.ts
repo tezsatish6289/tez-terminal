@@ -34,6 +34,16 @@ export const FNO_COMMUNITY_PAGE_BENEFITS = [
 
 /** Contextual copy when a signed-out user clicks a gated toolbar action on the public chart page. */
 export const FNO_TOOLBAR_SIGN_IN_COPY = {
+  news: {
+    title: "News & sentiment",
+    description:
+      "Sign in to read recent news and option-chain sentiment for this symbol.",
+  },
+  atlas: {
+    title: "Atlas AI",
+    description:
+      "Sign in to ask Atlas about levels and validate your trade idea on any symbol.",
+  },
   chat: {
     title: "Chat with community",
     description:

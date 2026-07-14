@@ -30,6 +30,7 @@ import {
   trackPlanSelected,
   trackPaymentInitiated,
   trackPaymentCompleted,
+  trackCtaClick,
 } from "@/firebase/analytics";
 
 type Step = "select" | "paying" | "success";
@@ -135,6 +136,7 @@ export default function SubscribePage() {
     setIsCreating(true);
 
     const price = calculatePrice(selectedDays, plans);
+    trackCtaClick("tt_pay", { label: `Pay $${price} USDT`, days: selectedDays, price });
     trackPaymentInitiated(selectedDays, price, PAY_CURRENCY);
 
     try {
@@ -199,6 +201,7 @@ export default function SubscribePage() {
   }, [step, payment]);
 
   const handleCopyAddress = useCallback(() => {
+    trackCtaClick("tt_copy_pay_address", { label: "Copy address" });
     if (!payment) return;
     navigator.clipboard.writeText(payment.payAddress);
     setCopied(true);
@@ -207,6 +210,7 @@ export default function SubscribePage() {
   }, [payment]);
 
   const handleCopyAmount = useCallback(() => {
+    trackCtaClick("tt_copy_amount", { label: "Copy amount" });
     if (!payment) return;
     navigator.clipboard.writeText(String(payment.payAmount));
     toast({ title: "Amount copied!" });
@@ -225,7 +229,7 @@ export default function SubscribePage() {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <p className="text-muted-foreground">Please sign in to subscribe.</p>
-          <Link href="/" className="text-accent font-bold hover:underline">
+          <Link href="/" onClick={() => trackCtaClick("tt_subscribe_go_home", { label: "Go to home" })} className="text-accent font-bold hover:underline">
             Go to home
           </Link>
         </div>
@@ -243,6 +247,7 @@ export default function SubscribePage() {
       <div className="max-w-xl mx-auto px-4 py-8">
         <Link
           href="/signals"
+          onClick={() => trackCtaClick("tt_subscribe_back_signals", { label: "Back to Signals" })}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -271,7 +276,7 @@ export default function SubscribePage() {
                   <button
                     key={plan.days}
                     type="button"
-                    onClick={() => { setSelectedDays(plan.days); trackPlanSelected(plan.days, plan.price); }}
+                    onClick={() => { trackCtaClick("tt_plan_select", { label: plan.label, days: plan.days }); setSelectedDays(plan.days); trackPlanSelected(plan.days, plan.price); }}
                     className={cn(
                       "w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all cursor-pointer",
                       isSelected
@@ -402,7 +407,7 @@ export default function SubscribePage() {
                   <div className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
                     <button
                       type="button"
-                      onClick={() => setQrExpanded(!qrExpanded)}
+                      onClick={() => { trackCtaClick("tt_qr_toggle", { label: "QR toggle", expanded: !qrExpanded }); setQrExpanded(!qrExpanded); }}
                       className="shrink-0 bg-white rounded-lg p-1 cursor-pointer hover:ring-2 hover:ring-white/30 transition-all"
                       title="Tap to expand QR"
                     >
@@ -434,7 +439,7 @@ export default function SubscribePage() {
                     <div className="flex justify-center mt-3">
                       <button
                         type="button"
-                        onClick={() => setQrExpanded(false)}
+                        onClick={() => { trackCtaClick("tt_qr_toggle", { label: "QR toggle", expanded: false }); setQrExpanded(false); }}
                         className="bg-white p-3 rounded-xl cursor-pointer hover:ring-2 hover:ring-white/30 transition-all"
                       >
                         <QRCodeSVG
@@ -513,6 +518,7 @@ export default function SubscribePage() {
                     </p>
                     <button
                       onClick={() => {
+                        trackCtaClick("tt_payment_retry", { label: "Try Again" });
                         setPayment(null);
                         setPaymentStatus("waiting");
                         setStep("select");
@@ -577,6 +583,7 @@ export default function SubscribePage() {
 
               <Link
                 href="/signals"
+                onClick={() => trackCtaClick("tt_subscribe_success_go_signals", { label: "Go to Signals" })}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-accent text-accent-foreground text-sm font-bold uppercase tracking-wider hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20"
               >
                 <Sparkles className="w-4 h-4" />

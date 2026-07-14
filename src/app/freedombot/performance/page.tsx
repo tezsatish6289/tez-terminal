@@ -35,6 +35,7 @@ import {
 } from "@/components/stats/dashboard-section-spacing";
 import type { SimTrade } from "@/lib/simulator";
 import { useSearchParams } from "next/navigation";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
 
 const DASHBOARD_SHELL = FB_CONTENT_SHELL;
@@ -330,6 +331,7 @@ function PerformancePageContent() {
             </p>
             <a
               href="/"
+              onClick={() => trackCtaClick("fb_waitlist_open", { label: "Join Waitlist", placement: "performance", bot: selectedBotId })}
               className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-105"
               style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
             >
@@ -424,6 +426,7 @@ function PerformancePageContent() {
             <p className="text-center pt-2">
               <Link
                 href="/records"
+                onClick={() => trackCtaClick("fb_view_records", { label: "verify independently", placement: "performance" })}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground/55 transition-colors hover:text-accent"
               >
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
@@ -470,6 +473,7 @@ function PerformancePageContent() {
           </div>
           <Link
             href="/methodology"
+            onClick={() => trackCtaClick("fb_methodology", { label: "Methodology", placement: "performance" })}
             className="flex items-center gap-1.5 text-sm sm:text-base font-semibold whitespace-nowrap transition-colors hover:text-blue-300 shrink-0"
             style={{ color: "#60a5fa" }}
           >

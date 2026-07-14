@@ -72,6 +72,8 @@ export function FeatureLockCard({
           <FnoNinjaGoogleSignInButton
             size="nav"
             ctaId="feature_gate_sign_in"
+            signUpSource="feature_gate"
+            signUpSourceCta="sign_in"
             postSignInHref={returnTo}
           />
         </Suspense>

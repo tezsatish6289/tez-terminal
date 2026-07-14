@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
+import { trackCtaClick } from "@/firebase/analytics";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { DeployModal } from "./components/DeployModal";
 import { freedombotDashboardBase, freedombotSitePath } from "@/lib/freedombot/dashboard-path";
@@ -235,6 +236,7 @@ function WaitlistModal({
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    trackCtaClick("fb_waitlist_submit", { label: "Notify me when live", bot });
     e.preventDefault();
     setError("");
     if (!assetTypes.length) { setError("Please select at least one asset type"); return; }
@@ -670,7 +672,10 @@ export default function FreedomBotPage() {
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 w-full max-w-sm sm:max-w-none mx-auto">
             <button
-              onClick={openDeploy}
+              onClick={() => {
+                trackCtaClick("fb_deploy_open", { label: "Deploy Bot", placement: "hero" });
+                openDeploy();
+              }}
               className="h-12 px-7 rounded-full font-bold text-sm text-white flex items-center justify-center gap-2 transition-all hover:scale-105 w-full sm:w-auto"
               style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 6px 20px rgba(59,130,246,0.4)" }}
             >
@@ -678,6 +683,7 @@ export default function FreedomBotPage() {
             </button>
             <Link
               href={freedombotSitePath(pathname, "/records")}
+              onClick={() => trackCtaClick("fb_view_records", { label: "View Live Trades", placement: "hero" })}
               className="h-12 px-7 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105 w-full sm:w-auto"
               style={{ border: "1px solid rgba(90,140,220,0.22)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.05)" }}
             >
@@ -787,6 +793,7 @@ export default function FreedomBotPage() {
               </p>
               <Link
                 href={freedombotSitePath(pathname, "/records")}
+                onClick={() => trackCtaClick("fb_view_records", { label: "Verify Records", placement: "trust" })}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
                 style={{ backgroundColor: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.3)", color: "#60a5fa" }}
               >
@@ -885,6 +892,7 @@ export default function FreedomBotPage() {
             </p>
             <Link
               href={freedombotSitePath(pathname, "/methodology")}
+              onClick={() => trackCtaClick("fb_methodology", { label: "Methodology" })}
               className="inline-flex items-center gap-1.5 text-sm font-bold transition-colors hover:opacity-80"
               style={{ color: "#3b82f6" }}
             >
@@ -1027,7 +1035,10 @@ export default function FreedomBotPage() {
                 , only when you earn. You pay nothing if you don&apos;t profit.
               </div>
               <button
-                onClick={openDeploy}
+                onClick={() => {
+                  trackCtaClick("fb_deploy_open", { label: "Deploy Now", placement: "pricing" });
+                  openDeploy();
+                }}
                 className="w-full py-2.5 rounded-xl font-bold text-white text-sm transition-all hover:opacity-90 mt-auto"
                 style={{ background: "linear-gradient(90deg, #1d4ed8, #3b82f6)" }}
               >
@@ -1166,7 +1177,10 @@ export default function FreedomBotPage() {
                   }}
                 >
                   <button
-                    onClick={() => setOpenFaq(isOpen ? null : i)}
+                    onClick={() => {
+                      trackCtaClick("fb_faq_toggle", { label: item.q, question: item.q });
+                      setOpenFaq(isOpen ? null : i);
+                    }}
                     className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left"
                   >
                     <span className="text-sm sm:text-base font-semibold leading-snug" style={{ color: "#e2e8f0" }}>
@@ -1198,7 +1212,7 @@ export default function FreedomBotPage() {
           {/* CTA below */}
           <p className="text-center mt-10 text-sm" style={{ color: "#475569" }}>
             Want a deeper look?{" "}
-            <Link href={freedombotSitePath(pathname, "/performance")} className="font-semibold hover:text-blue-300 transition-colors" style={{ color: "#60a5fa" }}>
+            <Link href={freedombotSitePath(pathname, "/performance")} onClick={() => trackCtaClick("fb_performance", { label: "See the full performance breakdown" })} className="font-semibold hover:text-blue-300 transition-colors" style={{ color: "#60a5fa" }}>
               See the full performance breakdown →
             </Link>
           </p>
@@ -1224,7 +1238,10 @@ export default function FreedomBotPage() {
             check the on-chain records — and scale only when you&apos;re confident.
           </p>
           <button
-            onClick={openDeploy}
+            onClick={() => {
+              trackCtaClick("fb_deploy_open", { label: "Deploy your bot", placement: "footer" });
+              openDeploy();
+            }}
             className="h-12 px-10 rounded-full font-bold text-sm text-white inline-flex items-center gap-2 transition-all hover:scale-105"
             style={{
               background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
@@ -1314,7 +1331,7 @@ export default function FreedomBotPage() {
                   { label: "On-chain Records", href: "/records" },
                   { label: "Pricing", href: "#pricing" },
                 ].map((l) => (
-                  <a key={l.label} href={l.href} className="text-sm transition-colors hover:text-white" style={{ color: "#475569" }}>{l.label}</a>
+                  <a key={l.label} href={l.href} onClick={() => trackCtaClick("fb_footer_link", { label: l.label })} className="text-sm transition-colors hover:text-white" style={{ color: "#475569" }}>{l.label}</a>
                 ))}
               </div>
             </div>
@@ -1330,7 +1347,7 @@ export default function FreedomBotPage() {
                   { label: "Privacy", href: "/privacy" },
                   { label: "Terms", href: "/terms" },
                 ].map((l) => (
-                  <a key={l.label} href={l.href} className="text-sm transition-colors hover:text-white" style={{ color: "#475569" }}>{l.label}</a>
+                  <a key={l.label} href={l.href} onClick={() => trackCtaClick("fb_footer_link", { label: l.label })} className="text-sm transition-colors hover:text-white" style={{ color: "#475569" }}>{l.label}</a>
                 ))}
               </div>
             </div>

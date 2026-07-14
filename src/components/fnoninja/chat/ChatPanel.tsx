@@ -28,6 +28,7 @@ import { ChatLockedState } from "@/components/fnoninja/chat/ChatLockedState";
 import { ChatTermsGate } from "@/components/fnoninja/chat/ChatTermsGate";
 import { MessageComposer, type ChatParticipant } from "@/components/fnoninja/chat/MessageComposer";
 import { MessageList } from "@/components/fnoninja/chat/MessageList";
+import { trackCtaClick } from "@/firebase/analytics";
 
 export function ChatPanel() {
   const { open, setOpen, roomId, setRoomId, unreadByRoom } = useChatPanel();
@@ -267,7 +268,10 @@ export function ChatPanel() {
       <button
         type="button"
         aria-label="Close chat"
-        onClick={() => setOpen(false)}
+        onClick={() => {
+          trackCtaClick("chat_close", { label: "Close chat", roomId });
+          setOpen(false);
+        }}
         className="fixed inset-0 z-[340] bg-black/60 md:bg-black/40"
       />
 
@@ -317,7 +321,10 @@ export function ChatPanel() {
           </div>
           <button
             type="button"
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              trackCtaClick("chat_close", { label: "Close chat", roomId });
+              setOpen(false);
+            }}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white"
             aria-label="Close chat"
           >

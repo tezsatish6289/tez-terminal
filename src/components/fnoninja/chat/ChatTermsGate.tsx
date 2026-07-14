@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2, MessageSquare } from "lucide-react";
 import { useUser } from "@/firebase";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
+import { trackCtaClick } from "@/firebase/analytics";
 
 /** First-visit terms acceptance before a user can post. */
 export function ChatTermsGate({ onAccepted }: { onAccepted: () => void }) {
@@ -13,6 +14,7 @@ export function ChatTermsGate({ onAccepted }: { onAccepted: () => void }) {
 
   const accept = async () => {
     if (!user) return;
+    trackCtaClick("chat_terms_accept", { label: "I understand & agree" });
     setSubmitting(true);
     setError(null);
     try {

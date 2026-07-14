@@ -4,7 +4,7 @@ import { useUser } from "@/firebase";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { trackReferralLinkCopied, trackReferralPageView } from "@/firebase/analytics";
+import { trackReferralLinkCopied, trackReferralPageView, trackCtaClick } from "@/firebase/analytics";
 import {
   Loader2,
   Copy,
@@ -154,6 +154,7 @@ export default function ReferralsPage() {
   }, [user?.uid, fetchDashboard]);
 
   const handleCopy = async () => {
+    trackCtaClick("tt_referral_copy", { label: "Copy referral link" });
     if (!referralLink) return;
     await navigator.clipboard.writeText(referralLink);
     trackReferralLinkCopied();
@@ -162,6 +163,7 @@ export default function ReferralsPage() {
   };
 
   const handleSaveWallet = async () => {
+    trackCtaClick("tt_referral_save_wallet", { label: "Save wallet address" });
     if (!user?.uid || !walletInput.trim()) return;
     setWalletSaving(true);
     setWalletError("");

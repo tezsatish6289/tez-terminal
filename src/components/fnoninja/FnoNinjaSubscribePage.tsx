@@ -25,7 +25,7 @@ export function FnoNinjaSubscribePage() {
         </p>
       </div>
 
-      <FnoNinjaPlanCards showStatusBanner className="mt-10" />
+      <FnoNinjaPlanCards showStatusBanner className="mt-10" ctaSource="subscribe" />
 
       <p className="mx-auto mt-8 max-w-lg text-center text-[11px] leading-relaxed text-slate-500">
         Secure payments via Razorpay, managed by Zoho Billing. Silver &amp; Gold auto-renew; cancel

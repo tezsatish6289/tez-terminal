@@ -25,17 +25,32 @@ import {
 
 const DEFAULT_DESCRIPTION = FNO_LOGIN_GATE_DESCRIPTION;
 
+/** Maps a gated toolbar action to its sign_up-collection `source_cta`. */
+const TOOLBAR_ACTION_CTA: Record<FnoToolbarSignInAction, string> = {
+  news: "news",
+  atlas: "atlas",
+  chat: "chat",
+  favorite: "add_to_watchlist",
+  bubbles: "bubble_chart",
+  favslide: "watchlist",
+  liveslide: "livelist",
+};
+
 /** Google OAuth in-place — no redirect to /login (avoids a redundant second sign-in screen). */
 function FnoNinjaLoginCta({
   className = "",
   compact = false,
   onSignedIn,
   ctaId = "chart_gate_sign_in",
+  signUpSource = "chart_gate",
+  signUpSourceCta = "sign_in",
 }: {
   className?: string;
   compact?: boolean;
   onSignedIn?: () => void;
   ctaId?: string;
+  signUpSource?: string;
+  signUpSourceCta?: string;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -47,6 +62,8 @@ function FnoNinjaLoginCta({
       className={`w-full ${className}`.trim()}
       size={compact ? "nav" : "hero"}
       ctaId={ctaId}
+      signUpSource={signUpSource}
+      signUpSourceCta={signUpSourceCta}
       postSignInHref={returnTo}
       onSignedIn={onSignedIn}
     />
@@ -202,7 +219,12 @@ export function FnoNinjaMarketMapGuestGate({ nudgeKey = 0 }: { nudgeKey?: number
         </p>
         <div className="mt-3">
           <Suspense fallback={<Loader2 className="h-4 w-4 animate-spin mx-auto" style={{ color: FNO_MUTED }} />}>
-            <FnoNinjaLoginCta compact ctaId="market_map_guest_sign_in" />
+            <FnoNinjaLoginCta
+              compact
+              ctaId="market_map_guest_sign_in"
+              signUpSource="bubble_chart"
+              signUpSourceCta="sign_in"
+            />
           </Suspense>
         </div>
         <p className="mt-2.5 text-[9px] leading-relaxed" style={{ color: "#64748b" }}>
@@ -258,7 +280,12 @@ export function FnoNinjaToolbarSignInPrompt({
         </p>
         <div className="mt-3">
           <Suspense fallback={<Loader2 className="h-5 w-5 animate-spin mx-auto" style={{ color: FNO_MUTED }} />}>
-            <FnoNinjaLoginCta compact onSignedIn={onSignedIn ?? onDismiss} />
+            <FnoNinjaLoginCta
+              compact
+              signUpSource="toolbar"
+              signUpSourceCta={TOOLBAR_ACTION_CTA[action]}
+              onSignedIn={onSignedIn ?? onDismiss}
+            />
           </Suspense>
         </div>
         <p className="mt-2.5 text-[9px] leading-relaxed text-center" style={{ color: "#475569" }}>

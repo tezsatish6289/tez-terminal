@@ -7,6 +7,7 @@ import { RadarIcon } from "@/components/icons/RadarIcon";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
+import { trackCtaClick } from "@/firebase/analytics";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +47,7 @@ export function TopBar() {
   }, []);
   const isAdmin = user?.email === "hello@tezterminal.com";
   const handleLogout = () => {
+    trackCtaClick("tt_logout", { label: "Logout Session" });
     if (auth) {
       initiateSignOut(auth);
       router.push("/");
@@ -128,7 +130,7 @@ export function TopBar() {
                 const isActive = pathname === item.href;
                 return (
                   <DropdownMenuItem key={item.name} asChild className={cn("cursor-pointer gap-2.5", isActive && "bg-accent/10 text-accent")}>
-                    <Link href={item.href}>
+                    <Link href={item.href} onClick={() => trackCtaClick("tt_nav_link", { label: item.name, destination: item.href })}>
                       <item.icon className={cn("h-4 w-4", isActive ? "text-accent" : "text-muted-foreground")} />
                       <span className="text-xs font-medium">{item.name}</span>
                     </Link>

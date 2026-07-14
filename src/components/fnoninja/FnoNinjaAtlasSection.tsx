@@ -1,4 +1,7 @@
+"use client";
+
 import { FnoNinjaLoginLink } from "@/components/fnoninja/FnoNinjaLoginPage";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import {
   FNO_LANDING_BORDER,
@@ -59,7 +62,12 @@ export function FnoNinjaAtlasSection() {
             </div>
 
             <div className="mt-10 flex flex-wrap items-center gap-4">
-              <FnoNinjaLoginLink className={LANDING_PRIMARY_CTA}>
+              <FnoNinjaLoginLink
+                className={LANDING_PRIMARY_CTA}
+                src="landing"
+                cta="chat_with_atlas"
+                onClick={() => trackCtaClick("atlas_chat", { label: "Chat with ATLAS" })}
+              >
                 Chat with ATLAS
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
                   <path d="M5 12h14M13 6l6 6-6 6" />

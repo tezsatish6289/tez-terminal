@@ -11,6 +11,7 @@ import type { LevelsViewMode } from "@/components/levels/LevelsOutlookViewToggle
 import type { ShowcaseSymbol } from "@/lib/levels/pick-widest-cluster-symbol";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_ACCENT, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
 
 const ROTATE_MS = 8_000;
@@ -77,6 +78,11 @@ export function FnoNinjaLevelsPreviewCard({
 
   const openChart = useCallback(() => {
     if (!target) return;
+    trackCtaClick("preview_open_chart", {
+      label: `Open live ${VIEW_LABELS[viewMode].toLowerCase()}`,
+      symbol: target.symbol,
+      view: viewMode,
+    });
     const url = levelsChartPagePathForHost(
       window.location.hostname,
       target.scope,
@@ -122,7 +128,10 @@ export function FnoNinjaLevelsPreviewCard({
               <button
                 key={mode}
                 type="button"
-                onClick={() => setViewMode(mode)}
+                onClick={() => {
+                  trackCtaClick("preview_view_tab", { label: VIEW_LABELS[mode], view: mode });
+                  setViewMode(mode);
+                }}
                 className="inline-flex items-center rounded-md px-2.5 sm:px-3 py-1 text-[10px] sm:text-[11px] font-semibold transition-colors duration-300"
                 style={{
                   backgroundColor: active ? "rgba(96,165,250,0.18)" : "transparent",

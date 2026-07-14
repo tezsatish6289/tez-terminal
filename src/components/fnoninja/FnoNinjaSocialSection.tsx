@@ -1,5 +1,8 @@
+"use client";
+
 import { Facebook, Instagram, Linkedin, Twitter, Youtube } from "lucide-react";
 import { FNONINJA_SOCIAL_LINKS, type FnoNinjaSocialPlatform } from "@/lib/fnoninja/social-links";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import {
   FNO_LANDING_BORDER,
@@ -44,6 +47,13 @@ export function FnoNinjaSocialSection() {
               target="_blank"
               rel="noopener noreferrer"
               aria-label={link.label}
+              onClick={() =>
+                trackCtaClick("social_click", {
+                  platform: link.platform,
+                  label: link.label,
+                  href: link.href,
+                })
+              }
               className="inline-flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-[#3b82f6]/40 hover:bg-white/[0.03] hover:text-white"
               style={{ borderColor: FNO_LANDING_BORDER, backgroundColor: "rgba(255,255,255,0.02)" }}
             >

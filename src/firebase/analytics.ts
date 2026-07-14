@@ -72,6 +72,32 @@ export function trackCtaClick(ctaId: string, params: Record<string, unknown> = {
   });
 }
 
+// ─── FNONINJA sign-up collection ────────────────────────────────
+// Every FNONINJA authentication event belongs to the `sign_up` collection
+// (event_group). We differentiate the two cases via Firebase's authoritative
+// `isNewUser` flag:
+//   • brand-new account  → `sign_up` event  (a real sign-up)
+//   • returning account   → `login` event   (a sign-in)
+// Both carry the same source attribution, so "where did sign-ups come from"
+// is the `sign_up` event broken down by:  signup_source → source_cta
+// e.g. sign_up · landing · select_free_trial, or sign_up · toolbar · atlas.
+export interface FnoSignUpAttribution {
+  /** Coarse origin bucket: landing | toolbar | bubble_chart | nav | login_page | chart_gate | community_page | feature_gate. */
+  signup_source: string;
+  /** The specific originating CTA: login | join_community | select_free_trial | news | atlas | … */
+  source_cta: string;
+  /** The button that actually executed Google auth (usually the login-page/gate button). */
+  signup_cta?: string;
+}
+
+export function trackFnoSignUp(attr: FnoSignUpAttribution) {
+  track('sign_up', { method: 'google', surface: 'fnoninja', event_group: 'sign_up', ...attr });
+}
+
+export function trackFnoSignIn(attr: FnoSignUpAttribution) {
+  track('login', { method: 'google', surface: 'fnoninja', event_group: 'sign_up', ...attr });
+}
+
 // ─── Landing ────────────────────────────────────────────────────
 export function trackSignInClicked() {
   track('sign_in_clicked');

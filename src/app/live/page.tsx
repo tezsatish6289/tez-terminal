@@ -39,6 +39,7 @@ import {
 import { ExchangeSettingsDialog, MultiExchangeStatusBadges, useExchangeConfig } from "@/components/exchange/ExchangeSettings";
 import type { LiveTrade, LiveTradeEvent } from "@/lib/trade-engine";
 import { format } from "date-fns";
+import { trackCtaClick } from "@/firebase/analytics";
 
 // Defensive against legacy trade docs missing newer fields (`fees`,
 // `positionSize`, `realizedPnl`) — `undefined.toFixed()` previously
@@ -226,7 +227,7 @@ export default function LiveTradingPage() {
                 ]).map(({ key, label, icon }) => (
                   <button
                     key={key}
-                    onClick={() => { setAssetType(key); setTab("overview"); }}
+                    onClick={() => { trackCtaClick("tt_live_asset_tab", { label, asset: key }); setAssetType(key); setTab("overview"); }}
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                       assetType === key
@@ -755,7 +756,7 @@ function DesktopTradeRow({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
   return (
     <TableRow className="border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => onSelect(trade)}>
       <TableCell className="py-4">
-        <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors" onClick={(e) => e.stopPropagation()}>
+        <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors" onClick={(e) => { e.stopPropagation(); trackCtaClick("tt_live_chart_open", { label: trade.signalSymbol, signal_id: trade.signalId, symbol: trade.signalSymbol }); }}>
           {trade.signalSymbol}
         </Link>
       </TableCell>
@@ -1306,6 +1307,7 @@ function LiveTradeNarrationDialog({ trade, onClose }: { trade: LiveTrade | null;
         <Link
           href={`/chart/${trade.signalId}`}
           target="_blank"
+          onClick={() => trackCtaClick("tt_live_chart_open", { label: "View signal deep dive", signal_id: trade.signalId, symbol: trade.signalSymbol })}
           className="flex items-center justify-center gap-2 text-[11px] font-bold text-accent hover:text-accent/80 transition-colors pt-1"
         >
           View signal deep dive →

@@ -22,7 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Chrome } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
-import { trackLandingPageView } from "@/firebase/analytics";
+import { trackLandingPageView, trackCtaClick } from "@/firebase/analytics";
 
 interface PlatformStats {
   totalTrades: number;
@@ -194,7 +194,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             <span className="font-black text-lg text-accent tracking-tight">TezTerminal</span>
           </div>
           <Button
-            onClick={onLogin}
+            onClick={() => { trackCtaClick("tt_landing_sign_in", { label: "Sign In", placement: "nav" }); onLogin(); }}
             disabled={isLoggingIn}
             size="sm"
             className="bg-accent text-accent-foreground hover:bg-accent/90 font-bold text-xs uppercase tracking-wider h-8 px-4"
@@ -237,7 +237,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
 
             <div className="flex flex-col items-center gap-2.5 pt-1">
               <Button
-                onClick={onLogin}
+                onClick={() => { trackCtaClick("tt_landing_sign_in", { label: "Start Your Free Trial", placement: "hero" }); onLogin(); }}
                 disabled={isLoggingIn}
                 className="w-full sm:w-auto h-12 sm:h-14 px-8 gap-3 bg-accent text-accent-foreground hover:bg-accent/90 text-base font-bold rounded-xl shadow-lg shadow-accent/20"
               >
@@ -481,7 +481,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             Join traders who use TezTerminal to find high-probability crypto setups across every timeframe.
           </p>
           <Button
-            onClick={onLogin}
+            onClick={() => { trackCtaClick("tt_landing_sign_in", { label: "Start Your Free Trial", placement: "footer" }); onLogin(); }}
             disabled={isLoggingIn}
             className="h-14 px-10 gap-3 bg-accent text-accent-foreground hover:bg-accent/90 text-base font-bold rounded-xl shadow-lg shadow-accent/20"
           >
@@ -519,6 +519,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                 href="https://t.me/TezTerminalBot"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackCtaClick("tt_landing_telegram", { label: "Telegram" })}
                 className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-accent transition-colors"
               >
                 <Send className="h-3.5 w-3.5" />

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
+import { trackCtaClick } from "@/firebase/analytics";
 import { fnoWebinarHref } from "@/lib/fnoninja/paths";
 import {
   WEBINAR_LEARN_POINTS,
@@ -62,13 +63,31 @@ export function FnoNinjaWebinarLandingSection() {
               ))}
             </div>
             <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Link href={webinarHref} className={LANDING_PRIMARY_CTA}>
+              <Link
+                href={webinarHref}
+                onClick={() =>
+                  trackCtaClick("webinar_full_page", {
+                    label: "See the full webinar page",
+                    href: webinarHref,
+                  })
+                }
+                className={LANDING_PRIMARY_CTA}
+              >
                 See the full webinar page
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
               </Link>
-              <Link href={webinarHref} className={LANDING_PRIMARY_CTA_SM}>
+              <Link
+                href={webinarHref}
+                onClick={() =>
+                  trackCtaClick("webinar_reserve_teaser", {
+                    label: "Reserve your seat",
+                    href: webinarHref,
+                  })
+                }
+                className={LANDING_PRIMARY_CTA_SM}
+              >
                 Reserve your seat
               </Link>
             </div>

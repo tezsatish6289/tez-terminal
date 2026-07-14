@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, Send, CheckCircle2, Loader2, ChevronDown } from "lucide-react";
 import { COUNTRIES, POPULAR_COUNTRY_CODES } from "@/lib/countries";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FB_COMPACT_SHELL } from "@/lib/freedombot/responsive";
 import {
   FNO_LEGAL_CTA_STYLE,
@@ -28,6 +29,7 @@ export default function FnoNinjaContactPage() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+      trackCtaClick("contact_submit", { label: "Send Message" });
       if (isSubmitting) return;
       setError("");
       setIsSubmitting(true);
@@ -59,6 +61,7 @@ export default function FnoNinjaContactPage() {
     <div className={`${FB_COMPACT_SHELL} py-12 sm:py-20 min-w-0`}>
       <Link
         href="/"
+        onClick={() => trackCtaClick("contact_back_home", { label: "Back to home", href: "/" })}
         className="flex items-center gap-2 text-sm mb-12 transition-colors hover:text-white w-fit"
         style={{ color: FNO_MUTED }}
       >
@@ -97,6 +100,7 @@ export default function FnoNinjaContactPage() {
           </p>
           <Link
             href="/"
+            onClick={() => trackCtaClick("contact_back_home", { label: "Back to home", href: "/" })}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white transition-all hover:scale-105"
             style={FNO_LEGAL_CTA_STYLE}
           >

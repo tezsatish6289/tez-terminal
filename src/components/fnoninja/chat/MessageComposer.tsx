@@ -33,6 +33,7 @@ import {
   filterLevelsSymbolCatalog,
 } from "@/lib/levels/levels-symbol-catalog";
 import { ChatEmojiGrid } from "@/components/fnoninja/chat/ChatEmojiGrid";
+import { trackCtaClick } from "@/firebase/analytics";
 
 export interface ChatParticipant {
   id: string;
@@ -274,6 +275,10 @@ export function MessageComposer({
 
   const submit = () => {
     if (!canSubmit) return;
+    trackCtaClick("chat_send_message", {
+      label: "Send message",
+      hasImage: selected.length > 0,
+    });
     const trimmed = text.trim();
     const files = selected.map((s) => s.file);
     // Hand off to the panel; it queues an optimistic message and uploads in the
@@ -477,7 +482,10 @@ export function MessageComposer({
         >
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              trackCtaClick("chat_attach_image", { label: "Attach image" });
+              fileInputRef.current?.click();
+            }}
             disabled={disabled || sending || selected.length >= CHAT_MAX_ATTACHMENTS}
             className="flex h-9 w-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/5 hover:text-white disabled:opacity-40"
             style={{ color: "#64748b" }}

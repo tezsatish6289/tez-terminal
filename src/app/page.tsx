@@ -2,7 +2,7 @@
 
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { trackSignInClicked, trackLogin } from "@/firebase/analytics";
+import { trackSignInClicked, trackLogin, trackCtaClick } from "@/firebase/analytics";
 import { useRouter } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Loader2, Chrome } from "lucide-react";
@@ -30,6 +30,7 @@ export default function Home() {
   }, [user, router]);
 
   const handleGoogleLogin = useCallback(async () => {
+    trackCtaClick("tt_sign_in", { label: "Sign in with Google" });
     if (auth) {
       trackSignInClicked();
       setIsLoggingIn(true);

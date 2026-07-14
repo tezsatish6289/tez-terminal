@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowRight, CheckCircle2, Loader2, PlayCircle, X } from "lucide-react";
 import { FNO_LANDING_BORDER, registerForWebinar } from "@/lib/fnoninja/landing-ui";
+import { trackCtaClick } from "@/firebase/analytics";
 import {
   formatWebinarSession,
   getUpcomingWebinarSessions,
@@ -153,6 +154,7 @@ export function FnoNinjaWebinarRegisterModal({
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    trackCtaClick("webinar_submit", { label: "Reserve my seat", session: sessionDate });
     if (state.kind === "submitting") return;
 
     const trimmedName = name.trim();
@@ -235,6 +237,12 @@ export function FnoNinjaWebinarRegisterModal({
                 href={state.youtubeWatchUrl}
                 target="_blank"
                 rel="noreferrer"
+                onClick={() =>
+                  trackCtaClick("webinar_youtube", {
+                    label: "Open YouTube livestream",
+                    href: state.youtubeWatchUrl ?? undefined,
+                  })
+                }
                 className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#3b82f6] px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#2563eb]"
               >
                 <PlayCircle className="h-4 w-4" /> Open YouTube livestream
@@ -245,6 +253,12 @@ export function FnoNinjaWebinarRegisterModal({
                 href={gcalHref}
                 target="_blank"
                 rel="noreferrer"
+                onClick={() =>
+                  trackCtaClick("webinar_gcal", {
+                    label: "Add to Google Calendar",
+                    session: state.kind === "success" ? state.sessionDate : undefined,
+                  })
+                }
                 className="mt-3 block w-full rounded-lg border py-2.5 text-[13px] font-semibold text-[#93c5fd] transition hover:text-white"
                 style={{ borderColor: FNO_LANDING_BORDER }}
               >

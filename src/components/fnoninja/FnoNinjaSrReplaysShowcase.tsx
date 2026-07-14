@@ -13,6 +13,7 @@ import { FnoNinjaSrReplaySort } from "@/components/fnoninja/FnoNinjaSrReplaySort
 import type { SrReplaySort } from "@/lib/fnoninja/sr-replay-types";
 import type { SrReplayWithStory } from "@/lib/fnoninja/sr-replay-types";
 import { replayColumnCount } from "@/lib/fnoninja/sr-replay-columns";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_MUTED } from "@/lib/fnoninja/theme";
 
 function useReplayColumnCount(): number {
@@ -179,7 +180,10 @@ export function FnoNinjaSrReplaysShowcase({
             <>
               <button
                 type="button"
-                onClick={() => api?.scrollPrev()}
+                onClick={() => {
+                  trackCtaClick("sr_replay_nav", { direction: "prev", label: "Previous replay" });
+                  api?.scrollPrev();
+                }}
                 disabled={!canPrev}
                 className={`absolute ${isMultiColumn ? "left-0" : "-left-2 sm:-left-12"} top-[42%] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0d1b2e]/95 text-white/80 transition enabled:hover:text-white disabled:opacity-30`}
                 aria-label="Previous replay"
@@ -188,7 +192,10 @@ export function FnoNinjaSrReplaysShowcase({
               </button>
               <button
                 type="button"
-                onClick={() => api?.scrollNext()}
+                onClick={() => {
+                  trackCtaClick("sr_replay_nav", { direction: "next", label: "Next replay" });
+                  api?.scrollNext();
+                }}
                 disabled={!canNext}
                 className={`absolute ${isMultiColumn ? "right-0" : "-right-2 sm:-right-12"} top-[42%] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0d1b2e]/95 text-white/80 transition enabled:hover:text-white disabled:opacity-30`}
                 aria-label="Next replay"

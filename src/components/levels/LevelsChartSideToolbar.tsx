@@ -430,8 +430,10 @@ export function LevelsChartSideToolbar({
           label="News"
           active={newsOpen}
           onClick={() => {
-            trackCtaClick("toolbar_news", { label: "News", symbol, scope });
-            handleNewsOpenChange(true);
+            runIfSignedIn("news", () => {
+              trackCtaClick("toolbar_news", { label: "News", symbol, scope });
+              handleNewsOpenChange(true);
+            });
           }}
           title="Recent news and sentiment"
           dataAttrs={{
@@ -451,9 +453,11 @@ export function LevelsChartSideToolbar({
           label="Atlas AI"
           active={atlasOpen}
           onClick={() => {
-            trackCtaClick("toolbar_atlas", { label: "Atlas AI", symbol, scope });
-            if (nudgeIfFeatureLocked("atlas_ai")) return;
-            handleAtlasOpenChange(true);
+            runIfSignedIn("atlas", () => {
+              trackCtaClick("toolbar_atlas", { label: "Atlas AI", symbol, scope });
+              if (nudgeIfFeatureLocked("atlas_ai")) return;
+              handleAtlasOpenChange(true);
+            });
           }}
           title="Atlas AI — validate your trade idea"
           dataAttrs={{

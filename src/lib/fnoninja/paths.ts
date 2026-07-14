@@ -14,11 +14,23 @@ function fnoLoginBase(pathname: string): string {
   return "/login";
 }
 
-/** Sign-in page — optional ?next= same-origin path after OAuth. */
-export function fnoLoginHref(pathname: string, returnTo?: string): string {
+/**
+ * Sign-in page — optional ?next= same-origin path after OAuth, plus optional
+ * sign_up-collection attribution (?src / ?cta) so the login page can stamp the
+ * originating CTA onto the sign_up/login event.
+ */
+export function fnoLoginHref(
+  pathname: string,
+  returnTo?: string,
+  opts?: { src?: string; cta?: string },
+): string {
   const base = fnoLoginBase(pathname);
-  if (!returnTo) return base;
-  return `${base}?next=${encodeURIComponent(returnTo)}`;
+  const params = new URLSearchParams();
+  if (returnTo) params.set("next", returnTo);
+  if (opts?.src) params.set("src", opts.src);
+  if (opts?.cta) params.set("cta", opts.cta);
+  const qs = params.toString();
+  return qs ? `${base}?${qs}` : base;
 }
 
 /** Safe post-login destination from ?next= or default app home. */

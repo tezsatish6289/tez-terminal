@@ -33,7 +33,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { trackFilterApplied, trackTabChanged, trackSignalsPageView } from "@/firebase/analytics";
+import { trackFilterApplied, trackTabChanged, trackSignalsPageView, trackCtaClick } from "@/firebase/analytics";
 import { cn } from "@/lib/utils";
 import {
   Popover,
@@ -207,6 +207,7 @@ function OpportunityCard({
       href={`/chart/${signal.id}`}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={() => trackCtaClick("tt_signal_chart_open", { label: signal.symbol, signal_id: signal.id, symbol: signal.symbol })}
       className={cn(
         "group block rounded-xl border shadow-lg transition-all hover:translate-y-[-2px] hover:shadow-2xl",
         isWinning
@@ -395,6 +396,7 @@ function EventRow({ event, assetType }: { event: StatusEvent; assetType: string 
   return (
     <Link
       href={`/chart/${event.signalId}`}
+      onClick={() => trackCtaClick("tt_signal_chart_open", { label: event.symbol, signal_id: event.signalId, symbol: event.symbol })}
       className="block px-4 py-3 border-b border-white/[0.05] transition-colors hover:bg-white/[0.03]"
     >
       <div className="flex items-start gap-3">
@@ -503,6 +505,7 @@ function WinnerCard({
       href={`/chart/${signal.id}`}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={() => trackCtaClick("tt_signal_chart_open", { label: signal.symbol, signal_id: signal.id, symbol: signal.symbol })}
       className="block px-4 py-3 border-b border-white/[0.05] transition-colors hover:bg-white/[0.03]"
     >
       <div className="flex items-start gap-3">
@@ -617,6 +620,13 @@ export default function SignalsPage() {
   }, [filterTimeframe, filterSide, filterPerf, filterAlgo]);
 
   const handleApplyFilters = useCallback(() => {
+    trackCtaClick("tt_signals_apply_filters", {
+      label: "Apply Filters",
+      timeframe: draftTimeframe,
+      side: draftSide,
+      perf: draftPerf,
+      algo: draftAlgo,
+    });
     setFilterTimeframe(draftTimeframe);
     setFilterSide(draftSide);
     setFilterPerf(draftPerf);
@@ -642,6 +652,7 @@ export default function SignalsPage() {
   }, [draftTimeframe, draftSide, draftPerf, draftAlgo]);
 
   const handleClearFilters = useCallback(() => {
+    trackCtaClick("tt_signals_clear_filters", { label: "Clear all" });
     setDraftTimeframe("all");
     setDraftSide("all");
     setDraftPerf("all");
@@ -852,7 +863,7 @@ export default function SignalsPage() {
         {/* Global asset type toggle */}
         <div className="flex items-center gap-1 px-4 pt-4 pb-0">
           <button
-            onClick={() => setAssetType("CRYPTO")}
+            onClick={() => { trackCtaClick("tt_signals_asset_tab", { label: "Crypto", asset: "CRYPTO" }); setAssetType("CRYPTO"); }}
             className={cn(
               "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
               assetType === "CRYPTO"
@@ -863,7 +874,7 @@ export default function SignalsPage() {
             Crypto
           </button>
           <button
-            onClick={() => setAssetType("INDIAN_STOCKS")}
+            onClick={() => { trackCtaClick("tt_signals_asset_tab", { label: "Indian Stocks", asset: "INDIAN_STOCKS" }); setAssetType("INDIAN_STOCKS"); }}
             className={cn(
               "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
               assetType === "INDIAN_STOCKS"
@@ -890,6 +901,7 @@ export default function SignalsPage() {
                 {!subscription.isLoading && subscription.isActive && (
                   <Link
                     href="/subscribe"
+                    onClick={() => trackCtaClick("tt_subscribe", { label: subscription.isTrial ? "Free Trial · days left" : "Active · days left", placement: "header_active" })}
                     className={cn(
                       "text-[10px] font-bold tracking-wide shrink-0 transition-colors hover:underline",
                       subscription.isTrial
@@ -903,6 +915,7 @@ export default function SignalsPage() {
                 {!subscription.isLoading && subscription.isExpired && (
                   <Link
                     href="/subscribe"
+                    onClick={() => trackCtaClick("tt_subscribe", { label: "Expired · Subscribe", placement: "header_expired" })}
                     className="text-[10px] font-bold tracking-wide text-negative/70 shrink-0 transition-colors hover:underline"
                   >
                     Expired · Subscribe
@@ -915,7 +928,7 @@ export default function SignalsPage() {
               <div className="flex items-center justify-between mt-3 lg:mt-4 gap-2">
                 <div className="flex items-center gap-1 shrink-0">
                   <button
-                    onClick={() => { setAiTab("bulls"); trackTabChanged("bulls"); }}
+                    onClick={() => { trackCtaClick("tt_signals_side_tab", { label: "Bulls", side: "bulls" }); setAiTab("bulls"); trackTabChanged("bulls"); }}
                     className={cn(
                       "px-2.5 lg:px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
                       aiTab === "bulls"
@@ -926,7 +939,7 @@ export default function SignalsPage() {
                     Bulls {!isLoading && `(${bullCount})`}
                   </button>
                   <button
-                    onClick={() => { setAiTab("bears"); trackTabChanged("bears"); }}
+                    onClick={() => { trackCtaClick("tt_signals_side_tab", { label: "Bears", side: "bears" }); setAiTab("bears"); trackTabChanged("bears"); }}
                     className={cn(
                       "px-2.5 lg:px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
                       aiTab === "bears"
@@ -999,6 +1012,7 @@ export default function SignalsPage() {
                     />
                     <Link
                       href="/settings"
+                      onClick={() => trackCtaClick("tt_signals_telegram_settings", { label: "Go to Settings", placement: "guide" })}
                       className="flex items-center gap-2 mt-1 ml-11.5 text-[12px] font-bold text-accent hover:text-accent/80 transition-colors"
                     >
                       Go to Settings →
@@ -1197,6 +1211,7 @@ export default function SignalsPage() {
                     <div className="flex flex-col items-center gap-3 w-full">
                       <Link
                         href="/subscribe"
+                        onClick={() => trackCtaClick("tt_subscribe", { label: "Subscribe", placement: "opportunities_lock" })}
                         className="w-full py-3 rounded-xl bg-accent text-accent-foreground text-sm font-black uppercase tracking-wider hover:bg-accent/90 transition-colors text-center shadow-lg shadow-accent/20"
                       >
                         Subscribe — from ${DEFAULT_PLANS[0].price}/{DEFAULT_PLANS[0].days} days
@@ -1245,6 +1260,7 @@ export default function SignalsPage() {
                       {telegramStatus && !telegramStatus.connected ? (
                         <Link
                           href="/settings"
+                          onClick={() => trackCtaClick("tt_signals_telegram_settings", { label: "Get notified on Telegram", placement: "empty_state" })}
                           className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent/15 border border-accent/25 text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/25 transition-colors"
                         >
                           <Send className="w-3.5 h-3.5" />
@@ -1253,6 +1269,7 @@ export default function SignalsPage() {
                       ) : telegramStatus && telegramStatus.connected && !telegramStatus.enabled ? (
                         <Link
                           href="/settings"
+                          onClick={() => trackCtaClick("tt_signals_telegram_settings", { label: "Enable Telegram notifications", placement: "empty_state" })}
                           className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent/15 border border-accent/25 text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/25 transition-colors"
                         >
                           <Send className="w-3.5 h-3.5" />
@@ -1320,6 +1337,7 @@ export default function SignalsPage() {
                     </p>
                     <Link
                       href="/subscribe"
+                      onClick={() => trackCtaClick("tt_subscribe", { label: "Subscribe Now", placement: "live_updates_lock" })}
                       className="mt-1 px-4 py-2 rounded-lg bg-accent/15 border border-accent/25 text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/25 transition-colors"
                     >
                       Subscribe Now
@@ -1396,6 +1414,7 @@ export default function SignalsPage() {
       {/* Floating Telegram CTA — page-level */}
       <Link
         href="/settings"
+        onClick={() => trackCtaClick("tt_signals_telegram_settings", { label: "Get Telegram Alerts", placement: "floating" })}
         className="fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 shadow-lg shadow-black/40 flex items-center justify-center transition-all hover:scale-110 border border-white/10 backdrop-blur-sm"
         title="Get Telegram Alerts"
       >

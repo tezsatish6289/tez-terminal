@@ -11,6 +11,7 @@ import {
   signOut,
   browserLocalPersistence,
   setPersistence,
+  type UserCredential,
 } from 'firebase/auth';
 
 /** Initiate anonymous sign-in (non-blocking). */
@@ -48,24 +49,30 @@ export function useRedirectAuth(): boolean {
 /**
  * Initiate Google sign-in.
  * Uses popup by default (works with localhost when domain is authorized). Use ?auth=redirect to force redirect.
+ *
+ * Returns the {@link UserCredential} for the popup flow (so callers can inspect
+ * `getAdditionalUserInfo(...).isNewUser` to distinguish sign-up from sign-in),
+ * or `null` for the redirect flow / handled errors.
  */
-export async function initiateGoogleSignIn(authInstance: Auth): Promise<void> {
+export async function initiateGoogleSignIn(authInstance: Auth): Promise<UserCredential | null> {
   const provider = new GoogleAuthProvider();
   try {
     if (isLocalhost() && useRedirectAuth()) {
       await signInWithRedirect(authInstance, provider);
-      return;
+      return null;
     }
-    await signInWithPopup(authInstance, provider);
+    return await signInWithPopup(authInstance, provider);
   } catch (error: any) {
     console.error("Google Sign-In Error:", error);
     if (error.code === 'auth/unauthorized-domain') {
       alert(`Domain Unauthorized: Add '${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}' in Firebase Console → Authentication → Settings → Authorized domains.`);
-    } else if (error.code === 'auth/popup-blocked') {
-      alert('Popup was blocked. Allow popups for this site or open http://localhost:9002?auth=redirect and sign in again.');
-    } else {
-      throw error;
+      return null;
     }
+    if (error.code === 'auth/popup-blocked') {
+      alert('Popup was blocked. Allow popups for this site or open http://localhost:9002?auth=redirect and sign in again.');
+      return null;
+    }
+    throw error;
   }
 }
 

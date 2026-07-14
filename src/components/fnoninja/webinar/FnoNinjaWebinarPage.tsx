@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
+import { trackCtaClick } from "@/firebase/analytics";
 import {
   FNO_LANDING_BORDER,
   GradientText,
@@ -163,7 +164,14 @@ function WebinarHero({
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
-            <button type="button" onClick={onReserve} className={LANDING_PRIMARY_CTA}>
+            <button
+              type="button"
+              onClick={() => {
+                trackCtaClick("webinar_reserve", { label: "Reserve your free seat", placement: "hero" });
+                onReserve();
+              }}
+              className={LANDING_PRIMARY_CTA}
+            >
               Reserve your free seat
               <ArrowRight className="h-4 w-4" />
             </button>
@@ -454,7 +462,10 @@ function WebinarSchedule({ onReserve }: { onReserve: (sessionDate: string) => vo
                 </div>
                 <button
                   type="button"
-                  onClick={() => onReserve(s.istDate)}
+                  onClick={() => {
+                    trackCtaClick("webinar_reserve_session", { label: "Reserve seat", session: s.istDate });
+                    onReserve(s.istDate);
+                  }}
                   className="mt-6 inline-flex items-center gap-1.5 self-start text-[13px] font-semibold text-[#60a5fa] transition group-hover:gap-3"
                 >
                   Reserve seat <ArrowRight className="h-3.5 w-3.5" />
@@ -577,7 +588,14 @@ function WebinarFinalCTA({
           )}
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-          <button type="button" onClick={onReserve} className={LANDING_PRIMARY_CTA}>
+          <button
+            type="button"
+            onClick={() => {
+              trackCtaClick("webinar_reserve", { label: "Reserve your free seat", placement: "final" });
+              onReserve();
+            }}
+            className={LANDING_PRIMARY_CTA}
+          >
             Reserve your free seat
             <ArrowRight className="h-4 w-4" />
           </button>

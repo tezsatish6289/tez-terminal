@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Send, CheckCircle2, Loader2, ChevronDown } from "lucide-react";
 import { COUNTRIES, POPULAR_COUNTRY_CODES } from "@/lib/countries";
+import { trackCtaClick } from "@/firebase/analytics";
 import { FB_COMPACT_SHELL } from "@/lib/freedombot/responsive";
 
 export default function ContactPage() {
@@ -17,6 +18,7 @@ export default function ContactPage() {
     setForm((p) => ({ ...p, [field]: e.target.value }));
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    trackCtaClick("fb_contact_submit", { label: "Send Message" });
     e.preventDefault();
     if (isSubmitting) return;
     setError("");

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
+import { trackCtaClick } from "@/firebase/analytics";
 import { useRouter } from "next/navigation";
 import { buildEquityCurve } from "@/lib/equity-curve";
 import { PublicBotTabs } from "@/components/freedombot/PublicBotTabs";
@@ -637,7 +638,10 @@ export default function RecordsPage() {
                       )}
                     </div>
                     <button
-                      onClick={handleSignIn}
+                      onClick={() => {
+                        trackCtaClick("fb_deploy_open", { label: "Deploy", placement: "records" });
+                        void handleSignIn();
+                      }}
                       disabled={isLoggingIn}
                       className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 disabled:opacity-70 self-start sm:self-auto"
                       style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}

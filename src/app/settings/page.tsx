@@ -5,7 +5,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { useAuth } from "@/firebase";
-import { trackTelegramConnected, trackTelegramEnabled, trackNotificationsPageView } from "@/firebase/analytics";
+import { trackTelegramConnected, trackTelegramEnabled, trackNotificationsPageView, trackCtaClick } from "@/firebase/analytics";
 import {
   Loader2, Settings, Send, Link2, Unlink, Check,
   ChevronLeft, ChevronRight, Bell, Lock, ExternalLink, AlertTriangle,
@@ -75,6 +75,7 @@ export default function SettingsPage() {
   const [deepLink, setDeepLink] = useState<string | null>(null);
 
   const handleConnect = async () => {
+    trackCtaClick("tt_telegram_connect", { label: "Connect Telegram" });
     if (!user) return;
     setIsConnecting(true);
     try {
@@ -102,6 +103,7 @@ export default function SettingsPage() {
   };
 
   const updatePreference = async (field: string, value: any) => {
+    if (field !== "enabled") trackCtaClick("tt_settings_save", { label: "Save preferences", field });
     if (!user) return;
     setIsSaving(true);
     try {
@@ -186,7 +188,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <Button
-              onClick={() => initiateGoogleSignIn(auth)}
+              onClick={() => { trackCtaClick("tt_settings_sign_in", { label: "Sign in with Google" }); initiateGoogleSignIn(auth); }}
               className="w-full h-12 gap-2 bg-white text-black hover:bg-white/90"
             >
               Sign in with Google
@@ -209,6 +211,7 @@ export default function SettingsPage() {
             <div>
               <Link
                 href="/signals"
+                onClick={() => trackCtaClick("tt_settings_back_signals", { label: "Back to Signals" })}
                 className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -284,6 +287,7 @@ export default function SettingsPage() {
                     <Switch
                       checked={status.enabled}
                       onCheckedChange={(checked) => {
+                        trackCtaClick("tt_notifications_toggle", { label: "Alerts Enabled", enabled: checked });
                         updatePreference("enabled", checked);
                         setStatus(prev => prev ? { ...prev, enabled: checked } : null);
                         if (checked) trackTelegramEnabled();
@@ -309,6 +313,7 @@ export default function SettingsPage() {
                         href={deepLink}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={() => trackCtaClick("tt_telegram_open", { label: "Open @TezTerminalBot" })}
                         className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-accent text-accent-foreground font-medium hover:bg-accent/90 transition-colors"
                       >
                         <ExternalLink className="h-4 w-4" />
@@ -320,7 +325,7 @@ export default function SettingsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => fetchStatus()}
+                        onClick={() => { trackCtaClick("tt_telegram_check", { label: "I've Connected — Check Status" }); fetchStatus(); }}
                         className="text-xs text-accent"
                       >
                         I&apos;ve connected — Refresh status

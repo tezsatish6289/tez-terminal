@@ -9,6 +9,7 @@ import {
   type LevelsSymbolEntry,
 } from "@/lib/levels/levels-symbol-catalog";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
+import { trackCtaClick } from "@/firebase/analytics";
 
 export function LevelsSymbolNavigateSearch({
   currentScope,
@@ -36,6 +37,11 @@ export function LevelsSymbolNavigateSearch({
 
   const navigate = useCallback(
     (entry: LevelsSymbolEntry) => {
+      trackCtaClick("symbol_search_select", {
+        label: entry.label,
+        symbol: entry.symbol,
+        scope: entry.scope,
+      });
       setQuery("");
       setOpen(false);
       setActiveIndex(0);

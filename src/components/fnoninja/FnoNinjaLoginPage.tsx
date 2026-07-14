@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
 import { useUser } from "@/firebase";
+import { trackCtaClick } from "@/firebase/analytics";
 import {
   FNO_LOGIN_DISCLAIMER,
   FNO_LOGIN_PAGE_SUBTITLE,
@@ -32,6 +33,10 @@ function FnoNinjaLoginPageInner() {
   const searchParams = useSearchParams();
   const { user, isUserLoading } = useUser();
   const returnTo = resolveFnoLoginNext(searchParams, pathname);
+  // sign_up-collection attribution carried in via ?src / ?cta. A direct visit
+  // (bookmark / shared link) has neither → login_page · direct.
+  const signUpSource = searchParams.get("src") ?? "login_page";
+  const signUpSourceCta = searchParams.get("cta") ?? "direct";
 
   useEffect(() => {
     setFnoPostLoginRedirect(returnTo);
@@ -77,6 +82,9 @@ function FnoNinjaLoginPageInner() {
           <FnoNinjaGoogleSignInButton
             className="w-full"
             size="hero"
+            ctaId="login_google_sign_in"
+            signUpSource={signUpSource}
+            signUpSourceCta={signUpSourceCta}
             postSignInHref={returnTo}
             onSignedIn={() => router.replace(returnTo)}
           />
@@ -90,6 +98,12 @@ function FnoNinjaLoginPageInner() {
       <div className="mt-8 flex flex-col sm:flex-row items-center gap-4 text-sm">
         <Link
           href={fnoAnalyticsHref(pathname)}
+          onClick={() =>
+            trackCtaClick("login_skip_to_map", {
+              label: "Explore market map without signing in",
+              href: fnoAnalyticsHref(pathname),
+            })
+          }
           className="font-semibold transition-colors hover:text-white"
           style={{ color: FNO_MUTED }}
         >
@@ -100,6 +114,12 @@ function FnoNinjaLoginPageInner() {
         </span>
         <Link
           href={fnoHomeHref(pathname)}
+          onClick={() =>
+            trackCtaClick("login_back_home", {
+              label: "Back to home",
+              href: fnoHomeHref(pathname),
+            })
+          }
           className="font-semibold transition-colors hover:text-white"
           style={{ color: FNO_MUTED }}
         >
@@ -128,27 +148,38 @@ export function FnoNinjaLoginPage() {
 }
 
 /** Build login URL for the current page (used by gates and CTAs). */
-export function useFnoLoginHref(returnTo?: string): string {
+export function useFnoLoginHref(
+  returnTo?: string,
+  opts?: { src?: string; cta?: string },
+): string {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const fullReturn =
     returnTo ??
     (searchParams.size > 0 ? `${pathname}?${searchParams.toString()}` : pathname);
-  return fnoLoginHref(pathname, fullReturn);
+  return fnoLoginHref(pathname, fullReturn, opts);
 }
 
 export function FnoNinjaLoginLink({
   className = "",
   children,
   returnTo,
+  onClick,
+  src,
+  cta,
 }: {
   className?: string;
   children: React.ReactNode;
   returnTo?: string;
+  onClick?: () => void;
+  /** sign_up-collection origin bucket carried to /login (?src). */
+  src?: string;
+  /** Originating CTA carried to /login (?cta). */
+  cta?: string;
 }) {
   return (
     <Suspense fallback={null}>
-      <FnoNinjaLoginLinkInner className={className} returnTo={returnTo}>
+      <FnoNinjaLoginLinkInner className={className} returnTo={returnTo} onClick={onClick} src={src} cta={cta}>
         {children}
       </FnoNinjaLoginLinkInner>
     </Suspense>
@@ -159,14 +190,20 @@ function FnoNinjaLoginLinkInner({
   className,
   children,
   returnTo,
+  onClick,
+  src,
+  cta,
 }: {
   className?: string;
   children: React.ReactNode;
   returnTo?: string;
+  onClick?: () => void;
+  src?: string;
+  cta?: string;
 }) {
-  const href = useFnoLoginHref(returnTo);
+  const href = useFnoLoginHref(returnTo, { src, cta });
   return (
-    <Link href={href} className={className}>
+    <Link href={href} className={className} onClick={onClick}>
       {children}
     </Link>
   );

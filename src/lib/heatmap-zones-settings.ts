@@ -276,17 +276,13 @@ export function computeAutoSwitch(
   }
 
   // ── Regime gates (suggester-provided; ignored on legacy docs) ──────────
-  // Mirrors the same gates in `evaluateZoneBot`. Panic IV or signal
-  // conflict suppresses fresh entries entirely. Pattern-bot pause is a
-  // simEnabled=false; the orchestrating UI / sim cron treats this as
-  // "AUTO mode says don't fire" same as a missing zone.
-  if (zones.inPanicRegime || zones.signalConflict) {
+  // Mirrors `evaluateZoneBot`. Panic IV suppresses fresh entries.
+  // (signalConflict retired 2026-07-14 — no longer blocks.)
+  if (zones.inPanicRegime) {
     return {
       simEnabled: false,
       directionBias: "BOTH",
-      reason: zones.notActionableReason ??
-        (zones.inPanicRegime ? "OFF — panic regime (entries suppressed)"
-                              : "OFF — signal conflict (entries suppressed)"),
+      reason: zones.notActionableReason ?? "OFF — panic regime (entries suppressed)",
     };
   }
 

@@ -56,8 +56,9 @@
  *      1.1× week-out IV (term-structure inversion). Suppresses fresh
  *      entries via `inPanicRegime` — open trades unaffected.
  *
- *   9. `signalConflict`: day-0 and day-1 max pains on opposite sides
- *      of spot. Same treatment as panic regime — no fresh entries.
+ *   9. (Removed) day-0 vs day-1 max-pain "signal conflict" no longer
+ *      blocks entries — with tallest-cluster S/R, multi-day pins often
+ *      sit close / straddle spot without meaning the wall setup is bad.
  *
  *  10. Half-width has a strike-grid floor too: never narrower than half
  *      the spacing between adjacent listed strikes (so the band can't
@@ -353,6 +354,7 @@ export interface OptionsZones {
   // ── Max pain (multi-day picture; day-0 drives TP/magnet) ─────────────────
   maxPain:         number | null;
   maxPainByExpiry: MaxPainEntry[];
+  /** Always false — day-0/day-1 pin conflict no longer blocks entries. Kept for API compat. */
   signalConflict:  boolean;
 
   // ── TP targets (= today's max pain when conditions hold) ─────────────────
@@ -815,13 +817,11 @@ export async function computeOptionsZones(
   const day0       = maxPainByExpiry[0] ?? null;
   const day0MaxPain = day0?.maxPain ?? null;
 
-  // Signal conflict: day-0 and day-1 max pains on opposite sides of spot.
-  let signalConflict = false;
-  if (maxPainByExpiry.length >= 2) {
-    const d0 = maxPainByExpiry[0].maxPain;
-    const d1 = maxPainByExpiry[1].maxPain;
-    signalConflict = (d0 < spot) !== (d1 < spot);
-  }
+  // Signal conflict was retired 2026-07-14: day-0 vs day-1 max pain on
+  // opposite sides of spot is common once we target the tallest walls,
+  // and blocking on it skipped valid cluster trades. Field kept false
+  // for Firestore/API compat.
+  const signalConflict = false;
 
   // ── Panic regime ──────────────────────────────────────────────────────
   const inPanicRegime =
@@ -971,7 +971,6 @@ export async function computeOptionsZones(
 
   let bullActionable =
     !inPanicRegime &&
-    !signalConflict &&
     !clusterOiBalanced &&
     bullStrike !== null &&
     magnetPullsUp &&
@@ -979,7 +978,6 @@ export async function computeOptionsZones(
 
   let bearActionable =
     !inPanicRegime &&
-    !signalConflict &&
     !clusterOiBalanced &&
     bearStrike !== null &&
     magnetPullsDown &&
@@ -997,8 +995,6 @@ export async function computeOptionsZones(
       notActionableReason = ivBackwardation >= BACKWARDATION_RATIO_THRESHOLD
         ? `Panic regime — IV term-structure inverted (front/week = ${ivBackwardation.toFixed(2)}x)`
         : `Panic regime — ATM IV ${fmtPct(atmIV)} ≥ ${fmtPct(PANIC_IV_THRESHOLD)}`;
-    } else if (signalConflict) {
-      notActionableReason = "Signal conflict — day-0 and day-1 max pains disagree across spot";
     } else if (day0MaxPain !== null && Math.abs(day0MaxPain - spot) < sizes.minPinGapUsd) {
       notActionableReason = `Pin chop — spot ${fmtUsd(spot)} too close to max pain ${fmtUsd(day0MaxPain)} (gap < ${fmtUsd(sizes.minPinGapUsd)})`;
     } else if (bullStrike === null && bearStrike === null) {

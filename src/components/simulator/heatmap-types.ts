@@ -244,7 +244,6 @@ export function formatIvExplainer(
 
 export function zoneStatusLine(s: SuggestedZonesSnapshot | null): string {
   if (!s) return "No zone data — refresh";
-  if (s.signalConflict) return "Signal conflict";
   if (s.inPanicRegime) return "Panic regime";
   if (s.bullActionable && s.bearActionable) return "Bull & bear active";
   if (s.bullActionable) return "Bull zone active";

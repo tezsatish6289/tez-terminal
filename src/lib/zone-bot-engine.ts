@@ -665,14 +665,13 @@ export function evaluateZoneBot(input: EvaluateZoneBotInput): EvaluateZoneBotRes
 
   // ── 4. No open trade — look for a fresh entry ──────────────────────────
   // Before evaluating zones, check the suggester's regime flags. Panic IV
-  // or signal conflict suppresses fresh entries entirely. Existing trades
-  // (handled above) are untouched — they manage themselves on SL/TPs.
-  if (suggested.inPanicRegime || suggested.signalConflict) {
+  // suppresses fresh entries entirely. Existing trades (handled above)
+  // are untouched — they manage themselves on SL/TPs.
+  // (signalConflict retired 2026-07-14 — no longer blocks entries.)
+  if (suggested.inPanicRegime) {
     next.direction  = "IDLE";
     next.confirming = null;
-    next.reason = suggested.notActionableReason ??
-      (suggested.inPanicRegime ? "Panic regime — entries suppressed"
-                                : "Signal conflict — entries suppressed");
+    next.reason = suggested.notActionableReason ?? "Panic regime — entries suppressed";
     return { nextState: next, action: { type: "NONE", reason: next.reason } };
   }
 

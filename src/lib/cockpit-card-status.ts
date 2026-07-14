@@ -139,12 +139,6 @@ function fromSuggester(s: SuggestedZonesSnapshot): CockpitCardStatus | null {
       shortDetail(s.notActionableReason ?? "High IV — entries suppressed"),
     );
   }
-  if (s.signalConflict) {
-    return blocked(
-      "Signal conflict",
-      "Day-0 and day-1 max pain on opposite sides of spot",
-    );
-  }
   if (s.notActionableReason?.startsWith("No un-expired")) {
     return blocked("No option data", shortDetail(s.notActionableReason));
   }

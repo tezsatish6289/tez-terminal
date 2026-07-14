@@ -416,16 +416,12 @@ export function HeatmapAutoSwitch({
               <span>
                 BTC <span className="font-bold">${status.btcPrice?.toLocaleString() ?? "—"}</span>
                 {" · "}
-                {/* Banner-line rendering. Dedicated alert cards still own
-                    the signalConflict explanation (it needs the full
-                    paragraph), so we short-circuit it to a "see alert
-                    below" pointer. For every other case the banner now
-                    also absorbs what used to live in the "No actionable
-                    side right now" card — combined form is:
+                {/* Banner-line rendering. For every case the banner absorbs
+                    what used to live in the "No actionable side right now"
+                    card — combined form is:
                        BTC $X · {compact status} · no <side> setup (<short reason>)
                     e.g.  BTC $76,951.8 · OFF — bull zone exited above · no bear setup (max pain too close) */}
                 {(() => {
-                  if (suggested?.signalConflict)  return "Signal conflict — entries suppressed (see alert below)";
                   const compact = compactStatusReason(status.reason);
                   const bothDead =
                     suggested?.bullActionable === false &&
@@ -573,28 +569,9 @@ export function HeatmapAutoSwitch({
                   })()}
 
                   {/* "No actionable side right now" yellow alert removed
-                      2026-05-19. It used to surface here when both sides
-                      were idle for reasons other than spot-position
-                      (TP-room insufficient, pin chop, no cluster in
-                      reach, panic regime). That same information is now
-                      folded into the status banner at the top of the
-                      panel as a "· no <side> setup (<short reason>)"
-                      suffix — see compactStatusReason /
-                      shortNotActionable helpers at the top of this file.
-                      The dedicated SignalConflict and InsufficientGap
-                      alerts below stay because each one needs a
-                      multi-line explanation that doesn't fit in the
-                      banner. */}
-
-                  {/* Signal conflict warning */}
-                  {suggested.signalConflict && (
-                    <div className="rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2.5">
-                      <p className="text-[10px] font-bold text-amber-400/90">Signal Conflict — expiry disagreement</p>
-                      <p className="text-[9px] text-muted-foreground/55 mt-0.5">
-                        Day 0 and Day 1 max pain are on opposite sides of current price. MMs have competing incentives. Trade with extra caution.
-                      </p>
-                    </div>
-                  )}
+                      2026-05-19. That information is now folded into the
+                      status banner. Signal-conflict suppression removed
+                      2026-07-14. */}
 
                   {/* 3-day max pain table */}
                   {suggested.maxPainByExpiry && suggested.maxPainByExpiry.length > 0 && (

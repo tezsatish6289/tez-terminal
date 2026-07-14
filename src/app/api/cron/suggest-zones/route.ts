@@ -176,8 +176,7 @@ function summarizeSuggestZones(payload: {
       notActionableReason?: string | null;
     };
     let tag = "idle";
-    if (z.signalConflict) tag = "conflict";
-    else if (z.bullActionable || z.bearActionable) tag = "actionable";
+    if (z.bullActionable || z.bearActionable) tag = "actionable";
     else if (z.notActionableReason) tag = "blocked";
     parts.push(`${asset}=${tag}`);
   }

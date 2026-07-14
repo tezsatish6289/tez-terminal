@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import {
   bearStrikeEligibleForSpot,
   bullStrikeEligibleForSpot,
+  deriveClusterSearchRadius,
   deriveMaxPainAnchorSpan,
+  filterHighestClusterCandidates,
+  pickHighestClusterNearSpot,
 } from "../../src/lib/options-zones";
 import { applyStickyZones } from "../../src/lib/options-zone-sticky";
 
@@ -46,22 +49,66 @@ import { applyStickyZones } from "../../src/lib/options-zone-sticky";
   assert.equal(bearStrikeEligibleForSpot(strike, half, spot), true);
 }
 
-// Anchor window — calm market (spot ≈ max pain): volatility term wins
+// Compat helpers still compute the old IV span numbers
 {
   const reach = 2_000;
-  const span = deriveMaxPainAnchorSpan(reach, 0);
-  assert.equal(span, reach * 2.5);
+  assert.equal(deriveClusterSearchRadius(reach), reach * 2.5);
+  assert.equal(deriveMaxPainAnchorSpan(reach, 0), reach * 2.5);
+  assert.equal(deriveMaxPainAnchorSpan(reach, 7_900), 7_900 + reach);
 }
 
-// Anchor window — bear trend (spot far below max pain): trend term reaches
-// spot plus one daily sigma beyond, so a window pinned to max pain no
-// longer goes blind below price.
+// Highest put below spot — prefers tall wall over nearer weak wall,
+// including deep structural walls (no distance cutoff)
 {
-  const reach = 2_000;
-  const gap = 7_900; // e.g. max pain $70,500 vs spot $62,586 (BTC)
-  const span = deriveMaxPainAnchorSpan(reach, gap);
-  assert.equal(span, gap + reach); // 9,900 > 5,000 volatility term
-  assert.ok(span >= gap, "window must at least reach spot");
+  const put = new Map<number, number>([
+    [75_000, 4_000],  // nearer, weaker
+    [70_000, 12_000],
+    [60_000, 50_000], // farthest, strongest — should win
+  ]);
+  const call = new Map<number, number>();
+  const input = {
+    putOIByStrike: put,
+    callOIByStrike: call,
+    nearTermPutOI: put,
+    nearTermCallOI: call,
+    nearTermOiFloor: 10,
+    spot: 76_500,
+    side: "put" as const,
+    zoneHalfWidthUsd: 500,
+    minClusterOi: 1_000,
+  };
+  const pick = pickHighestClusterNearSpot(input);
+  assert.equal(pick?.strike, 60_000);
+  assert.equal(pick?.oi, 50_000);
+  assert.notEqual(pick?.strike, 75_000);
+}
+
+// Highest call above spot — tallest wins even when far
+{
+  const call = new Map<number, number>([
+    [78_000, 3_000],
+    [80_000, 18_000],
+    [120_000, 90_000],
+  ]);
+  const put = new Map<number, number>();
+  const input = {
+    putOIByStrike: put,
+    callOIByStrike: call,
+    nearTermPutOI: put,
+    nearTermCallOI: call,
+    nearTermOiFloor: 10,
+    spot: 76_500,
+    side: "call" as const,
+    zoneHalfWidthUsd: 500,
+    minClusterOi: 1_000,
+  };
+  const candidates = filterHighestClusterCandidates(input);
+  assert.deepEqual(
+    candidates.map(([s]) => s).sort((a, b) => a - b),
+    [78_000, 80_000, 120_000],
+  );
+  const pick = pickHighestClusterNearSpot(input);
+  assert.equal(pick?.strike, 120_000);
 }
 
 // Sticky releases when spot breaks below prior bull band

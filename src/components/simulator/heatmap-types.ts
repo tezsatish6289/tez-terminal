@@ -136,8 +136,8 @@ export function noClusterLine(
       : "Call OI cluster — TP room blocked";
   }
   return side === "bull"
-    ? "No potent put wall near max pain"
-    : "No potent call wall near max pain";
+    ? "No high put cluster below spot"
+    : "No high call cluster above spot";
 }
 
 export function spotFromSuggested(s: SuggestedZonesSnapshot | null): number | null {

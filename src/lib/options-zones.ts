@@ -1,50 +1,28 @@
 /**
- * Deribit-based zone suggester — "closest big cluster + IV-derived sizing".
+ * Deribit-based zone suggester — "highest cluster + IV-derived sizing".
  *
- * Rewritten 2026-05-19. Replaces the legacy urgency formula
- *   urgency(s) = weighted_OI(s) / (distance_pct + 0.005)
- * which had a fatal "nearest-cluster trap": the proximity amplifier
- * routinely picked the strike right next to spot (often a broken near-spot
- * support) over genuinely strong walls 2–3% away.
+ * Support / resistance walls match the NSE index chart rule (NIFTY etc.):
+ *   • support  = highest put-wall OI below spot
+ *   • resistance = highest call-wall OI above spot
+ * No distance cutoff — earlier IV / max-pain windows failed too often by
+ * excluding the real wall. Not "closest big cluster".
  *
- * ──────────────────────────────────────────────────────────────────────────
- * Algorithm (v2 — current)
- * ──────────────────────────────────────────────────────────────────────────
+ * Rewritten 2026-05-19 (urgency → closest-big). 2026-07-14 aligned cluster
+ * picks with the FnoNinja highest-below / highest-above-spot rule.
  *
- * Zone *selection* uses ALL-EXPIRY OI for ranking, inside a window
- * around day-0 max pain whose width is the max of:
- *
- *   (a) Volatility term — IV-derived 1-σ daily move × 2.5 — "expand the
- *       window when price is more likely to travel far today";
- *   (b) Trend term — |maxPain − spot| + 1-σ daily move — "always reach
- *       down (or up) to where price actually is, plus one daily sigma
- *       beyond". In a trending market spot leaves the max-pain
- *       neighbourhood entirely; a window pinned to max pain with a fixed
- *       width goes blind exactly when it matters, so the picker either
- *       finds nothing or grabs the flimsy wall price is already breaking
- *       through. The trend term keeps the deeper, meatier wall (the real
- *       support/resistance price is heading toward) inside the window.
- *       Replaces the old hard-coded `ANCHOR_STRIKES_PER_SIDE × grid`
- *       floor — both terms are now market facts, no gut-picked counts.
- *
- * Plus a defence-in-depth near-term (day-0+1) OI floor that rejects
- * the rare strike with huge all-expiry OI but no daily presence
- * (premium magnets like ETH $1,800 puts).
+ * Near-term presence: strike must clear an absolute OI floor inside the
+ * next 7 calendar days of expiries (not just the next 2 thin dailies).
+ * Live Deribit data: far lottery strikes stay ~0 there; real walls pass.
  *
  * Strike↔max-pain gap and TP-room minimum are both 2 × halfWidth
- * (auto-tuned to IV via halfWidth). The previous operator override
- * (`maxPainMinDistanceUsd`) was removed 2026-05-22 — dormant at
- * default settings, footgun if raised, defended none of the failure
- * modes the picker actually faces.
- *
- * TP / magnet still uses TODAY's (day-0) max pain only — unchanged.
+ * (auto-tuned to IV via halfWidth). TP / magnet still uses TODAY's
+ * (day-0) max pain only — unchanged.
  *
  *   1. Fetch all options for the asset from Deribit (single REST call —
  *      returns OI + IV + underlying price for every instrument).
  *
  *   2. Compute ATM IV from the nearest un-expired expiry. This drives
- *      every size in the algorithm — reach, half-width, panic detection.
- *      No arbitrary $-numbers anywhere.
+ *      band sizing (half-width) and panic detection — not cluster distance.
  *
  *   3. Sizes (all from ATM IV via the Black-Scholes σ formula):
  *        reach     = 1-σ over 1 day       = spot × IV × √(1/365)
@@ -58,18 +36,10 @@
  *      resistance) so a strike with equal put/call OI does not rank as
  *      a major wall.
  *
- *   5. Pick the **most potent** cluster on each side, **anchored near
- *      day-0 max pain** (not far-away structural walls):
- *        bull (puts):  below maxPain, within an anchor span under the pin,
- *                      and with bullZoneLow ≤ spot (band not entirely above
- *                      spot — support must be reachable from here)
- *        bear (calls): above maxPain, within an anchor span over the pin,
- *                      and with bearZoneHigh ≥ spot (band not entirely below
- *                      spot — resistance must be reachable from here)
- *      Potency = net wall OI (puts − calls at strike) ≥ per-asset floor
- *      AND ≥ 40% of pool max net in window.
- *      Priority: highest OI, then closest to max pain.
- *      Bands must sandwich the pin; min gap = max(2×halfWidth, configured).
+ *   5. Pick the **highest** net-wall cluster on each side of spot
+ *      (same rule as index-options-zones / NIFTY chart):
+ *        bull (puts):  strike < spot, band reachable from spot, ≥ minClusterOi
+ *        bear (calls): strike > spot, band reachable from spot, ≥ minClusterOi
  *      Sticky: while spot stays inside a published band, keep that band.
  *
  *   6. Today's max pain (day-0 only) is the magnet. Directional gate:
@@ -79,8 +49,8 @@
  *      spot, neither side is actionable (chop regime).
  *
  *   7. TP target = day-0 max pain, subject to room check:
- *        bull: maxPain ≥ bullZoneHigh + 3 × halfWidth
- *        bear: maxPain ≤ bearZoneLow  − 3 × halfWidth
+ *        bull: maxPain ≥ bullStrike + 2 × halfWidth
+ *        bear: maxPain ≤ bearStrike − 2 × halfWidth
  *
  *   8. Panic regime check: ATM IV ≥ 70% (absolute) OR front IV >
  *      1.1× week-out IV (term-structure inversion). Suppresses fresh
@@ -97,15 +67,8 @@
  * Multi-asset design
  * ──────────────────────────────────────────────────────────────────────────
  *
- * BTC ships first. The algorithm is identical for any asset with a liquid
- * Deribit option chain (BTC / ETH / SOL). Only thing that differs per asset:
- *   - Deribit currency code ("BTC" / "ETH" / "SOL")
- *   - Strike grid spacing (BTC=500, ETH=50, SOL=5 near ATM)
- * Both live in `ASSET_SPEC` below. Adding ETH/SOL is one row each.
- *
- * XRP (and anything else without a real options market) does NOT use this
- * module — XRP zones will be derived from Bybit perp OI clusters in a
- * separate file.
+ * Identical algorithm for BTC / ETH / SOL / XRP on Deribit. Only
+ * ASSET_SPEC rows differ (currency bucket, strike grid, minClusterOi).
  *
  * Date context: always dynamic from `Date.now()` — never hardcoded.
  */
@@ -123,30 +86,30 @@ const DERIBIT_API = "https://www.deribit.com/api/v2/public";
 // Every value here has a stated derivation or empirical anchor. None of
 // them are tuning knobs picked by gut.
 
-/** Secondary potency: OI ≥ this fraction of the tallest bar in the anchor window.
- *  Raised 2026-06-15 from 0.25 → 0.40 so zone bots prefer dominant walls
- *  over secondary clusters that produce small-reward / full-risk entries. */
-const MIN_CLUSTER_PCT_OF_MAX = 0.40;
-
 /** When both picked clusters' net wall OI at their strikes differ by less
  *  than this fraction of the larger net, spot sits between nearly equal
  *  magnets and neither side has edge. Net = puts − calls at each strike. */
 export const MIN_CLUSTER_OI_IMBALANCE = 0.35;
 
-/** Volatility term of the anchor window — IV-derived 1-σ daily move ×
- *  this multiple. "In a volatile market we expect price to travel
- *  further today, so include strikes further out." The other term is
- *  the trend term (`|maxPain − spot| + 1σ`) computed in
- *  `deriveMaxPainAnchorSpan`. The window is the max of the two. */
-const MAX_PAIN_ANCHOR_REACH_MULT = 2.5;
+/** Legacy IV reach multiple — only used by `deriveMaxPainAnchorSpan` /
+ *  `deriveClusterSearchRadius` for API field compat. Cluster picks no
+ *  longer apply a distance window. */
+const CLUSTER_SEARCH_REACH_MULT = 2.5;
+const MAX_PAIN_ANCHOR_REACH_MULT = CLUSTER_SEARCH_REACH_MULT;
 
-/** Near-term (day-0+1) OI floor a strike must clear, as a fraction of
- *  per-asset `minClusterOi`. Defence-in-depth filter — kicks in for the
- *  rare strike that has substantial all-expiry OI but zero daily
- *  presence (which would otherwise out-rank legitimate walls). The
- *  primary proximity filter is the anchor span (volatility + trend
- *  terms) in `deriveMaxPainAnchorSpan`. */
+/** Absolute near-term OI floor = this fraction × per-asset `minClusterOi`
+ *  (floored at 10). Not "5% of that strike's all-expiry OI" — live Deribit
+ *  data (2026-07-14) shows most candidate strikes have 0% near-term OI;
+ *  ghosts are literally ~0 contracts in the near window, while live walls
+ *  clear tens–thousands. This absolute bar just rejects the zeros. */
 const NEAR_TERM_OI_FLOOR_FRAC_OF_MIN_CLUSTER = 0.05;
+
+/** Near-term presence window (calendar days). Live check 2026-07-14: using
+ *  only the next 2 expiries fails on Deribit because those are often thin
+ *  dailies (BTC 15JUL+16JUL ≈ 1.9k OI) while the real weekly sits at day ~3
+ *  (17JUL ≈ 19k OI). Far lottery walls ($80k/$100k/$3200) still show ~0 OI
+ *  inside 7d, so ghosts stay rejected while real walls pass. */
+const NEAR_TERM_WINDOW_DAYS = 7;
 
 /** Reach gate = 1-σ daily move. 68% probability price visits any strike
  *  inside this band today. Sourced from the market's own IV pricing. */
@@ -301,8 +264,7 @@ interface AssetSpec {
   instrumentPrefix?: string;
   /** Approximate strike-grid spacing near ATM, in USD. Floors
    *  half-width so the band can't sit narrower than the gap between
-   *  adjacent listed strikes. (The anchor window no longer uses this —
-   *  it's derived from the IV reach and the max-pain↔spot gap.) */
+   *  adjacent listed strikes. */
   strikeGridUsd: number;
   /** Annualisation horizon in years for the IV → σ conversion. Black-Scholes
    *  convention is 365 days/year (calendar, not trading days) for crypto. */
@@ -363,8 +325,7 @@ const ASSET_SPEC: Record<ZoneBotAsset, AssetSpec> = {
     indexEndpoint:    "xrp_usdc",
     // XRP carries huge per-strike OI (median ~200k) so a floor of
     // 2000 is well below the noise mark and lets thin-day pickers
-    // still find a wall. The relative `MIN_CLUSTER_PCT_OF_MAX`
-    // filter (25% of tallest bar in window) does the real work.
+    // still find a wall; the tallest-in-radius rule does the rest.
     minClusterOi:     2000,
   },
 };
@@ -630,31 +591,24 @@ interface ClusterPick {
 interface ClusterPickInput {
   putOIByStrike:         Map<number, number>;
   callOIByStrike:        Map<number, number>;
-  /** Day-0+1 OI per strike. Used only for the premium-magnet sanity
-   *  filter — a strike whose near-term OI is below `nearTermOiFloor`
+  /** Near-term (≤7d expiry) OI per strike. Used only for the premium-magnet
+   *  sanity filter — a strike whose near-term OI is below `nearTermOiFloor`
    *  is rejected regardless of its all-expiry total. */
   nearTermPutOI:         Map<number, number>;
   nearTermCallOI:        Map<number, number>;
   nearTermOiFloor:       number;
   spot:                  number;
   side:                  "put" | "call";
-  maxReachUsd:           number;
   zoneHalfWidthUsd:      number;
-  day0MaxPain:           number | null;
   minClusterOi:          number;
-  maxPainAnchorSpanUsd:  number;
 }
 
-/**
- * Anchor window half-span around day-0 max pain, in USD. Max of:
- *   - volatility term: IV 1-σ daily move × MAX_PAIN_ANCHOR_REACH_MULT
- *   - trend term:      |maxPain − spot| + IV 1-σ daily move
- * The trend term guarantees the window always reaches spot (and one
- * sigma beyond) so the picker can see the genuine wall price is heading
- * toward in a trend — not just the one near the pin that price has
- * already left behind. `maxPainToSpotGapUsd` is 0 when max pain is
- * unknown (no-data path), collapsing this to the volatility term.
- */
+/** @deprecated Compat only — cluster picks no longer use a distance window. */
+export function deriveClusterSearchRadius(maxReachUsd: number): number {
+  return maxReachUsd * CLUSTER_SEARCH_REACH_MULT;
+}
+
+/** @deprecated Compat only — cluster picks no longer use a distance window. */
 export function deriveMaxPainAnchorSpan(
   maxReachUsd: number,
   maxPainToSpotGapUsd: number,
@@ -683,9 +637,13 @@ export function bearStrikeEligibleForSpot(
   return strike + halfWidth >= spot;
 }
 
-function filterPotentNearMaxPain(
+/**
+ * Candidates for highest-below / highest-above-spot (NIFTY-style).
+ * No distance cutoff — every strike on the correct side of spot qualifies
+ * if it clears minClusterOi + near-term floor.
+ */
+export function filterHighestClusterCandidates(
   input: ClusterPickInput,
-  anchorSpanUsd: number,
 ): Array<[number, number]> {
   const {
     putOIByStrike,
@@ -696,33 +654,21 @@ function filterPotentNearMaxPain(
     spot,
     side,
     zoneHalfWidthUsd,
-    day0MaxPain,
     minClusterOi,
   } = input;
   const half = zoneHalfWidthUsd;
-  const mpGap = maxPainGapUsd(half);
-
-  if (day0MaxPain == null) return [];
 
   const allStrikes = new Set([...putOIByStrike.keys(), ...callOIByStrike.keys()]);
   const pool: Array<[number, number]> = [];
   for (const strike of allStrikes) {
     const netWall = netWallOiFromMaps(side, strike, putOIByStrike, callOIByStrike);
-    if (netWall <= 0) continue;
+    if (netWall < minClusterOi) continue;
 
     if (side === "put") {
-      const upper = day0MaxPain - mpGap;
-      const lower = day0MaxPain - anchorSpanUsd;
-      if (strike >= upper) continue;
-      if (strike < lower) continue;
-      if (strike + half >= day0MaxPain) continue;
+      if (strike >= spot) continue;
       if (!bullStrikeEligibleForSpot(strike, half, spot)) continue;
     } else {
-      const lower = day0MaxPain + mpGap;
-      const upper = day0MaxPain + anchorSpanUsd;
-      if (strike <= lower) continue;
-      if (strike > upper) continue;
-      if (strike - half <= day0MaxPain) continue;
+      if (strike <= spot) continue;
       if (!bearStrikeEligibleForSpot(strike, half, spot)) continue;
     }
 
@@ -734,45 +680,27 @@ function filterPotentNearMaxPain(
     pool.push([strike, netWall]);
   }
 
-  if (!pool.length) return [];
-
-  const poolMax = pool.reduce((m, [, oi]) => Math.max(m, oi), 0);
-  const relThreshold = MIN_CLUSTER_PCT_OF_MAX * poolMax;
-  return pool.filter(([, oi]) => oi >= minClusterOi && oi >= relThreshold);
+  return pool;
 }
 
-function pickPotentClusterNearMaxPain(
+/** Highest net-wall cluster on the side of spot (ties keep first max). */
+export function pickHighestClusterNearSpot(
   input: ClusterPickInput,
 ): ClusterPick | null {
-  const { putOIByStrike, callOIByStrike, day0MaxPain, maxPainAnchorSpanUsd, side } = input;
-  if (day0MaxPain == null) return null;
+  const { putOIByStrike, callOIByStrike, side } = input;
+  const candidates = filterHighestClusterCandidates(input);
+  if (!candidates.length) return null;
 
-  const tryPick = (span: number): ClusterPick | null => {
-    const potent = filterPotentNearMaxPain(input, span);
-    if (!potent.length) return null;
-
-    const sideTotal = totalNetWallOi(side, putOIByStrike, callOIByStrike);
-    const [chosenStrike, chosenOi] = potent.reduce((best, cur) => {
-      const [, bestOi] = best;
-      const [, curOi] = cur;
-      if (curOi > bestOi) return cur;
-      if (curOi < bestOi) return best;
-      const bestDist = Math.abs(best[0] - day0MaxPain);
-      const curDist = Math.abs(cur[0] - day0MaxPain);
-      return curDist < bestDist ? cur : best;
-    });
-
-    return {
-      strike: chosenStrike,
-      oi: chosenOi,
-      shareOfSide: sideTotal > 0 ? chosenOi / sideTotal : 0,
-    };
-  };
-
-  return (
-    tryPick(maxPainAnchorSpanUsd) ??
-    tryPick(maxPainAnchorSpanUsd * 1.75)
+  const sideTotal = totalNetWallOi(side, putOIByStrike, callOIByStrike);
+  const [chosenStrike, chosenOi] = candidates.reduce((best, cur) =>
+    cur[1] > best[1] ? cur : best,
   );
+
+  return {
+    strike: chosenStrike,
+    oi: chosenOi,
+    shareOfSide: sideTotal > 0 ? chosenOi / sideTotal : 0,
+  };
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────
@@ -811,7 +739,7 @@ export async function computeOptionsZones(
     clusterOiImbalance: null, clusterOiBalanced: false,
     expiryUsed: null, expiriesUsed: [], expiryOI: null,
     bullOI: null, bearOI: null,
-    maxPainAnchorSpanUsd: deriveMaxPainAnchorSpan(sizes.maxReachUsd, 0),
+    maxPainAnchorSpanUsd: deriveClusterSearchRadius(sizes.maxReachUsd),
     bullLocked: false,
     bearLocked: false,
     btcPrice: currentPrice, deribitIndexPrice,
@@ -902,12 +830,19 @@ export async function computeOptionsZones(
 
   // ── Aggregate OI per strike — all-expiry for ranking, near-term for
   //    the premium-magnet sanity filter (see header for rationale).
-  const nearTermExpiries = new Set(
-    sortedExpiries.slice(0, 2).map(([label]) => label),
-  );
+  // Near-term = expiries within NEAR_TERM_WINDOW_DAYS (not just day-0+1
+  // dailies — those are often empty while the weekly holds the real wall).
+  const nearTermCutoffMs = nowMs + NEAR_TERM_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const nearTermExpiries = new Set<string>();
+  for (const [label, items] of itemsByExpiry) {
+    const expMs = items[0]?.expiryDate.getTime();
+    if (expMs != null && expMs > nowMs && expMs <= nearTermCutoffMs) {
+      nearTermExpiries.add(label);
+    }
+  }
   const putOIByStrike      = new Map<number, number>(); // all-expiry, drives ranking
   const callOIByStrike     = new Map<number, number>();
-  const nearTermPutOI      = new Map<number, number>(); // day-0+1, gates against magnets
+  const nearTermPutOI      = new Map<number, number>(); // ≤7d, gates against magnets
   const nearTermCallOI     = new Map<number, number>();
   for (const p of allParsed) {
     const allMap = p.type === "P" ? putOIByStrike : callOIByStrike;
@@ -918,10 +853,8 @@ export async function computeOptionsZones(
     }
   }
 
-  const maxPainAnchorSpanUsd = deriveMaxPainAnchorSpan(
-    sizes.maxReachUsd,
-    day0MaxPain !== null ? Math.abs(day0MaxPain - spot) : 0,
-  );
+  // Kept on the snapshot for UI/API compat; no longer gates cluster picks.
+  const maxPainAnchorSpanUsd = deriveClusterSearchRadius(sizes.maxReachUsd);
 
   const nearTermOiFloor = Math.max(
     10,
@@ -936,15 +869,12 @@ export async function computeOptionsZones(
     nearTermOiFloor,
     spot,
     side,
-    maxReachUsd: sizes.maxReachUsd,
     zoneHalfWidthUsd: sizes.halfWidthUsd,
-    day0MaxPain,
     minClusterOi: spec.minClusterOi,
-    maxPainAnchorSpanUsd,
   });
 
-  const bullPick = pickPotentClusterNearMaxPain(pickInput("put"));
-  const bearPick = pickPotentClusterNearMaxPain(pickInput("call"));
+  const bullPick = pickHighestClusterNearSpot(pickInput("put"));
+  const bearPick = pickHighestClusterNearSpot(pickInput("call"));
 
   // ── Bands (fresh scan) ────────────────────────────────────────────────
   const half = sizes.halfWidthUsd;
@@ -1072,15 +1002,12 @@ export async function computeOptionsZones(
     } else if (day0MaxPain !== null && Math.abs(day0MaxPain - spot) < sizes.minPinGapUsd) {
       notActionableReason = `Pin chop — spot ${fmtUsd(spot)} too close to max pain ${fmtUsd(day0MaxPain)} (gap < ${fmtUsd(sizes.minPinGapUsd)})`;
     } else if (bullStrike === null && bearStrike === null) {
-      notActionableReason = day0MaxPain !== null
-        ? `No potent cluster within ${fmtUsd(maxPainAnchorSpanUsd)} of max pain ${fmtUsd(day0MaxPain)} (need ≥${spec.minClusterOi.toLocaleString()} OI)`
-        : `No potent cluster within reach (±${fmtUsd(sizes.maxReachUsd)} = ${fmtPct(sizes.maxReachUsd / spot)} of spot)`;
-    } else if (bullStrike === null && day0MaxPain !== null && day0MaxPain > spot) {
-      notActionableReason = `No potent put cluster within ${fmtUsd(maxPainAnchorSpanUsd)} below max pain ${fmtUsd(day0MaxPain)} and at/below spot ${fmtUsd(spot)}`;
-    } else if (bearStrike === null && day0MaxPain !== null && day0MaxPain < spot) {
-      notActionableReason = `No potent call cluster within ${fmtUsd(maxPainAnchorSpanUsd)} above max pain ${fmtUsd(day0MaxPain)} and at/above spot ${fmtUsd(spot)}`;
-    } else if (bearStrike === null && day0MaxPain !== null && day0MaxPain > spot) {
-      notActionableReason = `No potent call cluster within ${fmtUsd(maxPainAnchorSpanUsd)} above max pain ${fmtUsd(day0MaxPain)}`;
+      notActionableReason =
+        `No high OI cluster below/above spot ${fmtUsd(spot)} (need ≥${spec.minClusterOi.toLocaleString()} net OI)`;
+    } else if (bullStrike === null) {
+      notActionableReason = `No high put cluster below spot ${fmtUsd(spot)}`;
+    } else if (bearStrike === null) {
+      notActionableReason = `No high call cluster above spot ${fmtUsd(spot)}`;
     } else {
       // Surface the actual numbers so the operator can see WHICH gap
       // failed and by how much. Picks the side that has a strike (if

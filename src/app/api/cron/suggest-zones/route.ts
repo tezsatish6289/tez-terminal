@@ -1,12 +1,12 @@
 /**
  * /api/cron/suggest-zones
  *
- * Fetches options OI from Deribit for BTC, ETH, and SOL, writes zones to:
+ * Fetches options OI from Deribit for BTC, ETH, SOL, and XRP, writes zones to:
  *
  *   • config/suggested_zones_{asset}  — per-asset (zone bots + heatmap grid)
  *   • config/suggested_zones          — legacy BTC path (Crypto Bot macro gate)
  *
- * XRP has no Deribit options chain — omitted until perp-OI zones ship.
+ * XRP uses Deribit's USDC-margined XRP_USDC option chain.
  *
  * Scheduled: every 15 min via cron-job.org (GET).
  * Also callable manually from the UI Refresh button (POST).

@@ -51,6 +51,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       phoneVerified,
+      /** Full 10-digit mobile for the signed-in owner (profile display). */
+      phone: stored,
       phoneMasked: maskPhone(stored),
       phoneGraceEndsAt: graceEndsAt,
       phoneBlocksAccess,

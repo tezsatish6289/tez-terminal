@@ -27,9 +27,21 @@ import { FNO_NAV_SPACER_CLASS } from "@/lib/fnoninja/responsive";
 import { FB_CONTENT_SHELL, FB_LEVELS_SHELL, FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_LOGIN_NAV_HINT } from "@/lib/fnoninja/login-copy";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
+import { useOwnPhoneDisplay } from "@/hooks/use-own-phone";
 
 /** Reserve space below the fixed header in page layout. */
 export const FNO_NAV_HEIGHT_CLASS = "h-14 sm:h-16";
+
+/** Read-only mobile under the account email (no edit). */
+function AccountPhoneLine() {
+  const phone = useOwnPhoneDisplay();
+  if (!phone) return null;
+  return (
+    <p className="truncate text-[11px] mt-0.5" style={{ color: "#64748b" }}>
+      {phone}
+    </p>
+  );
+}
 
 const ANCHOR_LINKS = [
   { label: "How it works", href: "#how" },
@@ -255,6 +267,7 @@ export function FnoNinjaNav() {
                     <p className="text-[11px] truncate" style={{ color: "#64748b" }}>
                       {user.email}
                     </p>
+                    <AccountPhoneLine />
                   </div>
                   <Link
                     href={fnoMySubscriptionHref(pathname)}

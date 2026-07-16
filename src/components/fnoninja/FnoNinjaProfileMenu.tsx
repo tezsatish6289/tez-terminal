@@ -15,11 +15,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { fnoMySubscriptionHref } from "@/lib/fnoninja/paths";
 import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
+import { useOwnPhoneDisplay } from "@/hooks/use-own-phone";
 
 export function FnoNinjaProfileMenu() {
   const { user } = useUser();
   const auth = useAuth();
   const pathname = usePathname();
+  const phone = useOwnPhoneDisplay();
 
   if (!user) return null;
 
@@ -69,6 +71,11 @@ export function FnoNinjaProfileMenu() {
           <p className="truncate text-[11px]" style={{ color: "#64748b" }}>
             {user.email}
           </p>
+          {phone ? (
+            <p className="truncate text-[11px] mt-0.5" style={{ color: "#64748b" }}>
+              {phone}
+            </p>
+          ) : null}
         </div>
         <DropdownMenuSeparator style={{ backgroundColor: FNO_NAV_BORDER }} />
         <DropdownMenuItem

@@ -201,6 +201,9 @@ export interface PostedSummary {
  * admin list can show a "Posted" badge. Only counts records where at least one
  * channel was actually posted or scheduled. Uses a single equality filter (no
  * composite index needed) and aggregates the latest record per content in memory.
+ *
+ * Platforms are **unioned across all records** for a contentId so a partial
+ * YouTube-only schedule doesn't hide that IG/X/FB/LI still need a follow-up.
  */
 export async function getPostedContentMap(source: string): Promise<Record<string, PostedSummary>> {
   const db = getAdminFirestore();
@@ -224,9 +227,16 @@ export async function getPostedContentMap(source: string): Promise<Record<string
 
     const at = d.createdAt ?? "";
     const prev = map[contentId];
-    if (!prev || at > prev.at) {
-      map[contentId] = { at, status: d.status ?? "ok", platforms: livePlatforms };
+    if (!prev) {
+      map[contentId] = { at, status: d.status ?? "ok", platforms: [...livePlatforms] };
+      continue;
     }
+    const merged = new Set([...prev.platforms, ...livePlatforms]);
+    map[contentId] = {
+      at: at > prev.at ? at : prev.at,
+      status: d.status === "ok" && prev.status === "ok" ? "ok" : "partial",
+      platforms: [...merged],
+    };
   }
   return map;
 }

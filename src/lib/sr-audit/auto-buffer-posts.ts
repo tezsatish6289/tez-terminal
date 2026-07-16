@@ -53,7 +53,7 @@ export interface BufferAutoQueueItem {
   symbol: string;
   label: string;
   renderId: string;
-  status: "rendering" | "ready" | "scheduled" | "failed";
+  status: "rendering" | "ready" | "partial" | "scheduled" | "failed";
   videoUrl?: string | null;
   scheduleId?: string | null;
   error?: string | null;
@@ -239,6 +239,24 @@ async function connectedPlatforms(): Promise<SocialPlatformId[]> {
   return out;
 }
 
+/** True when every connected channel already has a successful post/schedule. */
+function fullyPosted(
+  posted: { platforms: SocialPlatformId[] } | undefined,
+  needed: SocialPlatformId[],
+): boolean {
+  if (!posted || needed.length === 0) return false;
+  const have = new Set(posted.platforms);
+  return needed.every((p) => have.has(p));
+}
+
+function missingPlatforms(
+  posted: { platforms: SocialPlatformId[] } | undefined,
+  needed: SocialPlatformId[],
+): SocialPlatformId[] {
+  const have = new Set(posted?.platforms ?? []);
+  return needed.filter((p) => !have.has(p));
+}
+
 async function prepareDay(db: Firestore, dayKey: string): Promise<BufferAutoRunSummary> {
   if (!cloudRenderConfigured()) {
     return {
@@ -283,6 +301,7 @@ async function prepareDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
   }
 
   const postedMap = await getPostedContentMap(SR_BUFFER_AUTO_SOURCE);
+  const platforms = await connectedPlatforms();
   // Never re-queue a story already on today's list (incl. failed/scheduled).
   const queuedIds = new Set(day.items.map((i) => i.storyId));
   // Oldest unposted backlog first; move must be > 3%.
@@ -298,7 +317,8 @@ async function prepareDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
   for (const s of stories) {
     if (picks.length >= slotsLeft) break;
     if (queuedIds.has(s.id)) continue;
-    if (postedMap[s.id]) continue; // already posted/scheduled to Buffer before
+    // Skip only when every connected channel already got this story.
+    if (fullyPosted(postedMap[s.id], platforms)) continue;
     picks.push(s);
   }
 
@@ -448,17 +468,21 @@ async function publishDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
   let room = Math.max(0, SR_BUFFER_AUTO_MAX_PER_DAY - postedToday);
 
   for (const item of day.items) {
-    if (item.status === "scheduled") continue;
-    if (item.status === "failed" && !item.renderId) continue;
-    if (room <= 0) break;
+    if (item.status === "failed" && !item.renderId && !item.videoUrl) continue;
 
-    // Hard duplicate guard — never schedule the same story twice (manual or auto).
-    if (postedMap[item.storyId]) {
+    const alreadyPosted = postedMap[item.storyId];
+    const targets = missingPlatforms(alreadyPosted, platforms);
+    if (targets.length === 0) {
       item.status = "scheduled";
       item.error = null;
       item.updatedAt = nowIso;
       continue;
     }
+
+    // New stories consume a daily slot; filling missing channels on a partial
+    // post (e.g. YouTube-only) does not.
+    const isNewStory = !alreadyPosted || alreadyPosted.platforms.length === 0;
+    if (isNewStory && room <= 0) continue;
 
     try {
       let videoUrl = item.videoUrl ?? null;
@@ -524,7 +548,7 @@ async function publishDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
         contentLabel: `${item.symbol} · win story`,
         videoUrl,
         captions,
-        platforms,
+        platforms: targets,
         timing: {
           mode: "scheduled",
           baseIso,
@@ -533,25 +557,34 @@ async function publishDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
         createdBy: "cron:sr-audit-buffer-posts",
       });
 
-      if (result.status === "failed") {
+      const okPlatforms = result.results
+        .filter((r) => r.status === "posted" || r.status === "scheduled")
+        .map((r) => r.platform);
+      const errParts = result.results
+        .filter((r) => r.status === "failed" || r.status === "skipped")
+        .map((r) => `${r.platform}: ${r.error || r.status}`);
+
+      if (okPlatforms.length === 0) {
         item.status = "failed";
-        item.error = result.results.map((r) => r.error).filter(Boolean).join("; ") || "schedule_failed";
+        item.error = errParts.join("; ") || "schedule_failed";
         failed += 1;
       } else {
-        item.status = "scheduled";
-        item.scheduleId = result.id;
-        item.videoUrl = videoUrl;
-        item.error = null;
-        scheduled += 1;
-        room -= 1;
-        // Mark immediately so a later item / retry in this run can't double-post.
+        const merged = new Set([...(alreadyPosted?.platforms ?? []), ...okPlatforms]);
         postedMap[item.storyId] = {
           at: nowIso,
-          status: result.status,
-          platforms: result.results
-            .filter((r) => r.status === "posted" || r.status === "scheduled")
-            .map((r) => r.platform),
+          status: merged.size >= platforms.length ? "ok" : "partial",
+          platforms: [...merged] as SocialPlatformId[],
         };
+        item.status = fullyPosted(postedMap[item.storyId], platforms) ? "scheduled" : "partial";
+        item.scheduleId = result.id;
+        item.videoUrl = videoUrl;
+        item.error = errParts.length ? errParts.join("; ") : null;
+        if (isNewStory) {
+          scheduled += 1;
+          room -= 1;
+        } else {
+          scheduled += 1; // count fill-ins in the summary too
+        }
       }
       item.updatedAt = nowIso;
     } catch (e) {

@@ -140,7 +140,10 @@ function networkMetadata(input: CreateBufferPostInput): string | null {
         ? `metadata: { instagram: { type: post, shouldShareToFeed: true } }`
         : `metadata: { instagram: { type: reel, shouldShareToFeed: true } }`;
     case "facebook":
-      return `metadata: { facebook: { type: post } }`;
+      // Vertical win-story MP4s are Reels; `type: post` often fails for video-only.
+      return isImage
+        ? `metadata: { facebook: { type: post } }`
+        : `metadata: { facebook: { type: reel } }`;
     case "youtube": {
       const title = (input.youtubeTitle?.trim() || input.text.trim())
         .replace(/\s+/g, " ")

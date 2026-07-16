@@ -138,15 +138,24 @@ export function qualifySuccessStory(
 export interface FindSuccessStoriesOpts {
   /** Only consider events whose entry is within this many days. */
   withinDays?: number;
-  /** How many recent events to scan. */
+  /** How many events to scan from Firestore (direction depends on `order`). */
   scanLimit?: number;
   /** Only return stories that have a stored candle snapshot (chart-ready). */
   requireSnapshot?: boolean;
+  /** Minimum realized favorable move % (exclusive). Default: no extra floor beyond qualify. */
+  minMovePct?: number;
+  /**
+   * Ranking:
+   * - `score` (default) — strongest / freshest first (admin headline pick)
+   * - `oldest` — drain backlog chronologically (Buffer auto-post)
+   * - `newest` — most recent eventAt first
+   */
+  order?: "score" | "oldest" | "newest";
 }
 
 /**
- * Scan recent SR events (open or resolved) and return qualifying success
- * stories, ranked best-first. Pure selection — candle loading is separate.
+ * Scan SR events (open or resolved) and return qualifying success stories.
+ * Pure selection — candle loading is separate.
  */
 export async function findSuccessStories(
   db: Firestore,
@@ -154,23 +163,44 @@ export async function findSuccessStories(
 ): Promise<SuccessStoryCandidate[]> {
   const withinDays = opts.withinDays ?? 45;
   const scanLimit = opts.scanLimit ?? 300;
-
-  const snap = await db
-    .collection(SR_ZONE_EVENTS_COLLECTION)
-    .orderBy("eventAt", "desc")
-    .limit(scanLimit)
-    .get();
-
+  const order = opts.order ?? "score";
   const cutoffMs = Date.now() - withinDays * 86_400_000;
+  const cutoffIso = new Date(cutoffMs).toISOString();
+
+  // Oldest-first: range from cutoff ascending so we drain the backlog chronologically.
+  // Score/newest: newest-first scan (admin headline behaviour).
+  const snap =
+    order === "oldest"
+      ? await db
+          .collection(SR_ZONE_EVENTS_COLLECTION)
+          .where("eventAt", ">=", cutoffIso)
+          .orderBy("eventAt", "asc")
+          .limit(scanLimit)
+          .get()
+      : await db
+          .collection(SR_ZONE_EVENTS_COLLECTION)
+          .orderBy("eventAt", "desc")
+          .limit(scanLimit)
+          .get();
+
   const out: SuccessStoryCandidate[] = [];
 
   for (const doc of snap.docs) {
     const event = { id: doc.id, ...(doc.data() as SrZoneEvent) };
     if (event.eventAt && Date.parse(event.eventAt) < cutoffMs) continue;
     const candidate = qualifySuccessStory(event);
-    if (candidate && (!opts.requireSnapshot || candidate.hasSnapshot)) out.push(candidate);
+    if (!candidate) continue;
+    if (opts.requireSnapshot && !candidate.hasSnapshot) continue;
+    if (opts.minMovePct != null && !(candidate.movePct > opts.minMovePct)) continue;
+    out.push(candidate);
   }
 
-  out.sort((a, b) => b.score - a.score);
+  if (order === "oldest") {
+    out.sort((a, b) => Date.parse(a.eventAt) - Date.parse(b.eventAt));
+  } else if (order === "newest") {
+    out.sort((a, b) => Date.parse(b.eventAt) - Date.parse(a.eventAt));
+  } else {
+    out.sort((a, b) => b.score - a.score);
+  }
   return out;
 }

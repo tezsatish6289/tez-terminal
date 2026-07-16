@@ -423,6 +423,11 @@ export default function SrAuditAdminPage() {
               In-zone support/resistance entries (stocks). Events stay open until invalidation or
               zone flip; outcomes scored hourly from Dhan klines.
             </p>
+            <p className="text-[10px] text-muted-foreground/40 mt-1 max-w-2xl">
+              Buffer auto: up to 3 reels/day with move &gt; 3%, oldest unposted first — prepare ~7:00 PM
+              IST, publish at 9:00 PM IST (channel jitter, no duplicate stories) via{" "}
+              <code className="text-white/50">/api/cron/sr-audit-buffer-posts</code>.
+            </p>
             {summary?.lastOutcomeCronAt ? (
               <p className="text-[10px] text-muted-foreground/40 mt-1">
                 Last outcome cron{" "}

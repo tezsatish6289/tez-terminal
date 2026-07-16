@@ -360,8 +360,8 @@ function MobilePrompt({
       >
         <p className="text-lg font-bold text-white">Add your mobile number</p>
         <p className="mt-1 text-[13px] leading-relaxed text-slate-400">
-          Our payment partner needs a contact number to process the payment. We'll save it for
-          your next purchase.
+          Our payment partner needs a contact number to process the payment. We store it encrypted
+          for checkout only — no spam, never sold.
         </p>
 
         <div

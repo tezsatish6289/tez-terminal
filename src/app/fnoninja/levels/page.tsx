@@ -1670,11 +1670,13 @@ export default function LevelsPage() {
   // Expired member sitting on a premium slideshow view → wall the centre while
   // the (blurred) content stays behind it. Bubble map is deliberately never
   // walled; guests are handled by the sign-in gate above.
+  // Phone-blocked trial users get FnoNinjaPhoneGate (not the subscribe paywall).
   const showSlidePaywall =
     isSlideView &&
     entAuthenticated &&
     !entSubscription.isLoading &&
-    !entSubscription.isActive;
+    !entSubscription.isActive &&
+    !entSubscription.phoneBlocksAccess;
 
   const levelsWorkspace = (
     <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 max-md:flex-none max-md:overflow-visible md:overflow-hidden">

@@ -48,8 +48,12 @@ function ChartContent() {
   // Deep dive is walled for a logged-in member whose access has lapsed. Guests
   // (no auth) still get the public charts — that's the acquisition preview.
   const { subscription, isAuthenticated } = useEntitlements();
+  // Phone-blocked trial users get FnoNinjaPhoneGate (not the subscribe paywall).
   const showPaywall =
-    isAuthenticated && !subscription.isLoading && !subscription.isActive;
+    isAuthenticated &&
+    !subscription.isLoading &&
+    !subscription.isActive &&
+    !subscription.phoneBlocksAccess;
 
   const [levels, setLevels] = useState<PublicLevels | null>(null);
   const [displayTone, setDisplayTone] = useState<BubbleTone | null>(null);

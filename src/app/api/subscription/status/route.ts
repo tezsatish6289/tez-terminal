@@ -9,6 +9,11 @@ import {
   type SubscriptionDoc,
 } from "@/lib/subscription";
 import { syncChatAccess } from "@/lib/chat/access";
+import {
+  PHONE_TRIAL_CLAIMS_COLLECTION,
+  phoneGraceEndsAt,
+  shouldBlockTrialForPhone,
+} from "@/lib/fnoninja/phone-verify";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +35,7 @@ export async function GET(request: NextRequest) {
     const photo = searchParams.get("photo");
 
     const db = getAdminFirestore();
+    const userRef = db.collection("users").doc(uid);
 
     if (name || email) {
       const profileData: Record<string, string> = {};
@@ -37,7 +43,7 @@ export async function GET(request: NextRequest) {
       if (email) profileData.email = email;
       if (photo) profileData.photoURL = photo;
       profileData.lastSeenAt = new Date().toISOString();
-      await db.collection("users").doc(uid).set(profileData, { merge: true });
+      await userRef.set(profileData, { merge: true });
     }
 
     const product = searchParams.get("product");
@@ -46,24 +52,66 @@ export async function GET(request: NextRequest) {
     const subRef = db.collection("subscriptions").doc(uid);
     let subSnap = await subRef.get();
     let trialJustActivated = false;
+    let trialDeniedPhoneReuse = false;
+
+    const userSnap = await userRef.get();
+    const userData = userSnap.data() ?? {};
+    const products = Array.isArray(userData.products) ? userData.products : [];
+    const isFnoUser = product === "fnoninja" || products.includes("fnoninja");
+    const phoneVerified =
+      typeof userData.phoneVerifiedAt === "string" && !!userData.phoneVerifiedAt;
+    const phoneHash = typeof userData.phoneHash === "string" ? userData.phoneHash : null;
+    const fnoninjaJoinedAt =
+      typeof userData.fnoninjaJoinedAt === "string" ? userData.fnoninjaJoinedAt : null;
 
     if (!subSnap.exists) {
-      const now = new Date();
-      const trialEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+      // If this account already has a verified phone that powered someone else's
+      // trial, do not grant a fresh free trial.
+      if (phoneVerified && phoneHash) {
+        const claimSnap = await db.collection(PHONE_TRIAL_CLAIMS_COLLECTION).doc(phoneHash).get();
+        if (claimSnap.exists && claimSnap.data()?.uid && claimSnap.data()?.uid !== uid) {
+          trialDeniedPhoneReuse = true;
+          const now = new Date();
+          const newSub: SubscriptionDoc = {
+            userId: uid,
+            status: "expired",
+            tier: "free",
+            trialStartDate: now.toISOString(),
+            trialEndDate: now.toISOString(),
+            subscriptionEndDate: null,
+            createdAt: now.toISOString(),
+          };
+          await subRef.set(newSub);
+          subSnap = await subRef.get();
+        }
+      }
 
-      const newSub: SubscriptionDoc = {
-        userId: uid,
-        status: "trial",
-        tier: "free",
-        trialStartDate: now.toISOString(),
-        trialEndDate: trialEnd.toISOString(),
-        subscriptionEndDate: null,
-        createdAt: now.toISOString(),
-      };
+      if (!subSnap.exists) {
+        const now = new Date();
+        const trialEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
 
-      await subRef.set(newSub);
-      subSnap = await subRef.get();
-      trialJustActivated = true;
+        const newSub: SubscriptionDoc = {
+          userId: uid,
+          status: "trial",
+          tier: "free",
+          trialStartDate: now.toISOString(),
+          trialEndDate: trialEnd.toISOString(),
+          subscriptionEndDate: null,
+          createdAt: now.toISOString(),
+        };
+
+        await subRef.set(newSub);
+        subSnap = await subRef.get();
+        trialJustActivated = true;
+
+        // Bind verified phone → this trial so it can't unlock another account later.
+        if (phoneVerified && phoneHash) {
+          await db
+            .collection(PHONE_TRIAL_CLAIMS_COLLECTION)
+            .doc(phoneHash)
+            .set({ uid, claimedAt: now.toISOString(), phoneHash }, { merge: true });
+        }
+      }
     }
 
     const data = subSnap.data() as SubscriptionDoc;
@@ -100,10 +148,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const phoneBlocksAccess =
+      isFnoUser &&
+      shouldBlockTrialForPhone({
+        phoneVerified,
+        subscriptionStatus: effectiveStatus,
+        fnoninjaJoinedAt,
+        nowMs: now,
+      });
+
+    const subscriptionActive = effectiveStatus === "trial" || effectiveStatus === "active";
+    const isActive = subscriptionActive && !phoneBlocksAccess;
+
     // Keep the community-chat access mirror in sync with subscription state.
     // trial/active => can chat; expired => cannot. Best-effort; never blocks
-    // the status response.
-    const canChat = effectiveStatus === "trial" || effectiveStatus === "active";
+    // the status response. Phone-blocked trial users keep chat during grace only.
+    const canChat = isActive;
     void syncChatAccess(uid, canChat, { displayName: name, email, photoURL: photo }).catch(
       (e) => console.error("[Subscription Status] chat access sync failed", e)
     );
@@ -116,7 +176,7 @@ export async function GET(request: NextRequest) {
       status: effectiveStatus,
       tier,
       isTrial: effectiveStatus === "trial",
-      isActive: effectiveStatus === "trial" || effectiveStatus === "active",
+      isActive,
       isExpired: effectiveStatus === "expired",
       daysRemaining,
       hoursRemaining: getSubscriptionHoursRemaining(effectiveSub),
@@ -127,6 +187,10 @@ export async function GET(request: NextRequest) {
       trialEndDate: data.trialEndDate,
       subscriptionEndDate: data.subscriptionEndDate,
       trialJustActivated,
+      phoneVerified: isFnoUser ? phoneVerified : undefined,
+      phoneGraceEndsAt: isFnoUser ? phoneGraceEndsAt(fnoninjaJoinedAt, now).toISOString() : undefined,
+      phoneBlocksAccess: isFnoUser ? phoneBlocksAccess : undefined,
+      trialDeniedPhoneReuse: trialDeniedPhoneReuse || undefined,
     });
   } catch (error: any) {
     console.error("[Subscription Status]", error.message);

@@ -2,6 +2,7 @@
 
 import { FnoNinjaAuthTracker } from "@/components/fnoninja/FnoNinjaAuthTracker";
 import { FnoNinjaDayPassReconciler } from "@/components/fnoninja/FnoNinjaDayPassReconciler";
+import { FnoNinjaPhoneGate } from "@/components/fnoninja/FnoNinjaPhoneGate";
 import { FnoNinjaPostLoginRedirect } from "@/components/fnoninja/FnoNinjaPostLoginRedirect";
 import { FnoNinjaTrialActivator } from "@/components/fnoninja/FnoNinjaTrialActivator";
 import { FnoNinjaUpgradePromptProvider } from "@/components/fnoninja/FnoNinjaUpgradePrompt";
@@ -15,6 +16,7 @@ export function FnoNinjaClientProviders({ children }: { children: React.ReactNod
         <FnoNinjaPostLoginRedirect />
         <FnoNinjaTrialActivator />
         <FnoNinjaDayPassReconciler />
+        <FnoNinjaPhoneGate />
         {children}
       </FnoNinjaUpgradePromptProvider>
     </FnoNinjaLiveslideWalkthroughProvider>

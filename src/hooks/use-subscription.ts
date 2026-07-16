@@ -17,6 +17,11 @@ export interface SubscriptionState {
   startDate: string | null;
   trialEndDate: string | null;
   subscriptionEndDate: string | null;
+  /** FNONINJA: OTP-verified mobile on file. */
+  phoneVerified: boolean;
+  /** FNONINJA: trial hard-blocked until phone verified (past 24h grace). */
+  phoneBlocksAccess: boolean;
+  phoneGraceEndsAt: string | null;
   isLoading: boolean;
   refresh: () => void;
 }
@@ -33,14 +38,17 @@ export function useSubscription(
     isExpired: false,
     daysRemaining: 0,
     hoursRemaining: 0,
-      showHours: false,
-      planCode: null,
-      autoRenew: null,
-      startDate: null,
-      trialEndDate: null,
-      subscriptionEndDate: null,
-      isLoading: true,
-    });
+    showHours: false,
+    planCode: null,
+    autoRenew: null,
+    startDate: null,
+    trialEndDate: null,
+    subscriptionEndDate: null,
+    phoneVerified: false,
+    phoneBlocksAccess: false,
+    phoneGraceEndsAt: null,
+    isLoading: true,
+  });
 
   // The uid the current state was actually fetched for. Lets us treat the state
   // as "still loading" the moment `uid` changes (e.g. auth resolves) until the
@@ -64,6 +72,9 @@ export function useSubscription(
         startDate: null,
         trialEndDate: null,
         subscriptionEndDate: null,
+        phoneVerified: false,
+        phoneBlocksAccess: false,
+        phoneGraceEndsAt: null,
         isLoading: false,
       });
       return;
@@ -74,6 +85,14 @@ export function useSubscription(
       if (profile?.name) params.set("name", profile.name);
       if (profile?.email) params.set("email", profile.email);
       if (profile?.photo) params.set("photo", profile.photo);
+      // FNONINJA host / path — request product-scoped trial + phone gate fields.
+      if (
+        typeof window !== "undefined" &&
+        (window.location.hostname.includes("fnoninja") ||
+          window.location.pathname.startsWith("/fnoninja"))
+      ) {
+        params.set("product", "fnoninja");
+      }
       const res = await fetch(`/api/subscription/status?${params}`);
       if (!res.ok) throw new Error("Failed to fetch subscription status");
       const data = await res.json();
@@ -92,6 +111,9 @@ export function useSubscription(
         startDate: data.startDate ?? null,
         trialEndDate: data.trialEndDate,
         subscriptionEndDate: data.subscriptionEndDate,
+        phoneVerified: data.phoneVerified === true,
+        phoneBlocksAccess: data.phoneBlocksAccess === true,
+        phoneGraceEndsAt: data.phoneGraceEndsAt ?? null,
         isLoading: false,
       });
       setLoadedUid(uid);

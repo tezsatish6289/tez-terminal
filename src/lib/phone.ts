@@ -1,18 +1,30 @@
 import "server-only";
 
+import crypto from "crypto";
 import { decrypt, encrypt } from "@/lib/crypto";
+import {
+  maskPhone,
+  normalizeIndianMobile,
+  toE164Indian,
+} from "@/lib/phone-format";
 
-/** Normalise to a valid 10-digit Indian mobile (6-9 leading), else null. */
-export function normalizeIndianMobile(raw?: string | null): string | null {
-  if (!raw) return null;
-  const digits = String(raw).replace(/\D/g, "");
-  const ten = digits.length > 10 ? digits.slice(-10) : digits;
-  return /^[6-9]\d{9}$/.test(ten) ? ten : null;
-}
+export { maskPhone, normalizeIndianMobile, toE164Indian };
 
 /** Encrypt a normalised mobile for at-rest storage (AES-256-GCM, base64). */
 export function encryptPhone(phone: string): string {
   return encrypt(phone);
+}
+
+/**
+ * Deterministic HMAC of a normalised Indian mobile for uniqueness indexes.
+ * Not reversible; safe to store as a document ID.
+ */
+export function hashPhone(normalized10: string): string {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key || key.length < 32) {
+    throw new Error("ENCRYPTION_KEY env var must be at least 32 characters");
+  }
+  return crypto.createHmac("sha256", key).update(`fnoninja:phone:in:${normalized10}`).digest("hex");
 }
 
 /**
@@ -37,8 +49,7 @@ export function readStoredPhone(
   return null;
 }
 
-/** Masks a mobile for display, e.g. "9876543210" → "98••••3210". */
-export function maskPhone(phone: string | null): string | null {
-  if (!phone || phone.length < 6) return phone;
-  return `${phone.slice(0, 2)}••••${phone.slice(-4)}`;
+/** Parse E.164 / Firebase phone_number into a normalised Indian mobile. */
+export function normalizeFromFirebasePhone(raw?: string | null): string | null {
+  return normalizeIndianMobile(raw);
 }

@@ -9,11 +9,9 @@ export interface GuestBubbleLabel {
   mode: GuestBubbleLabelMode;
 }
 
-/** Zone setups + confirmed directional signals — teased for signed-out users. */
+/** Zone setups — teased for signed-out users. */
 export function isGuestInterestingTone(tone: BubbleTone): boolean {
   return (
-    tone === "BULLISH" ||
-    tone === "BEARISH" ||
     tone === "IN_BULL" ||
     tone === "IN_BEAR" ||
     tone === "NEAR_BULL" ||

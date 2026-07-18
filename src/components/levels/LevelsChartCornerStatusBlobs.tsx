@@ -16,7 +16,7 @@ export type LevelsChartStatusOverlayProps = {
 const DEFAULT_RIGHT_INSET_PX = 100;
 
 /**
- * Bullish/Bearish + IV regime blobs anchored to the top-right of the chart grid,
+ * Zone status + IV regime blobs anchored to the top-right of the chart grid,
  * sitting just left of the right price scale (not in the page header).
  */
 export function LevelsChartCornerStatusBlobs({

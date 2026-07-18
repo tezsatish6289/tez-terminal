@@ -158,7 +158,7 @@ export const NativeCandlesChart = forwardRef<
     intradayLookbackDays?: number;
     /** Intraday: thin text-only Max Pain tag on the left (line always on chart). */
     compactMaxPainLabel?: boolean;
-    /** Bullish + IV regime blobs in the chart corner (not the page header). */
+    /** Zone status + IV regime blobs in the chart corner (not the page header). */
     statusOverlay?: LevelsChartStatusOverlayProps | null;
   }
 >(function NativeCandlesChart(

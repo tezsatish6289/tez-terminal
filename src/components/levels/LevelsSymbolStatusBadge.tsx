@@ -9,18 +9,6 @@ const { bull, bear } = LEVELS_ZONE_CHART;
 type ToneBadgeMeta = { label: string; color: string; bg: string; Icon: LucideIcon };
 
 const TONE_BADGE_META: Record<BubbleTone, ToneBadgeMeta> = {
-  BULLISH: {
-    label: "Bullish",
-    color: bull.badgeText,
-    bg: "rgba(21, 128, 61, 0.35)",
-    Icon: TrendingUp,
-  },
-  BEARISH: {
-    label: "Bearish",
-    color: bear.badgeText,
-    bg: "rgba(153, 27, 27, 0.35)",
-    Icon: TrendingDown,
-  },
   IN_BULL: {
     label: "At Support",
     color: bull.badgeText,
@@ -71,7 +59,7 @@ const TONE_BADGE_META: Record<BubbleTone, ToneBadgeMeta> = {
   },
 };
 
-/** Zone / confirmed-signal pill for slideshow chips and chart headers. */
+/** Zone-status pill for slideshow chips and chart headers. */
 export function LevelsSymbolStatusBadge({
   tone,
   size = "chip",

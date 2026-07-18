@@ -30,7 +30,6 @@ import { FNO_LEVELS_MAIN, FNO_LEVELS_SHELL } from "@/lib/fnoninja/responsive";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
-import { withoutConfirmedSignalTone } from "@/lib/zones/bubble-tone";
 import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 
 /** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
@@ -94,14 +93,6 @@ function ChartContent() {
       daysToEarnings: lv?.daysToEarnings,
     };
   }, [chartLevels, displayTone, levels]);
-
-  /** PVT-confirmed Bullish/Bearish belongs on the trend chart only, not 15m intraday. */
-  const intradayStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
-    return {
-      ...chartStatusOverlay,
-      statusTone: withoutConfirmedSignalTone(chartStatusOverlay.statusTone),
-    };
-  }, [chartStatusOverlay]);
 
   const loadLevels = useCallback(
     async (opts?: { quiet?: boolean }) => {
@@ -324,7 +315,7 @@ function ChartContent() {
               showHeader={false}
               nativeChartRef={nativeChartRef}
               onFullHistoryZoomChange={setChartFullHistory}
-              statusOverlay={intradayStatusOverlay}
+              statusOverlay={chartStatusOverlay}
             />
           )}
         </LevelsChartDeepDiveLayout>

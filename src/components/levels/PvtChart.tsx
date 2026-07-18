@@ -30,13 +30,6 @@ import {
 } from "@/components/levels/native-chart-level-overlays";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { fetchSymbolLevels } from "@/lib/levels/fetch-symbol-levels";
-import { liveConfirmedSignalFromCandles } from "@/lib/levels/live-confirmed-signal";
-import type {
-  ConfirmedSignal,
-  ConfirmedSignalContext,
-} from "@/lib/levels/confirmed-signal-core";
-import { applyConfirmedSignal, withoutConfirmedSignalTone } from "@/lib/zones/bubble-tone";
-import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 import { computePvt, PVT_LOOKBACK_DAYS } from "@/lib/levels/pvt";
 import {
   isSlideshowZoneStale,
@@ -231,7 +224,6 @@ export function PvtChart({
   className,
   showAttribution = true,
   statusOverlay,
-  onLiveSignal,
 }: {
   scope: LevelsTvScope;
   symbol: string;
@@ -241,12 +233,6 @@ export function PvtChart({
   className?: string;
   showAttribution?: boolean;
   statusOverlay?: LevelsChartStatusOverlayProps | null;
-  /**
-   * Reports the live PVT signal computed from the chart's own candles so callers
-   * (slideshow chip list) can reconcile their status badge with what the chart
-   * actually shows. Fires only when a definitive signal can be evaluated.
-   */
-  onLiveSignal?: (scope: LevelsTvScope, symbol: string, signal: ConfirmedSignal | null) => void;
 }) {
   const overlayRootRef = useRef<HTMLDivElement>(null);
   const candleContainerRef = useRef<HTMLDivElement>(null);
@@ -262,7 +248,6 @@ export function PvtChart({
   const rangeSyncPausedRef = useRef(false);
   const [candles, setCandles] = useState<DailyCandle[] | null>(null);
   const [fetchedLevels, setFetchedLevels] = useState<PublicLevels | null>(null);
-  const [signalContext, setSignalContext] = useState<ConfirmedSignalContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [levelsLoading, setLevelsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -300,7 +285,6 @@ export function PvtChart({
   useEffect(() => {
     setRange("6M");
     setFetchedLevels(null);
-    setSignalContext(null);
     if (liveBarRetryRef.current != null) {
       window.clearTimeout(liveBarRetryRef.current);
       liveBarRetryRef.current = null;
@@ -326,7 +310,6 @@ export function PvtChart({
         });
         if (activeKeyRef.current !== reqKey) return;
         setFetchedLevels(json.data);
-        setSignalContext(json.signalContext ?? null);
       } catch {
         if (!opts?.quiet && activeKeyRef.current === reqKey) setFetchedLevels(null);
       } finally {
@@ -420,44 +403,6 @@ export function PvtChart({
   );
 
   const pvtSeries = useMemo(() => computePvt(displayCandles), [displayCandles]);
-
-  /**
-   * Live PVT signal from chart candles + dip anchor — no cron `currentPvt` lag.
-   * `undefined` means "can't evaluate yet" (don't override the chip); an explicit
-   * `null` is a definitive neutral read that should clear a stale bull/bear chip.
-   */
-  const liveSignal = useMemo<ConfirmedSignal | null | undefined>(() => {
-    const lv = effectiveLevels;
-    if (!signalContext || !candles?.length || !lv) return undefined;
-    return liveConfirmedSignalFromCandles(signalContext, candles, {
-      spot: lv.spot ?? null,
-      putClusterStrike: lv.putClusterStrike ?? null,
-      callClusterStrike: lv.callClusterStrike ?? null,
-    });
-  }, [signalContext, candles, effectiveLevels]);
-
-  const liveStatusOverlay = useMemo((): LevelsChartStatusOverlayProps | null => {
-    if (!statusOverlay) return null;
-    const lv = effectiveLevels;
-    if (liveSignal === undefined || !lv) return statusOverlay;
-
-    const geoTone =
-      withoutConfirmedSignalTone(statusOverlay.statusTone) ??
-      resolveSymbolDisplayTone(lv, { scanned: true, signal: null });
-
-    return {
-      ...statusOverlay,
-      statusTone: applyConfirmedSignal(geoTone, liveSignal),
-    };
-  }, [statusOverlay, liveSignal, effectiveLevels]);
-
-  // Surface the definitive live signal so the slideshow chip matches the chart.
-  const onLiveSignalRef = useRef(onLiveSignal);
-  onLiveSignalRef.current = onLiveSignal;
-  useEffect(() => {
-    if (liveSignal === undefined) return;
-    onLiveSignalRef.current?.(scope, symbol, liveSignal);
-  }, [liveSignal, scope, symbol]);
 
   const refreshPvtChartViewport = useCallback(() => {
     const candleChart = candleChartRef.current;
@@ -651,8 +596,8 @@ export function PvtChart({
           <div ref={overlayRootRef} className="relative min-h-0 flex-1 overflow-hidden">
             <div ref={candleContainerRef} className="absolute inset-0" />
             {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candles" /> : null}
-            {candlesReady && liveStatusOverlay ? (
-              <LevelsChartCornerStatusBlobs {...liveStatusOverlay} rightInsetPx={96} visible />
+            {candlesReady && statusOverlay ? (
+              <LevelsChartCornerStatusBlobs {...statusOverlay} rightInsetPx={96} visible />
             ) : null}
             {showClusterLabels ? (
               <LevelsChartClusterBandLabels

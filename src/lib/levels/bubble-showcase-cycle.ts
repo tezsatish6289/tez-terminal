@@ -16,8 +16,6 @@ export type BubbleShowcaseKey = (typeof BUBBLE_SHOWCASE_KEYS)[number];
 
 /** Signed-out /levels — auto-demo filter chip order (matches toolbar labels). */
 export const GUEST_LEVELS_FILTER_CYCLE_KEYS = [
-  "BULLISH",
-  "BEARISH",
   "IN_BULL",
   "NEAR_BULL",
   "IN_BEAR",

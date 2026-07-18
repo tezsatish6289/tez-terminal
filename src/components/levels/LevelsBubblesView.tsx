@@ -17,13 +17,11 @@ import {
 } from "@/lib/levels/bubble-physics";
 import { pickEmbedMobileLayoutItems } from "@/lib/levels/embed-mobile-layout";
 import {
-  applyConfirmedSignal,
   bubbleMapDisplayTone,
   deriveBubbleDisplayTone,
   resolveBubbleVisual,
   type BubbleTone,
 } from "@/lib/zones/bubble-tone";
-import type { ConfirmedSignal } from "@/lib/levels/confirmed-signal-core";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import {
@@ -655,7 +653,6 @@ export function buildLevelsBubbleItems(
   indices: { symbol?: string; label: string; data: PublicLevels | null }[],
   stockBySymbol: Map<string, StockBubbleSource>,
   stockUniverse?: readonly string[],
-  signals?: Record<string, ConfirmedSignal>,
 ): LevelsBubbleItem[] {
   const out: LevelsBubbleItem[] = [];
   const universe = stockUniverse?.length ? stockUniverse : FNO_UNIVERSE_ALPHA;
@@ -679,10 +676,7 @@ export function buildLevelsBubbleItems(
       symbol,
       label: it.label,
       scope: "index",
-      tone: applyConfirmedSignal(
-        deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset, oi),
-        signals?.[symbol],
-      ),
+      tone: deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset, oi),
       spot: bands.spot,
       poc,
       bands,
@@ -713,10 +707,7 @@ export function buildLevelsBubbleItems(
       symbol: sym,
       label: fnoCompanyName(sym) ?? st?.label ?? sym,
       scope: "stock",
-      tone: applyConfirmedSignal(
-        deriveBubbleDisplayTone(bands, scanned, actionable, poc, bandOffset, oi),
-        signals?.[sym],
-      ),
+      tone: deriveBubbleDisplayTone(bands, scanned, actionable, poc, bandOffset, oi),
       spot: bands.spot,
       poc,
       bands,

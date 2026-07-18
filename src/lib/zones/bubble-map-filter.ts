@@ -1,11 +1,9 @@
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
 import { BUBBLE_TONE_STYLE } from "@/lib/zones/bubble-tone";
 
-/** Active filter on the market bubbles map (replaces All / Bullish / Bearish). */
+/** Active filter on the market bubbles map. */
 export type BubbleMapFilter =
   | "all"
-  | "BULLISH"
-  | "BEARISH"
   | "IN_BULL"
   | "NEAR_BULL"
   | "IN_BEAR"
@@ -14,8 +12,6 @@ export type BubbleMapFilter =
   | "UNSCANNED";
 
 export const BUBBLE_MAP_FILTER_KEYS: Exclude<BubbleMapFilter, "all">[] = [
-  "BULLISH",
-  "BEARISH",
   "IN_BULL",
   "NEAR_BULL",
   "IN_BEAR",
@@ -24,12 +20,10 @@ export const BUBBLE_MAP_FILTER_KEYS: Exclude<BubbleMapFilter, "all">[] = [
   "UNSCANNED",
 ];
 
-/** Slideshow strip — confirmed signals + zone setups (no max pain / neutral / awaiting scan). */
+/** Slideshow strip — zone setups (no max pain / awaiting scan). */
 export type SlideshowMapFilter = Exclude<BubbleMapFilter, "UNSCANNED" | "AT_POC">;
 
 export const SLIDESHOW_MAP_FILTER_KEYS: Exclude<SlideshowMapFilter, "all">[] = [
-  "BULLISH",
-  "BEARISH",
   "IN_BULL",
   "NEAR_BULL",
   "IN_BEAR",
@@ -37,8 +31,6 @@ export const SLIDESHOW_MAP_FILTER_KEYS: Exclude<SlideshowMapFilter, "all">[] = [
 ];
 
 const SLIDESHOW_STRIP_TONES = new Set<BubbleTone>([
-  "BULLISH",
-  "BEARISH",
   "IN_BULL",
   "NEAR_BULL",
   "IN_BEAR",
@@ -68,8 +60,6 @@ export function countBubbleMapFilters(
 ): Record<BubbleMapFilter, number> {
   const out: Record<BubbleMapFilter, number> = {
     all: items.length,
-    BULLISH: 0,
-    BEARISH: 0,
     IN_BULL: 0,
     NEAR_BULL: 0,
     IN_BEAR: 0,
@@ -79,12 +69,6 @@ export function countBubbleMapFilters(
   };
   for (const it of items) {
     switch (it.tone) {
-      case "BULLISH":
-        out.BULLISH += 1;
-        break;
-      case "BEARISH":
-        out.BEARISH += 1;
-        break;
       case "IN_BULL":
         out.IN_BULL += 1;
         break;
@@ -116,8 +100,6 @@ export function countSlideshowMapFilters(
   const eligible = items.filter((it) => isSlideshowStripTone(it.tone));
   const out: Record<SlideshowMapFilter, number> = {
     all: eligible.length,
-    BULLISH: 0,
-    BEARISH: 0,
     IN_BULL: 0,
     NEAR_BULL: 0,
     IN_BEAR: 0,
@@ -125,12 +107,6 @@ export function countSlideshowMapFilters(
   };
   for (const it of eligible) {
     switch (it.tone) {
-      case "BULLISH":
-        out.BULLISH += 1;
-        break;
-      case "BEARISH":
-        out.BEARISH += 1;
-        break;
       case "IN_BULL":
         out.IN_BULL += 1;
         break;
@@ -152,7 +128,5 @@ export function countSlideshowMapFilters(
 
 export function bubbleMapFilterLabel(filter: BubbleMapFilter): string {
   if (filter === "all") return "All";
-  if (filter === "BULLISH") return "Bullish";
-  if (filter === "BEARISH") return "Bearish";
   return BUBBLE_TONE_STYLE[filter].label;
 }

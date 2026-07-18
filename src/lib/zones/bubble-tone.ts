@@ -10,8 +10,6 @@ import type { BubbleMapFilter } from "@/lib/zones/bubble-map-filter";
 
 /** Visual tone for the levels bubble map (splits generic NEAR by closest band). */
 export type BubbleTone =
-  | "BULLISH"
-  | "BEARISH"
   | "IN_BULL"
   | "IN_BEAR"
   | "NEAR_BULL"
@@ -41,28 +39,6 @@ const { bull, bear } = LEVELS_ZONE_CHART;
 const BUBBLE_CORE_FILL = "rgba(10, 14, 22, 0.92)";
 
 export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
-  BULLISH: {
-    solid: true,
-    fill: "rgba(21, 128, 61, 0.92)",
-    glow: "0 0 26px rgba(34, 197, 94, 0.55), inset 0 0 14px rgba(134, 239, 172, 0.25)",
-    border: "rgba(134, 239, 172, 0.95)",
-    borderStyle: "solid",
-    borderWidth: 4,
-    label: "Bullish · PVT confirmed",
-    textColor: "#f0fdf4",
-    textMutedColor: "#bbf7d0",
-  },
-  BEARISH: {
-    solid: true,
-    fill: "rgba(153, 27, 27, 0.92)",
-    glow: "0 0 26px rgba(239, 68, 68, 0.55), inset 0 0 14px rgba(252, 165, 165, 0.25)",
-    border: "rgba(252, 165, 165, 0.95)",
-    borderStyle: "solid",
-    borderWidth: 4,
-    label: "Bearish · PVT confirmed",
-    textColor: "#fef2f2",
-    textMutedColor: "#fecaca",
-  },
   IN_BULL: {
     solid: false,
     fill: BUBBLE_CORE_FILL,
@@ -213,31 +189,6 @@ export function deriveBubbleDisplayTone(
   return geo;
 }
 
-/**
- * Confirmed PVT signal wins over any geographic tone: by definition price has
- * already left the dipped cluster, so the geo tone would otherwise read grey.
- */
-export function applyConfirmedSignal(
-  geoTone: BubbleTone,
-  signal: "bullish" | "bearish" | null | undefined,
-): BubbleTone {
-  if (signal === "bullish") return "BULLISH";
-  if (signal === "bearish") return "BEARISH";
-  return geoTone;
-}
-
-/** Confirmed PVT signal tones — only meaningful on the daily trend (PVT) chart. */
-export function isConfirmedSignalTone(tone: BubbleTone | null | undefined): boolean {
-  return tone === "BULLISH" || tone === "BEARISH";
-}
-
-/** Drop BULLISH/BEARISH for views where intraday price action is the focus. */
-export function withoutConfirmedSignalTone(
-  tone: BubbleTone | null | undefined,
-): BubbleTone | null {
-  return isConfirmedSignalTone(tone) ? null : (tone ?? null);
-}
-
 const INDEX_SILVER_RING = "rgba(192, 202, 214, 0.92)";
 
 /** Index bubbles are always largest; neutral indices use a silver ring. */
@@ -258,10 +209,6 @@ export function resolveBubbleVisual(
       glow: "0 0 18px rgba(148, 163, 184, 0.28)",
       label: tone === "UNSCANNED" ? base.label : "Index · between zones",
     };
-  }
-
-  if (tone === "BULLISH" || tone === "BEARISH") {
-    return { ...base, borderWidth: 5 };
   }
 
   if (tone === "IN_BULL" || tone === "IN_BEAR") {

@@ -29,7 +29,6 @@ import {
   type IndexZonesRefreshResult,
 } from "@/lib/index-zones-store";
 import { refreshOiMomentumSignals } from "@/lib/zones/oi-momentum-store";
-import { healOpenEventsPvt } from "@/lib/levels/heal-signal-pvt";
 
 export const dynamic = "force-dynamic";
 /** Background batch after() may run up to platform limit (apphosting timeoutSeconds). */
@@ -76,30 +75,6 @@ async function refreshOiMomentumIsolated(
   }
 }
 
-/**
- * Universe-wide confirmed-signal PVT refresh — recompute currentPvt for every
- * open SR event from daily candles so the bubble map / chips stay ~5-min fresh
- * during the session, not only for symbols a viewer opened. Daily-only (no
- * intraday Dhan klines), gated to market hours, and isolated so it never breaks
- * the zones batch.
- */
-async function healOpenEventsPvtIsolated(
-  db: ReturnType<typeof getAdminFirestore>,
-): Promise<void> {
-  if (!isNiftyOptionChainCronWindow()) return;
-  try {
-    const s = await healOpenEventsPvt(db);
-    console.log(
-      `[SuggestStockZones] PVT heal scanned=${s.scanned} symbols=${s.symbols} updated=${s.updated}`,
-    );
-  } catch (e) {
-    console.error(
-      "[SuggestStockZones] PVT heal pass failed (isolated):",
-      e instanceof Error ? e.message : String(e),
-    );
-  }
-}
-
 /** NSE index zones — runs before stock batch when stale (market-hours rules apply). */
 async function refreshIndexZonesIfNeeded(
   db: ReturnType<typeof getAdminFirestore>,
@@ -141,7 +116,6 @@ export async function GET(request: NextRequest) {
       const indexZones = await refreshIndexZonesIfNeeded(db);
       const summary = await runStockZonesBatch(db);
       await refreshOiMomentumIsolated(db);
-      await healOpenEventsPvtIsolated(db);
       const base = stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt);
       await recordStockZonesHeartbeat({
         ...base,
@@ -186,7 +160,6 @@ export async function GET(request: NextRequest) {
       const indexZones = await refreshIndexZonesIfNeeded(db);
       const summary = await runStockZonesBatch(db);
       await refreshOiMomentumIsolated(db);
-      await healOpenEventsPvtIsolated(db);
       console.log("[SuggestStockZones] background batch done", JSON.stringify(summary));
       const base = stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt);
       await recordStockZonesHeartbeat({
@@ -233,7 +206,6 @@ export async function POST(request: NextRequest) {
     const indexZones = await refreshIndexZonesIfNeeded(db, { force: true });
     const summary = await runStockZonesBatch(db, { symbolsOverride });
     await refreshOiMomentumIsolated(db);
-    await healOpenEventsPvtIsolated(db);
     const base = stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt);
     await recordStockZonesHeartbeat({
       ...base,

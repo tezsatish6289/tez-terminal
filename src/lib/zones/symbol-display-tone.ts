@@ -1,19 +1,16 @@
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import type { ConfirmedSignal } from "@/lib/levels/confirmed-signal-core";
 import {
-  applyConfirmedSignal,
   deriveBubbleDisplayTone,
   type BubbleTone,
 } from "@/lib/zones/bubble-tone";
 import { bandsFromLevels } from "@/lib/zones/levels-actionable-list";
 import { matchesSlideshowSetup } from "@/lib/zones/zone-status";
 
-/** Zone / confirmed-signal tone for chips and chart headers. */
+/** Zone tone for chips and chart headers. */
 export function resolveSymbolDisplayTone(
   data: PublicLevels | null | undefined,
   opts?: {
     scanned?: boolean;
-    signal?: ConfirmedSignal | null;
     spotOverride?: number | null;
   },
 ): BubbleTone {
@@ -28,7 +25,7 @@ export function resolveSymbolDisplayTone(
   const oi = data?.oi ?? null;
   const actionable =
     scanned && matchesSlideshowSetup(bands, poc, "all", bandOffset, oi);
-  const geo = deriveBubbleDisplayTone(
+  return deriveBubbleDisplayTone(
     bands,
     scanned,
     actionable,
@@ -36,5 +33,4 @@ export function resolveSymbolDisplayTone(
     bandOffset,
     oi,
   );
-  return applyConfirmedSignal(geo, opts?.signal ?? null);
 }

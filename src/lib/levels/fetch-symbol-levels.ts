@@ -5,14 +5,11 @@ import { levelsNeedMultiExpiryRefresh } from "@/lib/levels/multi-expiry-levels";
 import { symbolLevelsApiUrl } from "@/lib/levels/symbol-levels-api";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
-import type { ConfirmedSignalContext } from "@/lib/levels/confirmed-signal-core";
 
 type SymbolLevelsResponse = {
   label?: string;
   data: PublicLevels | null;
   displayTone?: BubbleTone;
-  /** Dip-anchored PVT context for live trend-chart signal evaluation. */
-  signalContext?: ConfirmedSignalContext | null;
   error?: string;
 };
 

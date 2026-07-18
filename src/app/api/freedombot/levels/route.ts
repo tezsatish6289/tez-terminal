@@ -48,8 +48,6 @@ import {
   normalizeIndexKey,
 } from "@/lib/index-zones-on-demand";
 import { indexDocId } from "@/lib/index-zones-store";
-import { getConfirmedSignalsCached, getConfirmedSignalContextsCached } from "@/lib/levels/confirmed-signal";
-import { healSymbolCurrentPvt } from "@/lib/levels/heal-signal-pvt";
 import { createRefreshGuard } from "@/lib/levels/levels-refresh-guard";
 import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
@@ -96,20 +94,12 @@ async function jsonSingleSymbol(body: {
   data: PublicLevels | null;
   [key: string]: unknown;
 }) {
-  const db = getAdminFirestore();
-  const [signals, signalContexts] = await Promise.all([
-    getConfirmedSignalsCached(db),
-    getConfirmedSignalContextsCached(db),
-  ]);
-  const sym = body.symbol.toUpperCase();
   return NextResponse.json(
     {
       ...body,
       displayTone: resolveSymbolDisplayTone(body.data, {
         scanned: Boolean(body.data),
-        signal: signals[sym] ?? null,
       }),
-      signalContext: signalContexts[sym] ?? null,
     },
     NO_STORE_HEADERS,
   );
@@ -365,12 +355,6 @@ export async function GET(request: NextRequest) {
     const explicitCompute = params.get("compute") === "1";
     const forceRefresh = params.get("refresh") === "1" || explicitCompute;
     const scope = params.get("scope");
-    // Self-heal this symbol's live PVT on its open SR event(s) so the bubble map
-    // / chips converge to the trend-chart truth during market hours. Throttled +
-    // best-effort; runs after the response so it adds no latency. A left-open
-    // Liveslide rotates through the in-zone set and keeps it fresh for free.
-    const healScope = scope === "index" ? "index" : "stock";
-    after(() => healSymbolCurrentPvt(getAdminFirestore(), healScope, symbol));
     if (scope === "index") {
       return getSingleIndex(symbol, forceRefresh, explicitCompute);
     }
@@ -378,11 +362,10 @@ export async function GET(request: NextRequest) {
     return getSingleStock(symbol, forceRefresh, slideshowPriority, explicitCompute);
   }
 
-  const [indexDocs, stockAgg, fnoUniverse, signals] = await Promise.all([
+  const [indexDocs, stockAgg, fnoUniverse] = await Promise.all([
     Promise.all(INDEX_KEYS.map((k) => readDoc(`config/suggested_index_zones_${k}`))),
     readDoc(STOCK_AGGREGATE_DOC),
     loadFnoUniverse(getAdminFirestore()),
-    getConfirmedSignalsCached(getAdminFirestore()),
   ]);
 
   const indices = INDEX_KEYS.map((k, i) => {
@@ -432,7 +415,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json(
-    { indices, stocks, inZone, signals, fnoUniverse: [...fnoUniverse], updatedAt: new Date().toISOString() },
+    { indices, stocks, inZone, fnoUniverse: [...fnoUniverse], updatedAt: new Date().toISOString() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

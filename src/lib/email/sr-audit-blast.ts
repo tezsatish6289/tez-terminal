@@ -17,6 +17,8 @@ import type { SocialPlatformId } from "@/lib/social/platforms";
 export const EMAIL_BLASTS_COLLECTION = "email_blasts";
 
 const WEBSITE = "https://fnoninja.com";
+/** PNG profile mark — Gmail/Outlook render this reliably (SVG often blocked). */
+const LOGO_URL = `${WEBSITE}/fnoninja/social/twitter/profile-400x400.png`;
 const BATCH = 25;
 const BATCH_DELAY_MS = 200;
 
@@ -67,30 +69,79 @@ export function buildSrAuditEmailSubject(
   return `${contentLabel} | FNO Ninja Win Recap`.slice(0, 120);
 }
 
-function bodyParagraph(
+interface WinEmailMeta {
+  label: string;
+  movePct: string | null;
+  summary: string;
+  entrySpot: string | null;
+  maxPain: string | null;
+  timeline: string | null;
+  preheader: string;
+}
+
+function storyLabel(contentLabel: string): string {
+  return contentLabel.split("·")[0]?.trim() || contentLabel.trim() || "Win story";
+}
+
+function parseWinEmailMeta(
   captions: Partial<Record<SocialPlatformId, string>>,
   contentLabel: string,
-): string {
-  const fb = captions.facebook?.trim();
-  if (fb) {
-    // Drop hashtag / CTA / disclaimer lines for a cleaner email body.
-    const lines = fb
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(
-        (l) =>
-          l &&
-          !l.startsWith("#") &&
-          !l.startsWith("http") &&
-          !/educational recap/i.test(l) &&
-          !/see live wall/i.test(l) &&
-          !/success story/i.test(l) &&
-          l !== "🎯",
-      );
-    const text = lines.slice(0, 4).join(" ").replace(/\s+/g, " ").trim();
-    if (text) return text;
-  }
-  return `${contentLabel} — watch the win-story recap.`;
+): WinEmailMeta {
+  const label = storyLabel(contentLabel);
+  const yt = captions.youtube?.trim() ?? "";
+  const ytTitle = yt.split(/\n{2,}/)[0]?.trim() ?? "";
+  const ytBody = yt.split(/\n{2,}/).slice(1).join("\n");
+  const fb = captions.facebook?.trim() ?? "";
+  const blob = [ytTitle, ytBody, fb, captions.linkedin ?? ""].join("\n");
+
+  const moveMatch = blob.match(/\+(\d+(?:\.\d+)?)%/);
+  const movePct = moveMatch?.[1] ?? null;
+
+  const entryMatch = blob.match(/(?:near|around|off)\s+(₹[\d,.]+)/i);
+  const maxPainMatch = blob.match(/max[- ]pain[^₹\n]*?(₹[\d,.]+)/i);
+  const timelineMatch = blob.match(/Entered\s+([^\n→]+)→\s*target hit\s+([^\n.]+)/i);
+
+  const summaryLines = fb
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(
+      (l) =>
+        l &&
+        !l.startsWith("#") &&
+        !l.startsWith("http") &&
+        !/educational recap/i.test(l) &&
+        !/see live wall/i.test(l) &&
+        !/success story/i.test(l) &&
+        !/^entered\s+/i.test(l) &&
+        l !== "🎯",
+    );
+  const summary =
+    summaryLines[0]?.replace(/\s+/g, " ").trim() ||
+    ytBody.split("\n").find((l) => l.trim() && !l.startsWith("#"))?.trim() ||
+    `${label} ran${movePct ? ` +${movePct}%` : ""} to max pain — watch the win-story recap.`;
+
+  const preheader = movePct
+    ? `${label} ran +${movePct}% to max pain`
+    : `${label} win-story recap from FNO Ninja`;
+
+  return {
+    label,
+    movePct,
+    summary,
+    entrySpot: entryMatch?.[1] ?? null,
+    maxPain: maxPainMatch?.[1] ?? null,
+    timeline: timelineMatch
+      ? `${timelineMatch[1].trim()} → ${timelineMatch[2].trim()}`
+      : null,
+    preheader,
+  };
+}
+
+function factRow(label: string, value: string): string {
+  return `<tr>
+    <td style="padding:8px 0;font-size:12px;color:#94a3b8;width:38%;border-bottom:1px solid rgba(90,140,220,0.12);">${escapeHtml(label)}</td>
+    <td style="padding:8px 0;font-size:13px;color:#e2e8f0;font-weight:600;text-align:right;border-bottom:1px solid rgba(90,140,220,0.12);">${escapeHtml(value)}</td>
+  </tr>`;
 }
 
 export function buildSrAuditEmailHtml(input: {
@@ -98,32 +149,84 @@ export function buildSrAuditEmailHtml(input: {
   videoUrl: string;
   captions: Partial<Record<SocialPlatformId, string>>;
 }): string {
-  const para = escapeHtml(bodyParagraph(input.captions, input.contentLabel));
-  const label = escapeHtml(input.contentLabel);
+  const meta = parseWinEmailMeta(input.captions, input.contentLabel);
+  const label = escapeHtml(meta.label);
+  const summary = escapeHtml(meta.summary);
   const videoUrl = escapeHtml(input.videoUrl);
   const site = escapeHtml(WEBSITE);
+  const logo = escapeHtml(LOGO_URL);
+  const preheader = escapeHtml(meta.preheader);
+  const moveLine = meta.movePct
+    ? `<p style="margin:4px 0 0;font-size:28px;line-height:1.1;font-weight:800;color:#4ade80;letter-spacing:-0.02em;">+${escapeHtml(meta.movePct)}%</p>
+       <p style="margin:4px 0 0;font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#86efac;">to max pain</p>`
+    : `<p style="margin:6px 0 0;font-size:13px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#93c5fd;">Win story recap</p>`;
+
+  const factRows = [
+    meta.entrySpot ? factRow("Entry zone", meta.entrySpot) : "",
+    meta.maxPain ? factRow("Max pain", meta.maxPain) : "",
+    meta.timeline ? factRow("Timeline", meta.timeline) : "",
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const factsBlock = factRows
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">${factRows}</table>`
+    : "";
 
   return `<!DOCTYPE html>
 <html>
-<body style="margin:0;padding:0;background:#0b1220;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#e2e8f0;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1220;padding:32px 16px;">
+<body style="margin:0;padding:0;background:#070d1a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#e2e8f0;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${preheader}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#070d1a;padding:28px 14px;">
     <tr><td align="center">
-      <table role="presentation" width="100%" style="max-width:560px;background:#0d1830;border:1px solid rgba(90,140,220,0.25);border-radius:16px;padding:28px;">
-        <tr><td>
-          <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#64748b;font-weight:700;">FNO Ninja</p>
-          <h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;color:#fff;">${label}</h1>
-          <p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#cbd5e1;">Hi {{{contact.first_name|there}}},</p>
-          <p style="margin:0 0 24px;font-size:15px;line-height:1.55;color:#cbd5e1;">${para}</p>
-          <p style="margin:0 0 28px;">
-            <a href="${videoUrl}" style="display:inline-block;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:10px;">▶ Watch the win story</a>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#0d1830;border:1px solid rgba(96,165,250,0.28);border-radius:18px;overflow:hidden;">
+        <tr><td style="height:4px;background:linear-gradient(90deg,#2563eb,#60a5fa);font-size:0;line-height:0;">&nbsp;</td></tr>
+        <tr><td style="padding:26px 28px 28px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+            <tr>
+              <td style="vertical-align:middle;padding-right:10px;">
+                <a href="${site}" style="text-decoration:none;">
+                  <img src="${logo}" width="36" height="36" alt="FNO Ninja" style="display:block;border-radius:10px;border:0;" />
+                </a>
+              </td>
+              <td style="vertical-align:middle;">
+                <p style="margin:0;font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#93c5fd;">FNO Ninja</p>
+                <p style="margin:2px 0 0;font-size:11px;color:#64748b;">Option-chain win recap</p>
+              </td>
+            </tr>
+          </table>
+
+          <h1 style="margin:0;font-size:26px;line-height:1.15;font-weight:800;color:#ffffff;letter-spacing:-0.02em;">${label}</h1>
+          ${moveLine}
+
+          <p style="margin:18px 0 0;font-size:15px;line-height:1.5;color:#cbd5e1;">Hi {{{contact.first_name|there}}},</p>
+          <p style="margin:8px 0 18px;font-size:15px;line-height:1.55;color:#94a3b8;">${summary}</p>
+
+          ${factsBlock}
+
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+            <tr>
+              <td align="center" style="background:#2563eb;border-radius:12px;">
+                <a href="${videoUrl}" style="display:block;padding:14px 20px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">
+                  &#9654;&nbsp; Watch the win story
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin:0 0 6px;font-size:12px;line-height:1.5;color:#94a3b8;">Educational recap only — not investment advice.</p>
+          <p style="margin:0 0 20px;font-size:13px;">
+            <a href="${site}" style="color:#60a5fa;text-decoration:none;font-weight:600;">See live wall + max-pain zones &#8594;</a>
           </p>
-          <p style="margin:0 0 8px;font-size:12px;line-height:1.5;color:#94a3b8;">Educational recap only — not investment advice.</p>
-          <p style="margin:0 0 24px;font-size:13px;"><a href="${site}" style="color:#60a5fa;text-decoration:none;">See live wall + max-pain zones → ${site}</a></p>
-          <hr style="border:none;border-top:1px solid rgba(90,140,220,0.2);margin:20px 0;" />
-          <p style="margin:0;font-size:11px;line-height:1.5;color:#64748b;">
-            Don&apos;t want these updates?
-            <a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color:#94a3b8;">Unsubscribe</a>
-          </p>
+
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="border-top:1px solid rgba(96,165,250,0.2);padding-top:16px;">
+              <p style="margin:0;font-size:12px;line-height:1.5;color:#94a3b8;">
+                Don&apos;t want these updates?
+                <a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color:#cbd5e1;text-decoration:underline;">Unsubscribe</a>
+              </p>
+            </td></tr>
+          </table>
         </td></tr>
       </table>
     </td></tr>

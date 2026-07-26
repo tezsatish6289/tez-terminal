@@ -163,3 +163,23 @@ env:
     secret: ZOHO_BILLING_WEBHOOK_SECRET
     availability:
       - RUNTIME
+  # Resend marketing Broadcasts — SR-audit win stories emailed to FNO Ninja users
+  # after a successful Buffer schedule. Create secrets before deploy:
+  #   firebase apphosting:secrets:set RESEND_API_KEY
+  # Non-secret identifiers can stay inline once the domain/segment are fixed.
+  - variable: RESEND_API_KEY
+    secret: RESEND_API_KEY
+    availability:
+      - RUNTIME
+  - variable: RESEND_SEGMENT_ID
+    value: "53d6b06d-e534-404f-bc02-bf7d243f96da"
+    availability:
+      - RUNTIME
+  - variable: RESEND_FROM
+    value: "FNO Ninja <hello@updates.fnoninja.com>"
+    availability:
+      - RUNTIME
+  - variable: RESEND_SR_AUDIT_EMAIL
+    value: "true"
+    availability:
+      - RUNTIME

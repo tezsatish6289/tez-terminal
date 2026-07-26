@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, CreditCard, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowUpRight, CreditCard, Loader2, Mail } from "lucide-react";
 import { useUser } from "@/firebase";
 import { useSubscription } from "@/hooks/use-subscription";
 import { fnoLoginHref, fnoMySubscriptionHref, fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import { formatInr } from "@/lib/fnoninja/pricing";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
 import type { Tier } from "@/lib/entitlements";
+import type { User } from "firebase/auth";
 
 const FNO_BORDER = "rgba(90,140,220,0.2)";
 
@@ -64,8 +66,114 @@ export function FnoNinjaMySubscriptionPage() {
       ) : !user ? (
         <SignInPrompt href={fnoLoginHref(pathname, fnoMySubscriptionHref(pathname))} />
       ) : (
-        <SubscriptionCard sub={sub} subscribeHref={subscribeHref} />
+        <div className="space-y-4">
+          <SubscriptionCard sub={sub} subscribeHref={subscribeHref} />
+          <EmailUpdatesCard user={user} />
+        </div>
       )}
+    </div>
+  );
+}
+
+function EmailUpdatesCard({ user }: { user: User }) {
+  const [enabled, setEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/fnoninja/email-preferences", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Failed to load email preferences");
+        const data = (await res.json()) as { emailUpdatesEnabled?: boolean };
+        if (!cancelled) setEnabled(data.emailUpdatesEnabled !== false);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  async function onToggle(next: boolean) {
+    setSaving(true);
+    setError(null);
+    const prev = enabled;
+    setEnabled(next);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/fnoninja/email-preferences", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ emailUpdatesEnabled: next }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "Failed to save");
+      }
+    } catch (e) {
+      setEnabled(prev);
+      setError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="rounded-2xl border p-6 sm:p-7"
+      style={{ border: `1px solid ${FNO_BORDER}`, backgroundColor: "#0d1830" }}
+    >
+      <div className="mb-4 flex items-center gap-2.5">
+        <Mail className="h-4 w-4 text-[#60a5fa]" />
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Email updates</p>
+          <p className="mt-0.5 text-sm font-semibold text-white">Win-story videos</p>
+        </div>
+      </div>
+      <p className="mb-4 text-[13px] leading-relaxed text-slate-400">
+        Get FNO Ninja win-story recaps by email when we publish them. You can opt out anytime.
+      </p>
+      {loading ? (
+        <div className="flex justify-center py-2">
+          <Loader2 className="h-4 w-4 animate-spin text-[#60a5fa]" />
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-white">{enabled ? "On" : "Off"}</p>
+            <p className="text-[11px] text-slate-500">
+              {enabled ? "You'll receive update emails" : "You won't receive update emails"}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            disabled={saving}
+            onClick={() => onToggle(!enabled)}
+            className="relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-60"
+            style={{ backgroundColor: enabled ? "#2563eb" : "rgba(148,163,184,0.35)" }}
+          >
+            <span
+              className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform"
+              style={{ left: enabled ? "1.35rem" : "0.15rem" }}
+            />
+          </button>
+        </div>
+      )}
+      {error ? <p className="mt-3 text-[12px] text-amber-300">{error}</p> : null}
     </div>
   );
 }

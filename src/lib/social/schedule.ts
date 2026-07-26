@@ -8,6 +8,7 @@
  */
 
 import "server-only";
+import { maybeSendSrAuditEmailBlast } from "@/lib/email/sr-audit-blast";
 import { getAdminFirestore } from "@/firebase/admin";
 import { createBufferPost, listChannels } from "@/lib/social/buffer";
 import {
@@ -183,6 +184,28 @@ export async function scheduleToBuffer(input: ScheduleInput): Promise<ScheduleRe
     id = doc.id;
   } catch (e) {
     console.error("[social/schedule] audit write failed (posts already sent):", e instanceof Error ? e.message : e);
+  }
+
+  // FNO Ninja marketing blast (Resend Broadcast) — never fails the Buffer publish.
+  if (anyOk && input.source === "sr-audit" && input.videoUrl) {
+    const emailResult = await maybeSendSrAuditEmailBlast({
+      contentId: input.contentId,
+      contentLabel: input.contentLabel,
+      videoUrl: input.videoUrl,
+      captions: input.captions,
+      scheduleId: id !== "unsaved" ? id : undefined,
+    });
+    if (emailResult.error) {
+      console.error("[social/schedule] sr-audit email blast failed:", emailResult.error);
+    } else if (emailResult.skipped) {
+      console.info("[social/schedule] sr-audit email blast skipped:", emailResult.skipped);
+    } else {
+      console.info(
+        "[social/schedule] sr-audit email blast sent:",
+        emailResult.broadcastId,
+        `synced=${emailResult.contactsSynced ?? 0}`,
+      );
+    }
   }
 
   return { id, status, results };

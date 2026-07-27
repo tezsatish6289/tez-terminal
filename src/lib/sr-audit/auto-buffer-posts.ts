@@ -143,15 +143,11 @@ async function releaseLock(db: Firestore): Promise<void> {
   }
 }
 
-/** Count successful sr-audit Buffer posts created on this IST calendar day. */
-export async function countPostedToday(db: Firestore, dayKey = istDayKey()): Promise<number> {
-  return (await listPostedToday(db, dayKey)).length;
-}
-
 /** Successful sr-audit posts whose createdAt falls on this IST calendar day. */
 export async function listPostedToday(
   db: Firestore,
   dayKey = istDayKey(),
+  opts?: { /** When true, only count evening auto-cron posts (ignore manual admin). */ autoOnly?: boolean },
 ): Promise<
   Array<{
     id: string;
@@ -191,6 +187,7 @@ export async function listPostedToday(
     };
     const at = d.createdAt ?? "";
     if (at < startIso || at > endIso) continue;
+    if (opts?.autoOnly && d.createdBy !== "cron:sr-audit-buffer-posts") continue;
     const live = (d.results ?? []).some(
       (r) => r.status === "posted" || r.status === "scheduled",
     );
@@ -210,6 +207,11 @@ export async function listPostedToday(
   }
   out.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   return out;
+}
+
+/** Count successful auto-cron sr-audit Buffer posts on this IST calendar day. */
+export async function countPostedToday(db: Firestore, dayKey = istDayKey()): Promise<number> {
+  return (await listPostedToday(db, dayKey, { autoOnly: true })).length;
 }
 
 async function loadDay(db: Firestore, dayKey: string): Promise<BufferAutoDayDoc> {

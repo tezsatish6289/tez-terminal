@@ -60,11 +60,13 @@ export async function GET(request: NextRequest) {
       listPostedToday(db, keyDay),
       db.collection("sr_audit_buffer_days").doc(keyDay).get(),
     ]);
+    const autoPosted = posted.filter((p) => p.createdBy === "cron:sr-audit-buffer-posts");
     return NextResponse.json({
       success: true,
       mode: "debug",
       dayKey: keyDay,
-      alreadyPostedToday: posted.length,
+      alreadyPostedToday: autoPosted.length,
+      manualPostedToday: posted.length - autoPosted.length,
       posts: posted,
       dayDoc: daySnap.exists ? daySnap.data() : null,
     });

@@ -20,6 +20,7 @@ import {
   analyzeCandlesForEvent,
   lastCandleCloseSinceEvent,
 } from "@/lib/sr-audit/score-logic";
+import { publishLiveSuccessStory } from "@/lib/sr-audit/publish-live-success-story";
 import type { SrZoneEvent } from "@/lib/sr-audit/types";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 
@@ -224,6 +225,23 @@ export async function scoreOpenSrZoneEvents(
           reachedTarget,
         });
         if (bars != null) candlesSnapshotAt = now;
+      }
+
+      // In-app FOMO (toast + Success Stories chat). Idempotent; Buffer/email stay evening.
+      const liveMovePct =
+        typeof pocHitPct === "number" && Number.isFinite(pocHitPct) ? pocHitPct : cumMfe;
+      if (stickyHitPoc && candlesSnapshotAt) {
+        void publishLiveSuccessStory({
+          eventId: doc.id,
+          event: { symbol: event.symbol, label: event.label, side: event.side },
+          movePct: liveMovePct,
+        }).catch((e) => {
+          console.error(
+            "[sr-audit] live success story publish failed",
+            doc.id,
+            e instanceof Error ? e.message : e,
+          );
+        });
       }
 
       const openPatch = {

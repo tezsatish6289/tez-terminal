@@ -3,13 +3,12 @@
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
-import { GENERAL_ROOM_ID } from "@/lib/chat/constants";
+import { GENERAL_ROOM_ID, isKnownRoom } from "@/lib/chat/constants";
 import { isFnoNinjaLandingPath } from "@/lib/fnoninja/paths";
 
 /**
  * Opens the community chat panel when the URL contains `?chat=1`.
- * Used by the landing "Join the community" CTA after sign-in redirect to the
- * bubble chart — terms/subscription gates still run inside ChatPanel.
+ * Optional `?room=<id>` (e.g. success-stories). Defaults to General.
  */
 export function FnoNinjaChatDeepLink() {
   const searchParams = useSearchParams();
@@ -24,11 +23,14 @@ export function FnoNinjaChatDeepLink() {
     if (isFnoNinjaLandingPath(pathname)) return;
 
     handled.current = true;
-    setRoomId(GENERAL_ROOM_ID);
+    const roomParam = searchParams.get("room")?.trim() ?? "";
+    const roomId = roomParam && isKnownRoom(roomParam) ? roomParam : GENERAL_ROOM_ID;
+    setRoomId(roomId);
     setOpen(true);
 
     const next = new URLSearchParams(searchParams.toString());
     next.delete("chat");
+    next.delete("room");
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [searchParams, pathname, router, setOpen, setRoomId]);

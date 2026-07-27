@@ -14,6 +14,8 @@ export const PNL_SCREENSHOTS_ROOM_ID = "pnl-screenshots";
 export const OFFERS_ROOM_ID = "offers";
 /** Stable id — existing announcement history lives under this room. */
 export const ANNOUNCEMENTS_ROOM_ID = "announcements";
+/** System posts when an SR win qualifies (admin-only; everyone can read). */
+export const SUCCESS_STORIES_ROOM_ID = "success-stories";
 
 export interface ChatRoom {
   id: string;
@@ -103,6 +105,21 @@ export const CHAT_ROOMS: ChatRoom[] = [
     ],
     autoSubscribe: true,
     adminOnlyPost: true,
+  },
+  {
+    id: SUCCESS_STORIES_ROOM_ID,
+    name: "Success Stories",
+    description:
+      "Live win-story alerts when price runs from a wall to max pain. Educational recaps only — not investment advice.",
+    rules: [
+      "System / team posts only — members can read and react.",
+      "Each post links to an in-app candle replay of a completed move.",
+      "Educational observations only — no buy/sell calls.",
+      "Questions → ask in General.",
+    ],
+    autoSubscribe: true,
+    adminOnlyPost: true,
+    composerPlaceholder: "Team posts only…",
   },
 ];
 

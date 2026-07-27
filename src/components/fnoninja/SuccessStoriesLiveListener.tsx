@@ -84,12 +84,12 @@ export function SuccessStoriesLiveListener({
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-[120] flex justify-center px-3"
+      className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-[max(0.75rem,env(safe-area-inset-left))] z-[120] flex max-w-[min(22rem,calc(100vw-1.5rem))] justify-start pr-3"
       role="status"
       aria-live="polite"
     >
       <div
-        className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-2xl border px-3.5 py-3 shadow-2xl backdrop-blur-md"
+        className="pointer-events-auto flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 shadow-2xl backdrop-blur-md"
         style={{
           backgroundColor: "rgba(13,24,48,0.95)",
           borderColor: "rgba(96,165,250,0.35)",

@@ -115,17 +115,17 @@ export const CHAT_ROOMS: ChatRoom[] = [
     id: SUCCESS_STORIES_ROOM_ID,
     name: "Success Stories",
     description:
-      "Live wins when price runs from a wall to max pain. React, reply, and watch the replay — educational only, not investment advice.",
+      "Live wins when price runs from a wall to max pain. Watch the replay or tap I traded this — educational only.",
     rules: [
-      "Win cards are posted by FNO Ninja — react and reply to join the conversation.",
-      "Celebrate the move, share what you noticed — no buy/sell calls.",
-      "Keep it respectful; disagree without personal attacks.",
-      "Spam or tip-giving → use General for questions instead.",
+      "Win cards are posted by FNO Ninja.",
+      "Watch the candle replay, or mark I traded this for social proof.",
+      "Educational observations only — no buy/sell calls.",
+      "Questions → ask in General.",
     ],
     autoSubscribe: true,
     adminOnlyPost: true,
     allowMemberReplies: true,
-    composerPlaceholder: "Reply to a win — what did you notice?",
+    composerPlaceholder: "Optional reply on a win…",
   },
 ];
 

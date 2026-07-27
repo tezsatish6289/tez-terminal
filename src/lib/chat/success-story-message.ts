@@ -51,11 +51,9 @@ export function buildSuccessStoryChatText(input: {
       : "Call-wall rejection that held";
 
   return [
-    `🔥 $${input.symbol} just ran +${moveStr}% to max pain`,
-    `${setup} — ${input.label} educational recap (not advice).`,
-    `Watch the replay → ${input.storyUrl}`,
-    "",
-    "Drop 🔥 if you spotted it · Reply with what you noticed",
+    `$${input.symbol} +${moveStr}% to max pain`,
+    `${setup} · ${input.label}`,
+    input.storyUrl,
   ].join("\n");
 }
 

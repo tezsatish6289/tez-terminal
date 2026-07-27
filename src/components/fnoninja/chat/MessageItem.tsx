@@ -330,8 +330,6 @@ export function MessageItem({
             {successStory ? (
               <SuccessStoryChatCard
                 parsed={successStory}
-                canReply={canReply}
-                canReact={showReactions}
                 onWatch={() => {
                   if (successStory.storyId) {
                     router.push(`${pathname}?story=${encodeURIComponent(successStory.storyId)}`);
@@ -339,8 +337,6 @@ export function MessageItem({
                     window.open(successStory.storyUrl, "_blank", "noopener,noreferrer");
                   }
                 }}
-                onReply={() => onReply(message)}
-                onReact={(emoji) => onReact(message.id, emoji)}
               />
             ) : message.text ? (
               <p className="whitespace-pre-wrap break-words text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>

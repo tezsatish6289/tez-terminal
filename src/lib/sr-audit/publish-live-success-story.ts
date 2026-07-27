@@ -78,11 +78,18 @@ export async function publishLiveSuccessStory(
     return { skipped: "replay_not_ready" };
   }
 
+  // Canonical MFE from the same qualify path the replay UI uses.
+  const displayMovePct = Number.isFinite(replay.movePct) ? replay.movePct : movePct;
+  if (!(displayMovePct > SR_LIVE_MIN_MOVE_PCT)) {
+    await alertRef(input.eventId).remove().catch(() => undefined);
+    return { skipped: "move_pct_below_threshold" };
+  }
+
   const storyUrl = `${FNONINJA_SITE_URL}/levels?story=${encodeURIComponent(input.eventId)}`;
   const text = buildSuccessStoryChatText({
     symbol: symbol || replay.symbol,
     label: label || replay.label,
-    movePct,
+    movePct: displayMovePct,
     side,
     storyUrl,
   });
@@ -99,12 +106,18 @@ export async function publishLiveSuccessStory(
       flagged: false,
     });
     chatMessageId = msg.id;
-    await alertRef(input.eventId).update({ chatMessageId });
+    await alertRef(input.eventId).update({
+      chatMessageId,
+      movePct: Number(displayMovePct.toFixed(2)),
+    });
   } catch (e) {
     console.error(
       "[publish-live-success-story] chat post failed",
       e instanceof Error ? e.message : e,
     );
+    await alertRef(input.eventId)
+      .update({ movePct: Number(displayMovePct.toFixed(2)) })
+      .catch(() => undefined);
   }
 
   const alert: LiveSuccessStoryAlert = {
@@ -112,7 +125,7 @@ export async function publishLiveSuccessStory(
     symbol: symbol || replay.symbol,
     label: label || replay.label,
     side,
-    movePct: Number(movePct.toFixed(2)),
+    movePct: Number(displayMovePct.toFixed(2)),
     at,
     chatMessageId,
   };

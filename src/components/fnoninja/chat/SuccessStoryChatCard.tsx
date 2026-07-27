@@ -20,6 +20,8 @@ export function SuccessStoryChatCard({
   const [claimed, setClaimed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Canonical MFE from the event — same source as replay. */
+  const [mfePct, setMfePct] = useState<number | null>(null);
 
   const storyId = parsed.storyId;
 
@@ -36,9 +38,16 @@ export function SuccessStoryChatCard({
         { headers },
       );
       if (!res.ok) return;
-      const data = (await res.json()) as { count?: number; claimed?: boolean };
+      const data = (await res.json()) as {
+        count?: number;
+        claimed?: boolean;
+        movePct?: number | null;
+      };
       setCount(typeof data.count === "number" ? data.count : 0);
       setClaimed(Boolean(data.claimed));
+      if (typeof data.movePct === "number" && Number.isFinite(data.movePct)) {
+        setMfePct(data.movePct);
+      }
     } catch {
       /* ignore */
     }
@@ -59,6 +68,8 @@ export function SuccessStoryChatCard({
     setError(null);
     try {
       const token = await user.getIdToken();
+      const displayPct =
+        mfePct ?? (parsed.movePct != null ? Number(parsed.movePct) : null);
       const res = await fetch("/api/fnoninja/success-stories/traded", {
         method: "POST",
         headers: {
@@ -68,7 +79,7 @@ export function SuccessStoryChatCard({
         body: JSON.stringify({
           storyId,
           symbol: parsed.symbol,
-          movePct: parsed.movePct != null ? Number(parsed.movePct) : null,
+          movePct: displayPct,
         }),
       });
       const data = (await res.json()) as { error?: string; count?: number; claimed?: boolean };
@@ -83,6 +94,12 @@ export function SuccessStoryChatCard({
   }
 
   const subtitle = parsed.label ? `${parsed.label} · NSE` : "NSE";
+  const displayMove =
+    mfePct != null
+      ? mfePct.toFixed(1)
+      : parsed.movePct
+        ? Number(parsed.movePct).toFixed(1)
+        : null;
   const tradedLabel =
     count === 0
       ? "0 people traded this"
@@ -114,19 +131,19 @@ export function SuccessStoryChatCard({
 
         <p className="mt-2 text-[12px] font-medium text-slate-400">{subtitle}</p>
 
-        {parsed.movePct ? (
+        {displayMove ? (
           <p className="mt-4 text-[36px] font-black leading-none tracking-tight text-emerald-400">
-            +{parsed.movePct}%
+            +{displayMove}%
           </p>
         ) : null}
 
         <p className="mt-2 text-[11px] text-slate-500">To max pain · not advice</p>
 
-        <div className="mt-5 flex w-full items-center justify-center gap-2.5">
+        <div className="mt-5 flex w-full items-stretch gap-2.5">
           <button
             type="button"
             onClick={onWatch}
-            className="flex-1 rounded-lg bg-[#4f6ef7] px-3 py-2.5 text-[13px] font-semibold text-white hover:bg-[#3f5ce0]"
+            className="flex h-10 flex-1 items-center justify-center rounded-lg bg-[#4f6ef7] px-3 text-[13px] font-semibold leading-none text-white hover:bg-[#3f5ce0]"
           >
             Watch replay
           </button>
@@ -134,7 +151,7 @@ export function SuccessStoryChatCard({
             type="button"
             onClick={() => void onTraded()}
             disabled={busy || claimed || !storyId}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-colors disabled:opacity-90"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold leading-none whitespace-nowrap transition-colors disabled:opacity-90"
             style={{
               border: claimed
                 ? "1px solid rgba(74,222,128,0.45)"
@@ -144,9 +161,9 @@ export function SuccessStoryChatCard({
             }}
           >
             {busy ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
             ) : (
-              <Check className="h-3.5 w-3.5" />
+              <Check className="h-3.5 w-3.5 shrink-0" />
             )}
             {claimed ? "You traded this" : "I traded this"}
           </button>

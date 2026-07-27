@@ -2,6 +2,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireUser } from "@/lib/chat/require-user";
+import { SR_ZONE_EVENTS_COLLECTION } from "@/lib/sr-audit/constants";
+import type { SrZoneEvent } from "@/lib/sr-audit/types";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +12,7 @@ const COUNTS_COLLECTION = "success_story_trade_counts";
 
 /**
  * POST — record "I traded this" for social proof.
- * GET  — count (+ whether current user claimed) for a story.
+ * GET  — count (+ whether current user claimed) for a story, plus canonical MFE %.
  */
 export async function GET(request: NextRequest) {
   const storyId = request.nextUrl.searchParams.get("storyId")?.trim();
@@ -19,8 +21,19 @@ export async function GET(request: NextRequest) {
   }
 
   const db = getAdminFirestore();
-  const countSnap = await db.collection(COUNTS_COLLECTION).doc(storyId).get();
+  const [countSnap, eventSnap] = await Promise.all([
+    db.collection(COUNTS_COLLECTION).doc(storyId).get(),
+    db.collection(SR_ZONE_EVENTS_COLLECTION).doc(storyId).get(),
+  ]);
   const count = Number((countSnap.data() as { count?: number } | undefined)?.count ?? 0);
+
+  let movePct: number | null = null;
+  if (eventSnap.exists) {
+    const event = eventSnap.data() as SrZoneEvent;
+    if (typeof event.maxFavorablePct === "number" && Number.isFinite(event.maxFavorablePct)) {
+      movePct = event.maxFavorablePct;
+    }
+  }
 
   let claimed = false;
   const auth = await requireUser(request);
@@ -30,7 +43,7 @@ export async function GET(request: NextRequest) {
     claimed = claimSnap.exists;
   }
 
-  return NextResponse.json({ storyId, count, claimed });
+  return NextResponse.json({ storyId, count, claimed, movePct });
 }
 
 export async function POST(request: NextRequest) {

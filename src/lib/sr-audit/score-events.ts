@@ -228,13 +228,12 @@ export async function scoreOpenSrZoneEvents(
       }
 
       // In-app FOMO (toast + Success Stories chat). Idempotent; Buffer/email stay evening.
-      const liveMovePct =
-        typeof pocHitPct === "number" && Number.isFinite(pocHitPct) ? pocHitPct : cumMfe;
+      // Always publish MFE (maxFavorablePct) — same headline % as replay / captions.
       if (stickyHitPoc && candlesSnapshotAt) {
         void publishLiveSuccessStory({
           eventId: doc.id,
           event: { symbol: event.symbol, label: event.label, side: event.side },
-          movePct: liveMovePct,
+          movePct: cumMfe,
         }).catch((e) => {
           console.error(
             "[sr-audit] live success story publish failed",

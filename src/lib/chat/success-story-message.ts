@@ -5,6 +5,7 @@
 
 export interface ParsedSuccessStoryMessage {
   symbol: string;
+  label: string | null;
   movePct: string | null;
   storyId: string | null;
   storyUrl: string | null;
@@ -28,8 +29,19 @@ export function parseSuccessStoryMessage(text: string): ParsedSuccessStoryMessag
   if (/put-wall|support held/i.test(text)) sideHint = "support";
   else if (/call-wall|resistance held/i.test(text)) sideHint = "resistance";
 
+  // Second line is usually: "Put-wall bounce that held · Adani Ports and SEZ"
+  let label: string | null = null;
+  const labelMatch = text.match(
+    /(?:put-wall|call-wall|support|resistance)[^\n·]*·\s*([^\n]+)/i,
+  );
+  if (labelMatch?.[1]) {
+    const trimmed = labelMatch[1].trim();
+    if (trimmed && !/^https?:\/\//i.test(trimmed)) label = trimmed;
+  }
+
   return {
     symbol: (symMatch?.[1] ?? "WIN").toUpperCase(),
+    label,
     movePct: moveMatch?.[1] ?? null,
     storyId,
     storyUrl,

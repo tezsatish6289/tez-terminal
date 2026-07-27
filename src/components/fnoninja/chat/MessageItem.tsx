@@ -213,11 +213,15 @@ export function MessageItem({
   const pending = message.clientStatus; // "sending" | "failed" | undefined
   const canEdit = isOwn && !pending && Date.now() - message.createdAt <= CHAT_EDIT_WINDOW_MS;
   const reactionEntries = Object.entries(message.reactions ?? {}).filter(([, uids]) => uids.length > 0);
-  const showReactions = canReact && !pending;
+  const isSuccessStoriesRoom = message.roomId === SUCCESS_STORIES_ROOM_ID;
+  // Success Stories: I traded this is the only member action — no react / reply / flag.
+  const showReactions = canReact && !pending && !isSuccessStoriesRoom;
+  const showReply = canReply && !isSuccessStoriesRoom;
+  const showReport = !isOwn && !isSuccessStoriesRoom;
+  const showMessageActions =
+    !editing && !pending && (showReactions || showReply || canEdit || isOwn || showReport);
   const parsedStory =
-    message.roomId === SUCCESS_STORIES_ROOM_ID && !message.replyTo
-      ? parseSuccessStoryMessage(message.text)
-      : null;
+    isSuccessStoriesRoom && !message.replyTo ? parseSuccessStoryMessage(message.text) : null;
   const successStory =
     parsedStory &&
     (isSuccessStorySystemAuthor(message.authorId) || Boolean(parsedStory.storyId))
@@ -401,7 +405,7 @@ export function MessageItem({
 
       {zoom ? <Lightbox attachment={zoom} onClose={() => setZoom(null)} /> : null}
 
-      {!editing && !pending ? (
+      {showMessageActions ? (
         <div className="relative flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           {showReactions ? (
             <>
@@ -426,7 +430,7 @@ export function MessageItem({
               ) : null}
             </>
           ) : null}
-          {canReply ? (
+          {showReply ? (
             <button type="button" onClick={() => onReply(message)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300" aria-label="Reply">
               <Reply className="h-3 w-3" />
             </button>
@@ -440,11 +444,11 @@ export function MessageItem({
             <button type="button" onClick={submitDelete} disabled={busy} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-rose-400" aria-label="Delete message">
               <Trash2 className="h-3 w-3" />
             </button>
-          ) : (
+          ) : showReport ? (
             <button type="button" onClick={() => onReport(message)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-amber-400" aria-label="Report message">
               <Flag className="h-3 w-3" />
             </button>
-          )}
+          ) : null}
         </div>
       ) : null}
     </div>

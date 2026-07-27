@@ -119,13 +119,13 @@ export const CHAT_ROOMS: ChatRoom[] = [
     rules: [
       "Win cards are posted by FNO Ninja.",
       "Watch the candle replay, or mark I traded this for social proof.",
+      "No replies or emoji reactions here — I traded this is the only member action.",
       "Educational observations only — no buy/sell calls.",
       "Questions → ask in General.",
     ],
     autoSubscribe: true,
     adminOnlyPost: true,
-    allowMemberReplies: true,
-    composerPlaceholder: "Optional reply on a win…",
+    allowMemberReplies: false,
   },
 ];
 

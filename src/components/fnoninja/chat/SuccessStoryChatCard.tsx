@@ -92,13 +92,13 @@ export function SuccessStoryChatCard({
 
   return (
     <div
-      className="mt-1.5 rounded-2xl p-px"
+      className="mt-1.5 w-full rounded-2xl p-px"
       style={{
         background: "linear-gradient(135deg, rgba(74,222,128,0.55), rgba(96,165,250,0.35))",
       }}
     >
       <div
-        className="flex flex-col items-center rounded-[15px] px-5 py-6 text-center"
+        className="flex w-full flex-col items-center rounded-[15px] px-4 py-5 text-center sm:px-5 sm:py-6"
         style={{ background: "#0b1220" }}
       >
         <div className="flex items-center gap-1.5">
@@ -122,7 +122,7 @@ export function SuccessStoryChatCard({
 
         <p className="mt-2 text-[11px] text-slate-500">To max pain · not advice</p>
 
-        <div className="mt-5 flex w-full max-w-[280px] items-center justify-center gap-2.5">
+        <div className="mt-5 flex w-full items-center justify-center gap-2.5">
           <button
             type="button"
             onClick={onWatch}

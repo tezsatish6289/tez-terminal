@@ -16,7 +16,7 @@ import {
   toggleChatReaction,
   uploadChatImage,
 } from "@/lib/chat/client";
-import { CHAT_REPLY_SNIPPET_LENGTH, canUserPostInRoom, getChatRoom } from "@/lib/chat/constants";
+import { CHAT_REPLY_SNIPPET_LENGTH, SUCCESS_STORIES_ROOM_ID, canUserPostInRoom, getChatRoom } from "@/lib/chat/constants";
 import { isAdminEmail } from "@/lib/admin-emails-client";
 import type { ChatAttachment, ChatMessage, ChatReplyRef } from "@/lib/chat/types";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
@@ -69,9 +69,11 @@ export function ChatPanel() {
   const dragDepth = useRef(0);
 
   const room = getChatRoom(roomId);
+  const isSuccessStories = roomId === SUCCESS_STORIES_ROOM_ID;
   const canPost = canUserPostInRoom(roomId, user?.email);
   const canReply =
-    canPost || Boolean(room?.allowMemberReplies && canUserPostInRoom(roomId, user?.email, { isReply: true }));
+    !isSuccessStories &&
+    (canPost || Boolean(room?.allowMemberReplies && canUserPostInRoom(roomId, user?.email, { isReply: true })));
   const showComposer = canPost || (Boolean(room?.allowMemberReplies) && canReply);
   const isAdmin = isAdminEmail(user?.email);
 
@@ -316,7 +318,9 @@ export function ChatPanel() {
             {ready ? (
               <p className="truncate text-[10px]" style={{ color: "#64748b" }}>
                 {room?.adminOnlyPost && !isAdmin ? (
-                  room.allowMemberReplies ? (
+                  isSuccessStories ? (
+                    "Watch replay · tap I traded this"
+                  ) : room.allowMemberReplies ? (
                     "React & reply · team starts threads"
                   ) : (
                     "React only · team posts"
@@ -373,7 +377,7 @@ export function ChatPanel() {
                 roomId={roomId}
                 currentUid={user.uid}
                 canReply={canReply}
-                canReact
+                canReact={!isSuccessStories}
                 loading={loading}
                 hasMore={hasMore}
                 loadingOlder={loadingOlder}
@@ -429,7 +433,9 @@ export function ChatPanel() {
                     paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))",
                   }}
                 >
-                  {room?.name ?? "This channel"} is team-only. You can read and react — only admins can post.
+                  {isSuccessStories
+                    ? "Watch the replay or tap I traded this — no replies or reactions here."
+                    : `${room?.name ?? "This channel"} is team-only. You can read and react — only admins can post.`}
                 </div>
               )}
             </div>

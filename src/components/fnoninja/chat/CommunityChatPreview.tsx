@@ -8,7 +8,7 @@ import {
   MessageSquare,
   type LucideIcon,
 } from "lucide-react";
-import { SUBSCRIBED_CHAT_ROOMS } from "@/lib/chat/constants";
+import { SUBSCRIBED_CHAT_ROOMS, SUCCESS_STORIES_ROOM_ID } from "@/lib/chat/constants";
 import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 const ROOM_ICONS: Record<string, LucideIcon> = {
@@ -84,7 +84,11 @@ export function CommunityChatPreview({ blurred = true }: { blurred?: boolean }) 
                 </span>
                 {room.adminOnlyPost ? (
                   <span className="text-[9px] leading-none" style={{ color: "#64748b" }}>
-                    {room.allowMemberReplies ? "Replies ok" : "React only"}
+                    {room.id === SUCCESS_STORIES_ROOM_ID
+                      ? "I traded this"
+                      : room.allowMemberReplies
+                        ? "Replies ok"
+                        : "React only"}
                   </span>
                 ) : null}
               </div>

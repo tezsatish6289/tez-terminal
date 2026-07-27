@@ -9,7 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
-import { SUBSCRIBED_CHAT_ROOMS, type ChatRoom } from "@/lib/chat/constants";
+import { SUBSCRIBED_CHAT_ROOMS, SUCCESS_STORIES_ROOM_ID, type ChatRoom } from "@/lib/chat/constants";
 import { formatChatUnreadCount } from "@/lib/chat/unread-badge";
 import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
@@ -70,7 +70,11 @@ export function ChatRoomSidebar({ roomId, onSelectRoom, unreadByRoom }: ChatRoom
             </span>
             {room.adminOnlyPost ? (
               <span className="text-[9px] leading-none" style={{ color: "#64748b" }}>
-                {room.allowMemberReplies ? "Replies ok" : "React only"}
+                {room.id === SUCCESS_STORIES_ROOM_ID
+                  ? "I traded this"
+                  : room.allowMemberReplies
+                    ? "Replies ok"
+                    : "React only"}
               </span>
             ) : null}
           </button>

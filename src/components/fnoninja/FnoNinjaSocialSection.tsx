@@ -1,6 +1,7 @@
 "use client";
 
 import { Facebook, Instagram, Linkedin, Twitter, Youtube } from "lucide-react";
+import { Reveal, Stagger, StaggerItem } from "@/components/fnoninja/landing-motion";
 import { FNONINJA_SOCIAL_LINKS, type FnoNinjaSocialPlatform } from "@/lib/fnoninja/social-links";
 import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
@@ -28,7 +29,7 @@ function SocialIcon({ platform }: { platform: FnoNinjaSocialPlatform }) {
 export function FnoNinjaSocialSection() {
   return (
     <section id="social" className={`${FNO_LANDING_SHELL} border-b py-16 sm:py-20 lg:py-24`} style={{ borderColor: FNO_LANDING_BORDER }}>
-      <div className="max-w-3xl">
+      <Reveal className="max-w-3xl">
         <SectionEyebrow>Follow us</SectionEyebrow>
         <h2 className="mt-4 text-2xl sm:text-3xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
           Stay connected with <GradientText>FNO NINJA</GradientText>
@@ -37,11 +38,11 @@ export function FnoNinjaSocialSection() {
           Market structure updates, product news, and educational content — informational only, not
           investment advice.
         </p>
-      </div>
+      </Reveal>
 
-      <ul className="mt-10 flex flex-wrap gap-3">
+      <Stagger className="mt-10 flex flex-wrap gap-3">
         {FNONINJA_SOCIAL_LINKS.map((link) => (
-          <li key={link.platform}>
+          <StaggerItem key={link.platform}>
             <a
               href={link.href}
               target="_blank"
@@ -60,9 +61,9 @@ export function FnoNinjaSocialSection() {
               <SocialIcon platform={link.platform} />
               {link.platform === "x" ? "X" : link.platform.charAt(0).toUpperCase() + link.platform.slice(1)}
             </a>
-          </li>
+          </StaggerItem>
         ))}
-      </ul>
+      </Stagger>
     </section>
   );
 }

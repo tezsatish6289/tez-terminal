@@ -1,6 +1,13 @@
 "use client";
 
 import { FnoNinjaLoginLink } from "@/components/fnoninja/FnoNinjaLoginPage";
+import {
+  fadeLeft,
+  fadeScale,
+  Reveal,
+  Stagger,
+  StaggerItem,
+} from "@/components/fnoninja/landing-motion";
 import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import {
@@ -30,7 +37,7 @@ export function FnoNinjaAtlasSection() {
       />
       <div className={`${FNO_LANDING_SHELL} relative py-16 sm:py-20 lg:py-24`}>
         <div className="grid gap-12 lg:grid-cols-[1.05fr_1fr] lg:items-center">
-          <div className="flex flex-col justify-center">
+          <Reveal variants={fadeLeft} className="flex flex-col justify-center">
             <div className="mb-6 flex items-center gap-3">
               <SectionEyebrow>ATLAS AI</SectionEyebrow>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-[#3b82f6]/30 bg-[#3b82f6]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#60a5fa]">
@@ -47,9 +54,9 @@ export function FnoNinjaAtlasSection() {
               market map.
             </p>
 
-            <div className="mt-8 grid max-w-md grid-cols-2 gap-3">
+            <Stagger className="mt-8 grid max-w-md grid-cols-2 gap-3">
               {ATLAS_FEATURES.map((item) => (
-                <div
+                <StaggerItem
                   key={item.title}
                   className="rounded-xl border border-[rgba(90,140,220,0.16)] bg-[#0d1830]/40 p-4"
                 >
@@ -57,9 +64,9 @@ export function FnoNinjaAtlasSection() {
                     {item.title}
                   </div>
                   <div className="mt-1.5 text-[13px] leading-snug text-slate-300">{item.body}</div>
-                </div>
+                </StaggerItem>
               ))}
-            </div>
+            </Stagger>
 
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <FnoNinjaLoginLink
@@ -75,9 +82,9 @@ export function FnoNinjaAtlasSection() {
               </FnoNinjaLoginLink>
               <span className="text-xs text-slate-500">Sign in to access Atlas on any chart</span>
             </div>
-          </div>
+          </Reveal>
 
-          <div className="relative">
+          <Reveal variants={fadeScale} className="relative">
             <div
               className="overflow-hidden rounded-2xl border bg-[#0d1830]/70 shadow-2xl backdrop-blur"
               style={{ borderColor: FNO_LANDING_BORDER }}
@@ -126,7 +133,7 @@ export function FnoNinjaAtlasSection() {
                 </div>
               </div>
             </div>
-          </div>
+          </Reveal>
         </div>
       </div>
     </section>

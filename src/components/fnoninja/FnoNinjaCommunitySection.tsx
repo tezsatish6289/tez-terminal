@@ -6,6 +6,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { useUser } from "@/firebase";
 import { trackCtaClick } from "@/firebase/analytics";
+import {
+  fadeLeft,
+  fadeRight,
+  Reveal,
+  Stagger,
+  StaggerItem,
+} from "@/components/fnoninja/landing-motion";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import { fnoCommunityChatHref, fnoCommunityHref } from "@/lib/fnoninja/paths";
 import {
@@ -58,9 +65,9 @@ function ChatPreview() {
         </span>
       </div>
 
-      <div className="space-y-2.5 px-3.5 py-3.5">
+      <Stagger className="space-y-2.5 px-3.5 py-3.5">
         {CHAT.map((c) => (
-          <div key={`${c.n}-${c.t}`} className="flex items-start gap-2.5">
+          <StaggerItem key={`${c.n}-${c.t}`} className="flex items-start gap-2.5">
             <div
               className={`grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br text-[10px] font-bold ring-1 ${toneClass[c.tone]}`}
             >
@@ -75,9 +82,9 @@ function ChatPreview() {
                 {c.m}
               </div>
             </div>
-          </div>
+          </StaggerItem>
         ))}
-      </div>
+      </Stagger>
 
       <div
         className="border-t px-3.5 py-2.5"
@@ -132,7 +139,7 @@ export function FnoNinjaCommunitySection() {
   return (
     <section id="community" className={`${FNO_LANDING_SHELL} border-b py-16 sm:py-20 lg:py-24`} style={{ borderColor: FNO_LANDING_BORDER }}>
       <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
-        <div className="max-w-xl">
+        <Reveal variants={fadeLeft} className="max-w-xl">
           <SectionEyebrow>Community</SectionEyebrow>
           <h2 className="mt-4 text-3xl font-black leading-[1.1] tracking-tight text-white sm:text-4xl lg:text-[2.75rem]">
             Discuss structure <GradientText>with serious traders.</GradientText>
@@ -156,11 +163,11 @@ export function FnoNinjaCommunitySection() {
             <CommunityCta />
             <span className="text-xs text-slate-500">User opinions only — not investment advice.</span>
           </div>
-        </div>
+        </Reveal>
 
-        <div className="lg:pl-4">
+        <Reveal variants={fadeRight} className="lg:pl-4">
           <ChatPreview />
-        </div>
+        </Reveal>
       </div>
     </section>
   );

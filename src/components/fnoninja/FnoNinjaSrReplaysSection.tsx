@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FnoNinjaSrReplaysShowcase } from "@/components/fnoninja/FnoNinjaSrReplaysShowcase";
+import { fadeScale, Reveal } from "@/components/fnoninja/landing-motion";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import type { SrReplayWithStory } from "@/lib/fnoninja/sr-replay-types";
 import {
@@ -58,7 +59,7 @@ export function FnoNinjaSrReplaysSection() {
       />
 
       <div className={`${FNO_LANDING_SHELL} relative py-14 sm:py-20 lg:py-24`}>
-        <div className="mb-10 sm:mb-12 max-w-3xl">
+        <Reveal className="mb-10 sm:mb-12 max-w-3xl">
           <SectionEyebrow>Real examples</SectionEyebrow>
           <h2 className="mt-4 text-2xl sm:text-3xl lg:text-[2.35rem] font-black text-white tracking-tight leading-[1.12]">
             Put/Call Clusters often act as <GradientText>Support &amp; Resistance</GradientText> zones
@@ -67,9 +68,11 @@ export function FnoNinjaSrReplaysSection() {
             Not predictions — observations. Price tends to react around them. Every card below is a
             real, resolved move from a past session.
           </p>
-        </div>
+        </Reveal>
 
-        <FnoNinjaSrReplaysShowcase initialReplays={replays} initialSort="best" />
+        <Reveal variants={fadeScale}>
+          <FnoNinjaSrReplaysShowcase initialReplays={replays} initialSort="best" />
+        </Reveal>
 
         <div className="mt-14 overflow-hidden border-y py-4" style={{ borderColor: FNO_LANDING_BORDER }}>
           <div className="flex w-max animate-marquee gap-12 text-lg font-black tracking-widest text-white/[0.08]">

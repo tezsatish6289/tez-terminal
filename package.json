@@ -53,6 +53,7 @@
     "fflate": "^0.8.3",
     "firebase": "^11.9.1",
     "firebase-admin": "^13.7.0",
+    "framer-motion": "^12.42.2",
     "genkit": "^1.28.0",
     "google-auth-library": "^10.9.0",
     "lightweight-charts": "^5.2.0",

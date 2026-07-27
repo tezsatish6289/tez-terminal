@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { FnoNinjaComboShowcase } from "@/components/fnoninja/FnoNinjaComboShowcase";
+import {
+  fadeLeft,
+  fadeScale,
+  Reveal,
+  Stagger,
+  StaggerItem,
+} from "@/components/fnoninja/landing-motion";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
 
@@ -64,7 +71,7 @@ export function FnoNinjaComboSection() {
     >
       <div className={`${FNO_LANDING_SHELL} py-12 sm:py-16 lg:py-20`}>
         <div className="grid items-stretch gap-8 lg:grid-cols-2 lg:gap-12 xl:gap-14">
-          <div className="flex min-w-0 flex-col rounded-2xl border border-[rgba(90,140,220,0.18)] bg-[#0d1830]/40 p-4 sm:p-5">
+          <Reveal variants={fadeLeft} className="flex min-w-0 flex-col rounded-2xl border border-[rgba(90,140,220,0.18)] bg-[#0d1830]/40 p-4 sm:p-5">
             <p
               className="text-[11px] font-semibold uppercase tracking-[0.18em]"
               style={{ color: FNO_ACCENT }}
@@ -86,29 +93,29 @@ export function FnoNinjaComboSection() {
                 FNO Ninja reads option-chain OI across 200+ NSE F&amp;O symbols and maps likely support
                 and resistance zones.
               </p>
-              <ul className="space-y-2">
-                <li className="flex items-start gap-2.5">
+              <Stagger className="space-y-2">
+                <StaggerItem className="flex items-start gap-2.5">
                   <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#60a5fa]" />
                   <span>
                   <strong className="font-semibold text-white">Call clusters act as resistance.</strong>{" "}
                   Heavy Call OI at a strike means the market is positioning for a ceiling.
                   </span>
-                </li>
-                <li className="flex items-start gap-2.5">
+                </StaggerItem>
+                <StaggerItem className="flex items-start gap-2.5">
                   <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#60a5fa]" />
                   <span>
                   <strong className="font-semibold text-white">Put clusters act as support.</strong> Heavy
                   Put OI means traders are defending a floor.
                   </span>
-                </li>
-                <li className="flex items-start gap-2.5">
+                </StaggerItem>
+                <StaggerItem className="flex items-start gap-2.5">
                   <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#60a5fa]" />
                   <span>
                   <strong className="font-semibold text-white">Strike mapping.</strong> Symbols at or near
                   OI clusters show up in the screener so you act on context, not just a chart.
                   </span>
-                </li>
-              </ul>
+                </StaggerItem>
+              </Stagger>
 
               <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px] sm:text-[11px]">
                 <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/5 p-2">
@@ -138,11 +145,11 @@ export function FnoNinjaComboSection() {
                 </div>
               </div>
             )}
-          </div>
+          </Reveal>
 
-          <div className="min-w-0">
+          <Reveal variants={fadeScale} className="min-w-0">
             <FnoNinjaComboShowcase />
-          </div>
+          </Reveal>
         </div>
       </div>
     </section>

@@ -1,4 +1,7 @@
+"use client";
+
 import { Star } from "lucide-react";
+import { Reveal, Stagger, StaggerItem } from "@/components/fnoninja/landing-motion";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import {
   FNO_LANDING_BORDER,
@@ -30,7 +33,7 @@ const REVIEWS = [
 export function FnoNinjaReviewsSection() {
   return (
     <section id="reviews" className={`${FNO_LANDING_SHELL} border-b py-16 sm:py-20 lg:py-24`} style={{ borderColor: FNO_LANDING_BORDER }}>
-      <div className="mb-10 sm:mb-12 max-w-3xl">
+      <Reveal className="mb-10 sm:mb-12 max-w-3xl">
         <SectionEyebrow>Reviews</SectionEyebrow>
         <h2 className="mt-4 text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
           Trusted by traders who <GradientText>read the data.</GradientText>
@@ -38,51 +41,54 @@ export function FnoNinjaReviewsSection() {
         <p className="mt-4 text-sm sm:text-base leading-relaxed max-w-2xl text-slate-400">
           Real users. Real routines.
         </p>
-      </div>
+      </Reveal>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <Stagger className="grid gap-4 md:grid-cols-3">
         {REVIEWS.map((review) => (
-          <article
-            key={review.name}
-            className="rounded-xl border p-6 transition hover:border-[#60a5fa]/30"
-            style={{
-              borderColor: FNO_LANDING_BORDER,
-              backgroundColor: "#0d1830",
-            }}
-          >
-            <div className="flex gap-1 text-amber-300">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className="h-4 w-4 fill-current" strokeWidth={1.5} />
-              ))}
-            </div>
-            <p className="mt-4 text-[15px] leading-relaxed text-slate-300">
-              &ldquo;{review.quote}&rdquo;
-            </p>
-            <div className="mt-5 flex items-center gap-3">
-              <div
-                className="grid h-9 w-9 place-items-center rounded-full text-[13px] font-bold"
-                style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
-              >
-                {review.name
-                  .split(" ")
-                  .map((part) => part[0])
-                  .join("")}
+          <StaggerItem key={review.name}>
+            <article
+              className="rounded-xl border p-6 transition hover:-translate-y-1 hover:border-[#60a5fa]/30"
+              style={{
+                borderColor: FNO_LANDING_BORDER,
+                backgroundColor: "#0d1830",
+              }}
+            >
+              <div className="flex gap-1 text-amber-300">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className="h-4 w-4 fill-current" strokeWidth={1.5} />
+                ))}
               </div>
-              <div>
-                <div className="text-sm font-semibold text-white">{review.name}</div>
-                <div className="text-[12px] text-slate-500">
-                  {review.role}
+              <p className="mt-4 text-[15px] leading-relaxed text-slate-300">
+                &ldquo;{review.quote}&rdquo;
+              </p>
+              <div className="mt-5 flex items-center gap-3">
+                <div
+                  className="grid h-9 w-9 place-items-center rounded-full text-[13px] font-bold"
+                  style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#60a5fa" }}
+                >
+                  {review.name
+                    .split(" ")
+                    .map((part) => part[0])
+                    .join("")}
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-white">{review.name}</div>
+                  <div className="text-[12px] text-slate-500">
+                    {review.role}
+                  </div>
                 </div>
               </div>
-            </div>
-          </article>
+            </article>
+          </StaggerItem>
         ))}
-      </div>
+      </Stagger>
 
-      <p className="mt-8 text-xs leading-relaxed" style={{ color: "#475569" }}>
-        Individual results vary. Reviews are shared by real users and are not guarantees of trading
-        outcomes.
-      </p>
+      <Reveal>
+        <p className="mt-8 text-xs leading-relaxed" style={{ color: "#475569" }}>
+          Individual results vary. Reviews are shared by real users and are not guarantees of trading
+          outcomes.
+        </p>
+      </Reveal>
     </section>
   );
 }

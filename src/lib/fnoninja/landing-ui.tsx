@@ -12,9 +12,16 @@ export function SectionEyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function GradientText({ children }: { children: React.ReactNode }) {
+export function GradientText({
+  children,
+  animated = false,
+}: {
+  children: React.ReactNode;
+  /** Soft flowing gradient (hero accents). Falls back under prefers-reduced-motion. */
+  animated?: boolean;
+}) {
   return (
-    <span className="text-[#60a5fa]">
+    <span className={animated ? "fno-gradient-flow" : "text-[#60a5fa]"}>
       {children}
     </span>
   );

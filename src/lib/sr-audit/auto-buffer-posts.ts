@@ -145,6 +145,24 @@ async function releaseLock(db: Firestore): Promise<void> {
 
 /** Count successful sr-audit Buffer posts created on this IST calendar day. */
 export async function countPostedToday(db: Firestore, dayKey = istDayKey()): Promise<number> {
+  return (await listPostedToday(db, dayKey)).length;
+}
+
+/** Successful sr-audit posts whose createdAt falls on this IST calendar day. */
+export async function listPostedToday(
+  db: Firestore,
+  dayKey = istDayKey(),
+): Promise<
+  Array<{
+    id: string;
+    contentId: string;
+    contentLabel: string | null;
+    createdAt: string;
+    status: string | null;
+    createdBy: string | null;
+    results: Array<{ platform?: string; status?: string; error?: string | null }>;
+  }>
+> {
   const startIso = new Date(`${dayKey}T00:00:00+05:30`).toISOString();
   const endIso = new Date(`${dayKey}T23:59:59.999+05:30`).toISOString();
   const snap = await db
@@ -152,14 +170,24 @@ export async function countPostedToday(db: Firestore, dayKey = istDayKey()): Pro
     .where("source", "==", SR_BUFFER_AUTO_SOURCE)
     .get();
 
-  let n = 0;
+  const out: Array<{
+    id: string;
+    contentId: string;
+    contentLabel: string | null;
+    createdAt: string;
+    status: string | null;
+    createdBy: string | null;
+    results: Array<{ platform?: string; status?: string; error?: string | null }>;
+  }> = [];
   const seen = new Set<string>();
   for (const doc of snap.docs) {
     const d = doc.data() as {
       contentId?: string;
+      contentLabel?: string;
       createdAt?: string;
       status?: string;
-      results?: Array<{ status?: string }>;
+      createdBy?: string;
+      results?: Array<{ platform?: string; status?: string; error?: string | null }>;
     };
     const at = d.createdAt ?? "";
     if (at < startIso || at > endIso) continue;
@@ -167,12 +195,21 @@ export async function countPostedToday(db: Firestore, dayKey = istDayKey()): Pro
       (r) => r.status === "posted" || r.status === "scheduled",
     );
     if (!live && d.status !== "ok" && d.status !== "partial") continue;
-    const id = d.contentId ?? doc.id;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    n += 1;
+    const contentId = d.contentId ?? doc.id;
+    if (seen.has(contentId)) continue;
+    seen.add(contentId);
+    out.push({
+      id: doc.id,
+      contentId,
+      contentLabel: d.contentLabel ?? null,
+      createdAt: at,
+      status: d.status ?? null,
+      createdBy: d.createdBy ?? null,
+      results: d.results ?? [],
+    });
   }
-  return n;
+  out.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return out;
 }
 
 async function loadDay(db: Firestore, dayKey: string): Promise<BufferAutoDayDoc> {

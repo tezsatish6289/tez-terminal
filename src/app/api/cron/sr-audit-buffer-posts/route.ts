@@ -17,7 +17,9 @@
  */
 
 import { after, NextRequest, NextResponse } from "next/server";
+import { getAdminFirestore } from "@/firebase/admin";
 import {
+  listPostedToday,
   runSrAuditBufferAuto,
   type BufferAutoPhase,
 } from "@/lib/sr-audit/auto-buffer-posts";
@@ -41,10 +43,46 @@ export async function GET(request: NextRequest) {
 
   const phase = parsePhase(searchParams.get("phase"));
   const dayKey = searchParams.get("day")?.trim() || undefined;
+  const debug = searchParams.get("debug") === "1";
+
+  // Read-only diagnostics — does not schedule or render.
+  if (debug && searchParams.get("sync") !== "1" && !searchParams.get("phase")) {
+    const db = getAdminFirestore();
+    const keyDay =
+      dayKey ||
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+    const [posted, daySnap] = await Promise.all([
+      listPostedToday(db, keyDay),
+      db.collection("sr_audit_buffer_days").doc(keyDay).get(),
+    ]);
+    return NextResponse.json({
+      success: true,
+      mode: "debug",
+      dayKey: keyDay,
+      alreadyPostedToday: posted.length,
+      posts: posted,
+      dayDoc: daySnap.exists ? daySnap.data() : null,
+    });
+  }
 
   if (searchParams.get("sync") === "1") {
     try {
       const summary = await runSrAuditBufferAuto({ phase, dayKey });
+      if (debug) {
+        const db = getAdminFirestore();
+        const posted = await listPostedToday(db, summary.dayKey);
+        return NextResponse.json({
+          success: true,
+          mode: "sync",
+          ...summary,
+          debug: { posts: posted },
+        });
+      }
       return NextResponse.json({ success: true, mode: "sync", ...summary });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

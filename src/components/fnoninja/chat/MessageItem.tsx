@@ -2,12 +2,18 @@
 
 import { Fragment, useEffect, useState } from "react";
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import { Check, Flag, ImageIcon, Loader2, Pencil, Reply, RotateCw, Trash2, User, X } from "lucide-react";
 import type { ChatAttachment } from "@/lib/chat/types";
 import { format } from "date-fns";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
-import { CHAT_EDIT_WINDOW_MS } from "@/lib/chat/constants";
+import { CHAT_EDIT_WINDOW_MS, SUCCESS_STORIES_ROOM_ID } from "@/lib/chat/constants";
+import {
+  isSuccessStorySystemAuthor,
+  parseSuccessStoryMessage,
+} from "@/lib/chat/success-story-message";
 import { ChatEmojiGrid } from "@/components/fnoninja/chat/ChatEmojiGrid";
+import { SuccessStoryChatCard } from "@/components/fnoninja/chat/SuccessStoryChatCard";
 import { isAllowedChatUrl } from "@/lib/chat/moderation";
 import type { ChatMessage } from "@/lib/chat/types";
 
@@ -196,6 +202,8 @@ export function MessageItem({
   onJumpTo,
   highlight,
 }: MessageItemProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.text);
   const [busy, setBusy] = useState(false);
@@ -206,6 +214,15 @@ export function MessageItem({
   const canEdit = isOwn && !pending && Date.now() - message.createdAt <= CHAT_EDIT_WINDOW_MS;
   const reactionEntries = Object.entries(message.reactions ?? {}).filter(([, uids]) => uids.length > 0);
   const showReactions = canReact && !pending;
+  const parsedStory =
+    message.roomId === SUCCESS_STORIES_ROOM_ID && !message.replyTo
+      ? parseSuccessStoryMessage(message.text)
+      : null;
+  const successStory =
+    parsedStory &&
+    (isSuccessStorySystemAuthor(message.authorId) || Boolean(parsedStory.storyId))
+      ? parsedStory
+      : null;
 
   if (message.deleted) {
     return (
@@ -310,7 +327,22 @@ export function MessageItem({
                 </span>
               </button>
             ) : null}
-            {message.text ? (
+            {successStory ? (
+              <SuccessStoryChatCard
+                parsed={successStory}
+                canReply={canReply}
+                canReact={showReactions}
+                onWatch={() => {
+                  if (successStory.storyId) {
+                    router.push(`${pathname}?story=${encodeURIComponent(successStory.storyId)}`);
+                  } else if (successStory.storyUrl) {
+                    window.open(successStory.storyUrl, "_blank", "noopener,noreferrer");
+                  }
+                }}
+                onReply={() => onReply(message)}
+                onReact={(emoji) => onReact(message.id, emoji)}
+              />
+            ) : message.text ? (
               <p className="whitespace-pre-wrap break-words text-xs leading-relaxed" style={{ color: "#cbd5e1" }}>
                 {renderText(message.text)}
               </p>

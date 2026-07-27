@@ -7,6 +7,7 @@ import "server-only";
 import { getAdminDatabase } from "@/firebase/admin";
 import { createMessage } from "@/lib/chat/store";
 import { SUCCESS_STORIES_ROOM_ID } from "@/lib/chat/constants";
+import { buildSuccessStoryChatText } from "@/lib/chat/success-story-message";
 import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
 import { loadStoryReplayPayload } from "@/lib/sr-audit/load-story-replay";
 import type { SrZoneEvent } from "@/lib/sr-audit/types";
@@ -77,9 +78,14 @@ export async function publishLiveSuccessStory(
     return { skipped: "replay_not_ready" };
   }
 
-  const moveStr = movePct.toFixed(1);
   const storyUrl = `${FNONINJA_SITE_URL}/levels?story=${encodeURIComponent(input.eventId)}`;
-  const text = `$${symbol || replay.symbol} +${moveStr}% to max pain — educational recap\n${storyUrl}`;
+  const text = buildSuccessStoryChatText({
+    symbol: symbol || replay.symbol,
+    label: label || replay.label,
+    movePct,
+    side,
+    storyUrl,
+  });
 
   let chatMessageId: string | null = null;
   try {
@@ -89,7 +95,7 @@ export async function publishLiveSuccessStory(
       authorName: "FNO Ninja",
       authorPhoto: null,
       text,
-      mentions: [],
+      mentions: [{ type: "symbol", symbol: (symbol || replay.symbol).toUpperCase() }],
       flagged: false,
     });
     chatMessageId = msg.id;

@@ -70,7 +70,7 @@ export function ChatRoomSidebar({ roomId, onSelectRoom, unreadByRoom }: ChatRoom
             </span>
             {room.adminOnlyPost ? (
               <span className="text-[9px] leading-none" style={{ color: "#64748b" }}>
-                React only
+                {room.allowMemberReplies ? "Replies ok" : "React only"}
               </span>
             ) : null}
           </button>

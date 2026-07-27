@@ -84,7 +84,7 @@ export function CommunityChatPreview({ blurred = true }: { blurred?: boolean }) 
                 </span>
                 {room.adminOnlyPost ? (
                   <span className="text-[9px] leading-none" style={{ color: "#64748b" }}>
-                    React only
+                    {room.allowMemberReplies ? "Replies ok" : "React only"}
                   </span>
                 ) : null}
               </div>

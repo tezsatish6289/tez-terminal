@@ -70,6 +70,9 @@ export function ChatPanel() {
 
   const room = getChatRoom(roomId);
   const canPost = canUserPostInRoom(roomId, user?.email);
+  const canReply =
+    canPost || Boolean(room?.allowMemberReplies && canUserPostInRoom(roomId, user?.email, { isReply: true }));
+  const showComposer = canPost || (Boolean(room?.allowMemberReplies) && canReply);
   const isAdmin = isAdminEmail(user?.email);
 
   const allMessages = useMemo(() => {
@@ -139,6 +142,9 @@ export function ChatPanel() {
   };
 
   const handleSend = (text: string, files: File[]) => {
+    // Members in reply-only rooms must attach a reply target before posting.
+    if (!canPost && room?.allowMemberReplies && !replyTarget) return;
+
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const previews: ChatAttachment[] = files.map((f) => ({
       path: "",
@@ -310,7 +316,11 @@ export function ChatPanel() {
             {ready ? (
               <p className="truncate text-[10px]" style={{ color: "#64748b" }}>
                 {room?.adminOnlyPost && !isAdmin ? (
-                  "React only · team posts"
+                  room.allowMemberReplies ? (
+                    "React & reply · team starts threads"
+                  ) : (
+                    "React only · team posts"
+                  )
                 ) : (
                   <span className="inline-flex items-center gap-1">
                     <Users className="h-2.5 w-2.5" /> {onlineCount} online
@@ -362,7 +372,7 @@ export function ChatPanel() {
                 messages={allMessages}
                 roomId={roomId}
                 currentUid={user.uid}
-                canReply={canPost}
+                canReply={canReply}
                 canReact
                 loading={loading}
                 hasMore={hasMore}
@@ -376,14 +386,28 @@ export function ChatPanel() {
                 onReply={handleReply}
                 onReact={handleReact}
               />
-              {canPost ? (
+              {showComposer ? (
                 <>
                   <ChatDisclaimer />
+                  {!canPost && room?.allowMemberReplies && !replyTarget ? (
+                    <div
+                      className="shrink-0 px-4 py-2 text-center text-[11px] leading-snug"
+                      style={{ color: "#64748b", borderTop: `1px solid ${FNO_NAV_BORDER}` }}
+                    >
+                      Tap <span className="font-semibold text-slate-300">Reply</span> on a win card to
+                      comment — or react with 🔥
+                    </div>
+                  ) : null}
                   <MessageComposer
                     onSend={handleSend}
                     onRegisterAddFiles={registerAddFiles}
                     participants={participants}
-                    placeholder={room?.composerPlaceholder}
+                    placeholder={
+                      !canPost && room?.allowMemberReplies && !replyTarget
+                        ? "Tap Reply on a win first…"
+                        : room?.composerPlaceholder
+                    }
+                    disabled={!canPost && room?.allowMemberReplies && !replyTarget}
                     replyingTo={
                       replyTarget
                         ? {

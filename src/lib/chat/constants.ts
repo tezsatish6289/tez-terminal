@@ -26,8 +26,13 @@ export interface ChatRoom {
   rules: readonly string[];
   /** When true, every chat-enabled user sees this room (no manual join). */
   autoSubscribe: boolean;
-  /** When true, only admins may post or reply. Everyone else can read and react. */
+  /** When true, only admins may start threads. Everyone else can read and react. */
   adminOnlyPost: boolean;
+  /**
+   * When true with adminOnlyPost, members may still reply to existing messages
+   * (and use the composer once a reply is selected).
+   */
+  allowMemberReplies?: boolean;
   /** Placeholder shown in the composer for this room. */
   composerPlaceholder?: string;
 }
@@ -110,16 +115,17 @@ export const CHAT_ROOMS: ChatRoom[] = [
     id: SUCCESS_STORIES_ROOM_ID,
     name: "Success Stories",
     description:
-      "Live win-story alerts when price runs from a wall to max pain. Educational recaps only — not investment advice.",
+      "Live wins when price runs from a wall to max pain. React, reply, and watch the replay — educational only, not investment advice.",
     rules: [
-      "System / team posts only — members can read and react.",
-      "Each post links to an in-app candle replay of a completed move.",
-      "Educational observations only — no buy/sell calls.",
-      "Questions → ask in General.",
+      "Win cards are posted by FNO Ninja — react and reply to join the conversation.",
+      "Celebrate the move, share what you noticed — no buy/sell calls.",
+      "Keep it respectful; disagree without personal attacks.",
+      "Spam or tip-giving → use General for questions instead.",
     ],
     autoSubscribe: true,
     adminOnlyPost: true,
-    composerPlaceholder: "Team posts only…",
+    allowMemberReplies: true,
+    composerPlaceholder: "Reply to a win — what did you notice?",
   },
 ];
 
@@ -193,10 +199,12 @@ export function getChatRoom(roomId: string): ChatRoom | undefined {
 export function canUserPostInRoom(
   roomId: string,
   email: string | null | undefined,
+  opts?: { isReply?: boolean },
 ): boolean {
   const room = getChatRoom(roomId);
   if (!room) return false;
   if (!room.adminOnlyPost) return true;
+  if (room.allowMemberReplies && opts?.isReply) return true;
   return isAdminEmail(email);
 }
 

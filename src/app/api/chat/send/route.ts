@@ -79,9 +79,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!canUserPostInRoom(roomId, auth.decoded.email)) {
+  if (!canUserPostInRoom(roomId, auth.decoded.email, { isReply: Boolean(replyToId) })) {
     return NextResponse.json(
-      { error: "Only admins can post in this channel." },
+      {
+        error: replyToId
+          ? "You can't reply in this channel."
+          : "Only admins can start threads here — tap Reply on a win to comment.",
+      },
       { status: 403 },
     );
   }

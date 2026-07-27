@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, Flag, ImageIcon, Loader2, Pencil, Reply, RotateCw, Trash2, User, X } from "lucide-react";
@@ -26,6 +26,8 @@ const INDEX_SYMBOLS = new Set([
   "SENSEX",
   "BANKEX",
 ]);
+
+const LONG_PRESS_MS = 450;
 
 // Split on a $SYMBOL cashtag, an @handle mention, or a URL (http/https or www.),
 // keeping the delimiters so we can style/linkify them and leave the rest as text.
@@ -209,6 +211,10 @@ export function MessageItem({
   const [busy, setBusy] = useState(false);
   const [zoom, setZoom] = useState<ChatAttachment | null>(null);
   const [reactOpen, setReactOpen] = useState(false);
+  const [menuPinned, setMenuPinned] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchOrigin = useRef<{ x: number; y: number } | null>(null);
 
   const pending = message.clientStatus; // "sending" | "failed" | undefined
   const canEdit = isOwn && !pending && Date.now() - message.createdAt <= CHAT_EDIT_WINDOW_MS;
@@ -220,6 +226,7 @@ export function MessageItem({
   const showReport = !isOwn && !isSuccessStoriesRoom;
   const showMessageActions =
     !editing && !pending && (showReactions || showReply || canEdit || isOwn || showReport);
+  const menuOpen = menuPinned || reactOpen;
   const parsedStory =
     isSuccessStoriesRoom && !message.replyTo ? parseSuccessStoryMessage(message.text) : null;
   const successStory =
@@ -227,6 +234,37 @@ export function MessageItem({
     (isSuccessStorySystemAuthor(message.authorId) || Boolean(parsedStory.storyId))
       ? parsedStory
       : null;
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    setMenuPinned(false);
+    setReactOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (rowRef.current?.contains(e.target as Node)) return;
+      closeMenu();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeMenu();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen, closeMenu]);
+
+  useEffect(() => () => clearLongPress(), [clearLongPress]);
 
   if (message.deleted) {
     return (
@@ -260,11 +298,52 @@ export function MessageItem({
     }
   };
 
+  const onTouchStart = (e: TouchEvent) => {
+    if (!showMessageActions) return;
+    const t = e.touches[0];
+    if (!t) return;
+    touchOrigin.current = { x: t.clientX, y: t.clientY };
+    clearLongPress();
+    longPressTimer.current = setTimeout(() => {
+      longPressTimer.current = null;
+      setMenuPinned(true);
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate(12);
+        } catch {
+          /* ignore */
+        }
+      }
+    }, LONG_PRESS_MS);
+  };
+
+  const onTouchMove = (e: TouchEvent) => {
+    const origin = touchOrigin.current;
+    const t = e.touches[0];
+    if (!origin || !t) return;
+    if (Math.abs(t.clientX - origin.x) > 10 || Math.abs(t.clientY - origin.y) > 10) {
+      clearLongPress();
+    }
+  };
+
+  const onTouchEnd = () => {
+    clearLongPress();
+    touchOrigin.current = null;
+  };
+
   return (
     <div
+      ref={rowRef}
       data-mid={message.id}
       className="group relative flex gap-2.5 px-3 py-2 transition-colors duration-700 hover:bg-white/[0.02]"
       style={highlight ? { backgroundColor: "rgba(37,99,235,0.16)" } : undefined}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+      onContextMenu={(e) => {
+        if (showMessageActions) e.preventDefault();
+      }}
     >
       <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full" style={{ backgroundColor: "rgba(37,99,235,0.12)" }}>
         {message.authorPhoto ? (
@@ -276,7 +355,17 @@ export function MessageItem({
         )}
       </div>
 
-      <div className="min-w-0 flex-1">
+      <div
+        className={[
+          "relative min-w-0 flex-1",
+          // Reserve space under the message while the action pill is visible so hover
+          // doesn't die in the gap and the next row isn't covered.
+          showMessageActions
+            ? "[@media(hover:hover)]:group-hover:pb-11 data-[menu-open=true]:pb-11"
+            : "",
+        ].join(" ")}
+        data-menu-open={menuOpen ? "true" : "false"}
+      >
         <div className="flex items-baseline gap-2">
           <span className="truncate text-xs font-semibold text-white">{message.authorName}</span>
           <span className="text-[10px]" style={{ color: "#475569" }}>
@@ -374,7 +463,7 @@ export function MessageItem({
                 </button>
               </div>
             ) : null}
-            {showReactions && (reactionEntries.length > 0 || reactOpen) ? (
+            {showReactions && reactionEntries.length > 0 ? (
               <div className="mt-1.5 flex flex-wrap items-center gap-1">
                 {reactionEntries.map(([emoji, uids]) => {
                   const mine = uids.includes(currentUid);
@@ -399,58 +488,101 @@ export function MessageItem({
                 })}
               </div>
             ) : null}
+
+            {showMessageActions ? (
+              <div
+                data-open={menuOpen ? "true" : "false"}
+                className={[
+                  "absolute bottom-1 left-0 z-30 inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 shadow-lg transition-opacity duration-150",
+                  "opacity-0 pointer-events-none",
+                  "data-[open=true]:pointer-events-auto data-[open=true]:opacity-100",
+                  "[@media(hover:hover)]:group-hover:pointer-events-auto [@media(hover:hover)]:group-hover:opacity-100",
+                ].join(" ")}
+                style={{
+                  backgroundColor: "#0f1c30",
+                  border: "1px solid rgba(90,140,220,0.28)",
+                }}
+                role="toolbar"
+                aria-label="Message actions"
+              >
+                {showReactions ? (
+                  <button
+                    type="button"
+                    onClick={() => setReactOpen((o) => !o)}
+                    className="rounded-full p-1.5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+                    aria-label="Add reaction"
+                    aria-pressed={reactOpen}
+                  >
+                    <span className="text-xs leading-none">😊</span>
+                  </button>
+                ) : null}
+                {showReply ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onReply(message);
+                      closeMenu();
+                    }}
+                    className="rounded-full p-1.5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+                    aria-label="Reply"
+                  >
+                    <Reply className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+                {canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(true);
+                      closeMenu();
+                    }}
+                    className="rounded-full p-1.5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+                    aria-label="Edit message"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+                {isOwn ? (
+                  <button
+                    type="button"
+                    onClick={() => void submitDelete()}
+                    disabled={busy}
+                    className="rounded-full p-1.5 text-slate-400 hover:bg-white/10 hover:text-rose-400"
+                    aria-label="Delete message"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                ) : showReport ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onReport(message);
+                      closeMenu();
+                    }}
+                    className="rounded-full p-1.5 text-slate-400 hover:bg-white/10 hover:text-amber-400"
+                    aria-label="Report message"
+                  >
+                    <Flag className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+
+                {reactOpen && showReactions ? (
+                  <ChatEmojiGrid
+                    className="absolute bottom-full left-0 z-40 mb-1.5 w-[17.5rem] max-w-[calc(100vw-2rem)]"
+                    cols={8}
+                    onPick={(emoji) => {
+                      onReact(message.id, emoji);
+                      closeMenu();
+                    }}
+                  />
+                ) : null}
+              </div>
+            ) : null}
           </>
         )}
       </div>
 
       {zoom ? <Lightbox attachment={zoom} onClose={() => setZoom(null)} /> : null}
-
-      {showMessageActions ? (
-        <div className="relative flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-          {showReactions ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setReactOpen((o) => !o)}
-                className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300"
-                aria-label="Add reaction"
-                aria-pressed={reactOpen}
-              >
-                <span className="text-xs leading-none">😊</span>
-              </button>
-              {reactOpen ? (
-                <ChatEmojiGrid
-                  className="absolute right-0 top-full z-20 mt-1 w-[17.5rem] max-w-[calc(100vw-2rem)]"
-                  cols={8}
-                  onPick={(emoji) => {
-                    onReact(message.id, emoji);
-                    setReactOpen(false);
-                  }}
-                />
-              ) : null}
-            </>
-          ) : null}
-          {showReply ? (
-            <button type="button" onClick={() => onReply(message)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300" aria-label="Reply">
-              <Reply className="h-3 w-3" />
-            </button>
-          ) : null}
-          {canEdit ? (
-            <button type="button" onClick={() => setEditing(true)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-slate-300" aria-label="Edit message">
-              <Pencil className="h-3 w-3" />
-            </button>
-          ) : null}
-          {isOwn ? (
-            <button type="button" onClick={submitDelete} disabled={busy} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-rose-400" aria-label="Delete message">
-              <Trash2 className="h-3 w-3" />
-            </button>
-          ) : showReport ? (
-            <button type="button" onClick={() => onReport(message)} className="rounded p-1 text-slate-500 hover:bg-white/5 hover:text-amber-400" aria-label="Report message">
-              <Flag className="h-3 w-3" />
-            </button>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -147,7 +147,7 @@ export interface FindSuccessStoriesOpts {
   /**
    * Ranking:
    * - `score` (default) — strongest / freshest first (admin headline pick)
-   * - `oldest` — drain backlog chronologically (Buffer auto-post)
+   * - `oldest` — chronological (legacy backlog drain)
    * - `newest` — most recent eventAt first
    */
   order?: "score" | "oldest" | "newest";

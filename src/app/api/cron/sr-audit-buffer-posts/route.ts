@@ -1,14 +1,15 @@
 /**
  * /api/cron/sr-audit-buffer-posts
  *
- * Auto-publish SR-audit win-story reels to Buffer (max 3/day, target 9 PM IST).
+ * Auto-publish SR-audit win-story reels to Buffer (max 1/day, target 9 PM IST).
  *
- * Selection: realized move > 3%, oldest unposted first, never re-post a storyId
+ * Selection: today's (IST) biggest unposted win with realized move > 3%. No
+ * backlog. Email blast rides the Buffer schedule 1:1. Never re-post a storyId
  * already in social_posts. Channel due-times are jittered; the video itself is
  * scheduled once.
  *
  * Two ticks on cron-job.org (recommended):
- *   GET ?key=CRON_SECRET&phase=prepare   → 19:00 IST (13:30 UTC) — pick stories + start renders
+ *   GET ?key=CRON_SECRET&phase=prepare   → 19:00 IST (13:30 UTC) — pick story + start render
  *   GET ?key=CRON_SECRET&phase=publish   → 21:00 IST (15:30 UTC) — caption + schedule to Buffer
  *
  * Or a single daily call with phase=auto (prepare before 9 PM IST, publish at/after).
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
       mode: "background",
       phase,
       hint:
-        "Batch runs after response. Use phase=prepare ~7 PM IST and phase=publish at 9 PM IST (max 3/day).",
+        "Batch runs after response. Use phase=prepare ~7 PM IST and phase=publish at 9 PM IST (max 1/day, today's biggest mover >3%).",
     },
     { status: 202 },
   );

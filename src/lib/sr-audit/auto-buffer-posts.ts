@@ -1,9 +1,12 @@
 /**
- * Automate SR-audit win-story posts to Buffer.
+ * Automate SR-audit win-story posts to Buffer (+ email via scheduleToBuffer).
+ *
+ * Selection: at most ONE reel/day — today's (IST) biggest unposted win with
+ * realized move > 3%. No backlog drain; if nothing qualifies, skip the day.
  *
  * Two phases (App Hosting timeout is ~120s — cloud renders take minutes):
- *   prepare  — pick up to MAX unposted success stories, kick off Cloud Run renders
- *   publish  — for ready renders, generate captions and schedule/share to Buffer
+ *   prepare  — pick today's best story (if any), kick off Cloud Run render
+ *   publish  — for ready render, generate captions and schedule to Buffer
  *
  * Recommended cron-job.org schedule (IST):
  *   19:00 IST (13:30 UTC)  → ?phase=prepare
@@ -21,7 +24,13 @@ import {
   VIDEO_RENDERS_COLLECTION,
   type RenderStatusDoc,
 } from "@/lib/videos/cloud-render";
-import { findSuccessStories, type SuccessStoryCandidate } from "@/lib/videos/success-story";
+import {
+  findSuccessStories,
+  qualifySuccessStory,
+  type SuccessStoryCandidate,
+} from "@/lib/videos/success-story";
+import { SR_ZONE_EVENTS_COLLECTION } from "@/lib/sr-audit/constants";
+import type { SrZoneEvent } from "@/lib/sr-audit/types";
 import { generateStoryCaptionsFromCandidate } from "@/lib/sr-audit/generate-story-captions";
 import {
   getPostedContentMap,
@@ -34,7 +43,7 @@ import {
   type SocialPlatformId,
 } from "@/lib/social/platforms";
 
-export const SR_BUFFER_AUTO_MAX_PER_DAY = 3;
+export const SR_BUFFER_AUTO_MAX_PER_DAY = 1;
 export const SR_BUFFER_AUTO_SOURCE = "sr-audit";
 /** Only auto-post wins with realized move strictly greater than this %. */
 export const SR_BUFFER_AUTO_MIN_MOVE_PCT = 3;
@@ -116,6 +125,46 @@ export function ninePmIstIso(dayKey = istDayKey()): string {
 export function resolveAutoPhase(now = new Date()): "prepare" | "publish" {
   // Before 9 PM IST → prepare (render). At/after 9 PM → publish.
   return istHour(now) < SR_BUFFER_AUTO_HOUR_IST ? "prepare" : "publish";
+}
+
+/**
+ * Today's IST success stories with move > floor, biggest first.
+ * Scans a short recent window then keeps only `dayKey` (no backlog).
+ */
+async function findTodaysMoversBySize(
+  db: Firestore,
+  dayKey: string,
+): Promise<SuccessStoryCandidate[]> {
+  const stories = await findSuccessStories(db, {
+    requireSnapshot: true,
+    // 2 days covers the IST calendar boundary vs UTC "last 24h".
+    withinDays: 2,
+    scanLimit: 500,
+    minMovePct: SR_BUFFER_AUTO_MIN_MOVE_PCT,
+    order: "newest",
+  });
+  return stories
+    .filter((s) => istDayKey(new Date(s.eventAt)) === dayKey)
+    .sort(
+      (a, b) =>
+        b.movePct - a.movePct || Date.parse(b.eventAt) - Date.parse(a.eventAt),
+    );
+}
+
+/** Load a single queued story by id (publish path — independent of the day scan). */
+async function loadSuccessStoryById(
+  db: Firestore,
+  storyId: string,
+): Promise<SuccessStoryCandidate | null> {
+  const doc = await db.collection(SR_ZONE_EVENTS_COLLECTION).doc(storyId).get();
+  if (!doc.exists) return null;
+  const candidate = qualifySuccessStory({
+    id: doc.id,
+    ...(doc.data() as SrZoneEvent),
+  });
+  if (!candidate) return null;
+  if (!(candidate.movePct > SR_BUFFER_AUTO_MIN_MOVE_PCT)) return null;
+  return candidate;
 }
 
 async function tryAcquireLock(db: Firestore, ttlMs = 110_000): Promise<boolean> {
@@ -343,14 +392,8 @@ async function prepareDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
   const platforms = await connectedPlatforms();
   // Never re-queue a story already on today's list (incl. failed/scheduled).
   const queuedIds = new Set(day.items.map((i) => i.storyId));
-  // Oldest unposted backlog first; move must be > 3%.
-  const stories = await findSuccessStories(db, {
-    requireSnapshot: true,
-    withinDays: 365,
-    scanLimit: 2000,
-    minMovePct: SR_BUFFER_AUTO_MIN_MOVE_PCT,
-    order: "oldest",
-  });
+  // Today's biggest mover (>3%) only — no backlog.
+  const stories = await findTodaysMoversBySize(db, dayKey);
 
   const picks: SuccessStoryCandidate[] = [];
   for (const s of stories) {
@@ -490,14 +533,6 @@ async function publishDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
     };
   }
 
-  const stories = await findSuccessStories(db, {
-    requireSnapshot: true,
-    withinDays: 365,
-    scanLimit: 2000,
-    minMovePct: SR_BUFFER_AUTO_MIN_MOVE_PCT,
-    order: "oldest",
-  });
-  const byId = new Map(stories.map((s) => [s.id, s]));
   const postedMap = await getPostedContentMap(SR_BUFFER_AUTO_SOURCE);
 
   const baseIso = ninePmIstIso(dayKey);
@@ -553,17 +588,18 @@ async function publishDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
         continue;
       }
 
-      const candidate = byId.get(item.storyId);
+      const candidate = await loadSuccessStoryById(db, item.storyId);
       if (!candidate) {
         item.status = "failed";
-        item.error = "story_not_found";
+        item.error = "story_not_found_or_below_move_floor";
         failed += 1;
         item.updatedAt = nowIso;
         continue;
       }
-      if (!(candidate.movePct > SR_BUFFER_AUTO_MIN_MOVE_PCT)) {
+      // Refuse leftover backlog items that may still be in an old day queue.
+      if (istDayKey(new Date(candidate.eventAt)) !== dayKey) {
         item.status = "failed";
-        item.error = `move_pct_below_${SR_BUFFER_AUTO_MIN_MOVE_PCT}`;
+        item.error = "not_todays_story";
         failed += 1;
         item.updatedAt = nowIso;
         continue;

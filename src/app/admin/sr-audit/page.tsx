@@ -530,9 +530,9 @@ export default function SrAuditAdminPage() {
             ))}
           </div>
           <p className="text-[10px] text-slate-600 mt-3">
-            A well-calibrated score should show win rate rising left → right. Scores here use levels,
-            max-pain sign, IV regime, R:R and the backfilled entry PVT (first sessions after the dip);
-            news / IV-percentile aren&apos;t captured on historical rows.
+            A well-calibrated score should show win rate rising left → right. Scores use band + PVT
+            (primary), max-pain pull, OI/news when present, IV regime, and R:R soft-peak (reachable
+            targets beat lottery R:R). News / IV-percentile / OIΔ often missing on historical rows.
           </p>
         </div>
 

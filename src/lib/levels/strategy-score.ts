@@ -9,11 +9,10 @@
  * blend (that was the flaw in the original hand-written rule table):
  *
  *   1. Direction  ∈ [-1, +1]   bearish … bullish. A weighted, normalised blend
- *      of directional reads: spot vs support/resistance bands, the *sign* of the
- *      spot→max-pain gap (max pain is a magnet, so the sign is what matters, not
- *      the raw distance), day-over-day OI-wall buildup (put wall building =
- *      support strengthening = bullish; call wall building = bearish), news
- *      sentiment and (optionally) PVT slope.
+ *      of directional reads: spot vs support/resistance bands, max-pain pull
+ *      (correct side + modest gap, saturating ~5% — not "farther forever"),
+ *      day-over-day OI-wall buildup, news sentiment, and PVT slope (primary
+ *      confirmation — largest direction weight after SR-audit calibration).
  *
  *   2. VolFit     ∈ [0, 1]      per volatility posture. Keyed off IV *percentile*
  *      / regime, NEVER absolute IV. Buying vol wants LOW IV (+ a catalyst);
@@ -21,8 +20,9 @@
  *      — IV does not raise its score, it only trims it for extreme-risk regimes.
  *
  *   3. Context    ∈ [0, 1]      quality gate: strike/level alignment to OI walls
- *      and bands, liquidity (OI cluster size) and reward:risk. The only axis
- *      that is legitimately "good for both buying and selling".
+ *      and bands, liquidity (OI cluster size) and reward:risk with a *soft peak*
+ *      (reachable RR ~1.5–2.5 scores best; lottery RR is down-weighted — SR-audit
+ *      showed win rate collapsing above ~2.5R).
  *
  * Composition:  composite = 100 · (wDir·align + wVol·volFit + wCtx·ctx) − penalties
  * where `align` maps the strategy's stance against the Direction read (a bullish
@@ -119,8 +119,17 @@ export interface ScoreConfig {
   /** IV percentile at/above which vol is "high", at/below which "low". */
   ivHighPct: number;
   ivLowPct: number;
-  /** Reward:risk that saturates the context RR term. */
-  rrSaturation: number;
+  /**
+   * Context RR soft-peak (audit-calibrated): rise from `rrRiseFrom` → 1 at
+   * `rrPeakLow`, stay at 1 through `rrPeakHigh`, decay to `rrFloor` by
+   * `rrDecayTo`, then hold the floor. Replaces the old linear `RR / 3` which
+   * rewarded unreachable max-pain targets.
+   */
+  rrRiseFrom: number;
+  rrPeakLow: number;
+  rrPeakHigh: number;
+  rrDecayTo: number;
+  rrFloor: number;
   /** OI contracts that saturate the liquidity term. */
   liquiditySaturation: number;
   /** Earnings within this many days applies the gap-risk penalty. */
@@ -134,15 +143,19 @@ export interface ScoreConfig {
 }
 
 export const SCORE_CONFIG: ScoreConfig = {
-  weights: { direction: 0.45, volFit: 0.3, context: 0.25 },
-  // PVT (volume-backed trend) is weighted as a primary directional confirmation,
-  // co-equal with the spot-vs-bands read.
-  directionWeights: { band: 0.25, maxPainSign: 0.15, oiBuildup: 0.2, news: 0.15, pvt: 0.25 },
+  // SR-audit v1: lean on direction (esp. PVT), keep vol quieter for directional
+  // setups, and use context for liquidity + reachable RR.
+  weights: { direction: 0.5, volFit: 0.2, context: 0.3 },
+  directionWeights: { band: 0.2, maxPainSign: 0.15, oiBuildup: 0.15, news: 0.1, pvt: 0.4 },
   maxPainFullGapPct: 0.05,
   oiBuildupSaturationPct: 25,
   ivHighPct: 70,
   ivLowPct: 30,
-  rrSaturation: 3,
+  rrRiseFrom: 0.8,
+  rrPeakLow: 1.5,
+  rrPeakHigh: 2.5,
+  rrDecayTo: 4,
+  rrFloor: 0.25,
   liquiditySaturation: 1_000_000,
   earningsWindowDays: 7,
   shortDatedDays: 7,
@@ -204,7 +217,9 @@ export function computeDirection(
     parts.push({ key: "band", value: clamp(1 - 2 * pos, -1, 1), weight: dw.band });
   }
 
-  // 2. Max-pain sign — magnet pull. Above spot → pulls up (bullish); below → bearish.
+  // 2. Max-pain pull — correct side + modest distance (saturates at
+  //    maxPainFullGapPct ≈ 5%). Farther than that does not keep adding juice;
+  //    reachable targets are scored in Context via the RR soft-peak.
   if (isNum(inputs.spot) && isNum(inputs.maxPain) && inputs.spot > 0) {
     const gap = (inputs.maxPain - inputs.spot) / inputs.spot;
     parts.push({
@@ -300,8 +315,26 @@ export function computeVolFit(
 const near = (x: number, target: number, tol: number): boolean => Math.abs(x - target) <= tol;
 
 /**
+ * Context RR soft-peak ∈ [rrFloor, 1].
+ *   RR < riseFrom          → 0
+ *   riseFrom → peakLow     → 0 → 1
+ *   peakLow → peakHigh     → 1
+ *   peakHigh → decayTo     → 1 → rrFloor
+ *   RR > decayTo           → rrFloor
+ */
+export function rrContextScore(rr: number, cfg: ScoreConfig = SCORE_CONFIG): number {
+  if (!Number.isFinite(rr) || rr <= 0) return 0;
+  const { rrRiseFrom: a, rrPeakLow: b, rrPeakHigh: c, rrDecayTo: d, rrFloor: floor } = cfg;
+  if (rr < a) return 0;
+  if (rr < b) return clamp01((rr - a) / (b - a));
+  if (rr <= c) return 1;
+  if (rr < d) return clamp(1 - ((rr - c) / (d - c)) * (1 - floor), floor, 1);
+  return floor;
+}
+
+/**
  * Context / quality sub-score → [0,1]: average of whichever parts are derivable
- * — strike-to-level alignment, OI-cluster liquidity and reward:risk.
+ * — strike-to-level alignment, OI-cluster liquidity and reward:risk (soft-peak).
  */
 export function computeContext(
   inputs: ScoreInputs,
@@ -337,9 +370,9 @@ export function computeContext(
     parts.push(clamp01(Math.log10(size) / Math.log10(cfg.liquiditySaturation)));
   }
 
-  // Reward:risk.
+  // Reward:risk — soft-peak (reachable targets beat lottery RR).
   if (isNum(opts.riskReward) && opts.riskReward > 0) {
-    parts.push(clamp01(opts.riskReward / cfg.rrSaturation));
+    parts.push(rrContextScore(opts.riskReward, cfg));
   }
 
   if (!parts.length) return 0.5; // neutral when nothing is derivable

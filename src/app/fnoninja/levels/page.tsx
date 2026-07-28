@@ -40,6 +40,7 @@ import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { LevelsSymbolStatusBadge } from "@/components/levels/LevelsSymbolStatusBadge";
 import type { LevelsChartStatusOverlayProps } from "@/components/levels/LevelsChartCornerStatusBlobs";
+import { useAtlasSetupScore } from "@/lib/levels/use-atlas-setup-score";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
 import {
@@ -990,6 +991,12 @@ export default function LevelsPage() {
       })
     : null;
 
+  const atlasScore = useAtlasSetupScore(
+    inZoneActive?.scope ?? null,
+    inZoneActive?.symbol ?? null,
+    activeDisplayTone,
+  );
+
   const slideshowStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
     const lv = chartLevelsForView;
     return {
@@ -998,8 +1005,9 @@ export default function LevelsPage() {
       volRegimeReason: lv?.volRegimeReason,
       atmIV: lv?.atmIV,
       daysToEarnings: lv?.daysToEarnings,
+      atlasScore,
     };
-  }, [activeDisplayTone, chartLevelsForView]);
+  }, [activeDisplayTone, atlasScore, chartLevelsForView]);
 
   const slideshowChartPane =
     activeTv != null ? (

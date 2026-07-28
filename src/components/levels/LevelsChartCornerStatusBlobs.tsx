@@ -1,5 +1,6 @@
 "use client";
 
+import { AtlasSetupScoreBadge } from "@/components/levels/AtlasSetupScoreBadge";
 import { LevelsSymbolStatusBadge } from "@/components/levels/LevelsSymbolStatusBadge";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
@@ -11,13 +12,15 @@ export type LevelsChartStatusOverlayProps = {
   volRegimeReason?: string | null;
   atmIV?: number | null;
   daysToEarnings?: number | null;
+  /** Atlas composite 0–100 for at/near support|resistance setups. */
+  atlasScore?: number | null;
 };
 
 const DEFAULT_RIGHT_INSET_PX = 100;
 
 /**
- * Zone status + IV regime blobs anchored to the top-right of the chart grid,
- * sitting just left of the right price scale (not in the page header).
+ * Zone status + Atlas score + IV regime blobs anchored to the top-right of the
+ * chart grid, sitting just left of the right price scale (not in the page header).
  */
 export function LevelsChartCornerStatusBlobs({
   statusTone,
@@ -25,6 +28,7 @@ export function LevelsChartCornerStatusBlobs({
   volRegimeReason,
   atmIV,
   daysToEarnings,
+  atlasScore,
   rightInsetPx = DEFAULT_RIGHT_INSET_PX,
   visible = true,
 }: LevelsChartStatusOverlayProps & {
@@ -34,8 +38,13 @@ export function LevelsChartCornerStatusBlobs({
   if (!visible) return null;
 
   const showStatus = statusTone != null;
+  const showAtlas =
+    atlasScore != null && Number.isFinite(atlasScore) && (statusTone === "IN_BULL" ||
+      statusTone === "IN_BEAR" ||
+      statusTone === "NEAR_BULL" ||
+      statusTone === "NEAR_BEAR");
   const showVol = volRegime != null && volRegime !== "UNKNOWN";
-  if (!showStatus && !showVol) return null;
+  if (!showStatus && !showAtlas && !showVol) return null;
 
   return (
     <div
@@ -43,6 +52,7 @@ export function LevelsChartCornerStatusBlobs({
       style={{ right: rightInsetPx + 6 }}
     >
       {showStatus ? <LevelsSymbolStatusBadge tone={statusTone} size="chart" /> : null}
+      {showAtlas ? <AtlasSetupScoreBadge score={atlasScore} size="chart" /> : null}
       {showVol ? (
         <VolRegimeBadge
           flag={volRegime}

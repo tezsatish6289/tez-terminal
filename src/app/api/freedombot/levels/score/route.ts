@@ -22,6 +22,11 @@ import {
   scoreDirectionalSetup,
   type ScoreInputs,
 } from "@/lib/levels/strategy-score";
+import { pocRiskRewardRatio, type ZoneBands } from "@/lib/zones/zone-status";
+import {
+  atlasScoreBucket,
+  atlasScoreSideFromTone,
+} from "@/lib/levels/atlas-score-calibration";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -67,6 +72,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const scope = searchParams.get("scope") === "index" ? "index" : searchParams.get("scope") === "stock" ? "stock" : null;
   const rawSymbol = (searchParams.get("symbol") ?? "").trim().toUpperCase();
+  const sideParam = searchParams.get("side");
+  const sideFromQuery =
+    sideParam === "support" || sideParam === "resistance"
+      ? sideParam
+      : atlasScoreSideFromTone(searchParams.get("tone"));
   if (!scope || !rawSymbol) {
     return NextResponse.json({ ok: false, error: "Missing scope or symbol" }, { status: 400 });
   }
@@ -130,18 +140,40 @@ export async function GET(request: NextRequest) {
   }
 
   const direction = computeDirection(inputs);
-  // Score the setup in the direction the data leans (bullish → support thesis).
-  const side = direction.value >= 0 ? "support" : "resistance";
-  const setup = scoreDirectionalSetup(side, inputs);
+  // Prefer explicit zone side (chart At Support / At Resistance); else lean of the read.
+  const side =
+    sideFromQuery ?? (direction.value >= 0 ? "support" : "resistance");
+
+  const bands: ZoneBands = {
+    spot: inputs.spot,
+    bullLow: inputs.supportLow,
+    bullHigh: inputs.supportHigh,
+    bearLow: inputs.resistanceLow,
+    bearHigh: inputs.resistanceHigh,
+  };
+  const bandOffset = num(raw.halfWidthUsd) ?? num(raw.halfWidth) ?? num(raw.bandOffset);
+  const riskReward =
+    inputs.maxPain != null
+      ? pocRiskRewardRatio(bands, inputs.maxPain, bandOffset, side === "support" ? "bull" : "bear")
+      : null;
+
+  const setup = scoreDirectionalSetup(side, inputs, { riskReward });
+  const bucket = atlasScoreBucket(setup.composite);
 
   return NextResponse.json(
     {
       ok: true,
       symbol,
+      side,
+      riskReward,
       score: {
         composite: setup.composite,
         directionLabel: setup.directionLabel,
         subScores: setup.subScores,
+      },
+      calibration: {
+        bucket: bucket.label,
+        winRatePct: bucket.winRatePct,
       },
     },
     { headers: { "Cache-Control": "private, max-age=300" } },

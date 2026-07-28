@@ -2,7 +2,9 @@ import {
   atlasScoreBucket,
   atlasScoreSideFromTone,
   atlasScoreTone,
+  atlasSideFromLevels,
 } from "../../src/lib/levels/atlas-score-calibration";
+import type { PublicLevels } from "../../src/components/levels/ZonePriceLadder";
 import { assertTrue, describe, summary, test } from "./_assert";
 
 describe("atlasScoreBucket", () => {
@@ -30,6 +32,22 @@ describe("atlasScoreSideFromTone", () => {
     assertTrue(atlasScoreSideFromTone("NEAR_BEAR") === "resistance");
     assertTrue(atlasScoreSideFromTone("AT_POC") === null);
     assertTrue(atlasScoreSideFromTone("NEUTRAL") === null);
+  });
+});
+
+describe("atlasSideFromLevels", () => {
+  test("in-band spot scores support even without OI (geo, not display gate)", () => {
+    const levels = {
+      spot: 2038,
+      bullLow: 1950,
+      bullHigh: 2050,
+      bearLow: 2150,
+      bearHigh: 2250,
+      poc: 2150,
+      bandOffset: 50,
+      oi: null,
+    } as PublicLevels;
+    assertTrue(atlasSideFromLevels(levels) === "support");
   });
 });
 

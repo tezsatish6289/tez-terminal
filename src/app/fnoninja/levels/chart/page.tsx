@@ -84,7 +84,7 @@ function ChartContent() {
   const chartLevels =
     scope === "index" || scope === "stock" ? displayLevels : levels;
 
-  const atlasScore = useAtlasSetupScore(scope, symbol, displayTone);
+  const atlasScore = useAtlasSetupScore(scope, symbol, chartLevels ?? levels);
 
   const chartStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
     const lv = chartLevels ?? levels;

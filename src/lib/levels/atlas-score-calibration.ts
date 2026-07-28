@@ -7,6 +7,10 @@
  * per-symbol probability.
  */
 
+import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { deriveBubbleTone } from "@/lib/zones/bubble-tone";
+import { bandsFromLevels } from "@/lib/zones/levels-actionable-list";
+
 export type AtlasScoreBucketId = "0-49" | "50-69" | "70-100";
 
 export interface AtlasScoreBucket {
@@ -47,4 +51,19 @@ export function atlasScoreSideFromTone(
   if (tone === "IN_BULL" || tone === "NEAR_BULL") return "support";
   if (tone === "IN_BEAR" || tone === "NEAR_BEAR") return "resistance";
   return null;
+}
+
+/**
+ * Geographic at/near side for Atlas — ignores OI/RR display gates that can
+ * demote an in-zone symbol to Neutral on the status chip.
+ */
+export function atlasSideFromLevels(
+  levels: PublicLevels | null | undefined,
+  spotOverride?: number | null,
+): "support" | "resistance" | null {
+  if (!levels) return null;
+  const bands = bandsFromLevels(levels, spotOverride);
+  const scanned = levels.bullLow != null || levels.bearLow != null || levels.spot != null;
+  const geo = deriveBubbleTone(bands, scanned);
+  return atlasScoreSideFromTone(geo);
 }

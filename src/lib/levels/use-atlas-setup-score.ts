@@ -1,20 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { atlasScoreSideFromTone } from "@/lib/levels/atlas-score-calibration";
-import type { BubbleTone } from "@/lib/zones/bubble-tone";
+import { useEffect, useMemo, useState } from "react";
+import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { atlasSideFromLevels } from "@/lib/levels/atlas-score-calibration";
 
 /**
  * Fetches the deterministic Atlas setup score for the chart corner badge.
- * Only loads when the symbol is at/near support or resistance (has a side).
+ * Uses geographic zone side (not OI-gated display tone).
  */
 export function useAtlasSetupScore(
   scope: "stock" | "index" | null | undefined,
   symbol: string | null | undefined,
-  statusTone: BubbleTone | null | undefined,
+  levels: PublicLevels | null | undefined,
+  spotOverride?: number | null,
 ): number | null {
   const [score, setScore] = useState<number | null>(null);
-  const side = atlasScoreSideFromTone(statusTone);
+  const side = useMemo(
+    () => atlasSideFromLevels(levels, spotOverride),
+    [levels, spotOverride],
+  );
   const sym = (symbol ?? "").trim().toUpperCase();
 
   useEffect(() => {

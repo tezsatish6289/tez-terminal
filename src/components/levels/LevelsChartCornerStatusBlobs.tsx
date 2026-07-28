@@ -38,11 +38,9 @@ export function LevelsChartCornerStatusBlobs({
   if (!visible) return null;
 
   const showStatus = statusTone != null;
-  const showAtlas =
-    atlasScore != null && Number.isFinite(atlasScore) && (statusTone === "IN_BULL" ||
-      statusTone === "IN_BEAR" ||
-      statusTone === "NEAR_BULL" ||
-      statusTone === "NEAR_BEAR");
+  // Score is keyed off geographic zone (hook), so it can appear even when the
+  // status chip was demoted to Neutral by the OI/RR gate.
+  const showAtlas = atlasScore != null && Number.isFinite(atlasScore);
   const showVol = volRegime != null && volRegime !== "UNKNOWN";
   if (!showStatus && !showAtlas && !showVol) return null;
 

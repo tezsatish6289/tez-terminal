@@ -994,7 +994,8 @@ export default function LevelsPage() {
   const atlasScore = useAtlasSetupScore(
     inZoneActive?.scope ?? null,
     inZoneActive?.symbol ?? null,
-    activeDisplayTone,
+    chartLevelsForView ?? inZoneActive?.data ?? null,
+    inZoneActive?.spot,
   );
 
   const slideshowStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {

@@ -3,6 +3,7 @@ import {
   computeDirection,
   computeVolFit,
   postureFromLegs,
+  rrContextScore,
   scoreDirectionalSetup,
   scoreStrategy,
   stanceAlignment,
@@ -146,14 +147,48 @@ describe("computeContext", () => {
     assertTrue(aligned > off, `aligned strikes should score higher: ${aligned} vs ${off}`);
   });
 
-  test("reward:risk lifts the context score", () => {
-    const good = computeContext(inputs({}), { riskReward: 3 });
+  test("reachable reward:risk scores higher than tiny RR", () => {
+    const good = computeContext(inputs({}), { riskReward: 2 });
     const poor = computeContext(inputs({}), { riskReward: 0.3 });
     assertTrue(good > poor);
   });
 
+  test("RR soft-peak: mid-band beats lottery RR", () => {
+    assertTrue(rrContextScore(2) === 1, `peak should be 1, got ${rrContextScore(2)}`);
+    assertTrue(rrContextScore(2) > rrContextScore(4), "RR 2 > RR 4");
+    assertTrue(rrContextScore(2) > rrContextScore(0.5), "RR 2 > RR 0.5");
+    assertTrue(rrContextScore(4) === 0.25, `floor at RR≥4, got ${rrContextScore(4)}`);
+    const peaked = computeContext(inputs({}), { riskReward: 2 });
+    const lottery = computeContext(inputs({}), { riskReward: 5 });
+    assertTrue(peaked > lottery, `reachable RR should beat lottery: ${peaked} vs ${lottery}`);
+  });
+
   test("neutral 0.5 when nothing derivable", () => {
     assertTrue(computeContext(BASE, {}) === 0.5);
+  });
+});
+
+describe("PVT weight (audit calibration)", () => {
+  test("aligned PVT outscores against-PVT on an otherwise equal resistance setup", () => {
+    const base = {
+      spot: 120,
+      supportLow: 98,
+      supportHigh: 102,
+      resistanceLow: 118,
+      resistanceHigh: 122,
+      maxPain: 108,
+      callWallSize: 400_000,
+    };
+    const aligned = scoreDirectionalSetup("resistance", inputs({ ...base, pvtSlope: -1 }), {
+      riskReward: 2,
+    });
+    const against = scoreDirectionalSetup("resistance", inputs({ ...base, pvtSlope: 1 }), {
+      riskReward: 2,
+    });
+    assertTrue(
+      aligned.composite > against.composite + 10,
+      `aligned ${aligned.composite} should clearly beat against ${against.composite}`,
+    );
   });
 });
 

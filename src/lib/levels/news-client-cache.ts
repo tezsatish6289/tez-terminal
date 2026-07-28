@@ -7,7 +7,7 @@
  * grounded generation never runs per view. This client cache stops the *browser*
  * from re-requesting on every panel mount: the news drawer lives inside a Sheet
  * that unmounts on close, so without this each reopen showed a spinner and a
- * fresh round-trip. Shared across the levels toolbar and the broadcast rail.
+ * fresh round-trip.
  */
 
 import type { LevelsNews } from "@/lib/levels/news-types";

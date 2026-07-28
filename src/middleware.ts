@@ -152,11 +152,6 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // YouTube live broadcast scene (captured by the nightly streamer).
-    if (pathname === "/broadcast" || pathname.startsWith("/broadcast/")) {
-      return NextResponse.next();
-    }
-
     if (pathname === "/fnoninja" || pathname.startsWith("/fnoninja/")) {
       return NextResponse.next();
     }

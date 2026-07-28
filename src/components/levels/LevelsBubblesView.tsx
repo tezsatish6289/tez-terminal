@@ -150,7 +150,7 @@ export function LevelsBubblesView({
   showMaxPainBubbles?: boolean;
   /** Search string from parent toolbar. */
   searchQuery?: string;
-  /** When true, re-measure the container (e.g. broadcast map scene is visible). */
+  /** When true, re-measure the container (e.g. after a hidden layout becomes visible). */
   layoutActive?: boolean;
   /** Scales bubble drift / collision energy (embed preview uses a calmer default). */
   physicsIntensity?: number;
@@ -287,7 +287,7 @@ export function LevelsBubblesView({
       ? showcaseEmphasis
       : null;
 
-  // Broadcast map scene mounts in-flow when visible — kick layout after paint.
+  // Parent can force a remeasure when a previously hidden layout becomes visible.
   useEffect(() => {
     if (!layoutActive) return;
     syncSize();
@@ -367,9 +367,9 @@ export function LevelsBubblesView({
         n.vx = 0;
         n.vy = 0;
       }
-      // Preserved positions may come from a transient wrong-size layout (e.g. a
-      // freshly-mounted broadcast scene measured mid-fade). Clamp into current
-      // bounds so a bubble can never get stranded off-screen and "disappear".
+      // Preserved positions may come from a transient wrong-size layout (e.g.
+      // measured mid-fade). Clamp into current bounds so a bubble can never get
+      // stranded off-screen and "disappear".
       n.x = Math.max(n.r + 8, Math.min(size.w - n.r - 8, n.x));
       n.y = Math.max(n.r + 8, Math.min(size.h - n.r - 8, n.y));
     }

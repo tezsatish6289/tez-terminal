@@ -9,14 +9,20 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/fnoninja/landing-motion";
+import {
+  buildLevelsBubbleItems,
+  type StockBubbleSource,
+} from "@/components/levels/LevelsBubblesView";
+import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
+import { countBubbleMapFilters } from "@/lib/zones/bubble-map-filter";
 
-type Status = "IN_BULL" | "IN_BEAR" | "NEAR" | "NEUTRAL";
-type IndexEntry = { symbol: string; data?: { spot?: number } };
+type IndexEntry = { symbol?: string; label: string; data: PublicLevels | null };
 type LevelsPayload = {
   indices?: IndexEntry[];
-  inZone?: Array<{ scope: string; status: Status }>;
+  stocks?: StockBubbleSource[];
+  fnoUniverse?: string[];
 };
 
 const fmt = (n: number | undefined | null) =>
@@ -48,17 +54,20 @@ export function FnoNinjaComboSection() {
   }, []);
 
   const counts = useMemo(() => {
-    let atS = 0;
-    let atR = 0;
-    let near = 0;
-    (payload?.inZone ?? [])
-      .filter((z) => z.scope === "stock")
-      .forEach((z) => {
-        if (z.status === "IN_BULL") atS++;
-        else if (z.status === "IN_BEAR") atR++;
-        else if (z.status === "NEAR") near++;
-      });
-    return { atS, atR, near };
+    if (!payload) return { atS: 0, atR: 0, near: 0 };
+    const stockBySymbol = new Map<string, StockBubbleSource>();
+    for (const s of payload.stocks ?? []) stockBySymbol.set(s.symbol, s);
+    const items = buildLevelsBubbleItems(
+      payload.indices ?? [],
+      stockBySymbol,
+      payload.fnoUniverse,
+    );
+    const c = countBubbleMapFilters(items);
+    return {
+      atS: c.IN_BULL,
+      atR: c.IN_BEAR,
+      near: c.NEAR_BULL + c.NEAR_BEAR,
+    };
   }, [payload]);
 
   const indices = payload?.indices ?? [];
@@ -128,7 +137,7 @@ export function FnoNinjaComboSection() {
                 </div>
                 <div className="rounded-lg border border-amber-400/30 bg-amber-500/5 p-2">
                   <div className="text-[18px] font-black tabular-nums text-amber-200">{counts.near}</div>
-                  <div className="uppercase tracking-wider text-amber-200/80">Near Level</div>
+                  <div className="uppercase tracking-wider text-amber-200/80">Near R/S</div>
                 </div>
               </div>
             </div>
@@ -138,7 +147,7 @@ export function FnoNinjaComboSection() {
                 <div className="flex w-max animate-marquee gap-8 px-4 py-3 text-[12px]">
                   {[...indices, ...indices].map((i, idx) => (
                     <span key={idx} className="flex items-center gap-2">
-                      <span className="text-slate-400">{i.symbol}</span>
+                      <span className="text-slate-400">{i.symbol ?? i.label}</span>
                       <span className="font-semibold tabular-nums">{fmt(i.data?.spot)}</span>
                     </span>
                   ))}

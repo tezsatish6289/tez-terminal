@@ -1,28 +1,37 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  buildLevelsBubbleItems,
+  type LevelsBubbleItem,
+  type StockBubbleSource,
+} from "@/components/levels/LevelsBubblesView";
+import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import {
+  BUBBLE_SHOWCASE_KEYS,
+  bubbleShowcaseSteps,
+  type BubbleShowcaseKey,
+} from "@/lib/levels/bubble-showcase-cycle";
 import { FNO_MUTED } from "@/lib/fnoninja/theme";
+import { countBubbleMapFilters } from "@/lib/zones/bubble-map-filter";
+import type { BubbleTone } from "@/lib/zones/bubble-tone";
 
-type Status = "IN_BULL" | "IN_BEAR" | "NEAR" | "NEUTRAL";
-type LevelsInZone = { scope: "stock" | "index"; symbol: string; status: Status; spot: number };
-type IndexEntry = { symbol: string; data?: { spot?: number } };
+type IndexEntry = { symbol?: string; label: string; data: PublicLevels | null };
+type StockListItem = StockBubbleSource;
 type LevelsPayload = {
   indices?: IndexEntry[];
-  inZone?: LevelsInZone[];
+  stocks?: StockListItem[];
   fnoUniverse?: string[];
 };
 
-type BubbleTone = "at-r" | "near-r" | "at-s" | "near-s" | "idx" | "neutral";
-type Bubble = { s: string; px?: string; x: number; y: number; r: number; tone: BubbleTone };
-type FilterKey = "at-s" | "at-r" | "near-r";
+type HeroBubbleTone = BubbleShowcaseKey | "idx" | "neutral";
+type Bubble = { s: string; px?: string; x: number; y: number; r: number; tone: HeroBubbleTone };
+export type FilterKey = BubbleShowcaseKey;
 
 const fmt = (n: number | null | undefined) =>
   typeof n === "number" && Number.isFinite(n)
     ? n.toLocaleString("en-IN", { maximumFractionDigits: 2 })
     : "—";
-
-const toneForStatus = (s: Status): BubbleTone =>
-  s === "IN_BULL" ? "at-s" : s === "IN_BEAR" ? "at-r" : s === "NEAR" ? "near-r" : "neutral";
 
 const SIGNAL_SLOTS = [
   { x: 78, y: 22, r: 44 },
@@ -57,6 +66,19 @@ const INDEX_SLOTS: Record<string, { x: number; y: number; r: number }> = {
   NIFTYNXT50: { x: 28, y: 45, r: 60 },
 };
 
+const SHOWCASE_PRIORITY: Record<BubbleShowcaseKey, number> = {
+  IN_BEAR: 0,
+  IN_BULL: 1,
+  NEAR_BEAR: 2,
+  NEAR_BULL: 3,
+};
+
+const SHOWCASE_TONES = new Set<BubbleTone>(BUBBLE_SHOWCASE_KEYS);
+
+function isShowcaseTone(tone: BubbleTone): tone is BubbleShowcaseKey {
+  return SHOWCASE_TONES.has(tone);
+}
+
 function LiveBadge() {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
@@ -77,25 +99,17 @@ function StatChip({
 }: {
   label: string;
   val: string;
-  tone: "up" | "down" | "warn" | "mute";
+  tone: "up" | "down" | "near-up" | "near-down";
   active?: boolean;
 }) {
   const num =
-    tone === "up"
+    tone === "up" || tone === "near-up"
       ? "text-emerald-400/85"
-      : tone === "down"
-        ? "text-rose-400/85"
-        : tone === "warn"
-          ? "text-amber-400/85"
-          : "text-slate-400";
+      : "text-rose-400/85";
   const activeGlow = active
-    ? tone === "up"
+    ? tone === "up" || tone === "near-up"
       ? "shadow-[0_0_16px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/40"
-      : tone === "down"
-        ? "shadow-[0_0_16px_rgba(244,63,94,0.15)] ring-1 ring-rose-500/40"
-        : tone === "warn"
-          ? "shadow-[0_0_16px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/40"
-          : "ring-1 ring-white/15"
+      : "shadow-[0_0_16px_rgba(244,63,94,0.15)] ring-1 ring-rose-500/40"
     : "";
 
   return (
@@ -112,31 +126,55 @@ function StatChip({
   );
 }
 
+/** Same classification pipeline as /fnoninja/levels. */
+function useLevelsBubbleItems(payload: LevelsPayload | null): LevelsBubbleItem[] {
+  return useMemo(() => {
+    if (!payload) return [];
+    const stockBySymbol = new Map<string, StockBubbleSource>();
+    for (const s of payload.stocks ?? []) stockBySymbol.set(s.symbol, s);
+    return buildLevelsBubbleItems(
+      payload.indices ?? [],
+      stockBySymbol,
+      payload.fnoUniverse,
+    );
+  }, [payload]);
+}
+
 function MarketMap({
-  payload,
+  bubbleItems,
   activeFilter,
+  loading,
 }: {
-  payload: LevelsPayload | null;
+  bubbleItems: LevelsBubbleItem[];
   activeFilter: FilterKey;
+  loading: boolean;
 }) {
   const bubbles = useMemo<Bubble[]>(() => {
     const out: Bubble[] = [];
-    for (const idx of payload?.indices ?? []) {
-      const slot = INDEX_SLOTS[idx.symbol];
+    const used = new Set<string>();
+
+    for (const it of bubbleItems) {
+      if (it.scope !== "index") continue;
+      const slot = INDEX_SLOTS[it.symbol];
       if (!slot) continue;
-      out.push({ s: idx.symbol, px: fmt(idx.data?.spot), ...slot, tone: "idx" });
+      used.add(it.symbol);
+      out.push({
+        s: it.symbol,
+        px: fmt(it.spot),
+        ...slot,
+        tone: isShowcaseTone(it.tone) ? it.tone : "idx",
+      });
     }
 
-    const zoneStocks = (payload?.inZone ?? []).filter((z) => z.scope === "stock");
-    const priority: Record<Status, number> = {
-      IN_BEAR: 0,
-      IN_BULL: 1,
-      NEAR: 2,
-      NEUTRAL: 3,
-    };
-    const sorted = [...zoneStocks].sort((a, b) => priority[a.status] - priority[b.status]);
-    const used = new Set<string>();
-    sorted.slice(0, SIGNAL_SLOTS.length).forEach((z, i) => {
+    const signals = bubbleItems
+      .filter((it) => it.scope === "stock" && isShowcaseTone(it.tone))
+      .sort((a, b) => {
+        const pa = SHOWCASE_PRIORITY[a.tone as BubbleShowcaseKey] ?? 9;
+        const pb = SHOWCASE_PRIORITY[b.tone as BubbleShowcaseKey] ?? 9;
+        return pa - pb || a.symbol.localeCompare(b.symbol);
+      });
+
+    signals.slice(0, SIGNAL_SLOTS.length).forEach((z, i) => {
       const slot = SIGNAL_SLOTS[i];
       used.add(z.symbol);
       out.push({
@@ -145,42 +183,42 @@ function MarketMap({
         x: slot.x,
         y: slot.y,
         r: slot.r,
-        tone: toneForStatus(z.status),
+        tone: z.tone as BubbleShowcaseKey,
       });
     });
 
-    const neutrals = (payload?.fnoUniverse ?? []).filter((s) => !used.has(s) && !INDEX_SLOTS[s]);
+    const neutrals = bubbleItems.filter(
+      (it) => it.scope === "stock" && !used.has(it.symbol) && !isShowcaseTone(it.tone),
+    );
     NEUTRAL_SLOTS.forEach((slot, i) => {
-      const sym = neutrals[i];
-      if (!sym) return;
-      out.push({ s: sym, x: slot.x, y: slot.y, r: slot.r, tone: "neutral" });
+      const item = neutrals[i];
+      if (!item) return;
+      out.push({ s: item.symbol, x: slot.x, y: slot.y, r: slot.r, tone: "neutral" });
     });
 
     return out;
-  }, [payload]);
+  }, [bubbleItems]);
 
-  const signalCount = bubbles.filter((b) =>
-    (["at-s", "at-r", "near-r", "near-s"] as BubbleTone[]).includes(b.tone),
-  ).length;
+  const signalCount = bubbleItems.filter((it) => isShowcaseTone(it.tone)).length;
 
   const styleFor = (b: Bubble) => {
     const isActive = b.tone === activeFilter;
     switch (b.tone) {
-      case "at-s":
+      case "IN_BULL":
         return `bg-[#131b2e]/80 ring-[1px] ring-[#10b981]/40 text-[#34d399]/85 ${
           isActive ? "shadow-[0_0_20px_rgba(16,185,129,0.15)] ring-[#10b981]/55" : ""
         }`;
-      case "at-r":
+      case "NEAR_BULL":
+        return `bg-[#131b2e]/80 ring-[1px] ring-[#10b981]/30 text-[#6ee7b7]/85 ${
+          isActive ? "shadow-[0_0_16px_rgba(16,185,129,0.12)] ring-[#10b981]/45" : ""
+        }`;
+      case "IN_BEAR":
         return `bg-[#131b2e]/80 ring-[1px] ring-[#f43f5e]/40 text-[#fb7185]/85 ${
           isActive ? "shadow-[0_0_20px_rgba(244,63,94,0.15)] ring-[#f43f5e]/55" : ""
         }`;
-      case "near-r":
-        return `bg-[#131b2e]/80 ring-[1px] ring-[#f59e0b]/40 text-[#fbbf24]/85 ${
-          isActive ? "shadow-[0_0_20px_rgba(245,158,11,0.15)] ring-[#f59e0b]/55" : ""
-        }`;
-      case "near-s":
-        return `bg-[#131b2e]/80 ring-[1px] ring-[#10b981]/30 text-[#34d399]/85 ${
-          isActive ? "shadow-[0_0_20px_rgba(16,185,129,0.10)]" : ""
+      case "NEAR_BEAR":
+        return `bg-[#131b2e]/80 ring-[1px] ring-[#f43f5e]/30 text-[#fda4af]/85 ${
+          isActive ? "shadow-[0_0_16px_rgba(244,63,94,0.12)] ring-[#f43f5e]/45" : ""
         }`;
       case "idx":
         return "bg-[#131b2e]/70 ring-[1px] ring-white/[0.12] text-white/70";
@@ -201,7 +239,7 @@ function MarketMap({
         <LiveBadge />
       </div>
 
-      {payload == null ? (
+      {loading ? (
         <div className="absolute inset-0 grid place-items-center text-[12px]" style={{ color: FNO_MUTED }}>
           Loading live market map…
         </div>
@@ -232,7 +270,7 @@ function MarketMap({
       )}
 
       <div
-        className="absolute inset-x-0 bottom-0 z-20 flex flex-wrap items-center gap-5 border-t border-[rgba(90,140,220,0.18)] bg-[#0d1830]/70 px-4 py-2.5 text-[12px]"
+        className="absolute inset-x-0 bottom-0 z-20 flex flex-wrap items-center gap-4 border-t border-[rgba(90,140,220,0.18)] bg-[#0d1830]/70 px-4 py-2.5 text-[12px]"
         style={{ color: FNO_MUTED }}
       >
         <span className="inline-flex items-center gap-2">
@@ -240,15 +278,19 @@ function MarketMap({
           At Support
         </span>
         <span className="inline-flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-          Near R/S
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/50" />
+          Near Support
         </span>
         <span className="inline-flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
           At Resistance
         </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-rose-400/50" />
+          Near Resistance
+        </span>
         <span className="ml-auto">
-          {signalCount} stock{signalCount === 1 ? "" : "s"} in play
+          {signalCount} symbol{signalCount === 1 ? "" : "s"} in play
         </span>
       </div>
     </div>
@@ -279,17 +321,30 @@ export function useHeroLevels(): LevelsPayload | null {
   return payload;
 }
 
-export function useCyclingHeroFilter(intervalMs = 6500): FilterKey {
-  const order = useMemo<FilterKey[]>(() => ["at-s", "at-r", "near-r"], []);
+/** Cycle At/Near chips that have symbols — same order as /levels showcase. */
+export function useCyclingHeroFilter(
+  bubbleItems: LevelsBubbleItem[],
+  intervalMs = 6500,
+): FilterKey {
+  const steps = useMemo(() => {
+    const live = bubbleShowcaseSteps(bubbleItems);
+    return live.length > 0 ? live : [...BUBBLE_SHOWCASE_KEYS];
+  }, [bubbleItems]);
   const [i, setI] = useState(0);
+
   useEffect(() => {
-    const t = setInterval(() => setI((v) => (v + 1) % order.length), intervalMs);
+    setI(0);
+  }, [steps.join("|")]);
+
+  useEffect(() => {
+    const t = setInterval(() => setI((v) => (v + 1) % steps.length), intervalMs);
     return () => clearInterval(t);
-  }, [intervalMs, order.length]);
-  return order[i];
+  }, [intervalMs, steps]);
+
+  return steps[i % steps.length] ?? "IN_BULL";
 }
 
-/** Live market map + zone stat chips (Lovable landing refresh). */
+/** Live market map + zone stat chips — same tone logic as /fnoninja/levels. */
 export function FnoNinjaHeroCard({
   payload,
   activeFilter,
@@ -297,38 +352,46 @@ export function FnoNinjaHeroCard({
   payload: LevelsPayload | null;
   activeFilter: FilterKey;
 }) {
-  const counts = useMemo(() => {
-    const stocks = (payload?.inZone ?? []).filter((z) => z.scope === "stock");
-    let atS = 0;
-    let atR = 0;
-    let near = 0;
-    stocks.forEach((s) => {
-      if (s.status === "IN_BULL") atS++;
-      else if (s.status === "IN_BEAR") atR++;
-      else if (s.status === "NEAR") near++;
-    });
-    return { atS, atR, near };
-  }, [payload]);
+  const bubbleItems = useLevelsBubbleItems(payload);
+  const counts = useMemo(() => countBubbleMapFilters(bubbleItems), [bubbleItems]);
 
   return (
     <div className="relative flex flex-col gap-3">
       <div className="grid grid-cols-4 gap-2">
-        <StatChip label="At Support" val={String(counts.atS)} tone="up" active={activeFilter === "at-s"} />
-        <StatChip label="Near Support" val="—" tone="mute" />
+        <StatChip
+          label="At Support"
+          val={String(counts.IN_BULL)}
+          tone="up"
+          active={activeFilter === "IN_BULL"}
+        />
+        <StatChip
+          label="Near Support"
+          val={String(counts.NEAR_BULL)}
+          tone="near-up"
+          active={activeFilter === "NEAR_BULL"}
+        />
         <StatChip
           label="At Resistance"
-          val={String(counts.atR)}
+          val={String(counts.IN_BEAR)}
           tone="down"
-          active={activeFilter === "at-r"}
+          active={activeFilter === "IN_BEAR"}
         />
         <StatChip
-          label="Near Level"
-          val={String(counts.near)}
-          tone="warn"
-          active={activeFilter === "near-r"}
+          label="Near Resistance"
+          val={String(counts.NEAR_BEAR)}
+          tone="near-down"
+          active={activeFilter === "NEAR_BEAR"}
         />
       </div>
-      <MarketMap payload={payload} activeFilter={activeFilter} />
+      <MarketMap
+        bubbleItems={bubbleItems}
+        activeFilter={activeFilter}
+        loading={payload == null}
+      />
     </div>
   );
+}
+
+export function useHeroBubbleItems(payload: LevelsPayload | null): LevelsBubbleItem[] {
+  return useLevelsBubbleItems(payload);
 }

@@ -285,11 +285,11 @@
 .fno-gradient-flow {
   background: linear-gradient(
     120deg,
-    #60a5fa,
-    #93c5fd 30%,
-    #bfdbfe 50%,
-    #93c5fd 70%,
-    #60a5fa
+    #2563eb,
+    #3b82f6 28%,
+    #60a5fa 50%,
+    #3b82f6 72%,
+    #2563eb
   );
   background-size: 300% auto;
   -webkit-background-clip: text;
@@ -329,7 +329,7 @@
 
   .fno-gradient-flow {
     background: none;
-    color: #60a5fa;
-    -webkit-text-fill-color: #60a5fa;
+    color: #3b82f6;
+    -webkit-text-fill-color: #3b82f6;
   }
 }

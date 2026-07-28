@@ -5,6 +5,7 @@ import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import {
   FnoNinjaHeroCard,
   useCyclingHeroFilter,
+  useHeroBubbleItems,
   useHeroLevels,
 } from "@/components/fnoninja/FnoNinjaHeroCard";
 import {
@@ -49,8 +50,9 @@ function useLiveTicker(): TickerItem[] {
 
 export function FnoNinjaHero() {
   const payload = useHeroLevels();
+  const bubbleItems = useHeroBubbleItems(payload);
   const ticker = useLiveTicker();
-  const activeFilter = useCyclingHeroFilter(6500);
+  const activeFilter = useCyclingHeroFilter(bubbleItems, 6500);
 
   return (
     <section

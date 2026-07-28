@@ -31,6 +31,7 @@ import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
 import { resolveSymbolDisplayTone } from "@/lib/zones/symbol-display-tone";
+import { useAtlasSetupScore } from "@/lib/levels/use-atlas-setup-score";
 
 /** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
 const CHART_PAGE_SHELL = "w-full max-w-none flex flex-col flex-1 min-h-0";
@@ -83,6 +84,8 @@ function ChartContent() {
   const chartLevels =
     scope === "index" || scope === "stock" ? displayLevels : levels;
 
+  const atlasScore = useAtlasSetupScore(scope, symbol, displayTone);
+
   const chartStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
     const lv = chartLevels ?? levels;
     return {
@@ -91,8 +94,9 @@ function ChartContent() {
       volRegimeReason: lv?.volRegimeReason,
       atmIV: lv?.atmIV,
       daysToEarnings: lv?.daysToEarnings,
+      atlasScore,
     };
-  }, [chartLevels, displayTone, levels]);
+  }, [atlasScore, chartLevels, displayTone, levels]);
 
   const loadLevels = useCallback(
     async (opts?: { quiet?: boolean }) => {

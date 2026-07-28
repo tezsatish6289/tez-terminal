@@ -73,7 +73,8 @@ export function FnoNinjaHero() {
               Visualize{" "}
               <span className="fno-gradient-flow">the price pressure</span>
               <br />
-              before the move happens.
+              before the{" "}
+              <span className="fno-move-tick inline-block">move</span> happens.
             </h1>
           </HeroItem>
           <HeroItem>

@@ -321,9 +321,34 @@
   }
 }
 
+/** Hero “move” — quiet candle-tick on land, then ~every 4.8s */
+.fno-move-tick {
+  animation: fno-move-tick 4.8s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes fno-move-tick {
+  /* Hold through hero stagger, then tick (~0.9–1.5s), rest until loop */
+  0%,
+  18% {
+    transform: translateY(0);
+  }
+  24% {
+    transform: translateY(-2.5px);
+  }
+  30% {
+    transform: translateY(-2.5px);
+  }
+  36%,
+  100% {
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fno-hero-orb,
-  .fno-gradient-flow {
+  .fno-gradient-flow,
+  .fno-move-tick {
     animation: none;
   }
 

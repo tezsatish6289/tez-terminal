@@ -5,10 +5,13 @@ export interface BubblePhysicsItem {
   id: string;
   scope: "index" | "stock";
   tone: BubbleTone;
+  kind?: "mmi";
 }
 
 /** Index circles are always the largest on the map (easy to spot). */
 const INDEX_BUBBLE_RADIUS = 84;
+/** MMI gauge needs a bit more room than a plain index label. */
+const MMI_BUBBLE_RADIUS = 96;
 const STOCK_RADIUS = {
   unscanned: 26,
   neutral: 30,
@@ -17,7 +20,12 @@ const STOCK_RADIUS = {
   inZone: 48,
 } as const;
 
-export function bubbleRadius(scope: "index" | "stock", tone: BubbleTone): number {
+export function bubbleRadius(
+  scope: "index" | "stock",
+  tone: BubbleTone,
+  kind?: "mmi",
+): number {
+  if (kind === "mmi") return MMI_BUBBLE_RADIUS;
   if (scope === "index") return INDEX_BUBBLE_RADIUS;
   if (tone === "UNSCANNED") return STOCK_RADIUS.unscanned;
   if (tone === "ILLIQUID" || tone === "NEUTRAL") return STOCK_RADIUS.neutral;
@@ -48,9 +56,11 @@ export function layoutBubbleRadius(
   tone: BubbleTone,
   radiusScale = 1,
   mobileEmbed = false,
+  kind?: "mmi",
 ): number {
-  const base = bubbleRadius(scope, tone);
+  const base = bubbleRadius(scope, tone, kind);
   if (!mobileEmbed) return base * radiusScale;
+  if (kind === "mmi") return base * radiusScale * 0.48;
   if (scope === "index") return base * radiusScale * 0.42;
   if (isInZoneTone(tone) || isNearZoneTone(tone)) return base * radiusScale * 0.98;
   return base * radiusScale * 0.48;
@@ -68,7 +78,7 @@ export function packBubbles<T extends BubblePhysicsItem>(
   const sorted = [...items]
     .map((item) => ({
       item,
-      r: layoutBubbleRadius(item.scope, item.tone, radiusScale, mobileEmbed),
+      r: layoutBubbleRadius(item.scope, item.tone, radiusScale, mobileEmbed, item.kind),
     }))
     .sort((a, b) => b.r - a.r);
 

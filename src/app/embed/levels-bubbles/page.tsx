@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import { buildLevelsBubbleItems, LevelsBubblesView } from "@/components/levels/LevelsBubblesView";
+import {
+  buildLevelsBubbleItems,
+  buildMmiBubbleItem,
+  LevelsBubblesView,
+} from "@/components/levels/LevelsBubblesView";
 import {
   bubbleShowcaseSteps,
   runBubbleShowcaseCycle,
@@ -10,6 +14,7 @@ import {
 import { levelsBubblesPagePathForHost } from "@/lib/levels/levels-chart-url";
 import type { BubbleMapFilter } from "@/lib/zones/bubble-map-filter";
 import { FNO_BG_CANVAS } from "@/lib/fnoninja/theme";
+import type { MmiSnapshot } from "@/lib/fnoninja/mmi";
 interface RawItem {
   symbol?: string;
   label: string;
@@ -39,6 +44,7 @@ interface LevelsPayload {
 /** Live bubble map for landing-page iframe — any bubble click opens the full map. */
 export default function LevelsBubblesEmbedPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
+  const [mmi, setMmi] = useState<MmiSnapshot | null>(null);
   const [showcaseEmphasis, setShowcaseEmphasis] = useState<BubbleMapFilter>("all");
   const [physicsIntensity, setPhysicsIntensity] = useState(0.25);
   const [layoutScale, setLayoutScale] = useState(1);
@@ -66,11 +72,30 @@ export default function LevelsBubblesEmbedPage() {
     }
   }, []);
 
+  const loadMmi = useCallback(async () => {
+    try {
+      const res = await fetch("/api/fnoninja/mmi", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = (await res.json()) as MmiSnapshot;
+      if (typeof json.value === "number" && Number.isFinite(json.value)) {
+        setMmi(json);
+      }
+    } catch {
+      /* keep last-good */
+    }
+  }, []);
+
   useEffect(() => {
     void load();
     const id = window.setInterval(load, 60_000);
     return () => window.clearInterval(id);
   }, [load]);
+
+  useEffect(() => {
+    void loadMmi();
+    const id = window.setInterval(() => void loadMmi(), 60_000);
+    return () => window.clearInterval(id);
+  }, [loadMmi]);
 
   const stockBySymbol = useMemo(() => {
     const m = new Map<string, StockListItem>();
@@ -78,10 +103,13 @@ export default function LevelsBubblesEmbedPage() {
     return m;
   }, [payload?.stocks]);
 
-  const bubbleItems = useMemo(
-    () => (payload ? buildLevelsBubbleItems(payload.indices, stockBySymbol, payload.fnoUniverse) : []),
-    [payload, stockBySymbol],
-  );
+  const bubbleItems = useMemo(() => {
+    if (!payload) return [];
+    return [
+      buildMmiBubbleItem(mmi),
+      ...buildLevelsBubbleItems(payload.indices, stockBySymbol, payload.fnoUniverse),
+    ];
+  }, [payload, stockBySymbol, mmi]);
 
   const showcaseSteps = useMemo(() => bubbleShowcaseSteps(bubbleItems), [bubbleItems]);
   const showcaseSolo = showcaseSteps.length === 1;

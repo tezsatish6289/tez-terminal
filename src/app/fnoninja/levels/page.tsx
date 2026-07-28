@@ -13,8 +13,10 @@ import {
 } from "@/components/levels/LevelsSplitLayout";
 import {
   buildLevelsBubbleItems,
+  buildMmiBubbleItem,
   LevelsBubblesView,
 } from "@/components/levels/LevelsBubblesView";
+import { MMI_TICKERTAPE_URL, type MmiSnapshot } from "@/lib/fnoninja/mmi";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import { LevelsChartDeepDiveLayout } from "@/components/levels/LevelsChartDeepDiveLayout";
@@ -182,6 +184,7 @@ function slideshowExplorePauseReason(
 
 export default function LevelsPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
+  const [mmi, setMmi] = useState<MmiSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<LevelsViewMode>("bubbles");
   const [inZoneSlide, setInZoneSlide] = useState(0);
@@ -285,6 +288,15 @@ export default function LevelsPage() {
   const guestBubbleClickDebounceRef = useRef(0);
 
   const handleGuestBubbleClick = useCallback((item: LevelsBubbleItem) => {
+    if (item.kind === "mmi") {
+      window.open(MMI_TICKERTAPE_URL, "_blank", "noopener,noreferrer");
+      trackCtaClick("bubble_open_mmi", {
+        symbol: item.symbol,
+        label: item.label,
+        scope: item.scope,
+      });
+      return;
+    }
     const now = Date.now();
     if (now - guestBubbleClickDebounceRef.current < 450) return;
     guestBubbleClickDebounceRef.current = now;
@@ -330,11 +342,30 @@ export default function LevelsPage() {
     }
   }, []);
 
+  const loadMmi = useCallback(async () => {
+    try {
+      const res = await fetch("/api/fnoninja/mmi", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = (await res.json()) as MmiSnapshot;
+      if (typeof json.value === "number" && Number.isFinite(json.value)) {
+        setMmi(json);
+      }
+    } catch {
+      /* keep last-good */
+    }
+  }, []);
+
   useEffect(() => {
     load();
     const id = setInterval(() => load(), 60_000);
     return () => clearInterval(id);
   }, [load]);
+
+  useEffect(() => {
+    void loadMmi();
+    const id = setInterval(() => void loadMmi(), 60_000);
+    return () => clearInterval(id);
+  }, [loadMmi]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -462,20 +493,19 @@ export default function LevelsPage() {
   }, [payload?.indices]);
 
   /** Full F&O map — zone tones gated by 2:1 POC RR (bubble + slideshow). */
-  const bubbleItems = useMemo(
-    () =>
-      payload
-        ? buildLevelsBubbleItems(
-            payload.indices,
-            stockBySymbol,
-            payload.fnoUniverse,
-          )
-        : [],
-    [payload, stockBySymbol],
-  );
+  const bubbleItems = useMemo(() => {
+    if (!payload) return [];
+    const items = buildLevelsBubbleItems(
+      payload.indices,
+      stockBySymbol,
+      payload.fnoUniverse,
+    );
+    // MMI participates in the same physics pack as index bubbles.
+    return [buildMmiBubbleItem(mmi), ...items];
+  }, [payload, stockBySymbol, mmi]);
 
   const bubbleFilterCounts = useMemo(
-    () => countBubbleMapFilters(bubbleItems),
+    () => countBubbleMapFilters(bubbleItems.filter((it) => it.kind !== "mmi")),
     [bubbleItems],
   );
 
@@ -917,7 +947,11 @@ export default function LevelsPage() {
     refreshOneSlideshowSymbolZone,
   ]);
 
-  const openBubbleChart = useCallback((item: { scope: "index" | "stock"; symbol: string }) => {
+  const openBubbleChart = useCallback((item: LevelsBubbleItem) => {
+    if (item.kind === "mmi") {
+      window.open(MMI_TICKERTAPE_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
     const url = levelsChartPagePathForHost(
       window.location.hostname,
       item.scope,

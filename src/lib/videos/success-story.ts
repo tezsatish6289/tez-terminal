@@ -66,6 +66,11 @@ export interface SuccessStoryCandidate {
   /** ISO timestamps for the on-screen dates. */
   eventAt: string;
   pocHitAt: string | null;
+  /**
+   * Canonical timestamp for “when the win happened” (resolution, else POC hit,
+   * else entry). Used by Buffer auto day-key / lookback selection.
+   */
+  dayAt: string;
   /** Whether a 15-min candle snapshot is stored (chart renderable). */
   hasSnapshot: boolean;
   /** Recency / strength score used to pick the headline story. */
@@ -98,8 +103,8 @@ export function qualifySuccessStory(
   const clusterHigh = event.side === "support" ? event.bullZoneHigh : event.bearZoneHigh;
 
   // Score: bigger move wins, decayed gently by age so recent wins surface first.
-  const refIso = event.resolvedAt ?? event.pocHitAt ?? event.eventAt;
-  const ageDays = Math.max(0, (Date.now() - Date.parse(refIso)) / 86_400_000);
+  const dayAt = event.resolvedAt ?? event.pocHitAt ?? event.eventAt;
+  const ageDays = Math.max(0, (Date.now() - Date.parse(dayAt)) / 86_400_000);
   const score = movePct - ageDays * 0.15;
 
   return {
@@ -130,6 +135,7 @@ export function qualifySuccessStory(
     maxPainDistancePct,
     eventAt: event.eventAt,
     pocHitAt: event.pocHitAt ?? null,
+    dayAt,
     hasSnapshot: !!event.candlesSnapshotAt,
     score,
   };

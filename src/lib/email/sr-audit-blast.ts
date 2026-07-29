@@ -235,12 +235,25 @@ export function buildSrAuditEmailHtml(input: {
 </html>`;
 }
 
+const SENDING_STALE_MS = 10 * 60 * 1000;
+
 async function alreadySent(contentId: string): Promise<boolean> {
   const db = getAdminFirestore();
   const doc = await db.collection(EMAIL_BLASTS_COLLECTION).doc(`sr-audit_${contentId}`).get();
   if (!doc.exists) return false;
-  const status = doc.data()?.status;
-  return status === "sent" || status === "sending";
+  const data = doc.data() as { status?: string; createdAt?: string; updatedAt?: string } | undefined;
+  const status = data?.status;
+  if (status === "sent") return true;
+  // "sending" can get stuck if the request dies mid-blast (App Hosting ~120s).
+  // Treat stale in-flight rows as retryable so we can recover.
+  if (status === "sending") {
+    const started = Date.parse(data?.updatedAt || data?.createdAt || "");
+    if (Number.isFinite(started) && Date.now() - started < SENDING_STALE_MS) {
+      return true;
+    }
+    return false;
+  }
+  return false;
 }
 
 export async function sendSrAuditEmailBlast(

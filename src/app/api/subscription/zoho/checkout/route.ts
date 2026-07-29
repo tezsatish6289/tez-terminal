@@ -10,6 +10,10 @@ import {
   findOrCreateCustomer,
   getZohoBillingConfig,
 } from "@/lib/zoho/billing";
+import {
+  ensureFlashSaleCoupons,
+  getActiveFlashSaleCouponCode,
+} from "@/lib/fnoninja/flash-sale-server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,11 +21,14 @@ type CheckoutTier = "silver" | "gold" | "daypass";
 
 /**
  * POST /api/subscription/zoho/checkout
- * Body: { tier: "silver" | "gold" | "daypass" }
+ * Body: { tier: "silver" | "gold" | "daypass", flashSale?: boolean }
  * Header: Authorization: Bearer <Firebase ID token>
  *
  * Returns { url } — a Zoho hosted checkout (Silver/Gold) or one-time payment
  * link (Day Pass) to redirect the user to.
+ *
+ * When `flashSale: true` and a flash window is live, Silver/Gold checkouts apply
+ * the active Zoho coupon (invoice discount only). Day Pass never gets a coupon.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -48,7 +55,11 @@ export async function POST(request: NextRequest) {
     const email = decoded.email ?? "";
     const displayName = decoded.name ?? email ?? uid;
 
-    const body = (await request.json().catch(() => ({}))) as { tier?: string; phone?: string };
+    const body = (await request.json().catch(() => ({}))) as {
+      tier?: string;
+      phone?: string;
+      flashSale?: boolean;
+    };
     const tier = body.tier as CheckoutTier | undefined;
     if (tier !== "silver" && tier !== "gold" && tier !== "daypass") {
       return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
@@ -121,13 +132,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ url: link.url, kind: "paymentlink" });
     }
 
+    // Flash coupon: only when client opts in AND a window is currently live.
+    // Day Pass is never eligible (blocked above by tier branch). Never trust a
+    // client-supplied coupon code — always resolve server-side.
+    let couponCode: string | null = null;
+    if (body.flashSale === true) {
+      void ensureFlashSaleCoupons().catch(() => {});
+      couponCode = await getActiveFlashSaleCouponCode();
+    }
+
     const hostedPage = await createSubscriptionHostedPage({
       planCode: ZOHO_PLAN_CODES[tier],
       customerId: customer.customer_id,
       uid,
       redirectUrl,
+      couponCode,
     });
-    return NextResponse.json({ url: hostedPage.url, kind: "subscription" });
+    return NextResponse.json({
+      url: hostedPage.url,
+      kind: "subscription",
+      flashSaleApplied: Boolean(couponCode),
+      discountInr: couponCode ? Number(couponCode.replace(/^FN_FLASH_/, "")) || null : null,
+    });
   } catch (error: any) {
     console.error("[Zoho Checkout]", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });

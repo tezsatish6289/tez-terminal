@@ -183,14 +183,16 @@ export interface HostedPage {
 /**
  * Creates a Zoho hosted payment page for a NEW subscription (Silver/Gold).
  * `reference_id` on the subscription is the Firebase uid for webhook mapping.
+ * Optional `couponCode` applies a one-time invoice discount (plan term unchanged).
  */
 export async function createSubscriptionHostedPage(args: {
   planCode: string;
   customerId: string;
   uid: string;
   redirectUrl: string;
+  couponCode?: string | null;
 }): Promise<HostedPage> {
-  const { planCode, customerId, uid, redirectUrl } = args;
+  const { planCode, customerId, uid, redirectUrl, couponCode } = args;
   const res = await zohoRequest<{ hostedpage: HostedPage }>(
     "POST",
     "/hostedpages/newsubscription",
@@ -199,9 +201,78 @@ export async function createSubscriptionHostedPage(args: {
       plan: { plan_code: planCode },
       reference_id: uid,
       redirect_url: redirectUrl,
+      ...(couponCode ? { coupon_code: couponCode } : {}),
     },
   );
   return res.hostedpage;
+}
+
+// ── Coupons (flash sale) ─────────────────────────────────────────────────────
+
+export interface ZohoCoupon {
+  coupon_code: string;
+  status?: string;
+  discount_by?: string;
+  discount_value?: number;
+}
+
+/** Resolve the Zoho product_id that owns Silver/Gold plans (needed to create coupons). */
+export async function resolveZohoProductId(): Promise<string | null> {
+  const fromEnv = process.env.ZOHO_BILLING_PRODUCT_ID?.trim();
+  if (fromEnv) return fromEnv;
+
+  try {
+    const res = await zohoRequest<{
+      plans?: { plan_code?: string; product_id?: string }[];
+    }>("GET", `/plans?plan_code=${encodeURIComponent(ZOHO_PLAN_CODES.silver)}`);
+    const plan =
+      res.plans?.find((p) => p.plan_code === ZOHO_PLAN_CODES.silver) ?? res.plans?.[0];
+    return plan?.product_id?.trim() || null;
+  } catch (e) {
+    console.warn("[Zoho] resolveZohoProductId failed:", (e as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Ensures a flat one-time coupon exists for Silver + Gold.
+ * Idempotent: GET first; create if missing; reactivate if inactive.
+ */
+export async function ensureFlashSaleCoupon(args: {
+  couponCode: string;
+  discountInr: number;
+  productId: string;
+  planCodes: string[];
+}): Promise<void> {
+  const { couponCode, discountInr, productId, planCodes } = args;
+
+  try {
+    const existing = await zohoRequest<{ coupon?: ZohoCoupon }>(
+      "GET",
+      `/coupons/${encodeURIComponent(couponCode)}`,
+    );
+    if (existing.coupon) {
+      if ((existing.coupon.status ?? "").toLowerCase() === "inactive") {
+        await zohoRequest("POST", `/coupons/${encodeURIComponent(couponCode)}/markasactive`);
+      }
+      return;
+    }
+  } catch {
+    // 404 / missing → create below
+  }
+
+  await zohoRequest("POST", "/coupons", {
+    coupon_code: couponCode,
+    name: `Flash Sale ₹${discountInr} off`,
+    description: `FNONINJA flash sale — ₹${discountInr} off first invoice (Silver/Gold)`,
+    type: "one_time",
+    discount_by: "flat",
+    discount_value: discountInr,
+    product_id: productId,
+    apply_to_plans: "select",
+    plans: planCodes.map((plan_code) => ({ plan_code })),
+    apply_to_addons: "none",
+  });
 }
 
 // ── One-time Day Pass (payment link) ─────────────────────────────────────────

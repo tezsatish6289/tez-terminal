@@ -39,6 +39,11 @@ import { SR_ZONE_EVENTS_COLLECTION } from "@/lib/sr-audit/constants";
 import type { SrZoneEvent } from "@/lib/sr-audit/types";
 import { generateStoryCaptionsFromCandidate } from "@/lib/sr-audit/generate-story-captions";
 import {
+  EMAIL_BLASTS_COLLECTION,
+  maybeSendSrAuditEmailBlast,
+  type SrAuditEmailBlastResult,
+} from "@/lib/email/sr-audit-blast";
+import {
   getPostedContentMap,
   scheduleToBuffer,
   SOCIAL_POSTS_COLLECTION,
@@ -768,6 +773,129 @@ async function publishDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
       error: i.error,
     })),
   };
+}
+
+/**
+ * Retry / recover the FNO Ninja email blast for a story that already went to
+ * Buffer. Uses the day queue video URL when present, else a ready cloud render.
+ */
+export async function retrySrAuditEmailBlast(opts?: {
+  dayKey?: string;
+  contentId?: string;
+}): Promise<{
+  dayKey: string;
+  contentId: string | null;
+  videoUrl: string | null;
+  blast: SrAuditEmailBlastResult | null;
+  priorBlast: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const db = getAdminFirestore();
+  const dayKey = opts?.dayKey ?? istDayKey();
+  const day = await loadDay(db, dayKey);
+  const posted = await listPostedToday(db, dayKey);
+
+  let contentId = opts?.contentId?.trim() || null;
+  if (!contentId) {
+    contentId =
+      day.items.find((i) => i.status === "scheduled" || i.status === "partial")?.storyId ??
+      posted[0]?.contentId ??
+      null;
+  }
+  if (!contentId) {
+    return {
+      dayKey,
+      contentId: null,
+      videoUrl: null,
+      blast: null,
+      priorBlast: null,
+      error: "no_posted_story_today",
+    };
+  }
+
+  const blastSnap = await db.collection(EMAIL_BLASTS_COLLECTION).doc(`sr-audit_${contentId}`).get();
+  const priorBlast = blastSnap.exists ? (blastSnap.data() as Record<string, unknown>) : null;
+
+  const queued = day.items.find((i) => i.storyId === contentId);
+  let videoUrl = queued?.videoUrl ?? null;
+  if (!videoUrl) {
+    const ready = await findReadyRenderUrl(db, contentId);
+    videoUrl = ready?.url ?? null;
+  }
+  if (!videoUrl) {
+    const postId = posted.find((p) => p.contentId === contentId)?.id;
+    if (postId) {
+      const postSnap = await db.collection(SOCIAL_POSTS_COLLECTION).doc(postId).get();
+      if (postSnap.exists) {
+        const v = (postSnap.data() as { videoUrl?: string | null }).videoUrl;
+        if (typeof v === "string" && v.startsWith("http")) videoUrl = v;
+      }
+    }
+  }
+  if (!videoUrl) {
+    // Fall back: scan social_posts for this contentId (equality only — no composite index).
+    const snap = await db
+      .collection(SOCIAL_POSTS_COLLECTION)
+      .where("contentId", "==", contentId)
+      .limit(10)
+      .get()
+      .catch(() => null);
+    if (snap) {
+      for (const doc of snap.docs) {
+        const d = doc.data() as { source?: string; videoUrl?: string | null };
+        if (d.source && d.source !== SR_BUFFER_AUTO_SOURCE) continue;
+        if (typeof d.videoUrl === "string" && d.videoUrl.startsWith("http")) {
+          videoUrl = d.videoUrl;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!videoUrl) {
+    return {
+      dayKey,
+      contentId,
+      videoUrl: null,
+      blast: null,
+      priorBlast,
+      error: "missing_video_url",
+    };
+  }
+
+  const candidate = await loadSuccessStoryById(db, contentId);
+  if (!candidate) {
+    return {
+      dayKey,
+      contentId,
+      videoUrl,
+      blast: null,
+      priorBlast,
+      error: "story_not_found_or_below_move_floor",
+    };
+  }
+
+  const captionsUi = await generateStoryCaptionsFromCandidate(candidate);
+  const captions: Partial<Record<SocialPlatformId, string>> = {
+    twitter: captionsUi.twitter,
+    facebook: captionsUi.facebook,
+    linkedin: captionsUi.linkedin,
+    instagram: captionsUi.instagram,
+    youtube: [captionsUi.youtubeTitle, captionsUi.youtubeDescription]
+      .filter(Boolean)
+      .join("\n\n")
+      .trim(),
+  };
+
+  const blast = await maybeSendSrAuditEmailBlast({
+    contentId,
+    contentLabel: `${candidate.symbol} · win story`,
+    videoUrl,
+    captions,
+    scheduleId: queued?.scheduleId ?? posted.find((p) => p.contentId === contentId)?.id,
+  });
+
+  return { dayKey, contentId, videoUrl, blast, priorBlast };
 }
 
 /**

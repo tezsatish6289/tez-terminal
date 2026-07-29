@@ -33,6 +33,12 @@ type BubbleMapFilterProps = {
     visible: boolean;
     onToggle: () => void;
   };
+  /** Default-on quality gate: hide light Atlas scores at or below minScore. */
+  atlasQuality?: {
+    enabled: boolean;
+    onToggle: () => void;
+    minScore?: number;
+  };
 };
 
 type SlideshowMapFilterProps = {
@@ -40,6 +46,8 @@ type SlideshowMapFilterProps = {
   onFilterChange: (next: SlideshowMapFilter) => void;
   counts: Record<SlideshowMapFilter, number>;
   filterKeys?: typeof SLIDESHOW_MAP_FILTER_KEYS;
+  atlasQuality?: never;
+  maxPainVisibility?: never;
 };
 
 export function LevelsBubbleMapFilters(props: BubbleMapFilterProps): ReactNode;
@@ -50,6 +58,7 @@ export function LevelsBubbleMapFilters({
   counts,
   filterKeys = BUBBLE_MAP_FILTER_KEYS,
   maxPainVisibility,
+  atlasQuality,
 }: BubbleMapFilterProps | SlideshowMapFilterProps) {
   const actions = useMemo((): LevelsCtaAction[] => {
     const opts: { key: BubbleMapFilter; label: string }[] = [
@@ -59,7 +68,32 @@ export function LevelsBubbleMapFilters({
         label: bubbleMapFilterLabel(key),
       })),
     ];
-    return opts.map(({ key, label }) => {
+    const quality =
+      atlasQuality && "enabled" in atlasQuality
+        ? (() => {
+            const min = atlasQuality.minScore ?? 60;
+            const label = `Atlas >${min}`;
+            return {
+              id: "bubble-filter-atlas-quality",
+              label,
+              onClick: () => {
+                trackCtaClick("map_filter", {
+                  label,
+                  filter: atlasQuality.enabled ? "atlas_quality_off" : "atlas_quality_on",
+                });
+                atlasQuality.onToggle();
+              },
+              tone: (atlasQuality.enabled ? "default" : "default-muted") as LevelsCtaAction["tone"],
+              title: atlasQuality.enabled
+                ? `Showing setups with light Atlas score above ${min}. Click to show all scores.`
+                : `Hide setups with light Atlas score ${min} or below.`,
+              ariaLabel: atlasQuality.enabled
+                ? `${label} quality filter on`
+                : `${label} quality filter off`,
+            } satisfies LevelsCtaAction;
+          })()
+        : null;
+    const toneActions = opts.map(({ key, label }) => {
       const active = filter === key;
       const count = counts[key as keyof typeof counts] ?? 0;
       const isNear = key === "NEAR_BULL" || key === "NEAR_BEAR";
@@ -79,7 +113,9 @@ export function LevelsBubbleMapFilters({
           : {}),
       };
     });
-  }, [filter, onFilterChange, counts, filterKeys, maxPainVisibility]);
+    // All · Atlas >60 · tone filters — quality sits next to All for less hunting.
+    return quality ? [toneActions[0]!, quality, ...toneActions.slice(1)] : toneActions;
+  }, [filter, onFilterChange, counts, filterKeys, maxPainVisibility, atlasQuality]);
 
   return <LevelsCtaCluster actions={actions} align="start" variant="filter" />;
 }

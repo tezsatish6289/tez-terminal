@@ -45,6 +45,7 @@ export function LevelsSlideshowToolbar({
   onBubbleMapFilterChange,
   bubbleFilterCounts,
   maxPainVisibility,
+  atlasQuality,
   slideshowFilter,
   onSlideshowFilterChange,
   slideshowFilterCounts,
@@ -66,6 +67,11 @@ export function LevelsSlideshowToolbar({
   maxPainVisibility?: {
     visible: boolean;
     onToggle: () => void;
+  };
+  atlasQuality?: {
+    enabled: boolean;
+    onToggle: () => void;
+    minScore?: number;
   };
   slideshowFilter?: SlideshowMapFilter;
   onSlideshowFilterChange?: (filter: SlideshowMapFilter) => void;
@@ -250,6 +256,7 @@ export function LevelsSlideshowToolbar({
         onBubbleMapFilterChange={onBubbleMapFilterChange}
         bubbleFilterCounts={bubbleFilterCounts}
         maxPainVisibility={maxPainVisibility}
+        atlasQuality={atlasQuality}
         viewToggle={viewToggle}
         favslideToggle={favslideToggle}
         shareTrailing={shareTrailing}

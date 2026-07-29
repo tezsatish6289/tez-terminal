@@ -48,6 +48,7 @@ import {
   type MmiSnapshot,
 } from "@/lib/fnoninja/mmi";
 import { trackCtaClick } from "@/firebase/analytics";
+import { computeLightAtlasScore } from "@/lib/levels/light-atlas-score";
 
 export interface LevelsBubbleItem {
   id: string;
@@ -61,6 +62,11 @@ export interface LevelsBubbleItem {
   data: PublicLevels | null;
   /** Passes directional + 1:2 POC RR (same gate as slideshow In-Zone list). */
   meetsActionableFilter?: boolean;
+  /**
+   * Light Atlas primary score from payload fields only (no PVT / IV history).
+   * Used for the map quality gate (default hide ≤ 60).
+   */
+  atlasScore?: number | null;
   /** Special map bubble — Market Mood Index (Tickertape). */
   kind?: "mmi";
   mmi?: MmiSnapshot | null;
@@ -706,6 +712,10 @@ export type StockBubbleSource = {
   bearZoneHigh: number | null;
   halfWidth?: number | null;
   computedAt?: string | null;
+  atmIV?: number | null;
+  volRegime?: PublicLevels["volRegime"];
+  volRegimeReason?: string | null;
+  daysToEarnings?: number | null;
   oi?: OiWallMomentum | null;
 };
 
@@ -756,17 +766,19 @@ export function buildLevelsBubbleItems(
     const bandOffset = it.data?.bandOffset ?? null;
     const oi = it.data?.oi ?? null;
     const actionable = matchesSlideshowSetup(bands, poc, "all", bandOffset, oi);
+    const tone = deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset, oi);
     out.push({
       id,
       symbol,
       label: it.label,
       scope: "index",
-      tone: deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset, oi),
+      tone,
       spot: bands.spot,
       poc,
       bands,
       data: it.data,
       meetsActionableFilter: actionable,
+      atlasScore: computeLightAtlasScore(it.data, tone)?.composite ?? null,
     });
   }
 
@@ -787,17 +799,19 @@ export function buildLevelsBubbleItems(
     const oi = st?.oi ?? null;
     const actionable =
       scanned && matchesSlideshowSetup(bands, poc, "all", bandOffset, oi);
+    const tone = deriveBubbleDisplayTone(bands, scanned, actionable, poc, bandOffset, oi);
     out.push({
       id,
       symbol: sym,
       label: fnoCompanyName(sym) ?? st?.label ?? sym,
       scope: "stock",
-      tone: deriveBubbleDisplayTone(bands, scanned, actionable, poc, bandOffset, oi),
+      tone,
       spot: bands.spot,
       poc,
       bands,
       data: null,
       meetsActionableFilter: actionable,
+      atlasScore: computeLightAtlasScore(stockLevels, tone)?.composite ?? null,
     });
   }
 
@@ -823,16 +837,18 @@ export function inZoneItemToBubbleItem(it: {
   const bandOffset = it.data?.bandOffset ?? null;
   const oi = it.data?.oi ?? null;
   const actionable = matchesSlideshowSetup(bands, poc, "all", bandOffset, oi);
+  const tone = deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset, oi);
   return {
     id: `${it.scope}-${it.symbol}`,
     symbol: it.symbol,
     label: it.label,
     scope: it.scope,
-    tone: deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset, oi),
+    tone,
     spot: bands.spot,
     poc: it.data?.poc ?? null,
     bands,
     data: it.data,
     meetsActionableFilter: actionable,
+    atlasScore: computeLightAtlasScore(it.data, tone)?.composite ?? null,
   };
 }

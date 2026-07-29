@@ -2,7 +2,14 @@
  * Server-only flash-sale persistence + Zoho coupon ensure.
  *
  * State doc: `config/fnoninja_flash_sale`
- *   { dateKey, claimedCount, claimedBy?, claimedAt?, couponsEnsuredAt? }
+ *   { dateKey, claimedCount, claimedBy?, claimedAt?, couponsSyncedKey? }
+ *
+ * Coupon leakage controls:
+ *  - Day-scoped codes (…_YYYYMMDD)
+ *  - Valid-upto = that IST day
+ *  - max_redemption capped near daily quota
+ *  - Only the current live step’s Silver+Gold coupons stay active
+ *  - Legacy undated FN_FLASH_* codes are deactivated
  */
 
 import "server-only";
@@ -16,19 +23,21 @@ import {
   flashSaleCouponCode,
   flashSaleCouponForTier,
   flashSaleIstDateKey,
+  flashSaleLegacyCouponCodes,
   type FlashSalePublicState,
   type FlashSaleTier,
 } from "@/lib/fnoninja/flash-sale";
 import {
   ZOHO_PLAN_CODES,
+  deactivateFlashSaleCoupon,
   ensureFlashSaleCoupon,
   resolveZohoProductId,
 } from "@/lib/zoho/billing";
 
 export const FLASH_SALE_STATE_DOC = "config/fnoninja_flash_sale";
 
-/** Bump when coupon codes / ladder change so Zoho ensure re-runs. */
-const COUPONS_ENSURE_VERSION = "tiered-v1";
+/** Slightly above daily quota so a race doesn’t soft-lock the window. */
+const COUPON_MAX_REDEMPTION = Math.max(3, FLASH_SALE_DAILY_QUOTA * 3);
 
 type FlashSaleStateDoc = {
   dateKey?: string;
@@ -38,6 +47,9 @@ type FlashSaleStateDoc = {
   claimedSubscriptionId?: string;
   couponsEnsuredAt?: string;
   couponsEnsuredVersion?: string;
+  /** `${dateKey}|${stepIndex}|${active?1:0}|${couponGold}` — skip redundant Zoho syncs. */
+  couponsSyncedKey?: string;
+  legacyCouponsDeactivated?: boolean;
 };
 
 async function readStateDoc(): Promise<FlashSaleStateDoc> {
@@ -60,39 +72,69 @@ export async function getFlashSalePublicState(
   return buildFlashSalePublicState({ nowMs, claimedCount, dailyQuota: FLASH_SALE_DAILY_QUOTA });
 }
 
-/**
- * Ensures Zoho coupons exist for every ladder step × tier (idempotent).
- * Silver and Gold get separate flat coupons so discounts can be pro-rated.
- */
-export async function ensureFlashSaleCoupons(): Promise<void> {
-  const doc = await readStateDoc();
-  if (doc.couponsEnsuredVersion === COUPONS_ENSURE_VERSION) return;
+async function deactivateLegacyFlashCoupons(): Promise<void> {
+  for (const code of flashSaleLegacyCouponCodes()) {
+    await deactivateFlashSaleCoupon(code);
+  }
+}
 
-  const productId = await resolveZohoProductId();
-  if (!productId) {
-    console.warn("[FlashSale] No Zoho product_id — cannot ensure coupons");
-    return;
+/**
+ * Sync Zoho coupons to the current flash window.
+ * - Live window → ensure only today’s Silver+Gold codes for the active step
+ * - Otherwise → do not create; keep legacy codes inactive
+ */
+export async function ensureFlashSaleCoupons(nowMs: number = Date.now()): Promise<void> {
+  const state = await getFlashSalePublicState(nowMs);
+  const syncKey = `${state.dateKey}|${state.stepIndex}|${state.active ? 1 : 0}|${state.couponCodeGold ?? "-"}`;
+
+  const doc = await readStateDoc();
+  if (doc.couponsSyncedKey === syncKey && doc.legacyCouponsDeactivated) return;
+
+  // Always kill undated / old ladder codes once (and again if sync key changes).
+  if (!doc.legacyCouponsDeactivated || doc.couponsSyncedKey !== syncKey) {
+    await deactivateLegacyFlashCoupons();
   }
 
-  for (const step of FLASH_SALE_DISCOUNT_STEPS) {
+  if (state.active && state.couponCodeGold && state.couponCodeSilver) {
+    const productId = await resolveZohoProductId();
+    if (!productId) {
+      console.warn("[FlashSale] No Zoho product_id — cannot ensure coupons");
+      return;
+    }
+
     await ensureFlashSaleCoupon({
-      couponCode: flashSaleCouponCode("gold", step.gold),
-      discountInr: step.gold,
+      couponCode: state.couponCodeGold,
+      discountInr: state.discountGoldInr,
       productId,
       planCodes: [ZOHO_PLAN_CODES.gold],
+      expiryAt: state.dateKey,
+      maxRedemption: COUPON_MAX_REDEMPTION,
     });
     await ensureFlashSaleCoupon({
-      couponCode: flashSaleCouponCode("silver", step.silver),
-      discountInr: step.silver,
+      couponCode: state.couponCodeSilver,
+      discountInr: state.discountSilverInr,
       productId,
       planCodes: [ZOHO_PLAN_CODES.silver],
+      expiryAt: state.dateKey,
+      maxRedemption: COUPON_MAX_REDEMPTION,
     });
+
+    // Deactivate other undated step codes already covered by legacy list; also
+    // deactivate other dated codes for this day that are not the active pair.
+    for (const step of FLASH_SALE_DISCOUNT_STEPS) {
+      const g = flashSaleCouponCode("gold", step.gold, state.dateKey);
+      const s = flashSaleCouponCode("silver", step.silver, state.dateKey);
+      if (g !== state.couponCodeGold) await deactivateFlashSaleCoupon(g);
+      if (s !== state.couponCodeSilver) await deactivateFlashSaleCoupon(s);
+    }
   }
 
   await getAdminFirestore().doc(FLASH_SALE_STATE_DOC).set(
     {
       couponsEnsuredAt: new Date().toISOString(),
-      couponsEnsuredVersion: COUPONS_ENSURE_VERSION,
+      couponsEnsuredVersion: "day-scoped-v2",
+      couponsSyncedKey: syncKey,
+      legacyCouponsDeactivated: true,
     },
     { merge: true },
   );

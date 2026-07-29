@@ -49,6 +49,11 @@ export const FNO_TOOLBAR_SIGN_IN_COPY = {
     description:
       "Sign in to join F&O trader discussions, ask questions, and follow community chat on live symbols.",
   },
+  alerts: {
+    title: "Score alerts",
+    description:
+      "Sign in to get Atlas score alerts on your favslide symbols — chip, chime, and optional browser notifications.",
+  },
   favorite: {
     title: "Add to watchlist",
     description:

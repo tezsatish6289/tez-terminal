@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Bell,
   GraduationCap,
   Loader2,
   MessageCircle,
   Newspaper,
 } from "lucide-react";
 import { AskFynn } from "@/components/fnoninja/AskFynn";
+import { useScoreAlertsOptional } from "@/components/fnoninja/alerts/ScoreAlertsContext";
 import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { FnoNinjaToolbarSignInPrompt } from "@/components/fnoninja/FnoNinjaChartLoginGate";
@@ -241,6 +243,7 @@ export function LevelsChartSideToolbar({
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const { setOpen: setChatOpen, totalUnreadCount } = useChatPanel();
+  const scoreAlerts = useScoreAlertsOptional();
   const [newsOpen, setNewsOpen] = useState(false);
   const [atlasOpen, setAtlasOpen] = useState(false);
   const [signInAction, setSignInAction] = useState<FnoToolbarSignInAction | null>(null);
@@ -486,6 +489,27 @@ export function LevelsChartSideToolbar({
         >
           <MessageCircle className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
         </ToolbarButton>
+
+        {scoreAlerts ? (
+          <ToolbarButton
+            label="Score alerts"
+            flat
+            unreadCount={scoreAlerts.unreadCount}
+            onClick={() => {
+              runIfSignedIn("alerts", () => {
+                trackCtaClick("toolbar_score_alerts", { label: "Score alerts", symbol, scope });
+                scoreAlerts.setDrawerOpen(true);
+              });
+            }}
+            title={
+              scoreAlerts.unreadCount > 0
+                ? `Score alerts — ${scoreAlerts.unreadCount} unread`
+                : "Score alerts"
+            }
+          >
+            <Bell className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
+          </ToolbarButton>
+        ) : null}
 
         <div className="my-0.5 h-px w-10 shrink-0 bg-white/[0.08]" aria-hidden />
 

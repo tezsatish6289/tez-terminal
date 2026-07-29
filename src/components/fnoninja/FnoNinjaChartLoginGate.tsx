@@ -30,6 +30,7 @@ const TOOLBAR_ACTION_CTA: Record<FnoToolbarSignInAction, string> = {
   news: "news",
   atlas: "atlas",
   chat: "chat",
+  alerts: "score_alerts",
   favorite: "add_to_watchlist",
   bubbles: "bubble_chart",
   favslide: "watchlist",

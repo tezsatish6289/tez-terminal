@@ -6,6 +6,8 @@ import { FnoNinjaFooter } from "@/components/fnoninja/FnoNinjaFooter";
 import { FnoNinjaNav } from "@/components/fnoninja/FnoNinjaNav";
 import { FnoNinjaChatDeepLink } from "@/components/fnoninja/FnoNinjaChatDeepLink";
 import { SuccessStoryLiveHost } from "@/components/fnoninja/SuccessStoryLiveHost";
+import { ScoreAlertsHost } from "@/components/fnoninja/alerts/ScoreAlertsHost";
+import { ScoreAlertsProvider } from "@/components/fnoninja/alerts/ScoreAlertsContext";
 import { ChatPanel } from "@/components/fnoninja/chat/ChatPanel";
 import { ChatPanelProvider } from "@/components/fnoninja/chat/ChatPanelContext";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
@@ -23,27 +25,30 @@ export function FnoNinjaPageShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ChatPanelProvider>
-      <div
-        className={isLevelsApp ? FNO_LEVELS_PAGE_ROOT : FNO_PAGE_ROOT}
-        style={{ backgroundColor: FNO_BG, color: FNO_TEXT }}
-      >
-        <FnoNinjaNav />
+      <ScoreAlertsProvider>
         <div
-          className={`${FB_VIEWPORT_MAIN} flex flex-col min-w-0 ${
-            isLevelsApp
-              ? `${FNO_APP_TOP_GAP_CLASS} max-md:flex-none max-md:overflow-visible md:flex-1 md:min-h-0`
-              : "flex-1 min-h-0"
-          }`}
+          className={isLevelsApp ? FNO_LEVELS_PAGE_ROOT : FNO_PAGE_ROOT}
+          style={{ backgroundColor: FNO_BG, color: FNO_TEXT }}
         >
-          {children}
+          <FnoNinjaNav />
+          <div
+            className={`${FB_VIEWPORT_MAIN} flex flex-col min-w-0 ${
+              isLevelsApp
+                ? `${FNO_APP_TOP_GAP_CLASS} max-md:flex-none max-md:overflow-visible md:flex-1 md:min-h-0`
+                : "flex-1 min-h-0"
+            }`}
+          >
+            {children}
+          </div>
+          {!isLevelsApp ? <FnoNinjaFooter /> : null}
+          <Suspense fallback={null}>
+            <FnoNinjaChatDeepLink />
+          </Suspense>
+          <SuccessStoryLiveHost />
+          <ScoreAlertsHost />
+          <ChatPanel />
         </div>
-        {!isLevelsApp ? <FnoNinjaFooter /> : null}
-        <Suspense fallback={null}>
-          <FnoNinjaChatDeepLink />
-        </Suspense>
-        <SuccessStoryLiveHost />
-        <ChatPanel />
-      </div>
+      </ScoreAlertsProvider>
     </ChatPanelProvider>
   );
 }

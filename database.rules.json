@@ -32,6 +32,13 @@
         ".read": true,
         ".write": false,
         ".indexOn": ["at"]
+      },
+      "score": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": false,
+          ".indexOn": ["at"]
+        }
       }
     }
   }

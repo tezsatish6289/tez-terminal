@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { CreditCard, Loader2, LogOut, Menu, X } from "lucide-react";
+import { ScoreAlertsBellButton } from "@/components/fnoninja/alerts/ScoreAlertsDrawer";
+import { useScoreAlertsOptional } from "@/components/fnoninja/alerts/ScoreAlertsContext";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
 import { FnoNinjaSubscriptionBadge } from "@/components/fnoninja/FnoNinjaSubscriptionBadge";
@@ -119,9 +121,11 @@ export function FnoNinjaNav() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const scoreAlerts = useScoreAlertsOptional();
   const isLevelsApp = isFnoNinjaLevelsPath(pathname);
   const productHomeHref = fnoProductHomeHref(pathname, !!user && !isUserLoading);
   const showNavSearch = !isFnoNinjaLandingPath(pathname);
+  const showAlertsChip = Boolean(user && !isUserLoading && scoreAlerts);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -191,6 +195,7 @@ export function FnoNinjaNav() {
           )}
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {showAlertsChip ? <ScoreAlertsBellButton className={ICON_BTN_CLASS} /> : null}
             {!isLanding ? <FnoNinjaSubscriptionBadge /> : null}
             {!isLevelsApp && isFnoNinjaLandingPath(pathname) ? (
               <>

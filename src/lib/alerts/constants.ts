@@ -1,0 +1,25 @@
+import type { ScoreAlertMinScore, ScoreAlertPreferences } from "@/lib/alerts/types";
+
+export const SCORE_ALERT_PREFS_COLLECTION = "score_alert_preferences";
+export const SCORE_ALERT_EVENTS_COLLECTION = "score_alert_events";
+export const SCORE_ALERT_STATE_COLLECTION = "score_alert_state";
+
+export const LIVE_SCORE_ALERTS_RTDB_PATH = "live_alerts/score";
+
+export const SCORE_ALERT_MIN_SCORES: readonly ScoreAlertMinScore[] = [60, 70, 80];
+
+export const DEFAULT_SCORE_ALERT_PREFERENCES: ScoreAlertPreferences = {
+  enabled: false,
+  minScore: 70,
+  chime: true,
+  browserNotifications: false,
+  updatedAt: null,
+};
+
+/** Keep recent events for the drawer. */
+export const SCORE_ALERT_EVENTS_LIMIT = 40;
+
+/** RTDB / toast freshness window. */
+export const SCORE_ALERT_FRESH_MS = 60 * 60 * 1000;
+
+export const SCORE_ALERT_READ_KEY_PREFIX = "fno_score_alerts_seen_v1:";

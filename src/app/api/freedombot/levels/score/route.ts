@@ -1,10 +1,10 @@
 /**
  * GET /api/freedombot/levels/score?scope=&symbol=
  *
- * Cheap, LLM-free composite "setup score" for a symbol — powers the Atlas badge
- * on the chart toolbar (mirrors the news-sentiment badge). Reads the same stored
- * zone doc Fynn uses, derives the directional read, and scores the setup in the
- * direction the data points. No option chain, no Gemini call.
+ * Cheap, LLM-free Atlas setup score for a symbol. Scores **both** support (↑)
+ * and resistance (↓) theses, maps each to calibrated win probability, and
+ * picks a primary Atlas number (geo side if in/near a zone, else the stronger
+ * thesis). Optional `side` / `tone` kept for backward compatibility.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -23,9 +23,13 @@ import {
   type ScoreInputs,
 } from "@/lib/levels/strategy-score";
 import { pocRiskRewardRatio, type ZoneBands } from "@/lib/zones/zone-status";
+import { deriveBubbleTone } from "@/lib/zones/bubble-tone";
 import {
+  atlasPrimaryScore,
+  atlasProbEmphasis,
   atlasScoreBucket,
   atlasScoreSideFromTone,
+  atlasSideThesis,
 } from "@/lib/levels/atlas-score-calibration";
 
 export const dynamic = "force-dynamic";
@@ -70,13 +74,13 @@ async function readDoc(path: string): Promise<Record<string, unknown> | null> {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const scope = searchParams.get("scope") === "index" ? "index" : searchParams.get("scope") === "stock" ? "stock" : null;
+  const scope =
+    searchParams.get("scope") === "index"
+      ? "index"
+      : searchParams.get("scope") === "stock"
+        ? "stock"
+        : null;
   const rawSymbol = (searchParams.get("symbol") ?? "").trim().toUpperCase();
-  const sideParam = searchParams.get("side");
-  const sideFromQuery =
-    sideParam === "support" || sideParam === "resistance"
-      ? sideParam
-      : atlasScoreSideFromTone(searchParams.get("tone"));
   if (!scope || !rawSymbol) {
     return NextResponse.json({ ok: false, error: "Missing scope or symbol" }, { status: 400 });
   }
@@ -108,8 +112,6 @@ export async function GET(request: NextRequest) {
         return null;
       }
     })(),
-    // PVT anchored at the toe-dip: only meaningful if the symbol is sitting in a
-    // cluster (has an open SR event); otherwise it abstains.
     fetchPvtSlope(scope, symbol, await getOpenSrEventAnchorSec(db, symbol)),
   ]);
 
@@ -139,11 +141,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Levels still computing" }, { status: 409 });
   }
 
-  const direction = computeDirection(inputs);
-  // Prefer explicit zone side (chart At Support / At Resistance); else lean of the read.
-  const side =
-    sideFromQuery ?? (direction.value >= 0 ? "support" : "resistance");
-
   const bands: ZoneBands = {
     spot: inputs.spot,
     bullLow: inputs.supportLow,
@@ -152,28 +149,62 @@ export async function GET(request: NextRequest) {
     bearHigh: inputs.resistanceHigh,
   };
   const bandOffset = num(raw.halfWidthUsd) ?? num(raw.halfWidth) ?? num(raw.bandOffset);
-  const riskReward =
-    inputs.maxPain != null
-      ? pocRiskRewardRatio(bands, inputs.maxPain, bandOffset, side === "support" ? "bull" : "bear")
-      : null;
+  const hasBands = bands.bullLow != null || bands.bearLow != null;
+  const geoTone = deriveBubbleTone(bands, hasBands || inputs.spot != null);
+  const geoSide = atlasScoreSideFromTone(geoTone);
 
-  const setup = scoreDirectionalSetup(side, inputs, { riskReward });
-  const bucket = atlasScoreBucket(setup.composite);
+  const rrSupport =
+    inputs.maxPain != null ? pocRiskRewardRatio(bands, inputs.maxPain, bandOffset, "bull") : null;
+  const rrResist =
+    inputs.maxPain != null ? pocRiskRewardRatio(bands, inputs.maxPain, bandOffset, "bear") : null;
+
+  const supportSetup = scoreDirectionalSetup("support", inputs, { riskReward: rrSupport });
+  const resistSetup = scoreDirectionalSetup("resistance", inputs, { riskReward: rrResist });
+
+  const up = atlasSideThesis(supportSetup.composite);
+  const down = atlasSideThesis(resistSetup.composite);
+  const primary = atlasPrimaryScore(up.score, down.score, geoSide);
+  const primaryBucket = atlasScoreBucket(primary.composite);
+  const pvtPresent = typeof pvtSlope === "number" && Number.isFinite(pvtSlope);
+  const direction = computeDirection(inputs);
+
+  // Backward-compat: optional side/tone still selects `score` for older clients.
+  const sideParam = searchParams.get("side");
+  const sideFromQuery =
+    sideParam === "support" || sideParam === "resistance"
+      ? sideParam
+      : atlasScoreSideFromTone(searchParams.get("tone"));
+  const legacySide = sideFromQuery ?? primary.side;
+  const legacySetup = legacySide === "support" ? supportSetup : resistSetup;
+  const legacyBucket = atlasScoreBucket(legacySetup.composite);
 
   return NextResponse.json(
     {
       ok: true,
       symbol,
-      side,
-      riskReward,
+      pvtPresent,
+      lowerConfidence: !pvtPresent,
+      geoSide,
+      emphasis: atlasProbEmphasis(geoSide),
+      atlas: {
+        composite: primary.composite,
+        side: primary.side,
+        bucket: primaryBucket.label,
+        winRatePct: primaryBucket.winRatePct,
+      },
+      up,
+      down,
+      // Legacy single-side fields (chart badge previously used these).
+      side: legacySide,
+      riskReward: legacySide === "support" ? rrSupport : rrResist,
       score: {
-        composite: setup.composite,
-        directionLabel: setup.directionLabel,
-        subScores: setup.subScores,
+        composite: legacySetup.composite,
+        directionLabel: direction.label,
+        subScores: legacySetup.subScores,
       },
       calibration: {
-        bucket: bucket.label,
-        winRatePct: bucket.winRatePct,
+        bucket: legacyBucket.label,
+        winRatePct: legacyBucket.winRatePct,
       },
     },
     { headers: { "Cache-Control": "private, max-age=300" } },

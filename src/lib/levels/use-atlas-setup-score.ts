@@ -1,29 +1,47 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import { atlasSideFromLevels } from "@/lib/levels/atlas-score-calibration";
+import { useEffect, useState } from "react";
+import type { AtlasChartSetup } from "@/components/levels/AtlasSetupScoreBadge";
+import type { AtlasProbEmphasis, AtlasSideThesis } from "@/lib/levels/atlas-score-calibration";
+
+type ScoreApiResponse = {
+  ok?: boolean;
+  atlas?: { composite?: number; side?: string };
+  up?: AtlasSideThesis;
+  down?: AtlasSideThesis;
+  emphasis?: AtlasProbEmphasis;
+  lowerConfidence?: boolean;
+  pvtPresent?: boolean;
+  /** Legacy single score (fallback if dual fields missing). */
+  score?: { composite?: number };
+  calibration?: { winRatePct?: number; bucket?: string };
+};
+
+function thesisFallback(score: number, winRatePct: number, bucket: string): AtlasSideThesis {
+  return {
+    score: Math.round(score),
+    probabilityPct: winRatePct,
+    bucket,
+    bucketWinRatePct: winRatePct,
+  };
+}
 
 /**
- * Fetches the deterministic Atlas setup score for the chart corner badge.
- * Uses geographic zone side (not OI-gated display tone).
+ * Fetches Atlas score + ↑/↓ calibrated probabilities for the chart corner.
+ * Works for any symbol with levels (in-zone, near, or between zones).
  */
 export function useAtlasSetupScore(
   scope: "stock" | "index" | null | undefined,
   symbol: string | null | undefined,
-  levels: PublicLevels | null | undefined,
-  spotOverride?: number | null,
-): number | null {
-  const [score, setScore] = useState<number | null>(null);
-  const side = useMemo(
-    () => atlasSideFromLevels(levels, spotOverride),
-    [levels, spotOverride],
-  );
+  /** When false/null levels, skip fetch (no bands to score). */
+  hasLevels: boolean,
+): AtlasChartSetup | null {
+  const [setup, setSetup] = useState<AtlasChartSetup | null>(null);
   const sym = (symbol ?? "").trim().toUpperCase();
 
   useEffect(() => {
-    if (!scope || !sym || !side) {
-      setScore(null);
+    if (!scope || !sym || !hasLevels) {
+      setSetup(null);
       return;
     }
 
@@ -32,23 +50,47 @@ export function useAtlasSetupScore(
 
     const run = async () => {
       try {
-        const qs = new URLSearchParams({ scope, symbol: sym, side });
+        const qs = new URLSearchParams({ scope, symbol: sym });
         const res = await fetch(`/api/freedombot/levels/score?${qs}`, {
           signal: ctrl.signal,
           cache: "no-store",
         });
-        const json = (await res.json()) as {
-          ok?: boolean;
-          score?: { composite?: number };
-        };
+        const json = (await res.json()) as ScoreApiResponse;
         if (cancelled) return;
-        if (!res.ok || !json.ok || json.score?.composite == null) {
-          setScore(null);
+        if (!res.ok || !json.ok) {
+          setSetup(null);
           return;
         }
-        setScore(json.score.composite);
+
+        if (json.up && json.down && json.atlas?.composite != null) {
+          setSetup({
+            atlasScore: json.atlas.composite,
+            up: json.up,
+            down: json.down,
+            emphasis: json.emphasis ?? "both",
+            lowerConfidence: json.lowerConfidence ?? !json.pvtPresent,
+          });
+          return;
+        }
+
+        // Legacy API shape
+        const composite = json.score?.composite;
+        if (composite == null || !Number.isFinite(composite)) {
+          setSetup(null);
+          return;
+        }
+        const wr = json.calibration?.winRatePct ?? 50;
+        const bucket = json.calibration?.bucket ?? "50–69";
+        const t = thesisFallback(composite, wr, bucket);
+        setSetup({
+          atlasScore: composite,
+          up: t,
+          down: t,
+          emphasis: "both",
+          lowerConfidence: true,
+        });
       } catch {
-        if (!cancelled) setScore(null);
+        if (!cancelled) setSetup(null);
       }
     };
 
@@ -57,7 +99,7 @@ export function useAtlasSetupScore(
       cancelled = true;
       ctrl.abort();
     };
-  }, [scope, sym, side]);
+  }, [scope, sym, hasLevels]);
 
-  return side ? score : null;
+  return setup;
 }

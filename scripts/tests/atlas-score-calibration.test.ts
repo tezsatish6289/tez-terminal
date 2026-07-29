@@ -1,8 +1,12 @@
 import {
+  atlasPrimaryScore,
+  atlasProbEmphasis,
+  atlasProbabilityPct,
   atlasScoreBucket,
   atlasScoreSideFromTone,
   atlasScoreTone,
   atlasSideFromLevels,
+  atlasSideThesis,
 } from "../../src/lib/levels/atlas-score-calibration";
 import type { PublicLevels } from "../../src/components/levels/ZonePriceLadder";
 import { assertTrue, describe, summary, test } from "./_assert";
@@ -15,6 +19,15 @@ describe("atlasScoreBucket", () => {
     assertTrue(atlasScoreBucket(60).winRatePct === 50);
     assertTrue(atlasScoreBucket(72).label === "70–100");
     assertTrue(atlasScoreBucket(72).winRatePct === 72);
+  });
+});
+
+describe("atlasProbabilityPct", () => {
+  test("higher score → higher calibrated probability", () => {
+    assertTrue(atlasProbabilityPct(40) === 34);
+    assertTrue(atlasProbabilityPct(55) === 50);
+    assertTrue(atlasProbabilityPct(80) === 72);
+    assertTrue(atlasProbabilityPct(80) > atlasProbabilityPct(40));
   });
 });
 
@@ -48,6 +61,42 @@ describe("atlasSideFromLevels", () => {
       oi: null,
     } as PublicLevels;
     assertTrue(atlasSideFromLevels(levels) === "support");
+  });
+
+  test("between zones → no geo side (dual probs, equal emphasis)", () => {
+    const levels = {
+      spot: 2100,
+      bullLow: 1950,
+      bullHigh: 2050,
+      bearLow: 2150,
+      bearHigh: 2250,
+      poc: 2150,
+      bandOffset: 50,
+    } as PublicLevels;
+    assertTrue(atlasSideFromLevels(levels) === null);
+    assertTrue(atlasProbEmphasis(null) === "both");
+  });
+});
+
+describe("atlasPrimaryScore / emphasis", () => {
+  test("geo support uses up score as Atlas primary", () => {
+    const p = atlasPrimaryScore(76, 40, "support");
+    assertTrue(p.composite === 76 && p.side === "support");
+    assertTrue(atlasProbEmphasis("support") === "up");
+  });
+
+  test("between zones Atlas = stronger thesis", () => {
+    const p = atlasPrimaryScore(58, 47, null);
+    assertTrue(p.composite === 58 && p.side === "support");
+  });
+});
+
+describe("atlasSideThesis", () => {
+  test("packs score + probability for UI", () => {
+    const t = atlasSideThesis(76);
+    assertTrue(t.score === 76);
+    assertTrue(t.probabilityPct === 72);
+    assertTrue(t.bucket === "70–100");
   });
 });
 

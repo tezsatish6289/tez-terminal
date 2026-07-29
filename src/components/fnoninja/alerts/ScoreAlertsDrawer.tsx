@@ -7,7 +7,6 @@ import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -28,39 +27,36 @@ import { trackCtaClick } from "@/firebase/analytics";
 
 function PrefToggle({
   label,
-  description,
+  title,
   checked,
   disabled,
   onToggle,
 }: {
   label: string;
-  description?: string;
+  title?: string;
   checked: boolean;
   disabled?: boolean;
   onToggle: (next: boolean) => void;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-3">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-white">{label}</p>
-        {description ? (
-          <p className="mt-0.5 text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
-            {description}
-          </p>
-        ) : null}
-      </div>
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <p className="text-[13px] font-medium text-white truncate" title={title}>
+        {label}
+      </p>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={label}
+        title={title}
         disabled={disabled}
         onClick={() => onToggle(!checked)}
-        className="relative h-7 w-12 shrink-0 overflow-hidden rounded-full transition-colors disabled:opacity-60"
+        className="relative h-6 w-10 shrink-0 overflow-hidden rounded-full transition-colors disabled:opacity-40"
         style={{ backgroundColor: checked ? "#2563eb" : "rgba(148,163,184,0.35)" }}
       >
         <span
-          className="pointer-events-none absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-[left] duration-150"
-          style={{ left: checked ? "1.35rem" : "0.15rem" }}
+          className="pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] duration-150"
+          style={{ left: checked ? "1.1rem" : "0.125rem" }}
         />
       </button>
     </div>
@@ -69,7 +65,7 @@ function PrefToggle({
 
 function ChoiceRow<T extends string | number>({
   label,
-  description,
+  title,
   options,
   value,
   disabled,
@@ -77,7 +73,7 @@ function ChoiceRow<T extends string | number>({
   onChange,
 }: {
   label: string;
-  description?: string;
+  title?: string;
   options: readonly T[];
   value: T;
   disabled?: boolean;
@@ -85,16 +81,15 @@ function ChoiceRow<T extends string | number>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="pb-3">
-      <p className="text-sm font-semibold text-white mb-0.5">{label}</p>
-      {description ? (
-        <p className="mb-2 text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
-          {description}
-        </p>
-      ) : (
-        <div className="mb-2" />
-      )}
-      <div className="flex gap-2">
+    <div className="flex items-center gap-2.5 py-1.5">
+      <p
+        className="w-[4.5rem] shrink-0 text-[11px] font-semibold uppercase tracking-wide"
+        style={{ color: FNO_MUTED }}
+        title={title}
+      >
+        {label}
+      </p>
+      <div className="flex min-w-0 flex-1 gap-1">
         {options.map((opt) => {
           const active = value === opt;
           return (
@@ -102,15 +97,16 @@ function ChoiceRow<T extends string | number>({
               key={String(opt)}
               type="button"
               disabled={disabled}
+              title={title}
               onClick={() => onChange(opt)}
-              className="flex-1 rounded-lg py-2 text-[12px] sm:text-sm font-bold transition-colors disabled:opacity-40"
+              className="min-w-0 flex-1 rounded-md px-1 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-40"
               style={{
                 color: active ? "#fff" : "#94a3b8",
                 backgroundColor: active
                   ? "rgba(37,99,235,0.55)"
                   : "rgba(15,23,42,0.65)",
                 border: `1px solid ${
-                  active ? "rgba(96,165,250,0.55)" : "rgba(90,140,220,0.15)"
+                  active ? "rgba(96,165,250,0.5)" : "rgba(90,140,220,0.12)"
                 }`,
               }}
             >
@@ -140,14 +136,14 @@ function formatAlertTime(iso: string): string {
 }
 
 function directionLabel(d: ScoreAlertDirection): string {
-  if (d === "bullish") return "Bullish";
-  if (d === "bearish") return "Bearish";
+  if (d === "bullish") return "Bull";
+  if (d === "bearish") return "Bear";
   return "Both";
 }
 
 function segmentLabel(s: ScoreAlertSegment): string {
-  if (s === "favslide") return "Favslide";
-  if (s === "liveslide") return "Liveslide";
+  if (s === "favslide") return "Fav";
+  if (s === "liveslide") return "Live";
   return "Both";
 }
 
@@ -174,26 +170,23 @@ export function ScoreAlertsDrawer() {
         style={{ backgroundColor: FNO_BG_CANVAS, borderColor: "rgba(90,140,220,0.12)" }}
       >
         <div className="flex h-full flex-col">
-          <SheetHeader className="px-4 pt-4 pb-3 border-b space-y-1" style={{ borderColor: "rgba(90,140,220,0.12)" }}>
-            <SheetTitle className="flex items-center gap-2 text-white text-base">
+          <SheetHeader className="px-4 pt-3 pb-2 border-b space-y-0" style={{ borderColor: "rgba(90,140,220,0.12)" }}>
+            <SheetTitle className="flex items-center gap-2 text-white text-[15px]">
               <Bell className="h-4 w-4" style={{ color: FNO_ACCENT }} />
               Score alerts
             </SheetTitle>
-            <SheetDescription className="text-[12px]" style={{ color: FNO_MUTED }}>
-              Get notified when Atlas score crosses your floor on the segment you watch.
-            </SheetDescription>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto px-4 pb-6">
+          <div className="flex-1 overflow-y-auto px-4 py-2">
             {prefsLoading ? (
-              <div className="flex justify-center py-10">
+              <div className="flex justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#60a5fa" }} />
               </div>
             ) : (
               <>
                 <PrefToggle
-                  label="Enable alerts"
-                  description="Evaluated during market hours (every few minutes)."
+                  label="Enabled"
+                  title="Watched during market hours"
                   checked={prefs.enabled}
                   onToggle={(next) => {
                     trackCtaClick("score_alerts_toggle", { enabled: next });
@@ -201,62 +194,66 @@ export function ScoreAlertsDrawer() {
                   }}
                 />
 
-                <ChoiceRow
-                  label="Segment"
-                  description="Favslide = your watchlist. Liveslide = symbols at/near a zone."
-                  options={SCORE_ALERT_SEGMENTS}
-                  value={prefs.segment}
-                  disabled={!prefs.enabled}
-                  format={segmentLabel}
-                  onChange={(segment) => {
-                    trackCtaClick("score_alerts_segment", { segment });
-                    void savePrefs({ segment });
+                <div
+                  className="my-1.5 space-y-0.5 rounded-lg px-2.5 py-1"
+                  style={{
+                    border: "1px solid rgba(90,140,220,0.1)",
+                    backgroundColor: "rgba(15,23,42,0.35)",
+                    opacity: prefs.enabled ? 1 : 0.55,
                   }}
-                />
-
-                <ChoiceRow
-                  label="Direction"
-                  description="Bullish = support ↑ · Bearish = resistance ↓"
-                  options={SCORE_ALERT_DIRECTIONS}
-                  value={prefs.direction}
-                  disabled={!prefs.enabled}
-                  format={directionLabel}
-                  onChange={(direction) => {
-                    trackCtaClick("score_alerts_direction", { direction });
-                    void savePrefs({ direction });
-                  }}
-                />
-
-                <ChoiceRow
-                  label="Score floor"
-                  options={SCORE_ALERT_MIN_SCORES}
-                  value={prefs.minScore}
-                  disabled={!prefs.enabled}
-                  format={(n: ScoreAlertMinScore) => `≥${n}`}
-                  onChange={(minScore) => {
-                    trackCtaClick("score_alerts_min_score", { minScore });
-                    void savePrefs({ minScore });
-                  }}
-                />
+                >
+                  <ChoiceRow
+                    label="Segment"
+                    title="Fav = watchlist · Live = at/near zone · Both = union"
+                    options={SCORE_ALERT_SEGMENTS}
+                    value={prefs.segment}
+                    disabled={!prefs.enabled}
+                    format={segmentLabel}
+                    onChange={(segment) => {
+                      trackCtaClick("score_alerts_segment", { segment });
+                      void savePrefs({ segment });
+                    }}
+                  />
+                  <ChoiceRow
+                    label="Side"
+                    title="Bull = support ↑ · Bear = resistance ↓"
+                    options={SCORE_ALERT_DIRECTIONS}
+                    value={prefs.direction}
+                    disabled={!prefs.enabled}
+                    format={directionLabel}
+                    onChange={(direction) => {
+                      trackCtaClick("score_alerts_direction", { direction });
+                      void savePrefs({ direction });
+                    }}
+                  />
+                  <ChoiceRow
+                    label="Score"
+                    options={SCORE_ALERT_MIN_SCORES}
+                    value={prefs.minScore}
+                    disabled={!prefs.enabled}
+                    format={(n: ScoreAlertMinScore) => `≥${n}`}
+                    onChange={(minScore) => {
+                      trackCtaClick("score_alerts_min_score", { minScore });
+                      void savePrefs({ minScore });
+                    }}
+                  />
+                </div>
 
                 <PrefToggle
                   label="Chime"
-                  description="Soft sound when the app is open."
+                  title="Soft sound when the app is open"
                   checked={prefs.chime}
                   disabled={!prefs.enabled}
                   onToggle={(next) => void savePrefs({ chime: next })}
                 />
-
                 <PrefToggle
-                  label="Browser notifications"
-                  description={
+                  label="Browser notify"
+                  title={
                     browserUnsupported
-                      ? "Not supported in this browser."
+                      ? "Not supported in this browser"
                       : browserDenied
-                        ? "Blocked in browser settings — allow notifications for this site, then turn this on again."
-                        : notificationPermission === "granted"
-                          ? "Shows a system notification when an alert fires."
-                          : "Ask for permission to notify when the tab is in the background."
+                        ? "Blocked in browser settings — allow for this site, then turn on again"
+                        : "Notify when the tab is in the background"
                   }
                   checked={prefs.browserNotifications && notificationPermission === "granted"}
                   disabled={!prefs.enabled || browserUnsupported}
@@ -276,23 +273,24 @@ export function ScoreAlertsDrawer() {
                     void enableBrowserNotifications();
                   }}
                 />
-
-                <div className="mt-2 mb-3 h-px" style={{ backgroundColor: "rgba(90,140,220,0.12)" }} />
-
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-bold uppercase tracking-widest" style={{ color: FNO_MUTED }}>
-                    Recent
+                {browserDenied ? (
+                  <p className="pb-1 text-[10px] leading-snug" style={{ color: "#fbbf24" }}>
+                    Notifications blocked in browser settings
                   </p>
-                </div>
+                ) : null}
+
+                <div className="mt-2 mb-1.5 h-px" style={{ backgroundColor: "rgba(90,140,220,0.12)" }} />
+
+                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: FNO_MUTED }}>
+                  Recent
+                </p>
 
                 {events.length === 0 ? (
-                  <p className="text-[13px] py-6 text-center" style={{ color: FNO_MUTED }}>
-                    {prefs.segment === "liveslide"
-                      ? "No alerts yet. Keep alerts enabled — liveslide setups are watched automatically."
-                      : "No alerts yet. Add symbols to favslide and keep alerts enabled."}
+                  <p className="py-4 text-center text-[12px]" style={{ color: FNO_MUTED }}>
+                    No alerts yet
                   </p>
                 ) : (
-                  <ul className="space-y-2">
+                  <ul className="space-y-1.5 pb-4">
                     {events.map((ev) => {
                       const href = levelsChartPagePathForHost(
                         typeof window !== "undefined" ? window.location.hostname : "fnoninja.com",
@@ -311,7 +309,7 @@ export function ScoreAlertsDrawer() {
                               });
                               setDrawerOpen(false);
                             }}
-                            className="block rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.04]"
+                            className="block rounded-lg px-2.5 py-2 transition-colors hover:bg-white/[0.04]"
                             style={{
                               border: "1px solid rgba(90,140,220,0.12)",
                               backgroundColor: ev.readAt
@@ -320,18 +318,18 @@ export function ScoreAlertsDrawer() {
                             }}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-semibold text-white truncate">
+                              <p className="truncate text-[13px] font-semibold text-white">
                                 {ev.label || ev.symbol}{" "}
                                 <span style={{ color: ev.side === "support" ? "#86efac" : "#fca5a5" }}>
                                   {dir}
                                 </span>
                               </p>
-                              <span className="text-[11px] tabular-nums shrink-0" style={{ color: FNO_MUTED }}>
+                              <span className="shrink-0 text-[10px] tabular-nums" style={{ color: FNO_MUTED }}>
                                 {formatAlertTime(ev.at)}
                               </span>
                             </div>
-                            <p className="mt-0.5 text-[12px]" style={{ color: "#94a3b8" }}>
-                              Score {ev.score} ≥{ev.minScore}
+                            <p className="mt-0.5 text-[11px]" style={{ color: "#94a3b8" }}>
+                              {ev.score} ≥{ev.minScore}
                               {ev.probabilityPct > 0 ? ` · ~${ev.probabilityPct}%` : ""}
                             </p>
                           </Link>

@@ -424,8 +424,9 @@ export default function SrAuditAdminPage() {
               zone flip; outcomes scored hourly from Dhan klines.
             </p>
             <p className="text-[10px] text-muted-foreground/40 mt-1 max-w-2xl">
-              Buffer auto: 1 reel/day — today&apos;s biggest unposted win with move &gt; 3% (no backlog) —
-              prepare ~7:00 PM IST, publish at 9:00 PM IST (channel jitter) via{" "}
+              Buffer auto: 1 reel/day — prefer today&apos;s biggest win &gt; 3%, else best unposted
+              in last 7 days &gt; 3%, else today ≥ 1% (no backlog queue) — prepare ~7:00 PM IST,
+              publish at 9:00 PM IST (channel jitter) via{" "}
               <code className="text-white/50">/api/cron/sr-audit-buffer-posts</code>.
             </p>
             {summary?.lastOutcomeCronAt ? (

@@ -1,8 +1,14 @@
 /**
  * Automate SR-audit win-story posts to Buffer (+ email via scheduleToBuffer).
  *
- * Selection: at most ONE reel/day — today's (IST) biggest unposted win with
- * realized move > 3%. No backlog drain; if nothing qualifies, skip the day.
+ * Selection: at most ONE reel/day, biased to biggest movePct. Day key uses
+ * resolution time (resolvedAt ?? pocHitAt ?? eventAt), not entry.
+ *
+ * Cascade (no persistent backlog queue):
+ *   1. Resolved today IST with move > 3%
+ *   2. Else best unposted in last 7 days with move > 3%
+ *   3. Else resolved today with move ≥ 1%
+ *   4. Else skip
  *
  * Two phases (App Hosting timeout is ~120s — cloud renders take minutes):
  *   prepare  — pick today's best story (if any), kick off Cloud Run render
@@ -45,12 +51,18 @@ import {
 
 export const SR_BUFFER_AUTO_MAX_PER_DAY = 1;
 export const SR_BUFFER_AUTO_SOURCE = "sr-audit";
-/** Only auto-post wins with realized move strictly greater than this %. */
+/** Preferred floor — realized move strictly greater than this %. */
 export const SR_BUFFER_AUTO_MIN_MOVE_PCT = 3;
+/** Soft floor when no >3% win exists today or in lookback (inclusive). */
+export const SR_BUFFER_AUTO_SOFT_FLOOR_MIN_MOVE_PCT = 1;
+/** Finite lookback window (IST calendar days, including today). No backlog queue. */
+export const SR_BUFFER_AUTO_LOOKBACK_DAYS = 7;
 /** Target publish clock — 9:00 PM India Standard Time. */
 export const SR_BUFFER_AUTO_HOUR_IST = 21;
 /** Per-channel schedule jitter (same video once; channels get staggered due times). */
 export const SR_BUFFER_AUTO_JITTER_MINUTES = 20;
+
+export type BufferAutoSelectionTier = "today_hard" | "lookback_hard" | "today_soft";
 
 const QUEUE_COLLECTION = "sr_audit_buffer_days";
 const RUN_LOCK_DOC = "config/sr_audit_buffer_run_lock";
@@ -63,6 +75,8 @@ export interface BufferAutoQueueItem {
   label: string;
   renderId: string;
   status: "rendering" | "ready" | "partial" | "scheduled" | "failed";
+  /** Which selection cascade tier queued this story (prepare). */
+  selectionTier?: BufferAutoSelectionTier | null;
   videoUrl?: string | null;
   scheduleId?: string | null;
   error?: string | null;
@@ -127,31 +141,97 @@ export function resolveAutoPhase(now = new Date()): "prepare" | "publish" {
   return istHour(now) < SR_BUFFER_AUTO_HOUR_IST ? "prepare" : "publish";
 }
 
-/**
- * Today's IST success stories with move > floor, biggest first.
- * Scans a short recent window then keeps only `dayKey` (no backlog).
- */
-async function findTodaysMoversBySize(
-  db: Firestore,
-  dayKey: string,
-): Promise<SuccessStoryCandidate[]> {
-  const stories = await findSuccessStories(db, {
-    requireSnapshot: true,
-    // 2 days covers the IST calendar boundary vs UTC "last 24h".
-    withinDays: 2,
-    scanLimit: 500,
-    minMovePct: SR_BUFFER_AUTO_MIN_MOVE_PCT,
-    order: "newest",
-  });
-  return stories
-    .filter((s) => istDayKey(new Date(s.eventAt)) === dayKey)
-    .sort(
-      (a, b) =>
-        b.movePct - a.movePct || Date.parse(b.eventAt) - Date.parse(a.eventAt),
-    );
+/** IST calendar day of the win (resolution / POC / entry). */
+export function storyDayKey(s: Pick<SuccessStoryCandidate, "dayAt" | "eventAt">): string {
+  return istDayKey(new Date(s.dayAt || s.eventAt));
 }
 
-/** Load a single queued story by id (publish path — independent of the day scan). */
+/** True when storyDay is on dayKey or within the prior (lookbackDays - 1) IST days. */
+export function isWithinLookbackDays(
+  storyDay: string,
+  dayKey: string,
+  lookbackDays = SR_BUFFER_AUTO_LOOKBACK_DAYS,
+): boolean {
+  const dayMs = new Date(`${dayKey}T00:00:00+05:30`).getTime();
+  const storyMs = new Date(`${storyDay}T00:00:00+05:30`).getTime();
+  if (!Number.isFinite(dayMs) || !Number.isFinite(storyMs)) return false;
+  const diffDays = (dayMs - storyMs) / 86_400_000;
+  return diffDays >= 0 && diffDays < lookbackDays;
+}
+
+function byBiggestMoveThenNewest(
+  a: SuccessStoryCandidate,
+  b: SuccessStoryCandidate,
+): number {
+  return (
+    b.movePct - a.movePct ||
+    Date.parse(b.dayAt) - Date.parse(a.dayAt) ||
+    Date.parse(b.eventAt) - Date.parse(a.eventAt)
+  );
+}
+
+/**
+ * Scan recent snapshot-ready wins (no move floor in the query) and pick via
+ * the daily cascade. Entry window is slightly wider than lookback so delayed
+ * resolutions still appear.
+ */
+async function findDailyAutoStory(
+  db: Firestore,
+  dayKey: string,
+  opts: {
+    postedMap: Awaited<ReturnType<typeof getPostedContentMap>>;
+    platforms: SocialPlatformId[];
+    queuedIds: Set<string>;
+  },
+): Promise<{ story: SuccessStoryCandidate; tier: BufferAutoSelectionTier } | null> {
+  const stories = await findSuccessStories(db, {
+    requireSnapshot: true,
+    // Entry scan wider than lookback: wins often resolve days after entry.
+    withinDays: SR_BUFFER_AUTO_LOOKBACK_DAYS + 7,
+    scanLimit: 500,
+    order: "newest",
+  });
+
+  const eligible = stories.filter((s) => {
+    if (opts.queuedIds.has(s.id)) return false;
+    if (fullyPosted(opts.postedMap[s.id], opts.platforms)) return false;
+    return isWithinLookbackDays(storyDayKey(s), dayKey);
+  });
+
+  const pick = (pool: SuccessStoryCandidate[]): SuccessStoryCandidate | null => {
+    if (pool.length === 0) return null;
+    return [...pool].sort(byBiggestMoveThenNewest)[0] ?? null;
+  };
+
+  const todayHard = pick(
+    eligible.filter(
+      (s) =>
+        storyDayKey(s) === dayKey && s.movePct > SR_BUFFER_AUTO_MIN_MOVE_PCT,
+    ),
+  );
+  if (todayHard) return { story: todayHard, tier: "today_hard" };
+
+  const lookbackHard = pick(
+    eligible.filter((s) => s.movePct > SR_BUFFER_AUTO_MIN_MOVE_PCT),
+  );
+  if (lookbackHard) return { story: lookbackHard, tier: "lookback_hard" };
+
+  const todaySoft = pick(
+    eligible.filter(
+      (s) =>
+        storyDayKey(s) === dayKey &&
+        s.movePct >= SR_BUFFER_AUTO_SOFT_FLOOR_MIN_MOVE_PCT,
+    ),
+  );
+  if (todaySoft) return { story: todaySoft, tier: "today_soft" };
+
+  return null;
+}
+
+/**
+ * Load a queued story for publish. Accepts hard-floor and soft-floor picks
+ * (move ≥ soft floor); does not re-apply the today-only entry filter.
+ */
 async function loadSuccessStoryById(
   db: Firestore,
   storyId: string,
@@ -163,7 +243,7 @@ async function loadSuccessStoryById(
     ...(doc.data() as SrZoneEvent),
   });
   if (!candidate) return null;
-  if (!(candidate.movePct > SR_BUFFER_AUTO_MIN_MOVE_PCT)) return null;
+  if (!(candidate.movePct >= SR_BUFFER_AUTO_SOFT_FLOOR_MIN_MOVE_PCT)) return null;
   return candidate;
 }
 
@@ -392,16 +472,17 @@ async function prepareDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
   const platforms = await connectedPlatforms();
   // Never re-queue a story already on today's list (incl. failed/scheduled).
   const queuedIds = new Set(day.items.map((i) => i.storyId));
-  // Today's biggest mover (>3%) only — no backlog.
-  const stories = await findTodaysMoversBySize(db, dayKey);
 
-  const picks: SuccessStoryCandidate[] = [];
-  for (const s of stories) {
-    if (picks.length >= slotsLeft) break;
-    if (queuedIds.has(s.id)) continue;
-    // Skip only when every connected channel already got this story.
-    if (fullyPosted(postedMap[s.id], platforms)) continue;
-    picks.push(s);
+  const picks: Array<{ story: SuccessStoryCandidate; tier: BufferAutoSelectionTier }> = [];
+  // Cascade returns one best story; loop in case we need multiple slots later.
+  while (picks.length < slotsLeft) {
+    const next = await findDailyAutoStory(db, dayKey, {
+      postedMap,
+      platforms,
+      queuedIds: new Set([...queuedIds, ...picks.map((p) => p.story.id)]),
+    });
+    if (!next) break;
+    picks.push(next);
   }
 
   if (picks.length === 0) {
@@ -428,7 +509,7 @@ async function prepareDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
   let failed = 0;
   const nowIso = new Date().toISOString();
 
-  for (const story of picks) {
+  for (const { story, tier } of picks) {
     try {
       const existing = await findReadyRenderUrl(db, story.id);
       if (existing) {
@@ -438,6 +519,7 @@ async function prepareDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
           label: story.label,
           renderId: existing.renderId,
           status: "ready",
+          selectionTier: tier,
           videoUrl: existing.url,
           updatedAt: nowIso,
         });
@@ -455,6 +537,7 @@ async function prepareDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
         label: story.label,
         renderId,
         status: "rendering",
+        selectionTier: tier,
         updatedAt: nowIso,
       });
       started += 1;
@@ -466,6 +549,7 @@ async function prepareDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
         label: story.label,
         renderId: "",
         status: "failed",
+        selectionTier: tier,
         error: e instanceof Error ? e.message : "render_trigger_failed",
         updatedAt: nowIso,
       });
@@ -592,14 +676,6 @@ async function publishDay(db: Firestore, dayKey: string): Promise<BufferAutoRunS
       if (!candidate) {
         item.status = "failed";
         item.error = "story_not_found_or_below_move_floor";
-        failed += 1;
-        item.updatedAt = nowIso;
-        continue;
-      }
-      // Refuse leftover backlog items that may still be in an old day queue.
-      if (istDayKey(new Date(candidate.eventAt)) !== dayKey) {
-        item.status = "failed";
-        item.error = "not_todays_story";
         failed += 1;
         item.updatedAt = nowIso;
         continue;

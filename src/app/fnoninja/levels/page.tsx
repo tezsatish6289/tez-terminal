@@ -79,6 +79,10 @@ import {
   type SlideshowMapFilter,
 } from "@/lib/zones/bubble-map-filter";
 import {
+  LIGHT_ATLAS_MAP_MIN_SCORE,
+  passesLightAtlasMapGate,
+} from "@/lib/levels/light-atlas-score";
+import {
   deriveZoneStatus,
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
@@ -124,6 +128,10 @@ interface StockListItem {
   halfWidth?: number | null;
   computedAt?: string | null;
   levelsSource?: PublicLevels["levelsSource"];
+  atmIV?: number | null;
+  volRegime?: PublicLevels["volRegime"];
+  volRegimeReason?: string | null;
+  daysToEarnings?: number | null;
   oi?: PublicLevels["oi"];
 }
 
@@ -198,6 +206,8 @@ export default function LevelsPage() {
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
   const [showMaxPainBubbles, setShowMaxPainBubbles] = useState(false);
+  /** Default on — hide light Atlas ≤ 60 so the map stays usable. */
+  const [atlasQualityFilter, setAtlasQualityFilter] = useState(true);
   const [slideshowFilter, setSlideshowFilter] = useState<SlideshowMapFilter>("all");
   const [chartFullHistory, setChartFullHistory] = useState(false);
   const [slideshowChartViewMode, setSlideshowChartViewMode] = useState<ChartPanelViewMode>("pvt");
@@ -464,22 +474,7 @@ export default function LevelsPage() {
   }, [enterLiveslide, enterFavslide, enterBubbles, isFnoNinjaHost, viewMode]);
 
   const stockBySymbol = useMemo(() => {
-    const m = new Map<
-      string,
-      {
-        symbol: string;
-        label: string;
-        spot: number | null;
-        maxPain: number | null;
-        bullZoneLow: number | null;
-        bullZoneHigh: number | null;
-        bearZoneLow: number | null;
-        bearZoneHigh: number | null;
-        halfWidth?: number | null;
-        computedAt?: string | null;
-        levelsSource?: PublicLevels["levelsSource"];
-      }
-    >();
+    const m = new Map<string, StockListItem>();
     for (const s of payload?.stocks ?? []) m.set(s.symbol, s);
     return m;
   }, [payload?.stocks]);
@@ -505,9 +500,18 @@ export default function LevelsPage() {
     return [buildMmiBubbleItem(mmi), ...items];
   }, [payload, stockBySymbol, mmi]);
 
+  /** Map view: optional light Atlas quality gate (default > 60). */
+  const mapBubbleItems = useMemo(
+    () =>
+      bubbleItems.filter((it) =>
+        passesLightAtlasMapGate(it, atlasQualityFilter, LIGHT_ATLAS_MAP_MIN_SCORE),
+      ),
+    [bubbleItems, atlasQualityFilter],
+  );
+
   const bubbleFilterCounts = useMemo(
-    () => countBubbleMapFilters(bubbleItems.filter((it) => it.kind !== "mmi")),
-    [bubbleItems],
+    () => countBubbleMapFilters(mapBubbleItems.filter((it) => it.kind !== "mmi")),
+    [mapBubbleItems],
   );
 
   const bubbleToneByKey = useMemo(() => {
@@ -1513,6 +1517,15 @@ export default function LevelsPage() {
         visible: showMaxPainBubbles,
         onToggle: () => setShowMaxPainBubbles((v) => !v),
       }}
+      atlasQuality={
+        viewMode === "bubbles"
+          ? {
+              enabled: atlasQualityFilter,
+              onToggle: () => setAtlasQualityFilter((v) => !v),
+              minScore: LIGHT_ATLAS_MAP_MIN_SCORE,
+            }
+          : undefined
+      }
       slideshowFilter={viewMode === "liveslide" ? slideshowFilter : undefined}
       onSlideshowFilterChange={
         viewMode === "liveslide"
@@ -1607,13 +1620,13 @@ export default function LevelsPage() {
   );
 
   const guestBubbleLabels = useMemo(
-    () => (guestBubblePreview ? buildGuestBubbleLabels(bubbleItems) : undefined),
-    [guestBubblePreview, bubbleItems],
+    () => (guestBubblePreview ? buildGuestBubbleLabels(mapBubbleItems) : undefined),
+    [guestBubblePreview, mapBubbleItems],
   );
 
   const guestFilterCycleSteps = useMemo(
-    () => (guestBubblePreview ? guestBubbleFilterSteps(bubbleItems) : []),
-    [guestBubblePreview, bubbleItems],
+    () => (guestBubblePreview ? guestBubbleFilterSteps(mapBubbleItems) : []),
+    [guestBubblePreview, mapBubbleItems],
   );
 
   useEffect(() => {
@@ -1638,7 +1651,7 @@ export default function LevelsPage() {
   const levelsMainPane =
     viewMode === "bubbles" ? (
       <LevelsBubblesView
-        items={bubbleItems}
+        items={mapBubbleItems}
         onBubbleOpen={openBubbleChart}
         hasMarketData={Boolean(payload)}
         toneFilter={guestBubblePreview ? "all" : bubbleMapFilter}

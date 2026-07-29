@@ -15,6 +15,7 @@ export function LevelsBubblesToolbar({
   onBubbleMapFilterChange,
   bubbleFilterCounts,
   maxPainVisibility,
+  atlasQuality,
   viewToggle,
   favslideToggle,
   shareTrailing,
@@ -27,6 +28,11 @@ export function LevelsBubblesToolbar({
   maxPainVisibility?: {
     visible: boolean;
     onToggle: () => void;
+  };
+  atlasQuality?: {
+    enabled: boolean;
+    onToggle: () => void;
+    minScore?: number;
   };
   viewToggle: {
     label: string;
@@ -57,6 +63,7 @@ export function LevelsBubblesToolbar({
           onFilterChange={onBubbleMapFilterChange}
           counts={bubbleFilterCounts}
           maxPainVisibility={maxPainVisibility}
+          atlasQuality={atlasQuality}
         />
 
         {favslideToggle && !hideSlideshowCtas ? (

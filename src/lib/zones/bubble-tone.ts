@@ -1,6 +1,5 @@
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import {
-  bubbleTonePassesMinRR,
   deriveZoneStatus,
   nearestBandKind,
   type ZoneBands,
@@ -162,17 +161,24 @@ export function isAtMaxPain(
 }
 
 /**
- * Bubble-map tone: geographic zone position, gated by min 2:1 POC RR.
- * A qualified zone tone always wins. Otherwise (would be NEUTRAL), a symbol whose
- * spot sits at max pain surfaces as AT_POC ("At Max Pain") instead of grey neutral.
+ * Bubble-map / chart status tone from geography first.
+ *
+ * In/near support or resistance always keeps that label — even when spot is also
+ * near max pain or the OI-momentum “actionable” gate fails. Demoting those names
+ * to AT_POC emptied At Resistance/Support on the map whenever max pain sat inside
+ * the band (common: NIFTY in the call wall with POC ≈ spot).
+ *
+ * AT_POC is only for symbols *between* zones whose spot is parked at max pain.
+ * Livelist/slideshow actionable filtering still uses {@link matchesSlideshowSetup}
+ * / OI gates separately — this function is display geography, not trade quality.
  */
 export function deriveBubbleDisplayTone(
   bands: ZoneBands,
   scanned: boolean,
   _meetsActionableSetup?: boolean,
   poc?: number | null,
-  bandOffset?: number | null,
-  oi?: OiWallMomentum | null,
+  _bandOffset?: number | null,
+  _oi?: OiWallMomentum | null,
 ): BubbleTone {
   const geo = deriveBubbleTone(bands, scanned);
   if (
@@ -181,9 +187,7 @@ export function deriveBubbleDisplayTone(
     geo === "NEAR_BULL" ||
     geo === "NEAR_BEAR"
   ) {
-    if (bubbleTonePassesMinRR(geo, bands, poc, bandOffset, oi)) return geo;
-    // Failed the RR gate → drops to neutral, unless spot is parked at max pain.
-    return isAtMaxPain(bands, poc) ? "AT_POC" : "NEUTRAL";
+    return geo;
   }
   if (geo === "NEUTRAL" && isAtMaxPain(bands, poc)) return "AT_POC";
   return geo;

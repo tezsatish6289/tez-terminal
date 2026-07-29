@@ -9,6 +9,7 @@ import {
   flashSaleCouponForTier,
   flashSaleDiscountForTier,
   flashSaleIstDateKey,
+  flashSaleLegacyCouponCodes,
   formatFlashSaleCountdown,
   istWallTimeToUtcMs,
 } from "../../src/lib/fnoninja/flash-sale";
@@ -17,8 +18,10 @@ import {
 const DAY_START = istWallTimeToUtcMs(2026, 7, 29, 9, 15);
 
 assert.equal(flashSaleIstDateKey(DAY_START), "2026-07-29");
-assert.equal(flashSaleCouponCode("gold", 1500), "FN_FLASH_G_1500");
-assert.equal(flashSaleCouponCode("silver", 1000), "FN_FLASH_S_1000");
+assert.equal(flashSaleCouponCode("gold", 1500, "2026-07-29"), "FN_FLASH_G_1500_20260729");
+assert.equal(flashSaleCouponCode("silver", 1000, "2026-07-29"), "FN_FLASH_S_1000_20260729");
+assert.ok(flashSaleLegacyCouponCodes().includes("FN_FLASH_1500"));
+assert.ok(flashSaleLegacyCouponCodes().includes("FN_FLASH_G_1500"));
 assert.equal(discountForStepIndex(0), 500);
 assert.equal(discountForStepIndex(4), 1500);
 assert.deepEqual(discountsForStepIndex(4), { gold: 1500, silver: 1000 });
@@ -53,7 +56,7 @@ assert.equal(FLASH_SALE_DISCOUNT_STEPS.length, 5);
   assert.equal(s.discountSilverInr, 500);
 }
 
-// Live window with spots → tiered coupons
+// Live window with spots → day-scoped tiered coupons
 {
   const pub = buildFlashSalePublicState({
     nowMs: DAY_START + 30_000,
@@ -61,12 +64,12 @@ assert.equal(FLASH_SALE_DISCOUNT_STEPS.length, 5);
     dailyQuota: 1,
   });
   assert.equal(pub.active, true);
-  assert.equal(pub.couponCodeGold, "FN_FLASH_G_500");
-  assert.equal(pub.couponCodeSilver, "FN_FLASH_S_300");
+  assert.equal(pub.couponCodeGold, "FN_FLASH_G_500_20260729");
+  assert.equal(pub.couponCodeSilver, "FN_FLASH_S_300_20260729");
   assert.equal(flashSaleDiscountForTier(pub, "gold"), 500);
   assert.equal(flashSaleDiscountForTier(pub, "silver"), 300);
-  assert.equal(flashSaleCouponForTier(pub, "gold"), "FN_FLASH_G_500");
-  assert.equal(flashSaleCouponForTier(pub, "silver"), "FN_FLASH_S_300");
+  assert.equal(flashSaleCouponForTier(pub, "gold"), "FN_FLASH_G_500_20260729");
+  assert.equal(flashSaleCouponForTier(pub, "silver"), "FN_FLASH_S_300_20260729");
 }
 
 // Cap step: gold 1500 / silver 1000
@@ -76,6 +79,7 @@ assert.equal(FLASH_SALE_DISCOUNT_STEPS.length, 5);
   assert.equal(pub.active, true);
   assert.equal(pub.discountGoldInr, 1500);
   assert.equal(pub.discountSilverInr, 1000);
+  assert.equal(pub.couponCodeGold, "FN_FLASH_G_1500_20260729");
 }
 
 assert.equal(formatFlashSaleCountdown(new Date(DAY_START + 90_000).toISOString(), DAY_START), "01:30");

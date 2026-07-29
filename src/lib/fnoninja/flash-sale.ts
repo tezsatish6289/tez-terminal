@@ -70,9 +70,34 @@ export function flashSaleIstDateKey(nowMs: number): string {
   return new Date(nowMs + IST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-export function flashSaleCouponCode(tier: FlashSaleTier, discountInr: number): string {
+/**
+ * Day-scoped coupon code so yesterday’s offer can’t be reused.
+ * Example: `FN_FLASH_G_1500_20260729`
+ */
+export function flashSaleCouponCode(
+  tier: FlashSaleTier,
+  discountInr: number,
+  dateKey: string,
+): string {
   const prefix = tier === "gold" ? "G" : "S";
-  return `FN_FLASH_${prefix}_${discountInr}`;
+  const day = dateKey.replace(/-/g, "");
+  return `FN_FLASH_${prefix}_${discountInr}_${day}`;
+}
+
+/** Legacy / undated codes from earlier versions — deactivate these. */
+export function flashSaleLegacyCouponCodes(): string[] {
+  const out: string[] = [];
+  for (const step of FLASH_SALE_DISCOUNT_STEPS) {
+    out.push(`FN_FLASH_${step.gold}`);
+    out.push(`FN_FLASH_G_${step.gold}`);
+    out.push(`FN_FLASH_S_${step.silver}`);
+  }
+  for (const n of [300, 500, 650, 750, 800, 1000, 1250, 1500]) {
+    out.push(`FN_FLASH_${n}`);
+    out.push(`FN_FLASH_G_${n}`);
+    out.push(`FN_FLASH_S_${n}`);
+  }
+  return [...new Set(out)];
 }
 
 export function isFlashSaleBubbleId(id: string): boolean {
@@ -257,8 +282,16 @@ export function buildFlashSalePublicState(args: {
     );
   }
 
-  const couponCodeGold = flashSaleCouponCode("gold", schedule.discountGoldInr);
-  const couponCodeSilver = flashSaleCouponCode("silver", schedule.discountSilverInr);
+  const couponCodeGold = flashSaleCouponCode(
+    "gold",
+    schedule.discountGoldInr,
+    schedule.dateKey,
+  );
+  const couponCodeSilver = flashSaleCouponCode(
+    "silver",
+    schedule.discountSilverInr,
+    schedule.dateKey,
+  );
 
   return {
     active: true,

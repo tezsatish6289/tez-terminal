@@ -235,16 +235,33 @@ export async function resolveZohoProductId(): Promise<string | null> {
 }
 
 /**
- * Ensures a flat one-time coupon exists for Silver + Gold.
- * Idempotent: GET first; create if missing; reactivate if inactive.
+ * Ensures a flat one-time coupon exists for one plan.
+ * Sets Valid-upto + max redemptions to limit leakage.
  */
 export async function ensureFlashSaleCoupon(args: {
   couponCode: string;
   discountInr: number;
   productId: string;
   planCodes: string[];
+  /** Zoho date `YYYY-MM-DD` — coupon cannot be applied after this day. */
+  expiryAt: string;
+  maxRedemption: number;
 }): Promise<void> {
-  const { couponCode, discountInr, productId, planCodes } = args;
+  const { couponCode, discountInr, productId, planCodes, expiryAt, maxRedemption } = args;
+
+  const body = {
+    name: `Flash Sale ₹${discountInr} off`,
+    description: `FNONINJA flash sale — ₹${discountInr} off first invoice · expires ${expiryAt}`,
+    type: "one_time" as const,
+    discount_by: "flat" as const,
+    discount_value: discountInr,
+    product_id: productId,
+    apply_to_plans: "select" as const,
+    plans: planCodes.map((plan_code) => ({ plan_code })),
+    apply_to_addons: "none" as const,
+    expiry_at: expiryAt,
+    max_redemption: maxRedemption,
+  };
 
   try {
     const existing = await zohoRequest<{ coupon?: ZohoCoupon }>(
@@ -255,6 +272,10 @@ export async function ensureFlashSaleCoupon(args: {
       if ((existing.coupon.status ?? "").toLowerCase() === "inactive") {
         await zohoRequest("POST", `/coupons/${encodeURIComponent(couponCode)}/markasactive`);
       }
+      // Refresh expiry / cap on existing codes (best-effort).
+      await zohoRequest("PUT", `/coupons/${encodeURIComponent(couponCode)}`, body).catch((e) =>
+        console.warn("[Zoho] coupon update failed:", (e as Error).message),
+      );
       return;
     }
   } catch {
@@ -263,16 +284,17 @@ export async function ensureFlashSaleCoupon(args: {
 
   await zohoRequest("POST", "/coupons", {
     coupon_code: couponCode,
-    name: `Flash Sale ₹${discountInr} off`,
-    description: `FNONINJA flash sale — ₹${discountInr} off first invoice (Silver/Gold)`,
-    type: "one_time",
-    discount_by: "flat",
-    discount_value: discountInr,
-    product_id: productId,
-    apply_to_plans: "select",
-    plans: planCodes.map((plan_code) => ({ plan_code })),
-    apply_to_addons: "none",
+    ...body,
   });
+}
+
+/** Best-effort: mark a coupon inactive so it can’t be applied at checkout. */
+export async function deactivateFlashSaleCoupon(couponCode: string): Promise<void> {
+  try {
+    await zohoRequest("POST", `/coupons/${encodeURIComponent(couponCode)}/markasinactive`);
+  } catch {
+    /* missing / already inactive */
+  }
 }
 
 // ── One-time Day Pass (payment link) ─────────────────────────────────────────

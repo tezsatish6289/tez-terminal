@@ -148,7 +148,8 @@ export async function POST(request: NextRequest) {
       redirectUrl,
       couponCode,
     });
-    const discountMatch = couponCode?.match(/_(\d+)$/);
+    // Codes look like FN_FLASH_G_1500_20260729 — capture the discount, not the date.
+    const discountMatch = couponCode?.match(/FN_FLASH_[GS]_(\d+)_\d{8}$/);
     return NextResponse.json({
       url: hostedPage.url,
       kind: "subscription",

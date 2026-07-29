@@ -97,10 +97,43 @@ function PlanCardsInner({
 
   const [loadingTier, setLoadingTier] = useState<CheckoutTier | null>(null);
   const [phonePromptTier, setPhonePromptTier] = useState<CheckoutTier | null>(null);
+  const [flashDiscountInr, setFlashDiscountInr] = useState<number | null>(null);
   const autoFired = useRef(false);
 
   const signedIn = !!user && !isUserLoading;
   const trialEnded = signedIn && sub.isExpired;
+  const wantFlashSale = searchParams.get("flash") === "1";
+  const applyFlashSale =
+    wantFlashSale &&
+    flashDiscountInr != null &&
+    flashDiscountInr > 0 &&
+    !(signedIn && sub.status === "active");
+
+  useEffect(() => {
+    if (!wantFlashSale) {
+      setFlashDiscountInr(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/fnoninja/flash-sale", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { active?: boolean; discountInr?: number };
+        if (cancelled) return;
+        if (data.active && typeof data.discountInr === "number") {
+          setFlashDiscountInr(data.discountInr);
+        } else {
+          setFlashDiscountInr(null);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [wantFlashSale]);
 
   async function handleSubscribe(tier: CheckoutTier, phone?: string) {
     if (!user) return;
@@ -110,7 +143,11 @@ function PlanCardsInner({
       const res = await fetch("/api/subscription/zoho/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ tier, phone }),
+        body: JSON.stringify({
+          tier,
+          phone,
+          flashSale: applyFlashSale && (tier === "silver" || tier === "gold"),
+        }),
       });
       const data = await res.json();
       // Razorpay needs a contact number and we don't have one on file yet —
@@ -161,10 +198,14 @@ function PlanCardsInner({
   // Login destination that resumes the chosen action after OAuth. The ?src/?cta
   // stamp the sign_up-collection attribution (e.g. landing · select_silver).
   const loginForCheckout = (tier: CheckoutTier) =>
-    fnoLoginHref(pathname, `${fnoSubscribeHref(pathname)}?checkout=${tier}`, {
-      src: ctaSource,
-      cta: `select_${tier === "daypass" ? "daypass" : tier}`,
-    });
+    fnoLoginHref(
+      pathname,
+      `${fnoSubscribeHref(pathname)}?checkout=${tier}${wantFlashSale ? "&flash=1" : ""}`,
+      {
+        src: ctaSource,
+        cta: `select_${tier === "daypass" ? "daypass" : tier}`,
+      },
+    );
   const loginForTrial = () =>
     fnoLoginHref(pathname, fnoAnalyticsHref(pathname), {
       src: ctaSource,
@@ -250,6 +291,24 @@ function PlanCardsInner({
     <>
       {showStatusBanner && signedIn && !sub.isLoading ? <StatusBanner sub={sub} /> : null}
 
+      {applyFlashSale ? (
+        <div
+          className="mb-5 rounded-2xl px-4 py-3 text-center sm:text-left"
+          style={{
+            border: "1px solid rgba(245,158,11,0.35)",
+            background:
+              "linear-gradient(135deg, rgba(120,53,15,0.35) 0%, rgba(13,24,48,0.9) 60%)",
+          }}
+        >
+          <p className="text-sm font-bold text-amber-100">
+            Flash sale — {formatInr(flashDiscountInr!)} off Silver &amp; Gold
+          </p>
+          <p className="mt-1 text-[12px] text-amber-100/70">
+            Applied at checkout on your first invoice. Day Pass excluded. Limited spots today.
+          </p>
+        </div>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5">
         {PRIMARY_CARDS.map((card) => (
           <article
@@ -278,6 +337,16 @@ function PlanCardsInner({
             <div className="mb-2">
               {card.kind === "trial" ? (
                 <p className="text-3xl font-black leading-none text-white sm:text-4xl">Free trial</p>
+              ) : applyFlashSale ? (
+                <>
+                  <p className="text-3xl font-black leading-none text-white sm:text-4xl">
+                    {formatInr(Math.max(0, card.priceInr - flashDiscountInr!))}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500 line-through">{formatInr(card.priceInr)}</p>
+                  <p className="mt-1 text-xs font-semibold text-amber-300">
+                    {formatInr(flashDiscountInr!)} flash sale off
+                  </p>
+                </>
               ) : (
                 <p className="text-3xl font-black leading-none text-white sm:text-4xl">{formatInr(card.priceInr)}</p>
               )}

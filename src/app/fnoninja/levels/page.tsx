@@ -12,11 +12,14 @@ import {
   type LevelsListEntry,
 } from "@/components/levels/LevelsSplitLayout";
 import {
+  buildFlashSaleBubbleItem,
   buildLevelsBubbleItems,
   buildMmiBubbleItem,
   LevelsBubblesView,
 } from "@/components/levels/LevelsBubblesView";
 import { MMI_TICKERTAPE_URL, type MmiSnapshot } from "@/lib/fnoninja/mmi";
+import type { FlashSalePublicState } from "@/lib/fnoninja/flash-sale";
+import { fnoLoginHref, fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import { LevelsChartDeepDiveLayout } from "@/components/levels/LevelsChartDeepDiveLayout";
@@ -195,6 +198,7 @@ function slideshowExplorePauseReason(
 export default function LevelsPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [mmi, setMmi] = useState<MmiSnapshot | null>(null);
+  const [flashSale, setFlashSale] = useState<FlashSalePublicState | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<LevelsViewMode>("bubbles");
   const [inZoneSlide, setInZoneSlide] = useState(0);
@@ -309,6 +313,20 @@ export default function LevelsPage() {
       });
       return;
     }
+    if (item.kind === "flash_sale") {
+      const subscribe = `${fnoSubscribeHref("/levels")}?flash=1`;
+      const href = fnoLoginHref("/levels", subscribe, {
+        src: "levels_flash_sale",
+        cta: "flash_sale_bubble",
+      });
+      trackCtaClick("guest_flash_sale_bubble", {
+        symbol: item.symbol,
+        label: item.label,
+        scope: item.scope,
+      });
+      window.location.href = href;
+      return;
+    }
     const now = Date.now();
     if (now - guestBubbleClickDebounceRef.current < 450) return;
     guestBubbleClickDebounceRef.current = now;
@@ -367,6 +385,20 @@ export default function LevelsPage() {
     }
   }, []);
 
+  const loadFlashSale = useCallback(async () => {
+    try {
+      const res = await fetch("/api/fnoninja/flash-sale", { cache: "no-store" });
+      if (!res.ok) {
+        setFlashSale(null);
+        return;
+      }
+      const json = (await res.json()) as FlashSalePublicState;
+      setFlashSale(json);
+    } catch {
+      /* keep last-good */
+    }
+  }, []);
+
   useEffect(() => {
     load();
     const id = setInterval(() => load(), 60_000);
@@ -378,6 +410,41 @@ export default function LevelsPage() {
     const id = setInterval(() => void loadMmi(), 60_000);
     return () => clearInterval(id);
   }, [loadMmi]);
+
+  useEffect(() => {
+    void loadFlashSale();
+    const id = setInterval(() => void loadFlashSale(), 15_000);
+    return () => clearInterval(id);
+  }, [loadFlashSale]);
+
+  // Pop the bubble off the map the instant the 15-min window ends (don't wait for poll).
+  useEffect(() => {
+    if (!flashSale?.active || !flashSale.endsAt) return;
+    const ms = new Date(flashSale.endsAt).getTime() - Date.now();
+    if (ms <= 0) {
+      setFlashSale((prev) =>
+        prev ? { ...prev, active: false, endsAt: null, couponCode: null } : prev,
+      );
+      void loadFlashSale();
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setFlashSale((prev) =>
+        prev ? { ...prev, active: false, endsAt: null, couponCode: null } : prev,
+      );
+      void loadFlashSale();
+    }, ms + 40);
+    return () => window.clearTimeout(t);
+  }, [flashSale?.active, flashSale?.endsAt, loadFlashSale]);
+
+  // Wake at the next window start so the bubble reappears without a long wait.
+  useEffect(() => {
+    if (flashSale?.active || !flashSale?.nextStartsAt || flashSale.spotsLeft <= 0) return;
+    const ms = new Date(flashSale.nextStartsAt).getTime() - Date.now();
+    if (ms <= 0 || ms > 60 * 60_000) return;
+    const t = window.setTimeout(() => void loadFlashSale(), ms + 40);
+    return () => window.clearTimeout(t);
+  }, [flashSale?.active, flashSale?.nextStartsAt, flashSale?.spotsLeft, loadFlashSale]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -489,6 +556,10 @@ export default function LevelsPage() {
     return m;
   }, [payload?.indices]);
 
+  /** Paid subscribers (Silver/Gold/Day Pass) never see the flash-sale bubble. */
+  const hideFlashSaleForSubscriber =
+    entSubscription.status === "active" && !entSubscription.isLoading;
+
   /** Full F&O map — zone tones gated by 2:1 POC RR (bubble + slideshow). */
   const bubbleItems = useMemo(() => {
     if (!payload) return [];
@@ -497,9 +568,13 @@ export default function LevelsPage() {
       stockBySymbol,
       payload.fnoUniverse,
     );
-    // MMI participates in the same physics pack as index bubbles.
-    return [buildMmiBubbleItem(mmi), ...items];
-  }, [payload, stockBySymbol, mmi]);
+    // MMI + optional flash-sale promo participate in the same physics pack.
+    const head: LevelsBubbleItem[] = [buildMmiBubbleItem(mmi)];
+    if (flashSale?.active && !hideFlashSaleForSubscriber) {
+      head.unshift(buildFlashSaleBubbleItem(flashSale));
+    }
+    return [...head, ...items];
+  }, [payload, stockBySymbol, mmi, flashSale, hideFlashSaleForSubscriber]);
 
   /** Map view: optional light Atlas quality gate (default > 60). */
   const mapBubbleItems = useMemo(
@@ -511,7 +586,10 @@ export default function LevelsPage() {
   );
 
   const bubbleFilterCounts = useMemo(
-    () => countBubbleMapFilters(mapBubbleItems.filter((it) => it.kind !== "mmi")),
+    () =>
+      countBubbleMapFilters(
+        mapBubbleItems.filter((it) => it.kind !== "mmi" && it.kind !== "flash_sale"),
+      ),
     [mapBubbleItems],
   );
 
@@ -984,6 +1062,10 @@ export default function LevelsPage() {
   const openBubbleChart = useCallback((item: LevelsBubbleItem) => {
     if (item.kind === "mmi") {
       window.open(MMI_TICKERTAPE_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (item.kind === "flash_sale") {
+      window.location.href = `${fnoSubscribeHref("/levels")}?flash=1`;
       return;
     }
     const url = levelsChartPagePathForHost(

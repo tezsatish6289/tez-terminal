@@ -5,6 +5,7 @@ import type { Tier } from "@/lib/entitlements";
 import { syncChatAccess } from "@/lib/chat/access";
 import { DAY_PASS_INR } from "@/lib/zoho/billing";
 import { ensureDayPassInvoice } from "@/lib/zoho/dayPassInvoice";
+import { claimFlashSaleSpot } from "@/lib/fnoninja/flash-sale-server";
 
 export const dynamic = "force-dynamic";
 
@@ -185,6 +186,41 @@ export async function POST(request: NextRequest) {
           toIso(subscription.activated_at) ??
           new Date().toISOString(),
       });
+
+      // Flash-sale daily quota: claim on fresh Silver/Gold activations (or when
+      // a FN_FLASH_* coupon was used). Skip renewals/cancellations/expiries.
+      // Day Pass never counts.
+      const eventType = String(
+        body.event_type ?? body.event ?? payload.event_type ?? payload.event ?? "",
+      ).toLowerCase();
+      const isRenewalOrEnd =
+        eventType.includes("renew") ||
+        eventType.includes("cancel") ||
+        eventType.includes("expir") ||
+        eventType.includes("delete");
+      const activatedIso =
+        toIso(subscription.activated_at) ??
+        toIso(subscription.created_at) ??
+        toIso(subscription.current_term_starts_at);
+      const activatedMs = activatedIso ? new Date(activatedIso).getTime() : 0;
+      const freshlyActivated =
+        activatedMs > 0 && Date.now() - activatedMs < 6 * 60 * 60 * 1000;
+      const couponCode = String(
+        subscription.coupon?.coupon_code ?? subscription.coupon_code ?? "",
+      );
+      const usedFlashCoupon = couponCode.startsWith("FN_FLASH_");
+      if (
+        ACTIVE_ZOHO_STATUSES.has(zStatus) &&
+        !isRenewalOrEnd &&
+        (freshlyActivated || usedFlashCoupon)
+      ) {
+        void claimFlashSaleSpot({
+          uid,
+          subscriptionId: subscription.subscription_id,
+        }).catch((e) =>
+          console.warn("[Zoho Webhook] flash sale claim failed:", (e as Error).message),
+        );
+      }
 
       return NextResponse.json({ ok: true, tier, uid });
     }

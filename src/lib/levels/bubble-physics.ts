@@ -5,13 +5,15 @@ export interface BubblePhysicsItem {
   id: string;
   scope: "index" | "stock";
   tone: BubbleTone;
-  kind?: "mmi";
+  kind?: "mmi" | "flash_sale";
 }
 
 /** Index circles are always the largest on the map (easy to spot). */
 const INDEX_BUBBLE_RADIUS = 84;
 /** MMI gauge needs a bit more room than a plain index label. */
 const MMI_BUBBLE_RADIUS = 96;
+/** Flash-sale promo bubble — similar weight to MMI so it reads as a CTA. */
+const FLASH_SALE_BUBBLE_RADIUS = 92;
 const STOCK_RADIUS = {
   unscanned: 26,
   neutral: 30,
@@ -23,9 +25,10 @@ const STOCK_RADIUS = {
 export function bubbleRadius(
   scope: "index" | "stock",
   tone: BubbleTone,
-  kind?: "mmi",
+  kind?: "mmi" | "flash_sale",
 ): number {
   if (kind === "mmi") return MMI_BUBBLE_RADIUS;
+  if (kind === "flash_sale") return FLASH_SALE_BUBBLE_RADIUS;
   if (scope === "index") return INDEX_BUBBLE_RADIUS;
   if (tone === "UNSCANNED") return STOCK_RADIUS.unscanned;
   if (tone === "ILLIQUID" || tone === "NEUTRAL") return STOCK_RADIUS.neutral;
@@ -56,11 +59,11 @@ export function layoutBubbleRadius(
   tone: BubbleTone,
   radiusScale = 1,
   mobileEmbed = false,
-  kind?: "mmi",
+  kind?: "mmi" | "flash_sale",
 ): number {
   const base = bubbleRadius(scope, tone, kind);
   if (!mobileEmbed) return base * radiusScale;
-  if (kind === "mmi") return base * radiusScale * 0.48;
+  if (kind === "mmi" || kind === "flash_sale") return base * radiusScale * 0.48;
   if (scope === "index") return base * radiusScale * 0.42;
   if (isInZoneTone(tone) || isNearZoneTone(tone)) return base * radiusScale * 0.98;
   return base * radiusScale * 0.48;

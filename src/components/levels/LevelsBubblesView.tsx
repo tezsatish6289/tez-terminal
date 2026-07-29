@@ -40,6 +40,7 @@ import { FNO_BUBBLE_MAP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import type { GuestBubbleLabel } from "@/lib/fnoninja/guest-map-preview";
 import { LevelsChatMapBubble } from "@/components/levels/LevelsChatMapBubble";
 import { LevelsMmiBubbleContent } from "@/components/levels/LevelsMmiBubbleContent";
+import { LevelsFlashSaleBubbleContent } from "@/components/levels/LevelsFlashSaleBubbleContent";
 import {
   formatMmiAria,
   isMmiBubbleId,
@@ -47,6 +48,11 @@ import {
   MMI_ZONE_META,
   type MmiSnapshot,
 } from "@/lib/fnoninja/mmi";
+import {
+  FLASH_SALE_BUBBLE_ID,
+  isFlashSaleBubbleId,
+  type FlashSalePublicState,
+} from "@/lib/fnoninja/flash-sale";
 import { trackCtaClick } from "@/firebase/analytics";
 import { computeLightAtlasScore } from "@/lib/levels/light-atlas-score";
 
@@ -67,9 +73,19 @@ export interface LevelsBubbleItem {
    * Used for the map quality gate (default hide ≤ 60).
    */
   atlasScore?: number | null;
-  /** Special map bubble — Market Mood Index (Tickertape). */
-  kind?: "mmi";
+  /** Special map bubble — Market Mood Index (Tickertape) or flash-sale promo. */
+  kind?: "mmi" | "flash_sale";
   mmi?: MmiSnapshot | null;
+  flashSale?: FlashSalePublicState | null;
+}
+
+function isSpecialMapBubble(item: Pick<LevelsBubbleItem, "id" | "kind">): boolean {
+  return (
+    item.kind === "mmi" ||
+    item.kind === "flash_sale" ||
+    isMmiBubbleId(item.id) ||
+    isFlashSaleBubbleId(item.id)
+  );
 }
 
 const BUBBLE_ANIM_CSS = `
@@ -110,6 +126,13 @@ const BUBBLE_ANIM_CSS = `
 }
 .levels-bubble-guest-emphasis-breathe {
   animation: levels-bubble-guest-emphasis-breathe 3.8s ease-in-out infinite;
+}
+@keyframes levels-bubble-flash-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.05); filter: brightness(1.14); }
+}
+.levels-bubble-flash-pulse {
+  animation: levels-bubble-flash-pulse 2.2s ease-in-out infinite;
 }
 .levels-bubble-pop-in-guest {
   animation: levels-bubble-pop-in 0.9s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
@@ -247,14 +270,15 @@ export function LevelsBubblesView({
     const q = searchQuery.trim().toUpperCase();
     return layoutItems.filter((it) => {
       // MMI stays on the map with every tone filter (sentiment fixture).
-      if (it.kind !== "mmi" && !bubbleMatchesMapFilter(it.tone, toneFilter)) {
+      if (!isSpecialMapBubble(it) && !bubbleMatchesMapFilter(it.tone, toneFilter)) {
         return false;
       }
       if (!q) return true;
       return (
         it.symbol.toUpperCase().includes(q) ||
         it.label.toUpperCase().includes(q) ||
-        (it.kind === "mmi" && "MMI".includes(q))
+        (it.kind === "mmi" && "MMI".includes(q)) ||
+        (it.kind === "flash_sale" && ("FLASH".includes(q) || "SALE".includes(q) || "OFFER".includes(q)))
       );
     });
   }, [layoutItems, searchQuery, toneFilter]);
@@ -265,7 +289,7 @@ export function LevelsBubblesView({
   );
 
   const toneCounts = useMemo(
-    () => countBubbleMapFilters(items.filter((it) => it.kind !== "mmi")),
+    () => countBubbleMapFilters(items.filter((it) => !isSpecialMapBubble(it))),
     [items],
   );
 
@@ -428,9 +452,9 @@ export function LevelsBubblesView({
       for (const n of nodesRef.current) {
         const el = elRefs.current.get(n.id);
         if (!el) continue;
-        const isMmi = n.item.kind === "mmi" || isMmiBubbleId(n.id);
+        const isSpecial = isSpecialMapBubble(n.item);
         const matched =
-          !isMmi &&
+          !isSpecial &&
           emphasisActive &&
           bubbleMatchesMapFilter(n.item.tone, emphasis);
         const displayTone = bubbleMapDisplayTone(
@@ -446,7 +470,7 @@ export function LevelsBubblesView({
             mobileEmbed,
             n.item.kind,
           );
-          if (isMmi) return baseR;
+          if (isSpecial) return baseR;
           if (!emphasisActive) return baseR;
           if (matched) {
             if (solo) {
@@ -472,8 +496,8 @@ export function LevelsBubblesView({
         if (suppressBubbleStackingRef.current) {
           el.style.zIndex = "1";
           el.style.opacity = "1";
-        } else if (isMmi) {
-          el.style.zIndex = "40";
+        } else if (isSpecial) {
+          el.style.zIndex = n.item.kind === "flash_sale" ? "50" : "40";
           el.style.opacity = "1";
         } else if (matched) {
           el.style.zIndex = "320";
@@ -555,6 +579,8 @@ export function LevelsBubblesView({
         ) : (
           filtered.map((item) => {
             const isMmi = item.kind === "mmi" || isMmiBubbleId(item.id);
+            const isFlash = item.kind === "flash_sale" || isFlashSaleBubbleId(item.id);
+            const isSpecial = isMmi || isFlash;
             const displayTone = paintTone(item.tone);
             const style = resolveBubbleVisual(item.scope, displayTone);
             const r = layoutBubbleRadius(
@@ -583,13 +609,15 @@ export function LevelsBubblesView({
             const mmiAccent = item.mmi
               ? MMI_ZONE_META[item.mmi.zone].color
               : "#f59e0b";
-            const borderW = isMmi ? (r < 50 ? 2 : 3) : style.borderWidth;
+            const flashAccent = "#f59e0b";
+            const borderW = isSpecial ? (r < 50 ? 2 : 3) : style.borderWidth;
             const emphMatched =
-              !isMmi &&
+              !isSpecial &&
               showcaseEmphasis !== "all" &&
               bubbleMatchesMapFilter(item.tone, showcaseEmphasis);
-            const breatheAnim =
-              showcaseSolo && emphMatched
+            const breatheAnim = isFlash
+              ? "levels-bubble-flash-pulse"
+              : showcaseSolo && emphMatched
                 ? embedMobileLayout
                   ? "levels-bubble-showcase-breathe-mobile"
                   : "levels-bubble-showcase-breathe"
@@ -603,6 +631,9 @@ export function LevelsBubblesView({
               item.mmi != null
                 ? `Market Mood Index ${formatMmiAria(item.mmi)} — Tickertape`
                 : "Market Mood Index — Tickertape";
+            const flashTitle = item.flashSale
+              ? `Flash sale — ₹${item.flashSale.discountInr} off · ${item.flashSale.spotsLeft} spot${item.flashSale.spotsLeft === 1 ? "" : "s"} left`
+              : "Flash sale";
             return (
               <div
                 key={item.id}
@@ -617,11 +648,18 @@ export function LevelsBubblesView({
                       onGuestBubbleClickRef.current?.(item);
                       return;
                     }
-                    trackCtaClick(isMmi ? "bubble_open_mmi" : "bubble_open_chart", {
-                      label: item.label,
-                      symbol: item.symbol,
-                      scope: item.scope,
-                    });
+                    trackCtaClick(
+                      isFlash
+                        ? "bubble_open_flash_sale"
+                        : isMmi
+                          ? "bubble_open_mmi"
+                          : "bubble_open_chart",
+                      {
+                        label: item.label,
+                        symbol: item.symbol,
+                        scope: item.scope,
+                      },
+                    );
                     onBubbleOpen(item);
                   }}
                   className={`w-full h-full flex flex-col items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 pointer-events-auto ${popAnim} ${breatheAnim} ${
@@ -630,42 +668,59 @@ export function LevelsBubblesView({
                       : "hover:scale-[1.03] cursor-pointer"
                   }`}
                   style={{
-                    background: isMmi
-                      ? "radial-gradient(circle at 45% 40%, rgba(30,41,59,0.98) 0%, rgba(10,14,22,0.96) 70%)"
-                      : style.fill,
-                    border: isMmi
-                      ? `${borderW}px solid ${mmiAccent}`
-                      : `${borderW}px ${style.borderStyle} ${style.border}`,
-                    boxShadow: isMmi
-                      ? `0 0 22px ${mmiAccent}55, inset 0 0 14px rgba(245,158,11,0.08)`
-                      : style.glow,
+                    background: isFlash
+                      ? "radial-gradient(circle at 42% 38%, rgba(120,53,15,0.98) 0%, rgba(45,20,5,0.97) 72%)"
+                      : isMmi
+                        ? "radial-gradient(circle at 45% 40%, rgba(30,41,59,0.98) 0%, rgba(10,14,22,0.96) 70%)"
+                        : style.fill,
+                    border: isFlash
+                      ? `${borderW}px solid ${flashAccent}`
+                      : isMmi
+                        ? `${borderW}px solid ${mmiAccent}`
+                        : `${borderW}px ${style.borderStyle} ${style.border}`,
+                    boxShadow: isFlash
+                      ? `0 0 26px ${flashAccent}66, inset 0 0 16px rgba(245,158,11,0.16)`
+                      : isMmi
+                        ? `0 0 22px ${mmiAccent}55, inset 0 0 14px rgba(245,158,11,0.08)`
+                        : style.glow,
                     transition:
                       "box-shadow 0.45s ease, background 0.45s ease, border-color 0.45s ease, border-width 0.45s ease, transform 0.35s ease",
                   }}
                   aria-label={
-                    isMmi
-                      ? guestPreview
-                        ? `${mmiTitle} — sign in for full map`
-                        : mmiTitle
-                      : guestPreview
-                        ? showLabel
-                          ? `${displaySymbol}${item.spot != null ? `, ${item.spot}` : ""} — sign in to open chart`
-                          : "Sign in to view symbol and open chart"
-                        : `${item.label}, ${displayTone === item.tone ? style.label : `At Max Pain (hidden) · ${style.label}`}`
+                    isFlash
+                      ? flashTitle
+                      : isMmi
+                        ? guestPreview
+                          ? `${mmiTitle} — sign in for full map`
+                          : mmiTitle
+                        : guestPreview
+                          ? showLabel
+                            ? `${displaySymbol}${item.spot != null ? `, ${item.spot}` : ""} — sign in to open chart`
+                            : "Sign in to view symbol and open chart"
+                          : `${item.label}, ${displayTone === item.tone ? style.label : `At Max Pain (hidden) · ${style.label}`}`
                   }
                   title={
-                    isMmi
-                      ? guestPreview
-                        ? "Market Mood Index — sign in for full map"
-                        : "Market Mood Index (Tickertape) — open details"
-                      : guestPreview
-                        ? showLabel
-                          ? `${displaySymbol}${item.spot != null ? ` · ${item.spot}` : ""} — sign in for full map`
-                          : "Sign in to see full market map"
-                        : `${item.label} · ${item.tone === "AT_POC" ? "At Max Pain" : style.label} — click for chart`
+                    isFlash
+                      ? `${flashTitle} — claim offer`
+                      : isMmi
+                        ? guestPreview
+                          ? "Market Mood Index — sign in for full map"
+                          : "Market Mood Index (Tickertape) — open details"
+                        : guestPreview
+                          ? showLabel
+                            ? `${displaySymbol}${item.spot != null ? ` · ${item.spot}` : ""} — sign in for full map`
+                            : "Sign in to see full market map"
+                          : `${item.label} · ${item.tone === "AT_POC" ? "At Max Pain" : style.label} — click for chart`
                   }
                 >
-                  {isMmi ? (
+                  {isFlash && item.flashSale ? (
+                    <LevelsFlashSaleBubbleContent
+                      discountInr={item.flashSale.discountInr}
+                      endsAt={item.flashSale.endsAt}
+                      spotsLeft={item.flashSale.spotsLeft}
+                      compact={r < 56}
+                    />
+                  ) : isMmi ? (
                     <LevelsMmiBubbleContent
                       mmi={item.mmi ?? null}
                       compact={r < 56}
@@ -733,6 +788,30 @@ export function buildMmiBubbleItem(mmi: MmiSnapshot | null): LevelsBubbleItem {
     poc: null,
     bands: {
       spot: mmi?.value ?? null,
+      bullLow: null,
+      bullHigh: null,
+      bearLow: null,
+      bearHigh: null,
+    },
+    data: null,
+    meetsActionableFilter: false,
+  };
+}
+
+/** Synthetic promo bubble for the daily flash sale. */
+export function buildFlashSaleBubbleItem(flashSale: FlashSalePublicState): LevelsBubbleItem {
+  return {
+    id: FLASH_SALE_BUBBLE_ID,
+    symbol: "SALE",
+    label: "Flash sale",
+    scope: "index",
+    kind: "flash_sale",
+    flashSale,
+    tone: "NEUTRAL",
+    spot: flashSale.discountInr,
+    poc: null,
+    bands: {
+      spot: flashSale.discountInr,
       bullLow: null,
       bullHigh: null,
       bearLow: null,

@@ -632,7 +632,7 @@ export function LevelsBubblesView({
                 ? `Market Mood Index ${formatMmiAria(item.mmi)} — Tickertape`
                 : "Market Mood Index — Tickertape";
             const flashTitle = item.flashSale
-              ? `Flash sale — ₹${item.flashSale.discountInr} off · ${item.flashSale.spotsLeft} spot${item.flashSale.spotsLeft === 1 ? "" : "s"} left`
+              ? `Flash sale — upto ₹${item.flashSale.discountInr} off · ${item.flashSale.spotsLeft} spot${item.flashSale.spotsLeft === 1 ? "" : "s"} left`
               : "Flash sale";
             return (
               <div

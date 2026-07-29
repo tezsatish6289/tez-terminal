@@ -423,14 +423,32 @@ export default function LevelsPage() {
     const ms = new Date(flashSale.endsAt).getTime() - Date.now();
     if (ms <= 0) {
       setFlashSale((prev) =>
-        prev ? { ...prev, active: false, endsAt: null, couponCode: null } : prev,
+        prev
+          ? {
+              ...prev,
+              active: false,
+              endsAt: null,
+              couponCode: null,
+              couponCodeGold: null,
+              couponCodeSilver: null,
+            }
+          : prev,
       );
       void loadFlashSale();
       return;
     }
     const t = window.setTimeout(() => {
       setFlashSale((prev) =>
-        prev ? { ...prev, active: false, endsAt: null, couponCode: null } : prev,
+        prev
+          ? {
+              ...prev,
+              active: false,
+              endsAt: null,
+              couponCode: null,
+              couponCodeGold: null,
+              couponCodeSilver: null,
+            }
+          : prev,
       );
       void loadFlashSale();
     }, ms + 40);

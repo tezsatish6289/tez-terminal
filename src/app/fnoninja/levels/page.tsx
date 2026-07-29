@@ -991,11 +991,17 @@ export default function LevelsPage() {
       })
     : null;
 
-  const atlasScore = useAtlasSetupScore(
+  const slideshowLevelsForAtlas = chartLevelsForView ?? inZoneActive?.data ?? null;
+  const hasSlideshowAtlasLevels = Boolean(
+    slideshowLevelsForAtlas &&
+      (slideshowLevelsForAtlas.bullLow != null ||
+        slideshowLevelsForAtlas.bearLow != null ||
+        slideshowLevelsForAtlas.spot != null),
+  );
+  const atlasSetup = useAtlasSetupScore(
     inZoneActive?.scope ?? null,
     inZoneActive?.symbol ?? null,
-    chartLevelsForView ?? inZoneActive?.data ?? null,
-    inZoneActive?.spot,
+    hasSlideshowAtlasLevels,
   );
 
   const slideshowStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
@@ -1006,9 +1012,9 @@ export default function LevelsPage() {
       volRegimeReason: lv?.volRegimeReason,
       atmIV: lv?.atmIV,
       daysToEarnings: lv?.daysToEarnings,
-      atlasScore,
+      atlasSetup,
     };
-  }, [activeDisplayTone, atlasScore, chartLevelsForView]);
+  }, [activeDisplayTone, atlasSetup, chartLevelsForView]);
 
   const slideshowChartPane =
     activeTv != null ? (

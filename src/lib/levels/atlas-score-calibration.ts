@@ -2,9 +2,8 @@
  * Atlas setup-score → outcome calibration (SR-audit).
  *
  * Win rates are empirical from resolved `sr_zone_events` after the PVT / RR
- * soft-peak recalibration (admin /admin/sr-audit buckets). Used for tooltips
- * on the chart badge — the badge itself shows the composite score, not a
- * per-symbol probability.
+ * soft-peak recalibration (admin /admin/sr-audit buckets). Chart UI maps
+ * composite → ↑/↓ probability via these buckets; score stays visible too.
  */
 
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
@@ -38,6 +37,11 @@ export function atlasScoreBucket(score: number): AtlasScoreBucket {
   return s < 50 ? ATLAS_SCORE_BUCKETS[0]! : ATLAS_SCORE_BUCKETS[2]!;
 }
 
+/** Higher Atlas score → higher calibrated win probability (bucket win rate). */
+export function atlasProbabilityPct(score: number): number {
+  return atlasScoreBucket(score).winRatePct;
+}
+
 /** Badge / accent tone mirroring the admin calibration cards. */
 export function atlasScoreTone(score: number): "strong" | "mid" | "weak" {
   if (score >= 70) return "strong";
@@ -54,8 +58,8 @@ export function atlasScoreSideFromTone(
 }
 
 /**
- * Geographic at/near side for Atlas — ignores OI/RR display gates that can
- * demote an in-zone symbol to Neutral on the status chip.
+ * Geographic at/near side — ignores OI/RR display gates that can demote an
+ * in-zone symbol to Neutral on the status chip.
  */
 export function atlasSideFromLevels(
   levels: PublicLevels | null | undefined,
@@ -66,4 +70,44 @@ export function atlasSideFromLevels(
   const scanned = levels.bullLow != null || levels.bearLow != null || levels.spot != null;
   const geo = deriveBubbleTone(bands, scanned);
   return atlasScoreSideFromTone(geo);
+}
+
+/** Which probability to visually emphasize on the chart. */
+export type AtlasProbEmphasis = "up" | "down" | "both";
+
+export function atlasProbEmphasis(
+  geoSide: "support" | "resistance" | null,
+): AtlasProbEmphasis {
+  if (geoSide === "support") return "up";
+  if (geoSide === "resistance") return "down";
+  return "both";
+}
+
+/** Primary Atlas number: geo side if in/near a zone, else the stronger thesis. */
+export function atlasPrimaryScore(
+  upScore: number,
+  downScore: number,
+  geoSide: "support" | "resistance" | null,
+): { composite: number; side: "support" | "resistance" } {
+  if (geoSide === "support") return { composite: upScore, side: "support" };
+  if (geoSide === "resistance") return { composite: downScore, side: "resistance" };
+  if (upScore >= downScore) return { composite: upScore, side: "support" };
+  return { composite: downScore, side: "resistance" };
+}
+
+export interface AtlasSideThesis {
+  score: number;
+  probabilityPct: number;
+  bucket: string;
+  bucketWinRatePct: number;
+}
+
+export function atlasSideThesis(score: number): AtlasSideThesis {
+  const bucket = atlasScoreBucket(score);
+  return {
+    score: Math.round(score),
+    probabilityPct: bucket.winRatePct,
+    bucket: bucket.label,
+    bucketWinRatePct: bucket.winRatePct,
+  };
 }

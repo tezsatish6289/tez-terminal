@@ -84,7 +84,14 @@ function ChartContent() {
   const chartLevels =
     scope === "index" || scope === "stock" ? displayLevels : levels;
 
-  const atlasScore = useAtlasSetupScore(scope, symbol, chartLevels ?? levels);
+  const levelsForAtlas = chartLevels ?? levels;
+  const hasAtlasLevels = Boolean(
+    levelsForAtlas &&
+      (levelsForAtlas.bullLow != null ||
+        levelsForAtlas.bearLow != null ||
+        levelsForAtlas.spot != null),
+  );
+  const atlasSetup = useAtlasSetupScore(scope, symbol, hasAtlasLevels);
 
   const chartStatusOverlay = useMemo((): LevelsChartStatusOverlayProps => {
     const lv = chartLevels ?? levels;
@@ -94,9 +101,9 @@ function ChartContent() {
       volRegimeReason: lv?.volRegimeReason,
       atmIV: lv?.atmIV,
       daysToEarnings: lv?.daysToEarnings,
-      atlasScore,
+      atlasSetup,
     };
-  }, [atlasScore, chartLevels, displayTone, levels]);
+  }, [atlasSetup, chartLevels, displayTone, levels]);
 
   const loadLevels = useCallback(
     async (opts?: { quiet?: boolean }) => {

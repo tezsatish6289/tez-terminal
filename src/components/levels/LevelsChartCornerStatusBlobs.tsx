@@ -1,6 +1,9 @@
 "use client";
 
-import { AtlasSetupScoreBadge } from "@/components/levels/AtlasSetupScoreBadge";
+import {
+  AtlasSetupScoreBadge,
+  type AtlasChartSetup,
+} from "@/components/levels/AtlasSetupScoreBadge";
 import { LevelsSymbolStatusBadge } from "@/components/levels/LevelsSymbolStatusBadge";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
@@ -12,15 +15,16 @@ export type LevelsChartStatusOverlayProps = {
   volRegimeReason?: string | null;
   atmIV?: number | null;
   daysToEarnings?: number | null;
-  /** Atlas composite 0–100 for at/near support|resistance setups. */
+  /** @deprecated Prefer `atlasSetup` (score + ↑/↓ probs). */
   atlasScore?: number | null;
+  atlasSetup?: AtlasChartSetup | null;
 };
 
 const DEFAULT_RIGHT_INSET_PX = 100;
 
 /**
- * Zone status + Atlas score + IV regime blobs anchored to the top-right of the
- * chart grid, sitting just left of the right price scale (not in the page header).
+ * Zone status + Atlas (score + ↑/↓) + IV regime blobs anchored to the
+ * top-right of the chart grid, just left of the right price scale.
  */
 export function LevelsChartCornerStatusBlobs({
   statusTone,
@@ -29,6 +33,7 @@ export function LevelsChartCornerStatusBlobs({
   atmIV,
   daysToEarnings,
   atlasScore,
+  atlasSetup,
   rightInsetPx = DEFAULT_RIGHT_INSET_PX,
   visible = true,
 }: LevelsChartStatusOverlayProps & {
@@ -38,9 +43,7 @@ export function LevelsChartCornerStatusBlobs({
   if (!visible) return null;
 
   const showStatus = statusTone != null;
-  // Score is keyed off geographic zone (hook), so it can appear even when the
-  // status chip was demoted to Neutral by the OI/RR gate.
-  const showAtlas = atlasScore != null && Number.isFinite(atlasScore);
+  const showAtlas = atlasSetup != null || (atlasScore != null && Number.isFinite(atlasScore));
   const showVol = volRegime != null && volRegime !== "UNKNOWN";
   if (!showStatus && !showAtlas && !showVol) return null;
 
@@ -50,7 +53,9 @@ export function LevelsChartCornerStatusBlobs({
       style={{ right: rightInsetPx + 6 }}
     >
       {showStatus ? <LevelsSymbolStatusBadge tone={statusTone} size="chart" /> : null}
-      {showAtlas ? <AtlasSetupScoreBadge score={atlasScore} size="chart" /> : null}
+      {showAtlas ? (
+        <AtlasSetupScoreBadge setup={atlasSetup ?? null} score={atlasScore ?? undefined} size="chart" />
+      ) : null}
       {showVol ? (
         <VolRegimeBadge
           flag={volRegime}

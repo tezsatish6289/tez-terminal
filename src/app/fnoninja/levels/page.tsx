@@ -522,8 +522,8 @@ export default function LevelsPage() {
   }, [bubbleItems]);
 
   const slideshowFilterCounts = useMemo(
-    () => countSlideshowMapFilters(bubbleItems),
-    [bubbleItems],
+    () => countSlideshowMapFilters(mapBubbleItems),
+    [mapBubbleItems],
   );
 
   const atlasScoreByBubbleId = useMemo(() => {
@@ -534,9 +534,12 @@ export default function LevelsPage() {
     return m;
   }, [bubbleItems]);
 
-  /** Slideshow strip — zone setups (at/near support/resistance), highest Atlas first. */
+  /**
+   * Livelist — same universe as the bubble map (Atlas quality gate), then
+   * at/near support/resistance tones, highest Atlas first.
+   */
   const inZoneListFiltered = useMemo(() => {
-    return bubbleItems
+    return mapBubbleItems
       .filter((it) => slideshowMatchesMapFilter(it.tone, slideshowFilter))
       .slice()
       .sort((a, b) => {
@@ -546,7 +549,7 @@ export default function LevelsPage() {
         return a.label.localeCompare(b.label, "en", { sensitivity: "base" });
       })
       .map((it) => bubbleItemToActionable(it, stockBySymbol));
-  }, [bubbleItems, slideshowFilter, stockBySymbol]);
+  }, [mapBubbleItems, slideshowFilter, stockBySymbol]);
 
   const favslideListFiltered = useMemo((): LevelsActionableItem[] => {
     const items = favslideEntries.map((entry) => {
@@ -1544,7 +1547,7 @@ export default function LevelsPage() {
         onToggle: () => setShowMaxPainBubbles((v) => !v),
       }}
       atlasQuality={
-        viewMode === "bubbles"
+        viewMode === "bubbles" || viewMode === "liveslide"
           ? {
               enabled: atlasQualityFilter,
               onToggle: () => setAtlasQualityFilter((v) => !v),

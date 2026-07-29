@@ -127,13 +127,6 @@ const BUBBLE_ANIM_CSS = `
 .levels-bubble-guest-emphasis-breathe {
   animation: levels-bubble-guest-emphasis-breathe 3.8s ease-in-out infinite;
 }
-@keyframes levels-bubble-flash-pulse {
-  0%, 100% { transform: scale(1); filter: brightness(1); }
-  50% { transform: scale(1.05); filter: brightness(1.14); }
-}
-.levels-bubble-flash-pulse {
-  animation: levels-bubble-flash-pulse 2.2s ease-in-out infinite;
-}
 .levels-bubble-pop-in-guest {
   animation: levels-bubble-pop-in 0.9s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
 }
@@ -615,13 +608,12 @@ export function LevelsBubblesView({
               !isSpecial &&
               showcaseEmphasis !== "all" &&
               bubbleMatchesMapFilter(item.tone, showcaseEmphasis);
-            const breatheAnim = isFlash
-              ? "levels-bubble-flash-pulse"
-              : showcaseSolo && emphMatched
+            const breatheAnim =
+              !isFlash && showcaseSolo && emphMatched
                 ? embedMobileLayout
                   ? "levels-bubble-showcase-breathe-mobile"
                   : "levels-bubble-showcase-breathe"
-                : guestPreview && emphMatched && showcaseEmphasis !== "all"
+                : !isFlash && guestPreview && emphMatched && showcaseEmphasis !== "all"
                   ? "levels-bubble-guest-emphasis-breathe"
                   : "";
             const guestLabel = guestPreview ? guestBubbleLabels?.get(item.id) : undefined;

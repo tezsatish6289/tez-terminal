@@ -13,6 +13,7 @@
     "test": "tsx scripts/tests/run-all.ts",
     "liquidity:ws": "tsx --env-file=.env.local scripts/liquidity-ws-server.ts",
     "watchlist:generate": "tsx scripts/generate-tv-watchlist.ts",
+    "watchlist:generate:fno": "tsx --env-file=.env.local scripts/generate-tv-fno-watchlist.ts",
     "firebase:apphosting:secrets": "bash scripts/setup-apphosting-secrets-access.sh",
     "dhan:totp:code": "node --env-file=.env.local scripts/dhan-totp-show-code.mjs",
     "dhan:totp:test": "node --env-file=.env.local scripts/dhan-totp-test.mjs"

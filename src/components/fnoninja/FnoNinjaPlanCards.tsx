@@ -97,7 +97,10 @@ function PlanCardsInner({
 
   const [loadingTier, setLoadingTier] = useState<CheckoutTier | null>(null);
   const [phonePromptTier, setPhonePromptTier] = useState<CheckoutTier | null>(null);
-  const [flashDiscountInr, setFlashDiscountInr] = useState<number | null>(null);
+  const [flashDiscounts, setFlashDiscounts] = useState<{
+    gold: number;
+    silver: number;
+  } | null>(null);
   const autoFired = useRef(false);
 
   const signedIn = !!user && !isUserLoading;
@@ -105,13 +108,13 @@ function PlanCardsInner({
   const wantFlashSale = searchParams.get("flash") === "1";
   const applyFlashSale =
     wantFlashSale &&
-    flashDiscountInr != null &&
-    flashDiscountInr > 0 &&
+    flashDiscounts != null &&
+    flashDiscounts.gold > 0 &&
     !(signedIn && sub.status === "active");
 
   useEffect(() => {
     if (!wantFlashSale) {
-      setFlashDiscountInr(null);
+      setFlashDiscounts(null);
       return;
     }
     let cancelled = false;
@@ -119,13 +122,22 @@ function PlanCardsInner({
       try {
         const res = await fetch("/api/fnoninja/flash-sale", { cache: "no-store" });
         if (!res.ok) return;
-        const data = (await res.json()) as { active?: boolean; discountInr?: number };
+        const data = (await res.json()) as {
+          active?: boolean;
+          discountInr?: number;
+          discountGoldInr?: number;
+          discountSilverInr?: number;
+        };
         if (cancelled) return;
-        if (data.active && typeof data.discountInr === "number") {
-          setFlashDiscountInr(data.discountInr);
-        } else {
-          setFlashDiscountInr(null);
+        if (data.active) {
+          const gold = data.discountGoldInr ?? data.discountInr;
+          const silver = data.discountSilverInr;
+          if (typeof gold === "number" && typeof silver === "number") {
+            setFlashDiscounts({ gold, silver });
+            return;
+          }
         }
+        setFlashDiscounts(null);
       } catch {
         /* ignore */
       }
@@ -134,6 +146,11 @@ function PlanCardsInner({
       cancelled = true;
     };
   }, [wantFlashSale]);
+
+  function flashOffFor(tier: "silver" | "gold"): number {
+    if (!flashDiscounts) return 0;
+    return tier === "silver" ? flashDiscounts.silver : flashDiscounts.gold;
+  }
 
   async function handleSubscribe(tier: CheckoutTier, phone?: string) {
     if (!user) return;
@@ -301,7 +318,8 @@ function PlanCardsInner({
           }}
         >
           <p className="text-sm font-bold text-amber-100">
-            Flash sale — {formatInr(flashDiscountInr!)} off Silver &amp; Gold
+            Flash sale — {formatInr(flashDiscounts!.silver)} off Silver ·{" "}
+            {formatInr(flashDiscounts!.gold)} off Gold
           </p>
           <p className="mt-1 text-[12px] text-amber-100/70">
             Applied at checkout on your first invoice. Day Pass excluded. Limited spots today.
@@ -340,11 +358,11 @@ function PlanCardsInner({
               ) : applyFlashSale ? (
                 <>
                   <p className="text-3xl font-black leading-none text-white sm:text-4xl">
-                    {formatInr(Math.max(0, card.priceInr - flashDiscountInr!))}
+                    {formatInr(Math.max(0, card.priceInr - flashOffFor(card.tier)))}
                   </p>
                   <p className="mt-1 text-sm text-slate-500 line-through">{formatInr(card.priceInr)}</p>
                   <p className="mt-1 text-xs font-semibold text-amber-300">
-                    {formatInr(flashDiscountInr!)} flash sale off
+                    {formatInr(flashOffFor(card.tier))} flash sale off
                   </p>
                 </>
               ) : (

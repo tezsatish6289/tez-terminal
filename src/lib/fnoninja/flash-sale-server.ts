@@ -11,11 +11,13 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/firebase/admin";
 import {
   FLASH_SALE_DAILY_QUOTA,
-  FLASH_SALE_DISCOUNT_STEPS_INR,
+  FLASH_SALE_DISCOUNT_STEPS,
   buildFlashSalePublicState,
   flashSaleCouponCode,
+  flashSaleCouponForTier,
   flashSaleIstDateKey,
   type FlashSalePublicState,
+  type FlashSaleTier,
 } from "@/lib/fnoninja/flash-sale";
 import {
   ZOHO_PLAN_CODES,
@@ -25,6 +27,9 @@ import {
 
 export const FLASH_SALE_STATE_DOC = "config/fnoninja_flash_sale";
 
+/** Bump when coupon codes / ladder change so Zoho ensure re-runs. */
+const COUPONS_ENSURE_VERSION = "tiered-v1";
+
 type FlashSaleStateDoc = {
   dateKey?: string;
   claimedCount?: number;
@@ -32,6 +37,7 @@ type FlashSaleStateDoc = {
   claimedAt?: string;
   claimedSubscriptionId?: string;
   couponsEnsuredAt?: string;
+  couponsEnsuredVersion?: string;
 };
 
 async function readStateDoc(): Promise<FlashSaleStateDoc> {
@@ -55,16 +61,12 @@ export async function getFlashSalePublicState(
 }
 
 /**
- * Ensures Zoho coupons exist for every ladder step (idempotent).
- * Best-effort — checkout still works if a coupon was created earlier.
+ * Ensures Zoho coupons exist for every ladder step × tier (idempotent).
+ * Silver and Gold get separate flat coupons so discounts can be pro-rated.
  */
 export async function ensureFlashSaleCoupons(): Promise<void> {
   const doc = await readStateDoc();
-  // Re-check at most once per day unless never ensured.
-  const today = flashSaleIstDateKey(Date.now());
-  if (doc.couponsEnsuredAt && doc.couponsEnsuredAt.slice(0, 10) === today) {
-    // Still verify the active step's coupon exists (cheap GET).
-  }
+  if (doc.couponsEnsuredVersion === COUPONS_ENSURE_VERSION) return;
 
   const productId = await resolveZohoProductId();
   if (!productId) {
@@ -72,18 +74,26 @@ export async function ensureFlashSaleCoupons(): Promise<void> {
     return;
   }
 
-  const planCodes = [ZOHO_PLAN_CODES.silver, ZOHO_PLAN_CODES.gold];
-  for (const discountInr of FLASH_SALE_DISCOUNT_STEPS_INR) {
+  for (const step of FLASH_SALE_DISCOUNT_STEPS) {
     await ensureFlashSaleCoupon({
-      couponCode: flashSaleCouponCode(discountInr),
-      discountInr,
+      couponCode: flashSaleCouponCode("gold", step.gold),
+      discountInr: step.gold,
       productId,
-      planCodes,
+      planCodes: [ZOHO_PLAN_CODES.gold],
+    });
+    await ensureFlashSaleCoupon({
+      couponCode: flashSaleCouponCode("silver", step.silver),
+      discountInr: step.silver,
+      productId,
+      planCodes: [ZOHO_PLAN_CODES.silver],
     });
   }
 
   await getAdminFirestore().doc(FLASH_SALE_STATE_DOC).set(
-    { couponsEnsuredAt: new Date().toISOString() },
+    {
+      couponsEnsuredAt: new Date().toISOString(),
+      couponsEnsuredVersion: COUPONS_ENSURE_VERSION,
+    },
     { merge: true },
   );
 }
@@ -143,10 +153,11 @@ export async function claimFlashSaleSpot(args: {
   });
 }
 
-/** Active flash coupon code for checkout, or null if sale is not live / sold out. */
+/** Active flash coupon code for a checkout tier, or null if sale is not live. */
 export async function getActiveFlashSaleCouponCode(
+  tier: FlashSaleTier,
   nowMs: number = Date.now(),
 ): Promise<string | null> {
   const state = await getFlashSalePublicState(nowMs);
-  return state.active ? state.couponCode : null;
+  return flashSaleCouponForTier(state, tier);
 }

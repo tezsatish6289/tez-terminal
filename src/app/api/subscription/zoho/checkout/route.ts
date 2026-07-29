@@ -133,12 +133,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Flash coupon: only when client opts in AND a window is currently live.
-    // Day Pass is never eligible (blocked above by tier branch). Never trust a
-    // client-supplied coupon code — always resolve server-side.
+    // Silver/Gold get pro-rated coupons. Day Pass is never eligible.
+    // Never trust a client-supplied coupon code — always resolve server-side.
     let couponCode: string | null = null;
     if (body.flashSale === true) {
       void ensureFlashSaleCoupons().catch(() => {});
-      couponCode = await getActiveFlashSaleCouponCode();
+      couponCode = await getActiveFlashSaleCouponCode(tier);
     }
 
     const hostedPage = await createSubscriptionHostedPage({
@@ -148,11 +148,12 @@ export async function POST(request: NextRequest) {
       redirectUrl,
       couponCode,
     });
+    const discountMatch = couponCode?.match(/_(\d+)$/);
     return NextResponse.json({
       url: hostedPage.url,
       kind: "subscription",
       flashSaleApplied: Boolean(couponCode),
-      discountInr: couponCode ? Number(couponCode.replace(/^FN_FLASH_/, "")) || null : null,
+      discountInr: discountMatch ? Number(discountMatch[1]) || null : null,
     });
   } catch (error: any) {
     console.error("[Zoho Checkout]", error.message);

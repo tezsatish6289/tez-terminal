@@ -30,12 +30,18 @@ export function LevelsFlashSaleBubbleContent({
       <span
         className="font-black leading-none tracking-tight"
         style={{
-          fontSize: compact ? 13 : 16,
+          fontSize: compact ? 11 : 13,
           color: "#fef3c7",
           textShadow: "0 0 12px rgba(245,158,11,0.45)",
         }}
       >
-        ₹{discountInr.toLocaleString("en-IN")} off
+        upto ₹{discountInr.toLocaleString("en-IN")}
+      </span>
+      <span
+        className="font-semibold leading-none mt-0.5"
+        style={{ fontSize: compact ? 8 : 9, color: "rgba(254,243,199,0.8)" }}
+      >
+        off
       </span>
       <span
         className="font-mono tabular-nums font-bold leading-none mt-1"

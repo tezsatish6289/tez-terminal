@@ -11,9 +11,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { SCORE_ALERT_MIN_SCORES } from "@/lib/alerts/constants";
+import {
+  SCORE_ALERT_DIRECTIONS,
+  SCORE_ALERT_MIN_SCORES,
+  SCORE_ALERT_SEGMENTS,
+} from "@/lib/alerts/constants";
 import { scoreAlertDirectionLabel } from "@/lib/alerts/score-alert-client";
-import type { ScoreAlertMinScore } from "@/lib/alerts/types";
+import type {
+  ScoreAlertDirection,
+  ScoreAlertMinScore,
+  ScoreAlertSegment,
+} from "@/lib/alerts/types";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import { FNO_ACCENT, FNO_BG_CANVAS, FNO_MUTED } from "@/lib/fnoninja/theme";
 import { trackCtaClick } from "@/firebase/analytics";
@@ -47,14 +55,70 @@ function PrefToggle({
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onToggle(!checked)}
-        className="relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-60"
+        className="relative h-7 w-12 shrink-0 overflow-hidden rounded-full transition-colors disabled:opacity-60"
         style={{ backgroundColor: checked ? "#2563eb" : "rgba(148,163,184,0.35)" }}
       >
         <span
-          className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform"
-          style={{ transform: checked ? "translateX(22px)" : "translateX(2px)" }}
+          className="pointer-events-none absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-[left] duration-150"
+          style={{ left: checked ? "1.35rem" : "0.15rem" }}
         />
       </button>
+    </div>
+  );
+}
+
+function ChoiceRow<T extends string | number>({
+  label,
+  description,
+  options,
+  value,
+  disabled,
+  format,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  options: readonly T[];
+  value: T;
+  disabled?: boolean;
+  format: (v: T) => string;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="pb-3">
+      <p className="text-sm font-semibold text-white mb-0.5">{label}</p>
+      {description ? (
+        <p className="mb-2 text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
+          {description}
+        </p>
+      ) : (
+        <div className="mb-2" />
+      )}
+      <div className="flex gap-2">
+        {options.map((opt) => {
+          const active = value === opt;
+          return (
+            <button
+              key={String(opt)}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(opt)}
+              className="flex-1 rounded-lg py-2 text-[12px] sm:text-sm font-bold transition-colors disabled:opacity-40"
+              style={{
+                color: active ? "#fff" : "#94a3b8",
+                backgroundColor: active
+                  ? "rgba(37,99,235,0.55)"
+                  : "rgba(15,23,42,0.65)",
+                border: `1px solid ${
+                  active ? "rgba(96,165,250,0.55)" : "rgba(90,140,220,0.15)"
+                }`,
+              }}
+            >
+              {format(opt)}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -73,6 +137,18 @@ function formatAlertTime(iso: string): string {
   } catch {
     return new Date(t).toLocaleString();
   }
+}
+
+function directionLabel(d: ScoreAlertDirection): string {
+  if (d === "bullish") return "Bullish";
+  if (d === "bearish") return "Bearish";
+  return "Both";
+}
+
+function segmentLabel(s: ScoreAlertSegment): string {
+  if (s === "favslide") return "Favslide";
+  if (s === "liveslide") return "Liveslide";
+  return "Both";
 }
 
 export function ScoreAlertsDrawer() {
@@ -104,7 +180,7 @@ export function ScoreAlertsDrawer() {
               Score alerts
             </SheetTitle>
             <SheetDescription className="text-[12px]" style={{ color: FNO_MUTED }}>
-              Get notified when a favslide symbol crosses your Atlas score floor.
+              Get notified when Atlas score crosses your floor on the segment you watch.
             </SheetDescription>
           </SheetHeader>
 
@@ -117,7 +193,7 @@ export function ScoreAlertsDrawer() {
               <>
                 <PrefToggle
                   label="Enable alerts"
-                  description="Watches your favslide list during market hours."
+                  description="Evaluated during market hours (every few minutes)."
                   checked={prefs.enabled}
                   onToggle={(next) => {
                     trackCtaClick("score_alerts_toggle", { enabled: next });
@@ -125,37 +201,43 @@ export function ScoreAlertsDrawer() {
                   }}
                 />
 
-                <div className="pb-3">
-                  <p className="text-sm font-semibold text-white mb-2">Score floor</p>
-                  <div className="flex gap-2">
-                    {SCORE_ALERT_MIN_SCORES.map((n: ScoreAlertMinScore) => {
-                      const active = prefs.minScore === n;
-                      return (
-                        <button
-                          key={n}
-                          type="button"
-                          disabled={!prefs.enabled}
-                          onClick={() => {
-                            trackCtaClick("score_alerts_min_score", { minScore: n });
-                            void savePrefs({ minScore: n });
-                          }}
-                          className="flex-1 rounded-lg py-2 text-sm font-bold tabular-nums transition-colors disabled:opacity-40"
-                          style={{
-                            color: active ? "#fff" : "#94a3b8",
-                            backgroundColor: active
-                              ? "rgba(37,99,235,0.55)"
-                              : "rgba(15,23,42,0.65)",
-                            border: `1px solid ${
-                              active ? "rgba(96,165,250,0.55)" : "rgba(90,140,220,0.15)"
-                            }`,
-                          }}
-                        >
-                          ≥{n}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <ChoiceRow
+                  label="Segment"
+                  description="Favslide = your watchlist. Liveslide = symbols at/near a zone."
+                  options={SCORE_ALERT_SEGMENTS}
+                  value={prefs.segment}
+                  disabled={!prefs.enabled}
+                  format={segmentLabel}
+                  onChange={(segment) => {
+                    trackCtaClick("score_alerts_segment", { segment });
+                    void savePrefs({ segment });
+                  }}
+                />
+
+                <ChoiceRow
+                  label="Direction"
+                  description="Bullish = support ↑ · Bearish = resistance ↓"
+                  options={SCORE_ALERT_DIRECTIONS}
+                  value={prefs.direction}
+                  disabled={!prefs.enabled}
+                  format={directionLabel}
+                  onChange={(direction) => {
+                    trackCtaClick("score_alerts_direction", { direction });
+                    void savePrefs({ direction });
+                  }}
+                />
+
+                <ChoiceRow
+                  label="Score floor"
+                  options={SCORE_ALERT_MIN_SCORES}
+                  value={prefs.minScore}
+                  disabled={!prefs.enabled}
+                  format={(n: ScoreAlertMinScore) => `≥${n}`}
+                  onChange={(minScore) => {
+                    trackCtaClick("score_alerts_min_score", { minScore });
+                    void savePrefs({ minScore });
+                  }}
+                />
 
                 <PrefToggle
                   label="Chime"
@@ -188,7 +270,6 @@ export function ScoreAlertsDrawer() {
                       return;
                     }
                     if (browserDenied) {
-                      // Keep toggle visible; user must fix OS/browser settings first.
                       void savePrefs({ browserNotifications: true });
                       return;
                     }
@@ -206,7 +287,9 @@ export function ScoreAlertsDrawer() {
 
                 {events.length === 0 ? (
                   <p className="text-[13px] py-6 text-center" style={{ color: FNO_MUTED }}>
-                    No alerts yet. Add symbols to favslide and keep alerts enabled.
+                    {prefs.segment === "liveslide"
+                      ? "No alerts yet. Keep alerts enabled — liveslide setups are watched automatically."
+                      : "No alerts yet. Add symbols to favslide and keep alerts enabled."}
                   </p>
                 ) : (
                   <ul className="space-y-2">

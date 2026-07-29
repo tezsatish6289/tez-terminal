@@ -1,4 +1,9 @@
-import type { ScoreAlertMinScore, ScoreAlertPreferences } from "@/lib/alerts/types";
+import type {
+  ScoreAlertDirection,
+  ScoreAlertMinScore,
+  ScoreAlertPreferences,
+  ScoreAlertSegment,
+} from "@/lib/alerts/types";
 
 export const SCORE_ALERT_PREFS_COLLECTION = "score_alert_preferences";
 export const SCORE_ALERT_EVENTS_COLLECTION = "score_alert_events";
@@ -8,9 +13,23 @@ export const LIVE_SCORE_ALERTS_RTDB_PATH = "live_alerts/score";
 
 export const SCORE_ALERT_MIN_SCORES: readonly ScoreAlertMinScore[] = [60, 70, 80];
 
+export const SCORE_ALERT_DIRECTIONS: readonly ScoreAlertDirection[] = [
+  "bullish",
+  "bearish",
+  "both",
+];
+
+export const SCORE_ALERT_SEGMENTS: readonly ScoreAlertSegment[] = [
+  "favslide",
+  "liveslide",
+  "both",
+];
+
 export const DEFAULT_SCORE_ALERT_PREFERENCES: ScoreAlertPreferences = {
   enabled: false,
   minScore: 70,
+  direction: "both",
+  segment: "favslide",
   chime: true,
   browserNotifications: false,
   updatedAt: null,

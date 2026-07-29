@@ -10,10 +10,10 @@ import {
   zoneDocLabel,
   zoneDocPath,
 } from "@/lib/alerts/levels-from-doc";
-import { parseScoreAlertPreferences } from "@/lib/alerts/prefs";
+import { loadLiveslideEntries } from "@/lib/alerts/liveslide-universe";
+import { parseScoreAlertPreferences, sideMatchesDirection } from "@/lib/alerts/prefs";
 import { publishScoreAlert } from "@/lib/alerts/publish-score-alert";
 import type {
-  ScoreAlertMinScore,
   ScoreAlertPreferences,
   ScoreAlertSide,
   ScoreAlertSymbolState,
@@ -45,8 +45,9 @@ type PrefRow = {
 export type EvaluateScoreAlertsResult = {
   users: number;
   symbolsScored: number;
+  liveslideSymbols: number;
   fired: number;
-  skippedNoFavs: number;
+  skippedNoUniverse: number;
   errors: string[];
 };
 
@@ -54,6 +55,14 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
+}
+
+function needsFavslide(prefs: ScoreAlertPreferences): boolean {
+  return prefs.segment === "favslide" || prefs.segment === "both";
+}
+
+function needsLiveslide(prefs: ScoreAlertPreferences): boolean {
+  return prefs.segment === "liveslide" || prefs.segment === "both";
 }
 
 async function loadEnabledPrefs(db: Firestore): Promise<PrefRow[]> {
@@ -70,8 +79,8 @@ async function loadEnabledPrefs(db: Firestore): Promise<PrefRow[]> {
   }
   if (rows.length === 0) return rows;
 
-  // Load favslides from users/{uid}
-  for (const batch of chunk(rows, 30)) {
+  const needFav = rows.filter((r) => needsFavslide(r.prefs));
+  for (const batch of chunk(needFav, 30)) {
     const refs = batch.map((r) => db.collection("users").doc(r.uid));
     const userSnaps = await db.getAll(...refs);
     for (let i = 0; i < batch.length; i++) {
@@ -124,16 +133,36 @@ async function loadState(
   return symbols as Record<string, ScoreAlertSymbolState>;
 }
 
+function matchesFilters(
+  hit: ScoredSymbol,
+  prefs: ScoreAlertPreferences,
+): boolean {
+  if (hit.score < prefs.minScore) return false;
+  return sideMatchesDirection(hit.side, prefs.direction);
+}
+
 function shouldFire(
   prev: ScoreAlertSymbolState | undefined,
-  score: number,
-  minScore: ScoreAlertMinScore,
+  matches: boolean,
 ): boolean {
-  const above = score >= minScore;
-  if (!above) return false;
-  // First observation only establishes baseline (no spam when enabling alerts).
+  if (!matches) return false;
+  // First observation only establishes baseline (no spam when enabling).
   if (!prev) return false;
   return !prev.aboveThreshold;
+}
+
+function universeForUser(
+  row: PrefRow,
+  liveslide: FavslideEntry[],
+): FavslideEntry[] {
+  const map = new Map<string, FavslideEntry>();
+  if (needsFavslide(row.prefs)) {
+    for (const e of row.favslide) map.set(favslideEntryKey(e), e);
+  }
+  if (needsLiveslide(row.prefs)) {
+    for (const e of liveslide) map.set(favslideEntryKey(e), e);
+  }
+  return [...map.values()];
 }
 
 export async function evaluateScoreAlerts(
@@ -142,8 +171,9 @@ export async function evaluateScoreAlerts(
   const result: EvaluateScoreAlertsResult = {
     users: 0,
     symbolsScored: 0,
+    liveslideSymbols: 0,
     fired: 0,
-    skippedNoFavs: 0,
+    skippedNoUniverse: 0,
     errors: [],
   };
 
@@ -151,35 +181,41 @@ export async function evaluateScoreAlerts(
   result.users = prefsRows.length;
   if (prefsRows.length === 0) return result;
 
+  const anyLiveslide = prefsRows.some((r) => needsLiveslide(r.prefs));
+  const liveslide = anyLiveslide ? await loadLiveslideEntries(db) : [];
+  result.liveslideSymbols = liveslide.length;
+
   const allEntries: FavslideEntry[] = [];
   for (const row of prefsRows) {
-    if (row.favslide.length === 0) {
-      result.skippedNoFavs += 1;
+    const universe = universeForUser(row, liveslide);
+    if (universe.length === 0) {
+      result.skippedNoUniverse += 1;
       continue;
     }
-    allEntries.push(...row.favslide);
+    allEntries.push(...universe);
   }
 
   const scored = await scoreSymbols(db, allEntries);
   result.symbolsScored = scored.size;
 
   for (const row of prefsRows) {
-    if (row.favslide.length === 0) continue;
+    const universe = universeForUser(row, liveslide);
+    if (universe.length === 0) continue;
     try {
       const state = await loadState(db, row.uid);
       const nextSymbols: Record<string, ScoreAlertSymbolState> = { ...state };
       const nowIso = new Date().toISOString();
       let stateDirty = false;
 
-      for (const entry of row.favslide) {
+      for (const entry of universe) {
         const key = favslideEntryKey(entry);
         const hit = scored.get(key);
         if (!hit) continue;
 
-        const aboveThreshold = hit.score >= row.prefs.minScore;
+        const matches = matchesFilters(hit, row.prefs);
         const prev = state[key];
 
-        if (shouldFire(prev, hit.score, row.prefs.minScore)) {
+        if (shouldFire(prev, matches)) {
           await publishScoreAlert({
             uid: row.uid,
             symbol: hit.symbol,
@@ -195,7 +231,7 @@ export async function evaluateScoreAlerts(
         const next: ScoreAlertSymbolState = {
           score: hit.score,
           side: hit.side,
-          aboveThreshold,
+          aboveThreshold: matches,
           updatedAt: nowIso,
         };
         const changed =

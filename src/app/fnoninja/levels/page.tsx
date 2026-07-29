@@ -79,6 +79,7 @@ import {
   type SlideshowMapFilter,
 } from "@/lib/zones/bubble-map-filter";
 import {
+  computeLightAtlasScore,
   LIGHT_ATLAS_MAP_MIN_SCORE,
   passesLightAtlasMapGate,
 } from "@/lib/levels/light-atlas-score";
@@ -525,16 +526,30 @@ export default function LevelsPage() {
     [bubbleItems],
   );
 
-  /** Slideshow strip — zone setups (at/near support/resistance). */
+  const atlasScoreByBubbleId = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const it of bubbleItems) {
+      if (it.atlasScore != null) m.set(it.id, it.atlasScore);
+    }
+    return m;
+  }, [bubbleItems]);
+
+  /** Slideshow strip — zone setups (at/near support/resistance), highest Atlas first. */
   const inZoneListFiltered = useMemo(() => {
     return bubbleItems
       .filter((it) => slideshowMatchesMapFilter(it.tone, slideshowFilter))
-      .map((it) => bubbleItemToActionable(it, stockBySymbol))
-      .sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
+      .slice()
+      .sort((a, b) => {
+        const sa = a.atlasScore ?? -1;
+        const sb = b.atlasScore ?? -1;
+        if (sb !== sa) return sb - sa;
+        return a.label.localeCompare(b.label, "en", { sensitivity: "base" });
+      })
+      .map((it) => bubbleItemToActionable(it, stockBySymbol));
   }, [bubbleItems, slideshowFilter, stockBySymbol]);
 
   const favslideListFiltered = useMemo((): LevelsActionableItem[] => {
-    return favslideEntries.map((entry) => {
+    const items = favslideEntries.map((entry) => {
       if (entry.scope === "index") {
         const idx = indexBySymbol.get(entry.symbol);
         const data = idx?.data ?? null;
@@ -572,7 +587,18 @@ export default function LevelsPage() {
         data,
       };
     });
-  }, [favslideEntries, stockBySymbol, indexBySymbol]);
+    const scoreOf = (it: LevelsActionableItem): number => {
+      const fromMap = atlasScoreByBubbleId.get(`${it.scope}-${it.symbol}`);
+      if (fromMap != null) return fromMap;
+      return computeLightAtlasScore(it.data)?.composite ?? -1;
+    };
+    return items.sort((a, b) => {
+      const sa = scoreOf(a);
+      const sb = scoreOf(b);
+      if (sb !== sa) return sb - sa;
+      return a.label.localeCompare(b.label, "en", { sensitivity: "base" });
+    });
+  }, [favslideEntries, stockBySymbol, indexBySymbol, atlasScoreByBubbleId]);
 
   const slideListFiltered =
     viewMode === "favslide" ? favslideListFiltered : inZoneListFiltered;

@@ -5,9 +5,19 @@ import { useUser } from "@/firebase";
 
 const REF_STORAGE_KEY = "tez_referral_code";
 
+function isFnoNinjaHost(): boolean {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname.toLowerCase();
+  if (h === "fnoninja.com" || h === "www.fnoninja.com") return true;
+  // Local / shared host FNO routes — leave ?ref= for FnoNinjaAffiliateTracker.
+  const path = window.location.pathname;
+  return path === "/fnoninja" || path.startsWith("/fnoninja/");
+}
+
 /**
  * Captures ?ref= query param into localStorage on mount,
  * and attributes the referral when a new user signs in.
+ * Skipped on FNO Ninja (handled by FnoNinjaAffiliateTracker).
  */
 export function ReferralTracker() {
   const { user, isUserLoading } = useUser();
@@ -16,6 +26,7 @@ export function ReferralTracker() {
   // Step 1: Capture ?ref= param from URL into localStorage
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isFnoNinjaHost()) return;
     const params = new URLSearchParams(window.location.search);
     const ref = params.get("ref");
     if (ref && ref.length > 0) {
@@ -30,6 +41,7 @@ export function ReferralTracker() {
   // Step 2: When a user logs in, check if there's a stored referral code and attribute it
   useEffect(() => {
     if (isUserLoading || !user || attributedRef.current) return;
+    if (isFnoNinjaHost()) return;
 
     const storedRef = localStorage.getItem(REF_STORAGE_KEY);
     if (!storedRef) return;

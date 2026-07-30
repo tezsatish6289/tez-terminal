@@ -13,6 +13,7 @@ import {
   FNONINJA_TRIAL_WITH_REFERRAL_DAYS,
 } from "@/lib/fnoninja/affiliate-shared";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
+import { FNO_REFERRAL_TRACK_EVENT } from "@/components/fnoninja/FnoNinjaAffiliateTracker";
 import {
   Dialog,
   DialogDescription,
@@ -25,6 +26,14 @@ import {
 /** Above map bubbles (z≤320) and phone gate (z=260). */
 const REFERRAL_OVERLAY_Z = "z-[400]";
 const REFERRAL_CONTENT_Z = "z-[410]";
+const TEZ_REFERRAL_STORAGE_KEY = "tez_referral_code";
+
+function hasPendingReferralCode(): boolean {
+  return Boolean(
+    localStorage.getItem(FNO_REFERRAL_STORAGE_KEY) ||
+      localStorage.getItem(TEZ_REFERRAL_STORAGE_KEY),
+  );
+}
 
 /**
  * After Google login: offer typed referral code for +3 trial days.
@@ -46,51 +55,88 @@ export function FnoNinjaReferralCodePrompt() {
     ranForUid.current = user.uid;
 
     let cancelled = false;
-    const hasPendingRef = Boolean(localStorage.getItem(FNO_REFERRAL_STORAGE_KEY));
-    // Let trial activate + optional ?ref= track finish first.
-    const delayMs = hasPendingRef ? 2000 : 1000;
+    let settled = false;
 
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        try {
-          const token = await user.getIdToken();
-          // Ensure trial doc exists before bonus logic.
-          const statusParams = new URLSearchParams({
-            uid: user.uid,
-            product: "fnoninja",
-          });
-          if (user.displayName) statusParams.set("name", user.displayName);
-          if (user.email) statusParams.set("email", user.email);
-          await fetch(`/api/subscription/status?${statusParams}`);
+    const evaluatePrompt = async (trackHint?: {
+      attributed?: boolean;
+      bonusApplied?: boolean;
+    }) => {
+      if (cancelled || settled) return;
+      try {
+        const token = await user.getIdToken();
+        const statusParams = new URLSearchParams({
+          uid: user.uid,
+          product: "fnoninja",
+        });
+        if (user.displayName) statusParams.set("name", user.displayName);
+        if (user.email) statusParams.set("email", user.email);
+        await fetch(`/api/subscription/status?${statusParams}`);
 
-          const res = await fetch("/api/fnoninja/affiliate/referral-prompt", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!res.ok || cancelled) return;
-          const data = (await res.json()) as {
-            showPrompt?: boolean;
-            alreadyReferred?: boolean;
-            bonusApplied?: boolean;
-          };
+        // If link track already attributed, never show the typed-code modal.
+        if (trackHint?.attributed || trackHint?.bonusApplied) {
+          settled = true;
+          if (trackHint.bonusApplied) {
+            toast({
+              title: `${FNONINJA_TRIAL_WITH_REFERRAL_DAYS}-day trial unlocked`,
+              description: `Referral link applied — you get ${FNONINJA_REFERRAL_BONUS_TRIAL_DAYS} extra free days.`,
+            });
+          }
+          return;
+        }
 
-          if (data.alreadyReferred && data.bonusApplied) {
+        const res = await fetch("/api/fnoninja/affiliate/referral-prompt", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          showPrompt?: boolean;
+          alreadyReferred?: boolean;
+          bonusApplied?: boolean;
+        };
+
+        settled = true;
+
+        if (data.alreadyReferred) {
+          if (data.bonusApplied) {
             toast({
               title: `${FNONINJA_TRIAL_WITH_REFERRAL_DAYS}-day trial unlocked`,
               description: `Referral applied — you get ${FNONINJA_REFERRAL_BONUS_TRIAL_DAYS} extra free days.`,
             });
-            return;
           }
-
-          if (data.showPrompt) setOpen(true);
-        } catch {
-          ranForUid.current = null;
+          return;
         }
-      })();
-    }, delayMs);
+
+        if (data.showPrompt) setOpen(true);
+      } catch {
+        if (!cancelled) ranForUid.current = null;
+      }
+    };
+
+    const pending = hasPendingReferralCode();
+
+    const onTrackDone = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as {
+        attributed?: boolean;
+        bonusApplied?: boolean;
+      };
+      void evaluatePrompt(detail);
+    };
+
+    window.addEventListener(FNO_REFERRAL_TRACK_EVENT, onTrackDone);
+
+    // No pending link code → short delay then maybe show typed-code prompt.
+    // Pending code → wait for tracker event (fallback timeout below).
+    const timer = window.setTimeout(
+      () => {
+        void evaluatePrompt();
+      },
+      pending ? 4500 : 1000,
+    );
 
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      window.removeEventListener(FNO_REFERRAL_TRACK_EVENT, onTrackDone);
     };
   }, [user, isUserLoading]);
 

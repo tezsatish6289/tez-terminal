@@ -7,6 +7,7 @@ import {
   Check,
   Copy,
   Download,
+  Gift,
   Loader2,
 } from "lucide-react";
 import { useUser } from "@/firebase";

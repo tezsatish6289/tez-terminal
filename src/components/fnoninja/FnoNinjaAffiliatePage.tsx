@@ -7,11 +7,7 @@ import {
   Check,
   Copy,
   Download,
-  Gift,
   Loader2,
-  TrendingUp,
-  Users,
-  Wallet,
 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { fnoAffiliateHref, fnoLoginHref } from "@/lib/fnoninja/paths";
@@ -36,11 +32,20 @@ type Dashboard = {
   tdsThresholdInr: number;
   stats: {
     totalReferred: number;
+    loggedIn: number;
+    trialActive: number;
+    trialExpired: number;
+    planSales: {
+      daypass: { customers: number; salesInr: number };
+      silver: { customers: number; salesInr: number };
+      gold: { customers: number; salesInr: number };
+    };
     heldInr: number;
     availableInr: number;
     lockedInr: number;
     paidInr: number;
     earnedInr: number;
+    pendingSettlementInr: number;
   };
   kyc: { complete: false } | { complete: true; fullName: string; pan: string; bankAccountNumberMasked: string; ifsc: string };
   referred: { uid: string; displayName: string | null; email: string | null; joinedAt: string | null }[];
@@ -254,6 +259,12 @@ function Overview({
 }) {
   const canPayout =
     data.kyc.complete && data.stats.availableInr >= data.minPayoutInr && !payoutBusy;
+  const s = data.stats;
+  const planSales = s.planSales ?? {
+    daypass: { customers: 0, salesInr: 0 },
+    silver: { customers: 0, salesInr: 0 },
+    gold: { customers: 0, salesInr: 0 },
+  };
 
   return (
     <div className="space-y-4">
@@ -276,71 +287,175 @@ function Overview({
         <p className="mt-2 text-[12px] text-slate-500">
           Friends can use code{" "}
           <span className="font-mono text-slate-300">{data.referralCode}</span> after Google
-          sign-in for +3 trial days (10 total). Commission on net paid (Silver {formatInr(4500)},
-          Gold {formatInr(7200)}, Day Pass {formatInr(99)}) · {data.holdDays}-day hold · TDS 194H{" "}
-          {(data.tdsRate * 100).toFixed(0)}% above {formatInr(data.tdsThresholdInr)}/FY
+          sign-in for +3 trial days (10 total). Commission on net paid · {data.holdDays}-day hold ·
+          TDS 194H {(data.tdsRate * 100).toFixed(0)}% above {formatInr(data.tdsThresholdInr)}/FY
         </p>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat icon={Users} label="Referred" value={String(data.stats.totalReferred)} />
-        <Stat icon={TrendingUp} label="Earned" value={formatInr(data.stats.earnedInr)} />
-        <Stat icon={Wallet} label="Available" value={formatInr(data.stats.availableInr)} />
-        <Stat icon={Gift} label="Paid out" value={formatInr(data.stats.paidInr)} />
-      </div>
-
-      <LadderJourneyMap data={data} />
-
       <Card>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-white">Request cash payout</p>
-            <p className="text-[12px] text-slate-400">
-              Min {formatInr(data.minPayoutInr)} available · Held: {formatInr(data.stats.heldInr)}
-              {!data.kyc.complete ? " · Add PAN & bank in Payout details first" : ""}
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Your performance
             </p>
+            <p className="mt-1 text-lg font-bold text-white">Referral funnel & earnings</p>
           </div>
-          <button
-            type="button"
-            disabled={!canPayout}
-            onClick={onRequestPayout}
-            className="inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40"
-            style={{ background: FNO_CTA_GRADIENT, boxShadow: canPayout ? FNO_CTA_SHADOW : undefined }}
+          <p className="text-[12px] text-slate-500">
+            Held {formatInr(s.heldInr)} · clears after {data.holdDays} days
+          </p>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <MetricTile label="Referred" value={String(s.totalReferred)} />
+          <MetricTile label="Logged in" value={String(s.loggedIn ?? 0)} />
+          <MetricTile label="Free trial active" value={String(s.trialActive ?? 0)} />
+          <MetricTile label="Free trial expired" value={String(s.trialExpired ?? 0)} />
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <PlanSaleTile
+            label="Day Pass sale"
+            customers={planSales.daypass.customers}
+            salesInr={planSales.daypass.salesInr}
+          />
+          <PlanSaleTile
+            label="Silver plan sale"
+            customers={planSales.silver.customers}
+            salesInr={planSales.silver.salesInr}
+          />
+          <PlanSaleTile
+            label="Gold plan sale"
+            customers={planSales.gold.customers}
+            salesInr={planSales.gold.salesInr}
+          />
+        </div>
+
+        <div
+          className="mt-4 grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-3"
+          style={{ borderColor: FNO_BORDER }}
+        >
+          <MetricTile
+            label="Total commission earned"
+            value={formatInr(s.earnedInr)}
+            emphasize
+          />
+          <MetricTile label="Settled to bank" value={formatInr(s.paidInr)} />
+          <div
+            className="rounded-xl px-3 py-3"
+            style={{
+              border: `1px solid ${FNO_BORDER}`,
+              backgroundColor: "rgba(0,0,0,0.22)",
+            }}
           >
-            {payoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Settle now"}
-          </button>
+            <p className="text-[11px] text-slate-500">Pending settlement</p>
+            <p className="mt-1 text-base font-bold text-white">
+              {formatInr(s.pendingSettlementInr ?? s.availableInr)}
+            </p>
+            <p className="mt-0.5 text-[10px] text-slate-500">
+              Available {formatInr(s.availableInr)}
+              {!data.kyc.complete ? " · Add PAN & bank first" : ""}
+              {data.kyc.complete && s.availableInr < data.minPayoutInr
+                ? ` · Min ${formatInr(data.minPayoutInr)}`
+                : ""}
+            </p>
+            <button
+              type="button"
+              disabled={!canPayout}
+              onClick={onRequestPayout}
+              className="mt-2.5 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
+              style={{
+                background: FNO_CTA_GRADIENT,
+                boxShadow: canPayout ? FNO_CTA_SHADOW : undefined,
+              }}
+            >
+              {payoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Settle now"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 border-t pt-4" style={{ borderColor: FNO_BORDER }}>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Recent commissions
+          </p>
+          {data.commissions.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              No commissions yet. Share your link to start earning.
+            </p>
+          ) : (
+            <div className="divide-y" style={{ borderColor: FNO_BORDER }}>
+              {data.commissions.slice(0, 8).map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between gap-3 py-2.5 text-xs"
+                  style={{ borderColor: FNO_BORDER }}
+                >
+                  <div>
+                    <p className="font-semibold capitalize text-white">
+                      {c.planTier} · {formatInr(c.purchaseAmountInr)}
+                    </p>
+                    <p className="text-slate-500">
+                      {(c.commissionRate * 100).toFixed(0)}% · {c.status}
+                      {c.status === "held" ? ` until ${fmtDate(c.holdUntil)}` : ""}
+                    </p>
+                  </div>
+                  <p className="font-bold text-[#93c5fd]">{formatInr(c.commissionAmountInr)}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </Card>
 
-      <Card>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-          Recent commissions
-        </p>
-        {data.commissions.length === 0 ? (
-          <p className="text-sm text-slate-400">No commissions yet. Share your link to start earning.</p>
-        ) : (
-          <div className="divide-y" style={{ borderColor: FNO_BORDER }}>
-            {data.commissions.slice(0, 12).map((c) => (
-              <div
-                key={c.id}
-                className="flex items-center justify-between gap-3 py-2.5 text-xs"
-                style={{ borderColor: FNO_BORDER }}
-              >
-                <div>
-                  <p className="font-semibold capitalize text-white">
-                    {c.planTier} · {formatInr(c.purchaseAmountInr)}
-                  </p>
-                  <p className="text-slate-500">
-                    {(c.commissionRate * 100).toFixed(0)}% · {c.status}
-                    {c.status === "held" ? ` until ${fmtDate(c.holdUntil)}` : ""}
-                  </p>
-                </div>
-                <p className="font-bold text-[#93c5fd]">{formatInr(c.commissionAmountInr)}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+      <LadderJourneyMap data={data} />
+    </div>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  emphasize,
+}: {
+  label: string;
+  value: string;
+  emphasize?: boolean;
+}) {
+  return (
+    <div
+      className="rounded-xl px-3 py-3"
+      style={{
+        border: `1px solid ${FNO_BORDER}`,
+        backgroundColor: emphasize ? "rgba(37,99,235,0.12)" : "rgba(0,0,0,0.22)",
+      }}
+    >
+      <p className="text-[11px] text-slate-500">{label}</p>
+      <p className="mt-1 text-base font-bold text-white">{value}</p>
+    </div>
+  );
+}
+
+function PlanSaleTile({
+  label,
+  customers,
+  salesInr,
+}: {
+  label: string;
+  customers: number;
+  salesInr: number;
+}) {
+  return (
+    <div
+      className="rounded-xl px-3 py-3"
+      style={{
+        border: `1px solid ${FNO_BORDER}`,
+        backgroundColor: "rgba(0,0,0,0.22)",
+      }}
+    >
+      <p className="text-[11px] text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-bold text-white">
+        {customers} customer{customers === 1 ? "" : "s"}
+      </p>
+      <p className="text-[12px] font-semibold text-[#93c5fd]">{formatInr(salesInr)} sales</p>
     </div>
   );
 }
@@ -787,29 +902,6 @@ function Card({ children }: { children: React.ReactNode }) {
       style={{ border: `1px solid ${FNO_BORDER}`, backgroundColor: "rgba(13,27,46,0.85)" }}
     >
       {children}
-    </div>
-  );
-}
-
-function Stat({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Users;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div
-      className="rounded-2xl p-3"
-      style={{ border: `1px solid ${FNO_BORDER}`, backgroundColor: "rgba(13,27,46,0.85)" }}
-    >
-      <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-        <Icon className="h-3 w-3" />
-        {label}
-      </div>
-      <p className="mt-1 text-base font-bold text-white">{value}</p>
     </div>
   );
 }

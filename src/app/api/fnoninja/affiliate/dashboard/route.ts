@@ -96,6 +96,76 @@ export async function GET(request: NextRequest) {
       }
     : { complete: false as const };
 
+  const referredIds = referredSnap.docs.map((d) => d.id);
+  const subByUid = new Map<string, FirebaseFirestore.DocumentData>();
+  // Firestore getAll in chunks of 30 (practical batch size).
+  for (let i = 0; i < referredIds.length; i += 30) {
+    const chunk = referredIds.slice(i, i + 30);
+    if (chunk.length === 0) continue;
+    const refs = chunk.map((id) => db.collection("subscriptions").doc(id));
+    const snaps = await db.getAll(...refs);
+    for (const s of snaps) {
+      if (s.exists) subByUid.set(s.id, s.data()!);
+    }
+  }
+
+  const now = Date.now();
+  let loggedIn = 0;
+  let trialActive = 0;
+  let trialExpired = 0;
+  for (const d of referredSnap.docs) {
+    const u = d.data();
+    const joined =
+      typeof u.fnoninjaJoinedAt === "string" ||
+      typeof u.lastSeenAt === "string" ||
+      typeof u.email === "string";
+    if (joined) loggedIn += 1;
+
+    const sub = subByUid.get(d.id);
+    if (!sub) continue;
+    const status = String(sub.status ?? "");
+    const trialEndMs = sub.trialEndDate ? new Date(sub.trialEndDate).getTime() : 0;
+    const paidActive =
+      status === "active" &&
+      sub.subscriptionEndDate &&
+      new Date(sub.subscriptionEndDate).getTime() > now;
+
+    if (paidActive) {
+      // Paid users are neither trial-active nor trial-expired in the funnel.
+      continue;
+    }
+    if (status === "trial" && trialEndMs > now) {
+      trialActive += 1;
+    } else if (
+      status === "expired" ||
+      (status === "trial" && trialEndMs > 0 && trialEndMs <= now)
+    ) {
+      trialExpired += 1;
+    }
+  }
+
+  const planSales = {
+    daypass: { customers: 0, salesInr: 0 },
+    silver: { customers: 0, salesInr: 0 },
+    gold: { customers: 0, salesInr: 0 },
+  };
+  const buyersByPlan: Record<"daypass" | "silver" | "gold", Set<string>> = {
+    daypass: new Set(),
+    silver: new Set(),
+    gold: new Set(),
+  };
+  for (const c of commissions) {
+    if (c.status === "reversed") continue;
+    const tier = c.planTier;
+    if (tier !== "daypass" && tier !== "silver" && tier !== "gold") continue;
+    buyersByPlan[tier].add(c.referredUserId);
+    planSales[tier].salesInr += Number(c.purchaseAmountInr) || 0;
+  }
+  for (const tier of ["daypass", "silver", "gold"] as const) {
+    planSales[tier].customers = buyersByPlan[tier].size;
+    planSales[tier].salesInr = Math.round(planSales[tier].salesInr * 100) / 100;
+  }
+
   const referred = referredSnap.docs.map((d) => {
     const u = d.data();
     return {
@@ -105,6 +175,9 @@ export async function GET(request: NextRequest) {
       joinedAt: (u.fnoninjaReferredAt as string) || (u.fnoninjaJoinedAt as string) || null,
     };
   });
+
+  const earnedInr = Math.round((heldInr + availableInr + lockedInr + paidInr) * 100) / 100;
+  const pendingSettlementInr = Math.round((availableInr + lockedInr) * 100) / 100;
 
   return NextResponse.json({
     enabled: config.enabled,
@@ -123,11 +196,16 @@ export async function GET(request: NextRequest) {
     tdsThresholdInr: config.tdsThresholdInr,
     stats: {
       totalReferred: referredSnap.size,
+      loggedIn,
+      trialActive,
+      trialExpired,
+      planSales,
       heldInr: Math.round(heldInr * 100) / 100,
       availableInr: Math.round(availableInr * 100) / 100,
       lockedInr: Math.round(lockedInr * 100) / 100,
       paidInr: Math.round(paidInr * 100) / 100,
-      earnedInr: Math.round((heldInr + availableInr + lockedInr + paidInr) * 100) / 100,
+      earnedInr,
+      pendingSettlementInr,
     },
     kyc: kycPublic,
     referred,

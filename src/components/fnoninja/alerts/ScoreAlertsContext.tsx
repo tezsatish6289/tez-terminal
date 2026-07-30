@@ -231,18 +231,12 @@ export function ScoreAlertsProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  const handleSetDrawerOpen = useCallback(
-    (open: boolean) => {
-      setDrawerOpen(open);
-      if (open) {
-        if (typeof window !== "undefined" && "Notification" in window) {
-          setNotificationPermission(Notification.permission);
-        }
-        void markAllRead();
-      }
-    },
-    [markAllRead],
-  );
+  const handleSetDrawerOpen = useCallback((open: boolean) => {
+    setDrawerOpen(open);
+    if (open && typeof window !== "undefined" && "Notification" in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
 
   const value = useMemo<ScoreAlertsContextValue>(
     () => ({

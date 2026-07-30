@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, Loader2 } from "lucide-react";
 import { useScoreAlerts } from "@/components/fnoninja/alerts/ScoreAlertsContext";
@@ -7,7 +8,6 @@ import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -25,6 +25,9 @@ import type {
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import { FNO_ACCENT, FNO_BG_CANVAS, FNO_MUTED } from "@/lib/fnoninja/theme";
 import { trackCtaClick } from "@/firebase/analytics";
+import { formatChatUnreadCount } from "@/lib/chat/unread-badge";
+
+type AlertsTab = "alerts" | "log";
 
 function PrefToggle({
   label,
@@ -142,20 +145,79 @@ function segmentLabel(s: ScoreAlertSegment): string {
   return "Both";
 }
 
+function AlertsLogTab({
+  active,
+  unreadCount,
+  onSelect,
+}: {
+  active: boolean;
+  unreadCount: number;
+  onSelect: () => void;
+}) {
+  const badge = formatChatUnreadCount(unreadCount);
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onSelect}
+      className="relative flex-1 rounded-md py-1.5 text-[13px] font-semibold transition-colors"
+      style={{
+        color: active ? "#f1f5f9" : "#94a3b8",
+        backgroundColor: active ? "rgba(51,65,85,0.95)" : "transparent",
+      }}
+    >
+      Log
+      {badge ? (
+        <span
+          className="absolute -right-0.5 -top-1 inline-flex min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white"
+          style={{
+            height: 16,
+            backgroundColor: "#ef4444",
+            boxShadow: "0 0 0 2px rgba(8,15,30,0.95)",
+          }}
+        >
+          {badge}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 export function ScoreAlertsDrawer() {
   const {
     prefs,
     prefsLoading,
     events,
+    unreadCount,
     drawerOpen,
     setDrawerOpen,
     notificationPermission,
     savePrefs,
     enableBrowserNotifications,
+    markAllRead,
   } = useScoreAlerts();
 
+  const [tab, setTab] = useState<AlertsTab>("alerts");
   const browserDenied = notificationPermission === "denied";
   const browserUnsupported = notificationPermission === "unsupported";
+
+  // Open on Log when there are unread alerts; otherwise stay on Alerts.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    setTab(unreadCount > 0 ? "log" : "alerts");
+  }, [drawerOpen]); // eslint-disable-line react-hooks/exhaustive-deps -- only on open
+
+  useEffect(() => {
+    if (drawerOpen && tab === "log") {
+      void markAllRead();
+    }
+  }, [drawerOpen, tab, markAllRead]);
+
+  const selectTab = (next: AlertsTab) => {
+    trackCtaClick("score_alerts_tab", { tab: next });
+    setTab(next);
+  };
 
   return (
     <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
@@ -165,14 +227,36 @@ export function ScoreAlertsDrawer() {
         style={{ backgroundColor: FNO_BG_CANVAS, borderColor: "rgba(90,140,220,0.12)" }}
       >
         <div className="flex h-full flex-col">
-          <SheetHeader className="px-4 pt-3.5 pb-2.5 border-b space-y-1" style={{ borderColor: "rgba(90,140,220,0.12)" }}>
+          <SheetHeader className="px-4 pt-3.5 pb-2.5 space-y-2.5" style={{ borderColor: "rgba(90,140,220,0.12)" }}>
             <SheetTitle className="flex items-center gap-2 text-white text-base">
               <Bell className="h-4 w-4" style={{ color: FNO_ACCENT }} />
               Score alerts
             </SheetTitle>
-            <SheetDescription className="text-[12px]" style={{ color: FNO_MUTED }}>
-              Notify when Atlas score crosses your floor.
-            </SheetDescription>
+            <div
+              className="flex rounded-lg p-0.5"
+              role="tablist"
+              aria-label="Score alerts sections"
+              style={{ backgroundColor: "rgba(15,23,42,0.85)", border: "1px solid rgba(90,140,220,0.12)" }}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "alerts"}
+                onClick={() => selectTab("alerts")}
+                className="flex-1 rounded-md py-1.5 text-[13px] font-semibold transition-colors"
+                style={{
+                  color: tab === "alerts" ? "#f1f5f9" : "#94a3b8",
+                  backgroundColor: tab === "alerts" ? "rgba(51,65,85,0.95)" : "transparent",
+                }}
+              >
+                Alerts
+              </button>
+              <AlertsLogTab
+                active={tab === "log"}
+                unreadCount={unreadCount}
+                onSelect={() => selectTab("log")}
+              />
+            </div>
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto px-4 pb-5 pt-1">
@@ -180,7 +264,7 @@ export function ScoreAlertsDrawer() {
               <div className="flex justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#60a5fa" }} />
               </div>
-            ) : (
+            ) : tab === "alerts" ? (
               <>
                 <PrefToggle
                   label="Enable alerts"
@@ -259,67 +343,59 @@ export function ScoreAlertsDrawer() {
                     void enableBrowserNotifications();
                   }}
                 />
-
-                <div className="mt-1.5 mb-2 h-px" style={{ backgroundColor: "rgba(90,140,220,0.12)" }} />
-
-                <p className="mb-1.5 text-xs font-bold uppercase tracking-widest" style={{ color: FNO_MUTED }}>
-                  Recent
-                </p>
-
-                {events.length === 0 ? (
-                  <p className="py-5 text-center text-[13px]" style={{ color: FNO_MUTED }}>
-                    No alerts yet
-                  </p>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {events.map((ev) => {
-                      const href = levelsChartPagePathForHost(
-                        typeof window !== "undefined" ? window.location.hostname : "fnoninja.com",
-                        ev.scope,
-                        ev.symbol,
-                      );
-                      const dir = scoreAlertDirectionLabel(ev.side);
-                      return (
-                        <li key={ev.id}>
-                          <Link
-                            href={href}
-                            onClick={() => {
-                              trackCtaClick("score_alert_open_chart", {
-                                symbol: ev.symbol,
-                                score: ev.score,
-                              });
-                              setDrawerOpen(false);
-                            }}
-                            className="block rounded-xl px-3 py-2 transition-colors hover:bg-white/[0.04]"
-                            style={{
-                              border: "1px solid rgba(90,140,220,0.12)",
-                              backgroundColor: ev.readAt
-                                ? "transparent"
-                                : "rgba(37,99,235,0.08)",
-                            }}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-semibold text-white truncate">
-                                {ev.label || ev.symbol}{" "}
-                                <span style={{ color: ev.side === "support" ? "#86efac" : "#fca5a5" }}>
-                                  {dir}
-                                </span>
-                              </p>
-                              <span className="text-[11px] tabular-nums shrink-0" style={{ color: FNO_MUTED }}>
-                                {formatAlertTime(ev.at)}
-                              </span>
-                            </div>
-                            <p className="mt-0.5 text-[12px]" style={{ color: "#94a3b8" }}>
-                              Score {ev.score} ≥{ev.minScore}
-                              {ev.probabilityPct > 0 ? ` · ~${ev.probabilityPct}%` : ""}
-                            </p>
-                          </Link>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
               </>
+            ) : events.length === 0 ? (
+              <p className="py-10 text-center text-[13px]" style={{ color: FNO_MUTED }}>
+                No alerts yet
+              </p>
+            ) : (
+              <ul className="space-y-1.5 pt-1">
+                {events.map((ev) => {
+                  const href = levelsChartPagePathForHost(
+                    typeof window !== "undefined" ? window.location.hostname : "fnoninja.com",
+                    ev.scope,
+                    ev.symbol,
+                  );
+                  const dir = scoreAlertDirectionLabel(ev.side);
+                  return (
+                    <li key={ev.id}>
+                      <Link
+                        href={href}
+                        onClick={() => {
+                          trackCtaClick("score_alert_open_chart", {
+                            symbol: ev.symbol,
+                            score: ev.score,
+                          });
+                          setDrawerOpen(false);
+                        }}
+                        className="block rounded-xl px-3 py-2 transition-colors hover:bg-white/[0.04]"
+                        style={{
+                          border: "1px solid rgba(90,140,220,0.12)",
+                          backgroundColor: ev.readAt
+                            ? "transparent"
+                            : "rgba(37,99,235,0.08)",
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-white truncate">
+                            {ev.label || ev.symbol}{" "}
+                            <span style={{ color: ev.side === "support" ? "#86efac" : "#fca5a5" }}>
+                              {dir}
+                            </span>
+                          </p>
+                          <span className="text-[11px] tabular-nums shrink-0" style={{ color: FNO_MUTED }}>
+                            {formatAlertTime(ev.at)}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[12px]" style={{ color: "#94a3b8" }}>
+                          Score {ev.score} ≥{ev.minScore}
+                          {ev.probabilityPct > 0 ? ` · ~${ev.probabilityPct}%` : ""}
+                        </p>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
         </div>

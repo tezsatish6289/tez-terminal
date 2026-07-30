@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminFirestore } from "@/firebase/admin";
 import { requireUser } from "@/lib/chat/require-user";
-import { resolveAffiliateByCode } from "@/lib/fnoninja/affiliate";
+import { attributeFnoReferral } from "@/lib/fnoninja/affiliate";
 
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/fnoninja/affiliate/track
  * Body: { referralCode }
- * Sets users/{uid}.fnoninjaReferredBy once (first-touch).
+ * Sets users/{uid}.fnoninjaReferredBy once (first-touch) and grants +3 trial days.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireUser(request);
@@ -24,31 +23,18 @@ export async function POST(request: NextRequest) {
   const code = typeof body.referralCode === "string" ? body.referralCode.trim().toLowerCase() : "";
   if (!code) return NextResponse.json({ error: "referralCode required" }, { status: 400 });
 
-  const uid = auth.decoded.uid;
-  const db = getAdminFirestore();
-  const userRef = db.collection("users").doc(uid);
-  const userSnap = await userRef.get();
-  const existing = userSnap.data()?.fnoninjaReferredBy;
-  if (typeof existing === "string" && existing) {
-    return NextResponse.json({ attributed: false, reason: "already_attributed" });
-  }
+  const result = await attributeFnoReferral({
+    uid: auth.decoded.uid,
+    referralCode: code,
+    grantBonus: true,
+  });
 
-  const referrerId = await resolveAffiliateByCode(code);
-  if (!referrerId) {
-    return NextResponse.json({ attributed: false, reason: "invalid_code" });
-  }
-  if (referrerId === uid) {
-    return NextResponse.json({ attributed: false, reason: "self_referral" });
-  }
-
-  await userRef.set(
-    {
-      fnoninjaReferredBy: referrerId,
-      fnoninjaReferredAt: new Date().toISOString(),
-      fnoninjaReferralCodeUsed: code,
-    },
-    { merge: true },
-  );
-
-  return NextResponse.json({ attributed: true, referrerId });
+  return NextResponse.json({
+    attributed: result.attributed,
+    reason: result.reason,
+    referrerId: result.referrerId,
+    bonusApplied: result.bonus?.applied ?? false,
+    bonusDays: result.bonus?.bonusDays ?? 0,
+    trialEndDate: result.bonus?.trialEndDate ?? null,
+  });
 }

@@ -274,10 +274,11 @@ function Overview({
           </button>
         </div>
         <p className="mt-2 text-[12px] text-slate-500">
-          Code <span className="text-slate-300">{data.referralCode}</span> · Commission on net paid
-          (Silver {formatInr(4500)}, Gold {formatInr(7200)}, Day Pass {formatInr(99)}) · {data.holdDays}
-          -day hold · TDS 194H {(data.tdsRate * 100).toFixed(0)}% above{" "}
-          {formatInr(data.tdsThresholdInr)}/FY
+          Friends can use code{" "}
+          <span className="font-mono text-slate-300">{data.referralCode}</span> after Google
+          sign-in for +3 trial days (10 total). Commission on net paid (Silver {formatInr(4500)},
+          Gold {formatInr(7200)}, Day Pass {formatInr(99)}) · {data.holdDays}-day hold · TDS 194H{" "}
+          {(data.tdsRate * 100).toFixed(0)}% above {formatInr(data.tdsThresholdInr)}/FY
         </p>
       </Card>
 

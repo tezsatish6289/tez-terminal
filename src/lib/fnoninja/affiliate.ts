@@ -22,6 +22,8 @@ import {
   FNO_PLAN_AMOUNT_INR,
   type AffiliateLadderTier,
 } from "@/lib/fnoninja/affiliate-shared";
+import { FNONINJA_REFERRAL_BONUS_TRIAL_DAYS } from "@/lib/fnoninja/pricing";
+import type { SubscriptionDoc } from "@/lib/subscription";
 
 export {
   AFFILIATE_BUBBLE_ID,
@@ -274,6 +276,113 @@ export async function resolveAffiliateByCode(code: string): Promise<string | nul
   }
   if (snap.empty) return null;
   return snap.docs[0]!.id;
+}
+
+/**
+ * Extend an active FNO trial by +N days once per user when a referral is applied.
+ * Idempotent via users.fnoninjaReferralBonusAppliedAt.
+ */
+export async function grantReferralTrialBonus(uid: string): Promise<{
+  applied: boolean;
+  bonusDays: number;
+  trialEndDate: string | null;
+  reason?: string;
+}> {
+  const db = getAdminFirestore();
+  const userRef = db.collection("users").doc(uid);
+  const subRef = db.collection("subscriptions").doc(uid);
+  const [userSnap, subSnap] = await Promise.all([userRef.get(), subRef.get()]);
+
+  if (userSnap.data()?.fnoninjaReferralBonusAppliedAt) {
+    return {
+      applied: false,
+      bonusDays: 0,
+      trialEndDate: (subSnap.data() as SubscriptionDoc | undefined)?.trialEndDate ?? null,
+      reason: "already_applied",
+    };
+  }
+  if (!subSnap.exists) {
+    return { applied: false, bonusDays: 0, trialEndDate: null, reason: "no_subscription" };
+  }
+
+  const sub = subSnap.data() as SubscriptionDoc;
+  if (sub.status !== "trial") {
+    return {
+      applied: false,
+      bonusDays: 0,
+      trialEndDate: sub.trialEndDate ?? null,
+      reason: "not_on_trial",
+    };
+  }
+
+  const currentEnd = new Date(sub.trialEndDate).getTime();
+  if (!Number.isFinite(currentEnd)) {
+    return { applied: false, bonusDays: 0, trialEndDate: null, reason: "bad_trial_end" };
+  }
+
+  const bonusMs = FNONINJA_REFERRAL_BONUS_TRIAL_DAYS * 24 * 60 * 60 * 1000;
+  const nextEnd = new Date(currentEnd + bonusMs).toISOString();
+  const now = new Date().toISOString();
+
+  await Promise.all([
+    subRef.set(
+      {
+        trialEndDate: nextEnd,
+        referralBonusDays: FNONINJA_REFERRAL_BONUS_TRIAL_DAYS,
+        referralBonusAppliedAt: now,
+      },
+      { merge: true },
+    ),
+    userRef.set({ fnoninjaReferralBonusAppliedAt: now }, { merge: true }),
+  ]);
+
+  return {
+    applied: true,
+    bonusDays: FNONINJA_REFERRAL_BONUS_TRIAL_DAYS,
+    trialEndDate: nextEnd,
+  };
+}
+
+/** First-touch attribution + optional trial bonus. */
+export async function attributeFnoReferral(args: {
+  uid: string;
+  referralCode: string;
+  grantBonus?: boolean;
+}): Promise<{
+  attributed: boolean;
+  reason?: string;
+  referrerId?: string;
+  bonus?: Awaited<ReturnType<typeof grantReferralTrialBonus>>;
+}> {
+  const code = args.referralCode.trim().toLowerCase();
+  if (!code) return { attributed: false, reason: "missing_code" };
+
+  const db = getAdminFirestore();
+  const userRef = db.collection("users").doc(args.uid);
+  const userSnap = await userRef.get();
+  const existing = userSnap.data()?.fnoninjaReferredBy;
+  if (typeof existing === "string" && existing) {
+    const bonus =
+      args.grantBonus !== false ? await grantReferralTrialBonus(args.uid) : undefined;
+    return { attributed: false, reason: "already_attributed", bonus };
+  }
+
+  const referrerId = await resolveAffiliateByCode(code);
+  if (!referrerId) return { attributed: false, reason: "invalid_code" };
+  if (referrerId === args.uid) return { attributed: false, reason: "self_referral" };
+
+  await userRef.set(
+    {
+      fnoninjaReferredBy: referrerId,
+      fnoninjaReferredAt: new Date().toISOString(),
+      fnoninjaReferralCodeUsed: code,
+    },
+    { merge: true },
+  );
+
+  const bonus =
+    args.grantBonus !== false ? await grantReferralTrialBonus(args.uid) : undefined;
+  return { attributed: true, referrerId, bonus };
 }
 
 /** Lifetime referred net sales that still count toward the ladder (excludes reversed). */

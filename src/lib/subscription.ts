@@ -56,6 +56,9 @@ export interface SubscriptionDoc {
   lastDayPassPaymentId?: string;
   /** Zoho invoice_id of the Paid Day Pass invoice we generated post-payment (for the current payment). */
   dayPassInvoiceId?: string;
+  /** Extra trial days granted for a successful FNO referral (once). */
+  referralBonusDays?: number;
+  referralBonusAppliedAt?: string;
 }
 
 export type PaymentStatus =

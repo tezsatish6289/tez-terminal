@@ -2,7 +2,16 @@
  * Client-safe FNO affiliate constants/types (no server-only imports).
  */
 
+export {
+  FNONINJA_FREE_TRIAL_DAYS,
+  FNONINJA_REFERRAL_BONUS_TRIAL_DAYS,
+  FNONINJA_TRIAL_WITH_REFERRAL_DAYS,
+} from "@/lib/fnoninja/pricing";
+
 export const AFFILIATE_BUBBLE_ID = "affiliate_refer_earn";
+
+/** localStorage key for ?ref= capture (shared by tracker + referral prompt). */
+export const FNO_REFERRAL_STORAGE_KEY = "fno_referral_code";
 
 export function isAffiliateBubbleId(id: string): boolean {
   return id === AFFILIATE_BUBBLE_ID;

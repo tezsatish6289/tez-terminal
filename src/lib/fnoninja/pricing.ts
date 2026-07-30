@@ -1,6 +1,10 @@
 /** FNONINJA pricing — INR display tiers for marketing and future billing. */
 
 export const FNONINJA_FREE_TRIAL_DAYS = 7;
+/** Extra trial days when a valid referral is applied (link or typed code). */
+export const FNONINJA_REFERRAL_BONUS_TRIAL_DAYS = 3;
+export const FNONINJA_TRIAL_WITH_REFERRAL_DAYS =
+  FNONINJA_FREE_TRIAL_DAYS + FNONINJA_REFERRAL_BONUS_TRIAL_DAYS;
 
 export interface FnoNinjaPricingTier {
   id: string;

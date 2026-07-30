@@ -14,7 +14,6 @@ import {
   Download,
   Gift,
   Hourglass,
-  Link2,
   Loader2,
   LogIn,
   Shield,
@@ -401,17 +400,13 @@ function Overview({
             variant="bank"
           />
           <div
-            className="relative overflow-hidden rounded-2xl p-4"
+            className="rounded-2xl p-4"
             style={{
               border: `1px solid ${FNO_BORDER}`,
               background:
                 "linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(13,27,46,0.98) 100%)",
             }}
           >
-            <Clock3
-              className="pointer-events-none absolute -right-2 -top-1 h-20 w-20 opacity-[0.07]"
-              style={{ color: "#60a5fa" }}
-            />
             <div className="flex items-center gap-2 text-[11px] text-slate-400">
               <Clock3 className="h-3.5 w-3.5 text-[#60a5fa]" />
               Pending settlement
@@ -459,64 +454,6 @@ function Overview({
           </div>
         </div>
 
-        <div
-          className="relative mt-4 overflow-hidden rounded-2xl p-4"
-          style={{
-            border: `1px solid ${FNO_BORDER}`,
-            background:
-              "linear-gradient(120deg, rgba(15,23,42,0.9) 0%, rgba(30,27,75,0.35) 55%, rgba(13,27,46,0.95) 100%)",
-          }}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                <Clock3 className="h-3.5 w-3.5" />
-                Recent commissions
-              </p>
-              {data.commissions.length === 0 ? (
-                <p className="text-sm text-slate-300">
-                  No commissions yet. Share your link to start earning.
-                </p>
-              ) : (
-                <div className="divide-y" style={{ borderColor: FNO_BORDER }}>
-                  {data.commissions.slice(0, 8).map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center justify-between gap-3 py-2.5 text-xs"
-                      style={{ borderColor: FNO_BORDER }}
-                    >
-                      <div>
-                        <p className="font-semibold capitalize text-white">
-                          {c.planTier} · {formatInr(c.purchaseAmountInr)}
-                        </p>
-                        <p className="text-slate-500">
-                          {(c.commissionRate * 100).toFixed(0)}% · {c.status}
-                          {c.status === "held" ? ` until ${fmtDate(c.holdUntil)}` : ""}
-                        </p>
-                      </div>
-                      <p className="font-bold text-[#93c5fd]">
-                        {formatInr(c.commissionAmountInr)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            {data.commissions.length === 0 ? (
-              <div
-                className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl sm:flex"
-                style={{
-                  background:
-                    "radial-gradient(circle at 40% 35%, rgba(168,85,247,0.35), rgba(30,27,75,0.2))",
-                  border: "1px solid rgba(168,85,247,0.25)",
-                  boxShadow: "0 0 24px rgba(168,85,247,0.2)",
-                }}
-              >
-                <Link2 className="h-7 w-7 text-[#c4b5fd]" />
-              </div>
-            ) : null}
-          </div>
-        </div>
       </Card>
 
       <LadderJourneyMap data={data} />
@@ -576,16 +513,12 @@ function PlanSaleCard({
 }) {
   return (
     <div
-      className="relative overflow-hidden rounded-2xl p-4"
+      className="rounded-2xl p-4"
       style={{
         border: `1px solid ${FNO_BORDER}`,
         backgroundColor: "rgba(8,15,30,0.75)",
       }}
     >
-      <Icon
-        className="pointer-events-none absolute -right-3 -bottom-2 h-24 w-24 opacity-[0.08]"
-        style={{ color: accent }}
-      />
       <div className="flex items-center gap-2">
         <span
           className="flex h-8 w-8 items-center justify-center rounded-xl"
@@ -619,7 +552,7 @@ function EarnTile({
   const highlight = variant === "highlight";
   return (
     <div
-      className="relative overflow-hidden rounded-2xl p-4"
+      className="rounded-2xl p-4"
       style={{
         border: highlight
           ? "1px solid rgba(59,130,246,0.55)"
@@ -630,41 +563,11 @@ function EarnTile({
         boxShadow: highlight ? "0 0 28px rgba(59,130,246,0.18)" : undefined,
       }}
     >
-      <Icon
-        className="pointer-events-none absolute -right-2 -bottom-2 h-20 w-20 opacity-[0.08]"
-        style={{ color: highlight ? "#60a5fa" : "#94a3b8" }}
-      />
       <div className="flex items-center gap-2 text-[11px] text-slate-400">
         <Icon className="h-3.5 w-3.5" style={{ color: highlight ? "#60a5fa" : "#94a3b8" }} />
         {label}
       </div>
       <p className="mt-2 text-2xl font-black text-white">{value}</p>
-      {highlight ? (
-        <svg
-          className="mt-3 h-8 w-full opacity-70"
-          viewBox="0 0 120 24"
-          fill="none"
-          aria-hidden
-        >
-          <path
-            d="M0 18 C20 18 18 8 40 10 C62 12 60 4 80 6 C100 8 105 14 120 8"
-            stroke="#60a5fa"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-          <path
-            d="M0 18 C20 18 18 8 40 10 C62 12 60 4 80 6 C100 8 105 14 120 8 L120 24 L0 24 Z"
-            fill="url(#earnGlow)"
-            opacity="0.35"
-          />
-          <defs>
-            <linearGradient id="earnGlow" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3b82f6" />
-              <stop offset="100%" stopColor="transparent" />
-            </linearGradient>
-          </defs>
-        </svg>
-      ) : null}
     </div>
   );
 }

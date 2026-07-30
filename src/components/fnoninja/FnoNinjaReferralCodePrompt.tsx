@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { Loader2, X } from "lucide-react";
 import { useUser } from "@/firebase";
 import { toast } from "@/hooks/use-toast";
 import { isFnoNinjaAppContext } from "@/lib/fnoninja/auth";
@@ -14,11 +15,16 @@ import {
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogOverlay,
+  DialogPortal,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+/** Above map bubbles (z≤320) and phone gate (z=260). */
+const REFERRAL_OVERLAY_Z = "z-[400]";
+const REFERRAL_CONTENT_Z = "z-[410]";
 
 /**
  * After Google login: offer typed referral code for +3 trial days.
@@ -156,67 +162,79 @@ export function FnoNinjaReferralCodePrompt() {
         if (!next) void dismiss();
       }}
     >
-      <DialogContent
-        className="z-[70] max-w-md border text-[#f0f4ff] sm:rounded-2xl"
-        style={{
-          backgroundColor: "#0d1b2e",
-          borderColor: FNO_NAV_BORDER,
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle className="text-xl font-black tracking-tight text-white">
-            Got a referral code?
-          </DialogTitle>
-          <DialogDescription className="text-[13px] leading-relaxed text-slate-400">
-            Enter it for{" "}
-            <span className="font-semibold text-[#fde68a]">
-              {FNONINJA_REFERRAL_BONUS_TRIAL_DAYS} extra free days
-            </span>{" "}
-            ({FNONINJA_TRIAL_WITH_REFERRAL_DAYS} days total).
-            <br />
-            <br />
-            No code? No worries — you still get a{" "}
-            <span className="font-semibold text-slate-200">
-              {FNONINJA_FREE_TRIAL_DAYS}-day free trial
-            </span>
-            .
-          </DialogDescription>
-        </DialogHeader>
+      <DialogPortal>
+        <DialogOverlay className={`${REFERRAL_OVERLAY_Z} bg-black/75`} />
+        <DialogPrimitive.Content
+          className={`fixed left-[50%] top-[50%] ${REFERRAL_CONTENT_Z} grid w-[calc(100%-2rem)] max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-2xl duration-200 sm:rounded-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95`}
+          style={{
+            backgroundColor: "#0d1b2e",
+            borderColor: FNO_NAV_BORDER,
+            color: "#f0f4ff",
+          }}
+        >
+          <DialogPrimitive.Close
+            className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none"
+            style={{ color: "#94a3b8" }}
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
 
-        <div className="mt-2 space-y-3">
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="Enter code"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-            className="w-full rounded-xl border bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#fbbf24]"
-            style={{ borderColor: "rgba(251,191,36,0.35)" }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void applyCode();
-            }}
-          />
-          {error ? <p className="text-[12px] text-red-300">{error}</p> : null}
-          <button
-            type="button"
-            disabled={busy || code.trim().length < 4}
-            onClick={() => void applyCode()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white disabled:opacity-40"
-            style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply code"}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void dismiss()}
-            className="w-full rounded-xl py-2 text-[13px] font-semibold text-slate-400 transition-colors hover:text-white"
-          >
-            Continue without code
-          </button>
-        </div>
-      </DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black tracking-tight text-white">
+              Got a referral code?
+            </DialogTitle>
+            <DialogDescription className="text-[13px] leading-relaxed text-slate-400">
+              Enter it for{" "}
+              <span className="font-semibold text-[#fde68a]">
+                {FNONINJA_REFERRAL_BONUS_TRIAL_DAYS} extra free days
+              </span>{" "}
+              ({FNONINJA_TRIAL_WITH_REFERRAL_DAYS} days total).
+              <br />
+              <br />
+              No code? No worries — you still get a{" "}
+              <span className="font-semibold text-slate-200">
+                {FNONINJA_FREE_TRIAL_DAYS}-day free trial
+              </span>
+              .
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-2 space-y-3">
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Enter code"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full rounded-xl border bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#fbbf24]"
+              style={{ borderColor: "rgba(251,191,36,0.35)" }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void applyCode();
+              }}
+            />
+            {error ? <p className="text-[12px] text-red-300">{error}</p> : null}
+            <button
+              type="button"
+              disabled={busy || code.trim().length < 4}
+              onClick={() => void applyCode()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white disabled:opacity-40"
+              style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply code"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void dismiss()}
+              className="w-full rounded-xl py-2 text-[13px] font-semibold text-slate-400 transition-colors hover:text-white"
+            >
+              Continue without code
+            </button>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPortal>
     </Dialog>
   );
 }

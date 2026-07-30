@@ -16,7 +16,7 @@ import {
 import { useUser } from "@/firebase";
 import { fnoAffiliateHref, fnoLoginHref } from "@/lib/fnoninja/paths";
 import { formatInr } from "@/lib/fnoninja/pricing";
-import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
+import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_GRADIENT_TEXT_STYLE } from "@/lib/fnoninja/theme";
 import type { AffiliateLadderTier } from "@/lib/fnoninja/affiliate-shared";
 
 const FNO_BORDER = "rgba(90,140,220,0.2)";
@@ -368,20 +368,21 @@ function LadderJourneyMap({ data }: { data: Dashboard }) {
 
   return (
     <Card>
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Commission journey
           </p>
           <p className="mt-1 text-lg font-bold text-white">
             You&apos;re on {data.currentTier.label} · {(data.currentTier.rate * 100).toFixed(0)}%
+            commission on sale
           </p>
         </div>
-        <p className="text-[12px] text-slate-400">
-          Lifetime sales {formatInr(data.lifetimeSalesInr)}
-          {next
-            ? ` · ${formatInr(data.salesToNextTierInr)} to ${next.label}`
-            : " · Max tier unlocked"}
+        <p
+          className="text-base font-black tracking-tight sm:text-right sm:text-lg"
+          style={FNO_GRADIENT_TEXT_STYLE}
+        >
+          Sell More Earn More
         </p>
       </div>
 

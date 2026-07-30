@@ -4,11 +4,23 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
+  ArrowRight,
+  Building2,
+  CalendarDays,
   Check,
+  Clock3,
   Copy,
+  Crown,
   Download,
   Gift,
+  Hourglass,
+  Link2,
   Loader2,
+  LogIn,
+  Shield,
+  Ticket,
+  TrendingUp,
+  Users,
 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { fnoAffiliateHref, fnoLoginHref } from "@/lib/fnoninja/paths";
@@ -231,6 +243,7 @@ export function FnoNinjaAffiliatePage() {
                   onCopy={copyLink}
                   onRequestPayout={requestPayout}
                   payoutBusy={payoutBusy}
+                  onGoToKyc={() => setTab("kyc")}
                 />
               ) : null}
               {tab === "kyc" ? <KycForm user={user} kycComplete={data.kyc.complete} onSaved={load} /> : null}
@@ -251,12 +264,14 @@ function Overview({
   onCopy,
   onRequestPayout,
   payoutBusy,
+  onGoToKyc,
 }: {
   data: Dashboard;
   copied: boolean;
   onCopy: () => void;
   onRequestPayout: () => void;
   payoutBusy: boolean;
+  onGoToKyc: () => void;
 }) {
   const canPayout =
     data.kyc.complete && data.stats.availableInr >= data.minPayoutInr && !payoutBusy;
@@ -294,67 +309,130 @@ function Overview({
       </Card>
 
       <Card>
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <p
+              className="text-[11px] font-bold uppercase tracking-[0.14em]"
+              style={{ color: "#60a5fa" }}
+            >
               Your performance
             </p>
-            <p className="mt-1 text-lg font-bold text-white">Referral funnel & earnings</p>
+            <p className="mt-1 text-xl font-black tracking-tight text-white sm:text-2xl">
+              Referral funnel &amp; earnings
+            </p>
+            <p className="mt-1 text-[13px] text-slate-400">
+              Track your referrals and earnings in real time.
+            </p>
           </div>
-          <p className="text-[12px] text-slate-500">
+          <span
+            className="inline-flex items-center gap-1.5 self-start rounded-full px-3 py-1.5 text-[11px] font-semibold text-slate-300"
+            style={{
+              border: `1px solid ${FNO_BORDER}`,
+              backgroundColor: "rgba(0,0,0,0.35)",
+            }}
+          >
+            <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
             Held {formatInr(s.heldInr)} · clears after {data.holdDays} days
-          </p>
+          </span>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <MetricTile label="Referred" value={String(s.totalReferred)} />
-          <MetricTile label="Logged in" value={String(s.loggedIn ?? 0)} />
-          <MetricTile label="Free trial active" value={String(s.trialActive ?? 0)} />
-          <MetricTile label="Free trial expired" value={String(s.trialExpired ?? 0)} />
+        <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <FunnelTile
+            label="Referred"
+            value={String(s.totalReferred)}
+            accent="#3b82f6"
+            icon={Users}
+          />
+          <FunnelTile
+            label="Logged in"
+            value={String(s.loggedIn ?? 0)}
+            accent="#22c55e"
+            icon={LogIn}
+          />
+          <FunnelTile
+            label="Free trial active"
+            value={String(s.trialActive ?? 0)}
+            accent="#a855f7"
+            icon={Gift}
+          />
+          <FunnelTile
+            label="Free trial expired"
+            value={String(s.trialExpired ?? 0)}
+            accent="#f59e0b"
+            icon={Hourglass}
+          />
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <PlanSaleTile
+        <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <PlanSaleCard
             label="Day Pass sale"
             customers={planSales.daypass.customers}
             salesInr={planSales.daypass.salesInr}
+            accent="#60a5fa"
+            icon={Ticket}
           />
-          <PlanSaleTile
+          <PlanSaleCard
             label="Silver plan sale"
             customers={planSales.silver.customers}
             salesInr={planSales.silver.salesInr}
+            accent="#2dd4bf"
+            icon={Shield}
           />
-          <PlanSaleTile
+          <PlanSaleCard
             label="Gold plan sale"
             customers={planSales.gold.customers}
             salesInr={planSales.gold.salesInr}
+            accent="#fbbf24"
+            icon={Crown}
           />
         </div>
 
-        <div
-          className="mt-4 grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-3"
-          style={{ borderColor: FNO_BORDER }}
-        >
-          <MetricTile
+        <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <EarnTile
             label="Total commission earned"
             value={formatInr(s.earnedInr)}
-            emphasize
+            icon={TrendingUp}
+            variant="highlight"
           />
-          <MetricTile label="Settled to bank" value={formatInr(s.paidInr)} />
+          <EarnTile
+            label="Settled to bank"
+            value={formatInr(s.paidInr)}
+            icon={Building2}
+            variant="bank"
+          />
           <div
-            className="rounded-xl px-3 py-3"
+            className="relative overflow-hidden rounded-2xl p-4"
             style={{
               border: `1px solid ${FNO_BORDER}`,
-              backgroundColor: "rgba(0,0,0,0.22)",
+              background:
+                "linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(13,27,46,0.98) 100%)",
             }}
           >
-            <p className="text-[11px] text-slate-500">Pending settlement</p>
-            <p className="mt-1 text-base font-bold text-white">
+            <Clock3
+              className="pointer-events-none absolute -right-2 -top-1 h-20 w-20 opacity-[0.07]"
+              style={{ color: "#60a5fa" }}
+            />
+            <div className="flex items-center gap-2 text-[11px] text-slate-400">
+              <Clock3 className="h-3.5 w-3.5 text-[#60a5fa]" />
+              Pending settlement
+            </div>
+            <p className="mt-2 text-2xl font-black text-white">
               {formatInr(s.pendingSettlementInr ?? s.availableInr)}
             </p>
-            <p className="mt-0.5 text-[10px] text-slate-500">
+            <p className="mt-1 text-[11px] text-slate-500">
               Available {formatInr(s.availableInr)}
-              {!data.kyc.complete ? " · Add PAN & bank first" : ""}
+              {!data.kyc.complete ? (
+                <>
+                  {" · "}
+                  <button
+                    type="button"
+                    onClick={onGoToKyc}
+                    className="font-semibold text-[#60a5fa] hover:underline"
+                  >
+                    Add PAN &amp; bank first
+                  </button>
+                </>
+              ) : null}
               {data.kyc.complete && s.availableInr < data.minPayoutInr
                 ? ` · Min ${formatInr(data.minPayoutInr)}`
                 : ""}
@@ -363,47 +441,81 @@ function Overview({
               type="button"
               disabled={!canPayout}
               onClick={onRequestPayout}
-              className="mt-2.5 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
+              className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold text-white disabled:opacity-40"
               style={{
                 background: FNO_CTA_GRADIENT,
                 boxShadow: canPayout ? FNO_CTA_SHADOW : undefined,
               }}
             >
-              {payoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Settle now"}
+              {payoutBusy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <>
+                  Settle now
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </>
+              )}
             </button>
           </div>
         </div>
 
-        <div className="mt-5 border-t pt-4" style={{ borderColor: FNO_BORDER }}>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Recent commissions
-          </p>
-          {data.commissions.length === 0 ? (
-            <p className="text-sm text-slate-400">
-              No commissions yet. Share your link to start earning.
-            </p>
-          ) : (
-            <div className="divide-y" style={{ borderColor: FNO_BORDER }}>
-              {data.commissions.slice(0, 8).map((c) => (
-                <div
-                  key={c.id}
-                  className="flex items-center justify-between gap-3 py-2.5 text-xs"
-                  style={{ borderColor: FNO_BORDER }}
-                >
-                  <div>
-                    <p className="font-semibold capitalize text-white">
-                      {c.planTier} · {formatInr(c.purchaseAmountInr)}
-                    </p>
-                    <p className="text-slate-500">
-                      {(c.commissionRate * 100).toFixed(0)}% · {c.status}
-                      {c.status === "held" ? ` until ${fmtDate(c.holdUntil)}` : ""}
-                    </p>
-                  </div>
-                  <p className="font-bold text-[#93c5fd]">{formatInr(c.commissionAmountInr)}</p>
+        <div
+          className="relative mt-4 overflow-hidden rounded-2xl p-4"
+          style={{
+            border: `1px solid ${FNO_BORDER}`,
+            background:
+              "linear-gradient(120deg, rgba(15,23,42,0.9) 0%, rgba(30,27,75,0.35) 55%, rgba(13,27,46,0.95) 100%)",
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <Clock3 className="h-3.5 w-3.5" />
+                Recent commissions
+              </p>
+              {data.commissions.length === 0 ? (
+                <p className="text-sm text-slate-300">
+                  No commissions yet. Share your link to start earning.
+                </p>
+              ) : (
+                <div className="divide-y" style={{ borderColor: FNO_BORDER }}>
+                  {data.commissions.slice(0, 8).map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between gap-3 py-2.5 text-xs"
+                      style={{ borderColor: FNO_BORDER }}
+                    >
+                      <div>
+                        <p className="font-semibold capitalize text-white">
+                          {c.planTier} · {formatInr(c.purchaseAmountInr)}
+                        </p>
+                        <p className="text-slate-500">
+                          {(c.commissionRate * 100).toFixed(0)}% · {c.status}
+                          {c.status === "held" ? ` until ${fmtDate(c.holdUntil)}` : ""}
+                        </p>
+                      </div>
+                      <p className="font-bold text-[#93c5fd]">
+                        {formatInr(c.commissionAmountInr)}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
+            {data.commissions.length === 0 ? (
+              <div
+                className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl sm:flex"
+                style={{
+                  background:
+                    "radial-gradient(circle at 40% 35%, rgba(168,85,247,0.35), rgba(30,27,75,0.2))",
+                  border: "1px solid rgba(168,85,247,0.25)",
+                  boxShadow: "0 0 24px rgba(168,85,247,0.2)",
+                }}
+              >
+                <Link2 className="h-7 w-7 text-[#c4b5fd]" />
+              </div>
+            ) : null}
+          </div>
         </div>
       </Card>
 
@@ -412,51 +524,147 @@ function Overview({
   );
 }
 
-function MetricTile({
+function FunnelTile({
   label,
   value,
-  emphasize,
+  accent,
+  icon: Icon,
 }: {
   label: string;
   value: string;
-  emphasize?: boolean;
+  accent: string;
+  icon: typeof Users;
 }) {
   return (
     <div
-      className="rounded-xl px-3 py-3"
+      className="relative overflow-hidden rounded-2xl px-3 py-3.5"
       style={{
         border: `1px solid ${FNO_BORDER}`,
-        backgroundColor: emphasize ? "rgba(37,99,235,0.12)" : "rgba(0,0,0,0.22)",
+        backgroundColor: "rgba(8,15,30,0.75)",
       }}
     >
-      <p className="text-[11px] text-slate-500">{label}</p>
-      <p className="mt-1 text-base font-bold text-white">{value}</p>
+      <div className="flex items-center gap-2">
+        <span
+          className="flex h-7 w-7 items-center justify-center rounded-lg"
+          style={{ backgroundColor: `${accent}22`, color: accent }}
+        >
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        <p className="text-[11px] text-slate-400">{label}</p>
+      </div>
+      <p className="mt-2 text-2xl font-black tracking-tight text-white">{value}</p>
+      <span
+        className="absolute inset-x-0 bottom-0 h-[3px]"
+        style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }}
+      />
     </div>
   );
 }
 
-function PlanSaleTile({
+function PlanSaleCard({
   label,
   customers,
   salesInr,
+  accent,
+  icon: Icon,
 }: {
   label: string;
   customers: number;
   salesInr: number;
+  accent: string;
+  icon: typeof Ticket;
 }) {
   return (
     <div
-      className="rounded-xl px-3 py-3"
+      className="relative overflow-hidden rounded-2xl p-4"
       style={{
         border: `1px solid ${FNO_BORDER}`,
-        backgroundColor: "rgba(0,0,0,0.22)",
+        backgroundColor: "rgba(8,15,30,0.75)",
       }}
     >
-      <p className="text-[11px] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-bold text-white">
+      <Icon
+        className="pointer-events-none absolute -right-3 -bottom-2 h-24 w-24 opacity-[0.08]"
+        style={{ color: accent }}
+      />
+      <div className="flex items-center gap-2">
+        <span
+          className="flex h-8 w-8 items-center justify-center rounded-xl"
+          style={{ backgroundColor: `${accent}20`, color: accent }}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+        <p className="text-[12px] font-semibold text-slate-300">{label}</p>
+      </div>
+      <p className="mt-3 text-sm font-bold text-white">
         {customers} customer{customers === 1 ? "" : "s"}
       </p>
-      <p className="text-[12px] font-semibold text-[#93c5fd]">{formatInr(salesInr)} sales</p>
+      <p className="mt-0.5 text-sm font-semibold" style={{ color: accent }}>
+        {formatInr(salesInr)} sales
+      </p>
+    </div>
+  );
+}
+
+function EarnTile({
+  label,
+  value,
+  icon: Icon,
+  variant,
+}: {
+  label: string;
+  value: string;
+  icon: typeof TrendingUp;
+  variant: "highlight" | "bank";
+}) {
+  const highlight = variant === "highlight";
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl p-4"
+      style={{
+        border: highlight
+          ? "1px solid rgba(59,130,246,0.55)"
+          : `1px solid ${FNO_BORDER}`,
+        background: highlight
+          ? "linear-gradient(160deg, rgba(30,58,138,0.35) 0%, rgba(8,15,30,0.95) 70%)"
+          : "rgba(8,15,30,0.75)",
+        boxShadow: highlight ? "0 0 28px rgba(59,130,246,0.18)" : undefined,
+      }}
+    >
+      <Icon
+        className="pointer-events-none absolute -right-2 -bottom-2 h-20 w-20 opacity-[0.08]"
+        style={{ color: highlight ? "#60a5fa" : "#94a3b8" }}
+      />
+      <div className="flex items-center gap-2 text-[11px] text-slate-400">
+        <Icon className="h-3.5 w-3.5" style={{ color: highlight ? "#60a5fa" : "#94a3b8" }} />
+        {label}
+      </div>
+      <p className="mt-2 text-2xl font-black text-white">{value}</p>
+      {highlight ? (
+        <svg
+          className="mt-3 h-8 w-full opacity-70"
+          viewBox="0 0 120 24"
+          fill="none"
+          aria-hidden
+        >
+          <path
+            d="M0 18 C20 18 18 8 40 10 C62 12 60 4 80 6 C100 8 105 14 120 8"
+            stroke="#60a5fa"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <path
+            d="M0 18 C20 18 18 8 40 10 C62 12 60 4 80 6 C100 8 105 14 120 8 L120 24 L0 24 Z"
+            fill="url(#earnGlow)"
+            opacity="0.35"
+          />
+          <defs>
+            <linearGradient id="earnGlow" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3b82f6" />
+              <stop offset="100%" stopColor="transparent" />
+            </linearGradient>
+          </defs>
+        </svg>
+      ) : null}
     </div>
   );
 }

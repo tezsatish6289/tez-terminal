@@ -14,8 +14,8 @@ const INDEX_BUBBLE_RADIUS = 84;
 const MMI_BUBBLE_RADIUS = 96;
 /** Flash-sale promo bubble — similar weight to MMI so it reads as a CTA. */
 const FLASH_SALE_BUBBLE_RADIUS = 92;
-/** Refer & Earn cash bubble — gold-coin CTA weight. */
-const AFFILIATE_BUBBLE_RADIUS = 94;
+/** Refer & Earn cash bubble — compact gold-coin CTA (not map-dominating). */
+const AFFILIATE_BUBBLE_RADIUS = 52;
 const STOCK_RADIUS = {
   unscanned: 26,
   neutral: 30,
@@ -329,6 +329,29 @@ export function pinChatMapBubble(
 ): void {
   node.x = width - padding.x - node.r;
   node.y = height - padding.y - node.r;
+  node.vx = 0;
+  node.vy = 0;
+}
+
+/**
+ * Anchor Refer & Earn bubble on the left — center stays inside the first 25%
+ * of canvas width (away from the map midpoint).
+ */
+export function pinAffiliateMapBubble(
+  node: PhysicsNode,
+  width: number,
+  height: number,
+): void {
+  const pad = 10;
+  const leftBandRight = width * 0.25;
+  // Prefer ~12% from left; clamp so the whole disc stays inside the left band.
+  const preferredX = width * 0.12;
+  const minX = pad + node.r;
+  const maxX = Math.max(minX, leftBandRight - node.r - 4);
+  node.x = Math.min(maxX, Math.max(minX, preferredX));
+  // Upper-mid left — not vertically centered with the pack.
+  const preferredY = height * 0.34;
+  node.y = Math.max(pad + node.r, Math.min(height - pad - node.r, preferredY));
   node.vx = 0;
   node.vy = 0;
 }

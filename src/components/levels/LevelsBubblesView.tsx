@@ -10,6 +10,7 @@ import {
   createPhysicsNodes,
   isInZoneTone,
   layoutBubbleRadius,
+  pinAffiliateMapBubble,
   pinChatMapBubble,
   repelNodesFromChatBubble,
   stepPhysics,
@@ -404,6 +405,9 @@ export function LevelsBubblesView({
       // stranded off-screen and "disappear".
       n.x = Math.max(n.r + 8, Math.min(size.w - n.r - 8, n.x));
       n.y = Math.max(n.r + 8, Math.min(size.h - n.r - 8, n.y));
+      if (n.item.kind === "affiliate" || isAffiliateBubbleId(n.id)) {
+        pinAffiliateMapBubble(n, size.w, size.h);
+      }
     }
 
     const chatR = CHAT_MAP_BUBBLE_RADIUS * scale;
@@ -417,6 +421,16 @@ export function LevelsBubblesView({
     } else {
       chatNodeRef.current = null;
     }
+
+    const settleAffiliatePin = () => {
+      for (const n of nodesRef.current) {
+        if (n.item.kind === "affiliate" || isAffiliateBubbleId(n.id)) {
+          pinAffiliateMapBubble(n, size.w, size.h);
+          // Nudge other bubbles off the pinned affiliate disc.
+          repelNodesFromChatBubble(nodesRef.current, n, 8);
+        }
+      }
+    };
 
     const settleChatCollisions = () => {
       const chat = chatNodeRef.current;
@@ -529,6 +543,7 @@ export function LevelsBubblesView({
       applyChatPosition();
     };
 
+    settleAffiliatePin();
     settleChatCollisions();
     applyPositions();
 
@@ -539,6 +554,7 @@ export function LevelsBubblesView({
         const t = Math.min(1, (frame - 90) / 120);
         stepPhysics(nodesRef.current, size.w, size.h, (0.06 + t * 0.06) * physicsIntensity);
       }
+      settleAffiliatePin();
       settleChatCollisions();
       applyPositions();
       rafRef.current = requestAnimationFrame(loop);
@@ -694,7 +710,7 @@ export function LevelsBubblesView({
                           ? `${borderW}px solid ${mmiAccent}`
                           : `${borderW}px ${style.borderStyle} ${style.border}`,
                     boxShadow: isAffiliate
-                      ? `0 0 28px ${affiliateAccent}77, inset 0 0 18px rgba(251,191,36,0.22)`
+                      ? `0 0 16px ${affiliateAccent}66, inset 0 0 10px rgba(251,191,36,0.18)`
                       : isFlash
                         ? `0 0 26px ${flashAccent}66, inset 0 0 16px rgba(245,158,11,0.16)`
                         : isMmi

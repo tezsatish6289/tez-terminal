@@ -11,14 +11,15 @@ import {
   SCORE_ALERT_MIN_SCORES,
   SCORE_ALERT_SEGMENTS,
 } from "@/lib/alerts/constants";
-import { scoreAlertDirectionLabel } from "@/lib/alerts/score-alert-client";
 import type {
   ScoreAlertDirection,
   ScoreAlertMinScore,
   ScoreAlertSegment,
+  ScoreAlertSide,
 } from "@/lib/alerts/types";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import { formatChatUnreadCount } from "@/lib/chat/unread-badge";
+import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import {
   FNO_ACCENT,
   FNO_BG,
@@ -150,6 +151,29 @@ function segmentLabel(s: ScoreAlertSegment): string {
   if (s === "favslide") return "Favslide";
   if (s === "liveslide") return "Liveslide";
   return "Both";
+}
+
+function titleCaseWords(raw: string): string {
+  return raw
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/** Prefer company name; fall back to a readable title-case ticker. */
+function alertDisplayName(symbol: string, label?: string | null): string {
+  const company = fnoCompanyName(symbol);
+  if (company) return titleCaseWords(company);
+  const raw = (label?.trim() || symbol).trim();
+  if (!raw) return symbol;
+  if (raw.toUpperCase() === raw) return titleCaseWords(raw);
+  return raw;
+}
+
+function arrowProbabilityLabel(side: ScoreAlertSide): string {
+  return side === "support" ? "Arrow Up probability" : "Arrow Down probability";
 }
 
 export function ScoreAlertsDrawer() {
@@ -354,7 +378,7 @@ export function ScoreAlertsDrawer() {
                     ev.scope,
                     ev.symbol,
                   );
-                  const dir = scoreAlertDirectionLabel(ev.side);
+                  const name = alertDisplayName(ev.symbol, ev.label);
                   const unread = !ev.readAt;
                   return (
                     <li key={ev.id}>
@@ -374,15 +398,10 @@ export function ScoreAlertsDrawer() {
                         }}
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-[13px] font-semibold text-white">
-                            {ev.label || ev.symbol}{" "}
-                            <span style={{ color: ev.side === "support" ? "#86efac" : "#fca5a5" }}>
-                              {dir}
-                            </span>
-                          </p>
-                          <p className="mt-0.5 text-[11px] tabular-nums" style={{ color: "#94a3b8" }}>
-                            {ev.score} ≥{ev.minScore}
-                            {ev.probabilityPct > 0 ? ` · ~${ev.probabilityPct}%` : ""}
+                          <p className="truncate text-[13px] font-semibold text-white">{name}</p>
+                          <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "#94a3b8" }}>
+                            Score: {ev.score}, {arrowProbabilityLabel(ev.side)}:{" "}
+                            {ev.probabilityPct}%
                           </p>
                         </div>
                         <span className="shrink-0 text-[10px] tabular-nums" style={{ color: FNO_MUTED }}>

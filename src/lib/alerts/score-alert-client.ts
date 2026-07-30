@@ -114,10 +114,12 @@ export function playScoreAlertChime(): void {
 export function showScoreAlertBrowserNotification(alert: LiveScoreAlert): void {
   if (typeof window === "undefined") return;
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  const dir = scoreAlertDirectionLabel(alert.side);
+  const arrow =
+    alert.side === "support" ? "Arrow Up probability" : "Arrow Down probability";
+  const title = (alert.label || alert.symbol).trim() || alert.symbol;
   try {
-    new Notification(`${alert.label || alert.symbol} ${dir} score ${alert.score}`, {
-      body: `Atlas setup crossed ${alert.minScore}+ (~${alert.probabilityPct}% win rate)`,
+    new Notification(title, {
+      body: `Score: ${alert.score}, ${arrow}: ${alert.probabilityPct}%`,
       tag: `score-alert-${alert.id}`,
       requireInteraction: false,
     });

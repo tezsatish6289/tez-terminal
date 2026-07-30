@@ -172,8 +172,8 @@ function alertDisplayName(symbol: string, label?: string | null): string {
   return raw;
 }
 
-function arrowProbabilityLabel(side: ScoreAlertSide): string {
-  return side === "support" ? "Arrow Up probability" : "Arrow Down probability";
+function arrowGlyph(side: ScoreAlertSide): string {
+  return side === "support" ? "↑" : "↓";
 }
 
 export function ScoreAlertsDrawer() {
@@ -398,10 +398,14 @@ export function ScoreAlertsDrawer() {
                         }}
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-[13px] font-semibold text-white">{name}</p>
+                          <p className="truncate text-[13px] font-semibold text-white">
+                            {name}{" "}
+                            <span style={{ color: ev.side === "support" ? "#86efac" : "#fca5a5" }}>
+                              {arrowGlyph(ev.side)}
+                            </span>
+                          </p>
                           <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "#94a3b8" }}>
-                            Score: {ev.score}, {arrowProbabilityLabel(ev.side)}:{" "}
-                            {ev.probabilityPct}%
+                            Score: {ev.score}, Probability: {ev.probabilityPct}%
                           </p>
                         </div>
                         <span className="shrink-0 text-[10px] tabular-nums" style={{ color: FNO_MUTED }}>

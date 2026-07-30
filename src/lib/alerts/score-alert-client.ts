@@ -114,12 +114,11 @@ export function playScoreAlertChime(): void {
 export function showScoreAlertBrowserNotification(alert: LiveScoreAlert): void {
   if (typeof window === "undefined") return;
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  const arrow =
-    alert.side === "support" ? "Arrow Up probability" : "Arrow Down probability";
-  const title = (alert.label || alert.symbol).trim() || alert.symbol;
+  const arrow = scoreAlertDirectionLabel(alert.side);
+  const title = `${(alert.label || alert.symbol).trim() || alert.symbol} ${arrow}`;
   try {
     new Notification(title, {
-      body: `Score: ${alert.score}, ${arrow}: ${alert.probabilityPct}%`,
+      body: `Score: ${alert.score}, Probability: ${alert.probabilityPct}%`,
       tag: `score-alert-${alert.id}`,
       requireInteraction: false,
     });

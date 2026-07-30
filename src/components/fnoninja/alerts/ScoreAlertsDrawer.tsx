@@ -30,6 +30,12 @@ import { trackCtaClick } from "@/firebase/analytics";
 
 type AlertsTab = "alerts" | "log";
 
+const SURFACE = "#0d1830";
+const SURFACE_SOFT = "rgba(13,24,48,0.9)";
+const PILL_TRACK = "rgba(8,15,30,0.95)";
+const ACTIVE_BLUE = "#2563eb";
+const ACTIVE_BLUE_SOFT = "rgba(37,99,235,0.85)";
+
 function PrefToggle({
   label,
   description,
@@ -44,11 +50,9 @@ function PrefToggle({
   onToggle: (next: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2">
+    <div className="flex items-center justify-between gap-3 py-2.5">
       <div className="min-w-0">
-        <p className="text-[13px] font-semibold" style={{ color: "#e2e8f0" }}>
-          {label}
-        </p>
+        <p className="text-[13px] font-medium text-white">{label}</p>
         {description ? (
           <p className="mt-0.5 text-[11px] leading-snug" style={{ color: FNO_MUTED }}>
             {description}
@@ -61,12 +65,12 @@ function PrefToggle({
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onToggle(!checked)}
-        className="relative h-6 w-10 shrink-0 overflow-hidden rounded-full transition-colors disabled:opacity-40"
-        style={{ backgroundColor: checked ? "#2563eb" : "rgba(148,163,184,0.28)" }}
+        className="relative h-7 w-12 shrink-0 overflow-hidden rounded-full transition-colors disabled:opacity-40"
+        style={{ backgroundColor: checked ? ACTIVE_BLUE : "rgba(148,163,184,0.3)" }}
       >
         <span
-          className="pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] duration-150"
-          style={{ left: checked ? "1.1rem" : "0.125rem" }}
+          className="pointer-events-none absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-[left] duration-150"
+          style={{ left: checked ? "1.35rem" : "0.15rem" }}
         />
       </button>
     </div>
@@ -90,14 +94,16 @@ function ChoiceRow<T extends string | number>({
 }) {
   return (
     <div className="py-2">
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider" style={{ color: FNO_MUTED }}>
+      <p
+        className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
+        style={{ color: FNO_MUTED }}
+      >
         {label}
       </p>
       <div
-        className="flex rounded-lg p-0.5"
+        className="flex gap-1 rounded-xl p-1"
         style={{
-          backgroundColor: "rgba(6,12,24,0.7)",
-          border: `1px solid ${FNO_NAV_BORDER}`,
+          backgroundColor: PILL_TRACK,
           opacity: disabled ? 0.45 : 1,
         }}
       >
@@ -109,11 +115,10 @@ function ChoiceRow<T extends string | number>({
               type="button"
               disabled={disabled}
               onClick={() => onChange(opt)}
-              className="min-w-0 flex-1 rounded-md px-1 py-1.5 text-[11px] font-semibold transition-colors disabled:pointer-events-none"
+              className="min-w-0 flex-1 rounded-lg px-1 py-2 text-[12px] font-semibold transition-colors disabled:pointer-events-none"
               style={{
-                color: active ? "#e2e8f0" : "#94a3b8",
-                backgroundColor: active ? "rgba(37,99,235,0.28)" : "transparent",
-                border: active ? "1px solid rgba(96,165,250,0.28)" : "1px solid transparent",
+                color: active ? "#fff" : "#94a3b8",
+                backgroundColor: active ? ACTIVE_BLUE_SOFT : "transparent",
               }}
             >
               {format(opt)}
@@ -162,7 +167,6 @@ function titleCaseWords(raw: string): string {
     .join(" ");
 }
 
-/** Prefer company name; fall back to a readable title-case ticker. */
 function alertDisplayName(symbol: string, label?: string | null): string {
   const company = fnoCompanyName(symbol);
   if (company) return titleCaseWords(company);
@@ -220,43 +224,36 @@ export function ScoreAlertsDrawer() {
         style={{ backgroundColor: FNO_BG, borderColor: FNO_NAV_BORDER }}
       >
         <div className="flex h-full flex-col">
-          <div
-            className="flex items-center justify-between gap-3 px-4 pt-3.5 pb-2.5"
-            style={{ borderBottom: `1px solid ${FNO_NAV_BORDER}` }}
-          >
-            <SheetTitle className="flex items-center gap-2 text-[15px] font-semibold text-white m-0">
-              <Bell className="h-4 w-4" style={{ color: FNO_ACCENT }} />
+          <div className="flex items-center gap-2.5 px-4 pt-4 pb-3">
+            <Bell className="h-4 w-4 shrink-0" style={{ color: FNO_ACCENT }} />
+            <SheetTitle className="m-0 text-[16px] font-semibold tracking-tight text-white">
               Score alerts
             </SheetTitle>
           </div>
 
-          <div className="px-4 pt-2.5 pb-2">
+          <div className="px-4 pb-3">
             <div
-              className="flex rounded-lg p-0.5"
+              className="flex rounded-full p-1"
               role="tablist"
               aria-label="Score alerts sections"
-              style={{
-                backgroundColor: "rgba(6,12,24,0.75)",
-                border: `1px solid ${FNO_NAV_BORDER}`,
-              }}
+              style={{ backgroundColor: PILL_TRACK }}
             >
               <button
                 type="button"
                 role="tab"
                 aria-selected={tab === "log"}
                 onClick={() => selectTab("log")}
-                className="relative flex-1 rounded-md py-1.5 text-[12px] font-semibold transition-colors"
+                className="relative flex-1 rounded-full py-2 text-[13px] font-semibold transition-colors"
                 style={{
-                  color: tab === "log" ? "#e2e8f0" : "#94a3b8",
-                  backgroundColor: tab === "log" ? "rgba(37,99,235,0.18)" : "transparent",
-                  border: tab === "log" ? "1px solid rgba(96,165,250,0.28)" : "1px solid transparent",
+                  color: "#fff",
+                  backgroundColor: tab === "log" ? ACTIVE_BLUE : "transparent",
                 }}
               >
                 Log
                 {logBadge ? (
                   <span
-                    className="absolute -right-0.5 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white"
-                    style={{ backgroundColor: FNO_ACCENT, boxShadow: `0 0 0 2px ${FNO_BG}` }}
+                    className="absolute right-2 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white"
+                    style={{ backgroundColor: "#ef4444" }}
                   >
                     {logBadge}
                   </span>
@@ -267,11 +264,10 @@ export function ScoreAlertsDrawer() {
                 role="tab"
                 aria-selected={tab === "alerts"}
                 onClick={() => selectTab("alerts")}
-                className="flex-1 rounded-md py-1.5 text-[12px] font-semibold transition-colors"
+                className="flex-1 rounded-full py-2 text-[13px] font-semibold transition-colors"
                 style={{
-                  color: tab === "alerts" ? "#e2e8f0" : "#94a3b8",
-                  backgroundColor: tab === "alerts" ? "rgba(37,99,235,0.18)" : "transparent",
-                  border: tab === "alerts" ? "1px solid rgba(96,165,250,0.28)" : "1px solid transparent",
+                  color: "#fff",
+                  backgroundColor: tab === "alerts" ? ACTIVE_BLUE : "transparent",
                 }}
               >
                 Alerts
@@ -279,13 +275,16 @@ export function ScoreAlertsDrawer() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto px-4 pb-5">
             {prefsLoading ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin" style={{ color: FNO_ACCENT }} />
               </div>
             ) : tab === "alerts" ? (
-              <div className="px-4 pb-5">
+              <div
+                className="rounded-2xl px-3.5 py-1"
+                style={{ backgroundColor: SURFACE }}
+              >
                 <PrefToggle
                   label="Enable alerts"
                   checked={prefs.enabled}
@@ -331,8 +330,6 @@ export function ScoreAlertsDrawer() {
                   }}
                 />
 
-                <div className="my-1 h-px" style={{ backgroundColor: FNO_NAV_BORDER }} />
-
                 <PrefToggle
                   label="Chime"
                   checked={prefs.chime}
@@ -367,12 +364,12 @@ export function ScoreAlertsDrawer() {
                 />
               </div>
             ) : events.length === 0 ? (
-              <p className="px-4 py-12 text-center text-[13px]" style={{ color: FNO_MUTED }}>
+              <p className="py-14 text-center text-[13px]" style={{ color: FNO_MUTED }}>
                 No alerts yet
               </p>
             ) : (
-              <ul>
-                {events.map((ev, i) => {
+              <ul className="space-y-2">
+                {events.map((ev) => {
                   const href = levelsChartPagePathForHost(
                     typeof window !== "undefined" ? window.location.hostname : "fnoninja.com",
                     ev.scope,
@@ -391,24 +388,26 @@ export function ScoreAlertsDrawer() {
                           });
                           setDrawerOpen(false);
                         }}
-                        className="flex items-baseline justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.03]"
+                        className="flex items-start justify-between gap-3 rounded-2xl px-3.5 py-3 transition-colors hover:brightness-110"
                         style={{
-                          borderTop: i === 0 ? undefined : `1px solid ${FNO_NAV_BORDER}`,
-                          backgroundColor: unread ? "rgba(37,99,235,0.06)" : "transparent",
+                          backgroundColor: unread ? "rgba(37,99,235,0.16)" : SURFACE_SOFT,
                         }}
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-[13px] font-semibold text-white">
+                          <p className="truncate text-[14px] font-semibold text-white">
                             {name}{" "}
-                            <span style={{ color: ev.side === "support" ? "#86efac" : "#fca5a5" }}>
+                            <span style={{ color: ev.side === "support" ? "#4ade80" : "#f87171" }}>
                               {arrowGlyph(ev.side)}
                             </span>
                           </p>
-                          <p className="mt-0.5 text-[11px] leading-snug" style={{ color: "#94a3b8" }}>
+                          <p className="mt-1 text-[12px] leading-snug" style={{ color: "#94a3b8" }}>
                             Score: {ev.score}, Probability: {ev.probabilityPct}%
                           </p>
                         </div>
-                        <span className="shrink-0 text-[10px] tabular-nums" style={{ color: FNO_MUTED }}>
+                        <span
+                          className="shrink-0 pt-0.5 text-[11px] tabular-nums"
+                          style={{ color: FNO_MUTED }}
+                        >
                           {formatAlertTime(ev.at)}
                         </span>
                       </Link>
@@ -424,7 +423,6 @@ export function ScoreAlertsDrawer() {
   );
 }
 
-/** Nav / toolbar bell button. */
 export function ScoreAlertsBellButton({
   className = "",
   iconClassName = "h-5 w-5",

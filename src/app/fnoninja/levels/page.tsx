@@ -12,6 +12,7 @@ import {
   type LevelsListEntry,
 } from "@/components/levels/LevelsSplitLayout";
 import {
+  buildAffiliateBubbleItem,
   buildFlashSaleBubbleItem,
   buildLevelsBubbleItems,
   buildMmiBubbleItem,
@@ -19,7 +20,7 @@ import {
 } from "@/components/levels/LevelsBubblesView";
 import { MMI_TICKERTAPE_URL, type MmiSnapshot } from "@/lib/fnoninja/mmi";
 import type { FlashSalePublicState } from "@/lib/fnoninja/flash-sale";
-import { fnoLoginHref, fnoSubscribeHref } from "@/lib/fnoninja/paths";
+import { fnoAffiliateHref, fnoLoginHref, fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import { LevelsChartDeepDiveLayout } from "@/components/levels/LevelsChartDeepDiveLayout";
@@ -327,6 +328,20 @@ export default function LevelsPage() {
       window.location.href = href;
       return;
     }
+    if (item.kind === "affiliate") {
+      const affiliate = fnoAffiliateHref("/levels");
+      const href = fnoLoginHref("/levels", affiliate, {
+        src: "levels_affiliate",
+        cta: "affiliate_bubble",
+      });
+      trackCtaClick("guest_affiliate_bubble", {
+        symbol: item.symbol,
+        label: item.label,
+        scope: item.scope,
+      });
+      window.location.href = href;
+      return;
+    }
     const now = Date.now();
     if (now - guestBubbleClickDebounceRef.current < 450) return;
     guestBubbleClickDebounceRef.current = now;
@@ -586,8 +601,8 @@ export default function LevelsPage() {
       stockBySymbol,
       payload.fnoUniverse,
     );
-    // MMI + optional flash-sale promo participate in the same physics pack.
-    const head: LevelsBubbleItem[] = [buildMmiBubbleItem(mmi)];
+    // MMI + Refer & Earn + optional flash-sale participate in the same physics pack.
+    const head: LevelsBubbleItem[] = [buildAffiliateBubbleItem(), buildMmiBubbleItem(mmi)];
     if (flashSale?.active && !hideFlashSaleForSubscriber) {
       head.unshift(buildFlashSaleBubbleItem(flashSale));
     }
@@ -606,7 +621,9 @@ export default function LevelsPage() {
   const bubbleFilterCounts = useMemo(
     () =>
       countBubbleMapFilters(
-        mapBubbleItems.filter((it) => it.kind !== "mmi" && it.kind !== "flash_sale"),
+        mapBubbleItems.filter(
+          (it) => it.kind !== "mmi" && it.kind !== "flash_sale" && it.kind !== "affiliate",
+        ),
       ),
     [mapBubbleItems],
   );
@@ -1084,6 +1101,10 @@ export default function LevelsPage() {
     }
     if (item.kind === "flash_sale") {
       window.location.href = `${fnoSubscribeHref("/levels")}?flash=1`;
+      return;
+    }
+    if (item.kind === "affiliate") {
+      window.location.href = fnoAffiliateHref("/levels");
       return;
     }
     const url = levelsChartPagePathForHost(

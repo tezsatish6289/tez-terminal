@@ -16,6 +16,7 @@ import { trackCtaClick } from "@/firebase/analytics";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
 import { FnoNinjaNavSearch } from "@/components/fnoninja/FnoNinjaNavSearch";
 import {
+  fnoAffiliateHref,
   fnoAnalyticsHref,
   fnoLearnHref,
   fnoLoginHref,
@@ -285,6 +286,30 @@ export function FnoNinjaNav() {
                   >
                     <CreditCard className="h-4 w-4" style={{ color: "#60a5fa" }} />
                     My subscription
+                  </Link>
+                  <Link
+                    href={fnoAffiliateHref(pathname)}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white"
+                    style={{
+                      border: "1px solid rgba(251,191,36,0.35)",
+                      background:
+                        "linear-gradient(135deg, rgba(180,83,9,0.35), rgba(69,26,3,0.55))",
+                      boxShadow: "0 0 16px rgba(245,158,11,0.2)",
+                    }}
+                  >
+                    <span
+                      className="flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-black"
+                      style={{
+                        background:
+                          "radial-gradient(circle at 35% 30%, #fde68a 0%, #f59e0b 55%, #b45309 100%)",
+                        color: "#78350f",
+                      }}
+                      aria-hidden
+                    >
+                      ₹
+                    </span>
+                    Refer & Earn Cash
                   </Link>
                   <button
                     type="button"

@@ -153,6 +153,16 @@ export function fnoMySubscriptionHref(pathname: string): string {
   return "/fnoninja/my-subscription";
 }
 
+/** Refer & Earn affiliate dashboard. */
+export function fnoAffiliateHref(pathname: string): string {
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/affiliate";
+  }
+  if (pathname.startsWith("/fnoninja")) return "/fnoninja/affiliate";
+  return "/fnoninja/affiliate";
+}
+
 /** Webinar page path for current host/env. */
 export function fnoWebinarHref(pathname: string): string {
   if (typeof window !== "undefined") {

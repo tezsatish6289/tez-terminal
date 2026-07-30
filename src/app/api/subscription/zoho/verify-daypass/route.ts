@@ -4,6 +4,7 @@ import { isSubscriptionActive, type SubscriptionDoc } from "@/lib/subscription";
 import { syncChatAccess } from "@/lib/chat/access";
 import { DAY_PASS_INR, getLatestCustomerPayment, getZohoBillingConfig } from "@/lib/zoho/billing";
 import { ensureDayPassInvoice } from "@/lib/zoho/dayPassInvoice";
+import { createAffiliateCommission } from "@/lib/fnoninja/affiliate";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,16 @@ export async function POST(request: NextRequest) {
       paymentId: payment.paymentId,
       amountInr: payment.amountInr,
     });
+
+    void createAffiliateCommission({
+      referredUserId: uid,
+      sourceId: `daypass_${payment.paymentId}`,
+      sourceType: "daypass",
+      planTier: "daypass",
+      purchaseAmountInr: payment.amountInr,
+    }).catch((e) =>
+      console.warn("[Verify Day Pass] affiliate commission failed:", (e as Error).message),
+    );
 
     return NextResponse.json({ applied: true, tier: "daypass", endDate: endDateIso });
   } catch (error: any) {

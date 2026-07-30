@@ -6,6 +6,11 @@ import { syncChatAccess } from "@/lib/chat/access";
 import { DAY_PASS_INR } from "@/lib/zoho/billing";
 import { ensureDayPassInvoice } from "@/lib/zoho/dayPassInvoice";
 import { claimFlashSaleSpot } from "@/lib/fnoninja/flash-sale-server";
+import {
+  FNO_PLAN_AMOUNT_INR,
+  createAffiliateCommission,
+  type AffiliatePlanTier,
+} from "@/lib/fnoninja/affiliate";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +107,26 @@ async function applyEntitlement(
   void syncChatAccess(uid, active).catch((e) =>
     console.error("[Zoho Webhook] chat access sync failed", e),
   );
+}
+
+function resolveSubscriptionAmountInr(
+  subscription: Record<string, any>,
+  tier: AffiliatePlanTier,
+): number {
+  const candidates = [
+    subscription.amount,
+    subscription.sub_total,
+    subscription.total,
+    subscription.price,
+    subscription.plan?.recurring_price,
+    subscription.plan?.price,
+    subscription.last_payment_amount,
+  ];
+  for (const c of candidates) {
+    const n = Number(c);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return FNO_PLAN_AMOUNT_INR[tier] ?? 0;
 }
 
 export async function POST(request: NextRequest) {
@@ -222,6 +247,33 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Refer & Earn: credit affiliate on paid Silver/Gold activations & renewals.
+      // Skip cancel/expire/delete. Idempotent per subscription term.
+      if (
+        ACTIVE_ZOHO_STATUSES.has(zStatus) &&
+        (tier === "silver" || tier === "gold") &&
+        !eventType.includes("cancel") &&
+        !eventType.includes("expir") &&
+        !eventType.includes("delete")
+      ) {
+        const termStart =
+          toIso(subscription.current_term_starts_at) ??
+          toIso(subscription.activated_at) ??
+          toIso(subscription.last_billing_at) ??
+          new Date().toISOString();
+        const subId = String(subscription.subscription_id ?? "unknown");
+        const amountInr = resolveSubscriptionAmountInr(subscription, tier);
+        void createAffiliateCommission({
+          referredUserId: uid,
+          sourceId: `sub_${subId}_${termStart.slice(0, 10)}`,
+          sourceType: "subscription",
+          planTier: tier,
+          purchaseAmountInr: amountInr,
+        }).catch((e) =>
+          console.warn("[Zoho Webhook] affiliate commission failed:", (e as Error).message),
+        );
+      }
+
       return NextResponse.json({ ok: true, tier, uid });
     }
 
@@ -278,6 +330,18 @@ export async function POST(request: NextRequest) {
           paymentId,
           amountInr,
         });
+      }
+
+      if (paymentId) {
+        void createAffiliateCommission({
+          referredUserId: uid,
+          sourceId: `daypass_${paymentId}`,
+          sourceType: "daypass",
+          planTier: "daypass",
+          purchaseAmountInr: amountInr,
+        }).catch((e) =>
+          console.warn("[Zoho Webhook] affiliate daypass commission failed:", (e as Error).message),
+        );
       }
 
       return NextResponse.json({ ok: true, tier: "daypass", uid });

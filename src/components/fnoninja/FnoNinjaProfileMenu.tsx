@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { fnoMySubscriptionHref } from "@/lib/fnoninja/paths";
+import { fnoAffiliateHref, fnoMySubscriptionHref } from "@/lib/fnoninja/paths";
 import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 import { useOwnPhoneDisplay } from "@/hooks/use-own-phone";
 
@@ -86,6 +86,27 @@ export function FnoNinjaProfileMenu() {
           <Link href={fnoMySubscriptionHref(pathname)}>
             <CreditCard className="h-3.5 w-3.5" style={{ color: "#60a5fa" }} />
             My subscription
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          asChild
+          className="cursor-pointer gap-2 text-xs font-semibold focus:text-white"
+          style={{ color: "#dbe4ff" }}
+        >
+          <Link href={fnoAffiliateHref(pathname)}>
+            <span
+              className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-black"
+              style={{
+                background:
+                  "radial-gradient(circle at 35% 30%, #fde68a 0%, #f59e0b 55%, #b45309 100%)",
+                color: "#78350f",
+                boxShadow: "0 0 8px rgba(245,158,11,0.45)",
+              }}
+              aria-hidden
+            >
+              ₹
+            </span>
+            Refer & Earn Cash
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator style={{ backgroundColor: FNO_NAV_BORDER }} />

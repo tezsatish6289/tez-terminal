@@ -9,6 +9,7 @@ export function pickEmbedMobileLayoutItems<T extends LayoutItem>(items: T[]): T[
     (it) =>
       it.kind === "mmi" ||
       it.kind === "flash_sale" ||
+      it.kind === "affiliate" ||
       it.scope === "index" ||
       isSlideshowStripTone(it.tone),
   );

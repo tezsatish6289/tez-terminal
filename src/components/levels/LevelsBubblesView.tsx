@@ -41,6 +41,7 @@ import type { GuestBubbleLabel } from "@/lib/fnoninja/guest-map-preview";
 import { LevelsChatMapBubble } from "@/components/levels/LevelsChatMapBubble";
 import { LevelsMmiBubbleContent } from "@/components/levels/LevelsMmiBubbleContent";
 import { LevelsFlashSaleBubbleContent } from "@/components/levels/LevelsFlashSaleBubbleContent";
+import { LevelsAffiliateBubbleContent } from "@/components/levels/LevelsAffiliateBubbleContent";
 import {
   formatMmiAria,
   isMmiBubbleId,
@@ -53,6 +54,7 @@ import {
   isFlashSaleBubbleId,
   type FlashSalePublicState,
 } from "@/lib/fnoninja/flash-sale";
+import { AFFILIATE_BUBBLE_ID, isAffiliateBubbleId } from "@/lib/fnoninja/affiliate";
 import { trackCtaClick } from "@/firebase/analytics";
 import { computeLightAtlasScore } from "@/lib/levels/light-atlas-score";
 
@@ -73,8 +75,8 @@ export interface LevelsBubbleItem {
    * Used for the map quality gate (default hide ≤ 60).
    */
   atlasScore?: number | null;
-  /** Special map bubble — Market Mood Index (Tickertape) or flash-sale promo. */
-  kind?: "mmi" | "flash_sale";
+  /** Special map bubble — MMI, flash-sale, or Refer & Earn. */
+  kind?: "mmi" | "flash_sale" | "affiliate";
   mmi?: MmiSnapshot | null;
   flashSale?: FlashSalePublicState | null;
 }
@@ -83,8 +85,10 @@ function isSpecialMapBubble(item: Pick<LevelsBubbleItem, "id" | "kind">): boolea
   return (
     item.kind === "mmi" ||
     item.kind === "flash_sale" ||
+    item.kind === "affiliate" ||
     isMmiBubbleId(item.id) ||
-    isFlashSaleBubbleId(item.id)
+    isFlashSaleBubbleId(item.id) ||
+    isAffiliateBubbleId(item.id)
   );
 }
 
@@ -271,7 +275,12 @@ export function LevelsBubblesView({
         it.symbol.toUpperCase().includes(q) ||
         it.label.toUpperCase().includes(q) ||
         (it.kind === "mmi" && "MMI".includes(q)) ||
-        (it.kind === "flash_sale" && ("FLASH".includes(q) || "SALE".includes(q) || "OFFER".includes(q)))
+        (it.kind === "flash_sale" && ("FLASH".includes(q) || "SALE".includes(q) || "OFFER".includes(q))) ||
+        (it.kind === "affiliate" &&
+          ("REFER".includes(q) ||
+            "EARN".includes(q) ||
+            "CASH".includes(q) ||
+            "AFFILIATE".includes(q)))
       );
     });
   }, [layoutItems, searchQuery, toneFilter]);
@@ -490,7 +499,8 @@ export function LevelsBubblesView({
           el.style.zIndex = "1";
           el.style.opacity = "1";
         } else if (isSpecial) {
-          el.style.zIndex = n.item.kind === "flash_sale" ? "50" : "40";
+          el.style.zIndex =
+            n.item.kind === "flash_sale" || n.item.kind === "affiliate" ? "50" : "40";
           el.style.opacity = "1";
         } else if (matched) {
           el.style.zIndex = "320";
@@ -573,7 +583,8 @@ export function LevelsBubblesView({
           filtered.map((item) => {
             const isMmi = item.kind === "mmi" || isMmiBubbleId(item.id);
             const isFlash = item.kind === "flash_sale" || isFlashSaleBubbleId(item.id);
-            const isSpecial = isMmi || isFlash;
+            const isAffiliate = item.kind === "affiliate" || isAffiliateBubbleId(item.id);
+            const isSpecial = isMmi || isFlash || isAffiliate;
             const displayTone = paintTone(item.tone);
             const style = resolveBubbleVisual(item.scope, displayTone);
             const r = layoutBubbleRadius(
@@ -603,17 +614,22 @@ export function LevelsBubblesView({
               ? MMI_ZONE_META[item.mmi.zone].color
               : "#f59e0b";
             const flashAccent = "#f59e0b";
+            const affiliateAccent = "#fbbf24";
             const borderW = isSpecial ? (r < 50 ? 2 : 3) : style.borderWidth;
             const emphMatched =
               !isSpecial &&
               showcaseEmphasis !== "all" &&
               bubbleMatchesMapFilter(item.tone, showcaseEmphasis);
             const breatheAnim =
-              !isFlash && showcaseSolo && emphMatched
+              !isFlash && !isAffiliate && showcaseSolo && emphMatched
                 ? embedMobileLayout
                   ? "levels-bubble-showcase-breathe-mobile"
                   : "levels-bubble-showcase-breathe"
-                : !isFlash && guestPreview && emphMatched && showcaseEmphasis !== "all"
+                : !isFlash &&
+                    !isAffiliate &&
+                    guestPreview &&
+                    emphMatched &&
+                    showcaseEmphasis !== "all"
                   ? "levels-bubble-guest-emphasis-breathe"
                   : "";
             const guestLabel = guestPreview ? guestBubbleLabels?.get(item.id) : undefined;
@@ -626,6 +642,7 @@ export function LevelsBubblesView({
             const flashTitle = item.flashSale
               ? `Flash sale — upto ₹${item.flashSale.discountInr} off · ${item.flashSale.spotsLeft} spot${item.flashSale.spotsLeft === 1 ? "" : "s"} left`
               : "Flash sale";
+            const affiliateTitle = "Refer & Earn Cash — up to 30% commission";
             return (
               <div
                 key={item.id}
@@ -641,11 +658,13 @@ export function LevelsBubblesView({
                       return;
                     }
                     trackCtaClick(
-                      isFlash
-                        ? "bubble_open_flash_sale"
-                        : isMmi
-                          ? "bubble_open_mmi"
-                          : "bubble_open_chart",
+                      isAffiliate
+                        ? "bubble_open_affiliate"
+                        : isFlash
+                          ? "bubble_open_flash_sale"
+                          : isMmi
+                            ? "bubble_open_mmi"
+                            : "bubble_open_chart",
                       {
                         label: item.label,
                         symbol: item.symbol,
@@ -654,58 +673,70 @@ export function LevelsBubblesView({
                     );
                     onBubbleOpen(item);
                   }}
-                  className={`w-full h-full flex flex-col items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 pointer-events-auto ${popAnim} ${breatheAnim} ${
+                  className={`w-full h-full flex flex-col items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 pointer-events-auto ${popAnim} ${breatheAnim} ${
                     guestPreview
                       ? "cursor-pointer hover:scale-[1.04] active:scale-[0.97]"
                       : "hover:scale-[1.03] cursor-pointer"
                   }`}
                   style={{
-                    background: isFlash
-                      ? "radial-gradient(circle at 42% 38%, rgba(120,53,15,0.98) 0%, rgba(45,20,5,0.97) 72%)"
-                      : isMmi
-                        ? "radial-gradient(circle at 45% 40%, rgba(30,41,59,0.98) 0%, rgba(10,14,22,0.96) 70%)"
-                        : style.fill,
-                    border: isFlash
-                      ? `${borderW}px solid ${flashAccent}`
-                      : isMmi
-                        ? `${borderW}px solid ${mmiAccent}`
-                        : `${borderW}px ${style.borderStyle} ${style.border}`,
-                    boxShadow: isFlash
-                      ? `0 0 26px ${flashAccent}66, inset 0 0 16px rgba(245,158,11,0.16)`
-                      : isMmi
-                        ? `0 0 22px ${mmiAccent}55, inset 0 0 14px rgba(245,158,11,0.08)`
-                        : style.glow,
+                    background: isAffiliate
+                      ? "radial-gradient(circle at 38% 32%, rgba(180,83,9,0.98) 0%, rgba(69,26,3,0.98) 55%, rgba(28,12,2,0.98) 100%)"
+                      : isFlash
+                        ? "radial-gradient(circle at 42% 38%, rgba(120,53,15,0.98) 0%, rgba(45,20,5,0.97) 72%)"
+                        : isMmi
+                          ? "radial-gradient(circle at 45% 40%, rgba(30,41,59,0.98) 0%, rgba(10,14,22,0.96) 70%)"
+                          : style.fill,
+                    border: isAffiliate
+                      ? `${borderW}px solid ${affiliateAccent}`
+                      : isFlash
+                        ? `${borderW}px solid ${flashAccent}`
+                        : isMmi
+                          ? `${borderW}px solid ${mmiAccent}`
+                          : `${borderW}px ${style.borderStyle} ${style.border}`,
+                    boxShadow: isAffiliate
+                      ? `0 0 28px ${affiliateAccent}77, inset 0 0 18px rgba(251,191,36,0.22)`
+                      : isFlash
+                        ? `0 0 26px ${flashAccent}66, inset 0 0 16px rgba(245,158,11,0.16)`
+                        : isMmi
+                          ? `0 0 22px ${mmiAccent}55, inset 0 0 14px rgba(245,158,11,0.08)`
+                          : style.glow,
                     transition:
                       "box-shadow 0.45s ease, background 0.45s ease, border-color 0.45s ease, border-width 0.45s ease, transform 0.35s ease",
                   }}
                   aria-label={
-                    isFlash
-                      ? flashTitle
-                      : isMmi
-                        ? guestPreview
-                          ? `${mmiTitle} — sign in for full map`
-                          : mmiTitle
-                        : guestPreview
-                          ? showLabel
-                            ? `${displaySymbol}${item.spot != null ? `, ${item.spot}` : ""} — sign in to open chart`
-                            : "Sign in to view symbol and open chart"
-                          : `${item.label}, ${displayTone === item.tone ? style.label : `At Max Pain (hidden) · ${style.label}`}`
+                    isAffiliate
+                      ? affiliateTitle
+                      : isFlash
+                        ? flashTitle
+                        : isMmi
+                          ? guestPreview
+                            ? `${mmiTitle} — sign in for full map`
+                            : mmiTitle
+                          : guestPreview
+                            ? showLabel
+                              ? `${displaySymbol}${item.spot != null ? `, ${item.spot}` : ""} — sign in to open chart`
+                              : "Sign in to view symbol and open chart"
+                            : `${item.label}, ${displayTone === item.tone ? style.label : `At Max Pain (hidden) · ${style.label}`}`
                   }
                   title={
-                    isFlash
-                      ? `${flashTitle} — claim offer`
-                      : isMmi
-                        ? guestPreview
-                          ? "Market Mood Index — sign in for full map"
-                          : "Market Mood Index (Tickertape) — open details"
-                        : guestPreview
-                          ? showLabel
-                            ? `${displaySymbol}${item.spot != null ? ` · ${item.spot}` : ""} — sign in for full map`
-                            : "Sign in to see full market map"
-                          : `${item.label} · ${item.tone === "AT_POC" ? "At Max Pain" : style.label} — click for chart`
+                    isAffiliate
+                      ? `${affiliateTitle} — open program`
+                      : isFlash
+                        ? `${flashTitle} — claim offer`
+                        : isMmi
+                          ? guestPreview
+                            ? "Market Mood Index — sign in for full map"
+                            : "Market Mood Index (Tickertape) — open details"
+                          : guestPreview
+                            ? showLabel
+                              ? `${displaySymbol}${item.spot != null ? ` · ${item.spot}` : ""} — sign in for full map`
+                              : "Sign in to see full market map"
+                            : `${item.label} · ${item.tone === "AT_POC" ? "At Max Pain" : style.label} — click for chart`
                   }
                 >
-                  {isFlash && item.flashSale ? (
+                  {isAffiliate ? (
+                    <LevelsAffiliateBubbleContent compact={r < 56} />
+                  ) : isFlash && item.flashSale ? (
                     <LevelsFlashSaleBubbleContent
                       discountInr={item.flashSale.discountInr}
                       endsAt={item.flashSale.endsAt}
@@ -804,6 +835,29 @@ export function buildFlashSaleBubbleItem(flashSale: FlashSalePublicState): Level
     poc: null,
     bands: {
       spot: flashSale.discountInr,
+      bullLow: null,
+      bullHigh: null,
+      bearLow: null,
+      bearHigh: null,
+    },
+    data: null,
+    meetsActionableFilter: false,
+  };
+}
+
+/** Synthetic gold-coin bubble for Refer & Earn Cash. */
+export function buildAffiliateBubbleItem(): LevelsBubbleItem {
+  return {
+    id: AFFILIATE_BUBBLE_ID,
+    symbol: "CASH",
+    label: "Refer & Earn Cash",
+    scope: "index",
+    kind: "affiliate",
+    tone: "NEUTRAL",
+    spot: 30,
+    poc: null,
+    bands: {
+      spot: 30,
       bullLow: null,
       bullHigh: null,
       bearLow: null,

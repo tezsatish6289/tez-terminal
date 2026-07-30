@@ -115,6 +115,6 @@ export function passesLightAtlasMapGate(
   minScore: number = LIGHT_ATLAS_MAP_MIN_SCORE,
 ): boolean {
   if (!enabled) return true;
-  if (item.kind === "mmi" || item.kind === "flash_sale") return true;
+  if (item.kind === "mmi" || item.kind === "flash_sale" || item.kind === "affiliate") return true;
   return item.atlasScore != null && item.atlasScore > minScore;
 }

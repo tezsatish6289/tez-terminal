@@ -289,47 +289,7 @@ function Overview({
         <Stat icon={Gift} label="Paid out" value={formatInr(data.stats.paidInr)} />
       </div>
 
-      <Card>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Ladder</p>
-            <p className="mt-1 text-lg font-bold text-white">
-              {data.currentTier.label} · {(data.currentTier.rate * 100).toFixed(0)}%
-            </p>
-            <p className="text-[12px] text-slate-400">
-              Lifetime referred sales: {formatInr(data.lifetimeSalesInr)}
-              {data.nextTier
-                ? ` · ${formatInr(data.salesToNextTierInr)} more → ${data.nextTier.label} (${(
-                    data.nextTier.rate * 100
-                  ).toFixed(0)}%)`
-                : " · Top tier"}
-            </p>
-          </div>
-        </div>
-        <div className="mt-4 space-y-1.5">
-          {data.ladder.map((t) => {
-            const active = t.id === data.currentTier.id;
-            return (
-              <div
-                key={t.id}
-                className="flex items-center justify-between rounded-lg px-3 py-2 text-xs"
-                style={{
-                  backgroundColor: active ? "rgba(37,99,235,0.2)" : "rgba(0,0,0,0.2)",
-                  color: active ? "#fff" : "#94a3b8",
-                }}
-              >
-                <span className="font-semibold">
-                  {t.label} · {(t.rate * 100).toFixed(0)}%
-                </span>
-                <span>
-                  {formatInr(t.minSalesInr)}
-                  {t.maxSalesInr != null ? ` – ${formatInr(t.maxSalesInr)}` : "+"}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+      <LadderJourneyMap data={data} />
 
       <Card>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -381,6 +341,269 @@ function Overview({
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+function LadderJourneyMap({ data }: { data: Dashboard }) {
+  const sorted = [...data.ladder].sort((a, b) => a.minSalesInr - b.minSalesInr);
+  const currentIdx = Math.max(
+    0,
+    sorted.findIndex((t) => t.id === data.currentTier.id),
+  );
+  const next = data.nextTier;
+  const segmentProgress =
+    next && next.minSalesInr > data.currentTier.minSalesInr
+      ? Math.min(
+          1,
+          Math.max(
+            0,
+            (data.lifetimeSalesInr - data.currentTier.minSalesInr) /
+              (next.minSalesInr - data.currentTier.minSalesInr),
+          ),
+        )
+      : currentIdx >= sorted.length - 1
+        ? 1
+        : 0;
+
+  return (
+    <Card>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Commission journey
+          </p>
+          <p className="mt-1 text-lg font-bold text-white">
+            You&apos;re on {data.currentTier.label} · {(data.currentTier.rate * 100).toFixed(0)}%
+          </p>
+        </div>
+        <p className="text-[12px] text-slate-400">
+          Lifetime sales {formatInr(data.lifetimeSalesInr)}
+          {next
+            ? ` · ${formatInr(data.salesToNextTierInr)} to ${next.label}`
+            : " · Max tier unlocked"}
+        </p>
+      </div>
+
+      {/* Desktop: horizontal path */}
+      <div className="mt-6 hidden sm:block">
+        <div className="relative px-1 pt-2 pb-1">
+          {(() => {
+            const steps = Math.max(1, sorted.length - 1);
+            const fillPct = Math.min(100, ((currentIdx + segmentProgress) / steps) * 100);
+            return (
+              <>
+                <div
+                  className="absolute left-[10%] right-[10%] top-[22px] h-[3px] rounded-full"
+                  style={{ backgroundColor: "rgba(90,140,220,0.15)" }}
+                />
+                <div
+                  className="absolute left-[10%] top-[22px] h-[3px] rounded-full transition-all duration-500"
+                  style={{
+                    width: `calc(${fillPct}% * 0.8)`,
+                    background: "linear-gradient(90deg, #1d4ed8, #60a5fa, #fbbf24)",
+                    boxShadow: "0 0 12px rgba(96,165,250,0.35)",
+                  }}
+                />
+              </>
+            );
+          })()}
+          <div
+            className="relative grid"
+            style={{ gridTemplateColumns: `repeat(${sorted.length}, 1fr)` }}
+          >
+            {sorted.map((t, i) => {
+              const state =
+                i < currentIdx ? "done" : i === currentIdx ? "current" : "ahead";
+              return (
+                <JourneyNode
+                  key={t.id}
+                  tier={t}
+                  state={state}
+                  orientation="horizontal"
+                  isLast={i === sorted.length - 1}
+                />
+              );
+            })}
+          </div>
+        </div>
+        {next ? (
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500">
+              <span>Progress to {next.label}</span>
+              <span className="font-semibold text-[#93c5fd]">
+                {Math.round(segmentProgress * 100)}%
+              </span>
+            </div>
+            <div
+              className="h-2 overflow-hidden rounded-full"
+              style={{ backgroundColor: "rgba(90,140,220,0.12)" }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${Math.round(segmentProgress * 100)}%`,
+                  background: "linear-gradient(90deg, #3b82f6, #fbbf24)",
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Mobile: vertical path */}
+      <div className="mt-5 sm:hidden">
+        <ol className="relative space-y-0">
+          {sorted.map((t, i) => {
+            const state =
+              i < currentIdx ? "done" : i === currentIdx ? "current" : "ahead";
+            const isLast = i === sorted.length - 1;
+            return (
+              <li key={t.id} className="relative flex gap-3 pb-5 last:pb-0">
+                {!isLast ? (
+                  <span
+                    className="absolute left-[15px] top-8 bottom-0 w-[2px]"
+                    style={{
+                      background:
+                        state === "done" || state === "current"
+                          ? "linear-gradient(180deg, #60a5fa, rgba(251,191,36,0.5))"
+                          : "rgba(90,140,220,0.15)",
+                    }}
+                  />
+                ) : null}
+                <JourneyNode tier={t} state={state} orientation="vertical" isLast={isLast} />
+              </li>
+            );
+          })}
+        </ol>
+        {next ? (
+          <p className="mt-1 text-[12px] text-slate-400">
+            {formatInr(data.salesToNextTierInr)} more referred sales unlocks{" "}
+            <span className="font-semibold text-[#fde68a]">
+              {next.label} ({(next.rate * 100).toFixed(0)}%)
+            </span>
+          </p>
+        ) : null}
+      </div>
+    </Card>
+  );
+}
+
+function JourneyNode({
+  tier,
+  state,
+  orientation,
+  isLast,
+}: {
+  tier: AffiliateLadderTier;
+  state: "done" | "current" | "ahead";
+  orientation: "horizontal" | "vertical";
+  isLast: boolean;
+}) {
+  const rate = `${(tier.rate * 100).toFixed(0)}%`;
+  const range =
+    tier.maxSalesInr != null
+      ? `${formatInr(tier.minSalesInr)} – ${formatInr(tier.maxSalesInr)}`
+      : `${formatInr(tier.minSalesInr)}+`;
+
+  const ring =
+    state === "current"
+      ? "rgba(251,191,36,0.95)"
+      : state === "done"
+        ? "rgba(96,165,250,0.9)"
+        : "rgba(100,116,139,0.45)";
+  const fill =
+    state === "current"
+      ? "radial-gradient(circle at 35% 30%, #fde68a 0%, #f59e0b 55%, #b45309 100%)"
+      : state === "done"
+        ? "radial-gradient(circle at 35% 30%, #93c5fd 0%, #3b82f6 60%, #1d4ed8 100%)"
+        : "rgba(15,23,42,0.9)";
+
+  if (orientation === "vertical") {
+    return (
+      <>
+        <span
+          className="relative z-[1] mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-black"
+          style={{
+            border: `2px solid ${ring}`,
+            background: fill,
+            color: state === "ahead" ? "#64748b" : "#0f172a",
+            boxShadow:
+              state === "current" ? "0 0 16px rgba(251,191,36,0.45)" : undefined,
+          }}
+        >
+          {rate}
+        </span>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <div className="flex items-center gap-2">
+            <p
+              className="text-sm font-bold"
+              style={{ color: state === "ahead" ? "#64748b" : "#fff" }}
+            >
+              {tier.label}
+            </p>
+            {state === "current" ? (
+              <span
+                className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                style={{
+                  backgroundColor: "rgba(251,191,36,0.15)",
+                  color: "#fde68a",
+                  border: "1px solid rgba(251,191,36,0.35)",
+                }}
+              >
+                You are here
+              </span>
+            ) : null}
+            {state === "done" ? (
+              <span className="text-[10px] font-semibold text-[#60a5fa]">Cleared</span>
+            ) : null}
+          </div>
+          <p className="text-[11px] text-slate-500">{range}</p>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center text-center px-1">
+      <span
+        className="relative z-[1] flex h-11 w-11 items-center justify-center rounded-full text-[11px] font-black"
+        style={{
+          border: `2.5px solid ${ring}`,
+          background: fill,
+          color: state === "ahead" ? "#64748b" : "#0f172a",
+          boxShadow:
+            state === "current"
+              ? "0 0 18px rgba(251,191,36,0.5)"
+              : state === "done"
+                ? "0 0 10px rgba(59,130,246,0.35)"
+                : undefined,
+        }}
+      >
+        {rate}
+      </span>
+      <p
+        className="mt-2 text-[12px] font-bold leading-tight"
+        style={{ color: state === "ahead" ? "#64748b" : "#fff" }}
+      >
+        {tier.label}
+      </p>
+      <p className="mt-0.5 text-[10px] leading-snug text-slate-500">{range}</p>
+      {state === "current" ? (
+        <span
+          className="mt-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+          style={{
+            backgroundColor: "rgba(251,191,36,0.15)",
+            color: "#fde68a",
+            border: "1px solid rgba(251,191,36,0.35)",
+          }}
+        >
+          You are here
+        </span>
+      ) : null}
+      {state === "done" && !isLast ? (
+        <span className="mt-1 text-[9px] font-semibold text-[#60a5fa]">Cleared</span>
+      ) : null}
     </div>
   );
 }

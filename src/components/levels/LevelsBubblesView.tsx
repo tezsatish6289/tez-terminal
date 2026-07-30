@@ -54,7 +54,7 @@ import {
   isFlashSaleBubbleId,
   type FlashSalePublicState,
 } from "@/lib/fnoninja/flash-sale";
-import { AFFILIATE_BUBBLE_ID, isAffiliateBubbleId } from "@/lib/fnoninja/affiliate";
+import { AFFILIATE_BUBBLE_ID, isAffiliateBubbleId } from "@/lib/fnoninja/affiliate-shared";
 import { trackCtaClick } from "@/firebase/analytics";
 import { computeLightAtlasScore } from "@/lib/levels/light-atlas-score";
 

@@ -8,47 +8,32 @@
  *
  * User fields:
  *   fnoninjaAffiliateCode, fnoninjaReferredBy, fnoninjaAffiliateKyc
+ *
+ * Client-safe constants live in `affiliate-shared.ts` — do not import this
+ * module from Client Components.
  */
+
+import "server-only";
 
 import { getAdminFirestore } from "@/firebase/admin";
 import { generateReferralCode } from "@/lib/referral";
-import { DAY_PASS_INR } from "@/lib/zoho/billing";
+import {
+  DEFAULT_AFFILIATE_LADDER,
+  FNO_PLAN_AMOUNT_INR,
+  type AffiliateLadderTier,
+} from "@/lib/fnoninja/affiliate-shared";
+
+export {
+  AFFILIATE_BUBBLE_ID,
+  DEFAULT_AFFILIATE_LADDER,
+  FNO_PLAN_AMOUNT_INR,
+  isAffiliateBubbleId,
+  type AffiliateLadderTier,
+} from "@/lib/fnoninja/affiliate-shared";
 
 export const FNO_AFFILIATE_COMMISSIONS = "fnoninja_affiliate_commissions";
 export const FNO_AFFILIATE_PAYOUTS = "fnoninja_affiliate_payouts";
 export const FNO_AFFILIATE_CONFIG_DOC = "fnoninja_affiliate";
-
-/** Synthetic bubble on the FNO levels map. */
-export const AFFILIATE_BUBBLE_ID = "affiliate_refer_earn";
-
-export function isAffiliateBubbleId(id: string): boolean {
-  return id === AFFILIATE_BUBBLE_ID;
-}
-
-/** Plan list price (net paid basis for commission when Zoho amount missing). */
-export const FNO_PLAN_AMOUNT_INR: Record<"silver" | "gold" | "daypass", number> = {
-  silver: 4500,
-  gold: 7200,
-  daypass: DAY_PASS_INR,
-};
-
-export interface AffiliateLadderTier {
-  id: string;
-  label: string;
-  /** Inclusive min lifetime referred net sales (INR). */
-  minSalesInr: number;
-  /** Exclusive max; null = no upper bound. */
-  maxSalesInr: number | null;
-  rate: number;
-}
-
-export const DEFAULT_AFFILIATE_LADDER: AffiliateLadderTier[] = [
-  { id: "starter", label: "Starter", minSalesInr: 0, maxSalesInr: 50_000, rate: 0.2 },
-  { id: "growth", label: "Growth", minSalesInr: 50_000, maxSalesInr: 200_000, rate: 0.22 },
-  { id: "pro", label: "Pro", minSalesInr: 200_000, maxSalesInr: 500_000, rate: 0.25 },
-  { id: "elite", label: "Elite", minSalesInr: 500_000, maxSalesInr: 1_000_000, rate: 0.27 },
-  { id: "partner", label: "Partner", minSalesInr: 1_000_000, maxSalesInr: null, rate: 0.3 },
-];
 
 export interface FnoAffiliateConfig {
   enabled: boolean;

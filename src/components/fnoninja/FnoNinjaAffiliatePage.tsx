@@ -17,7 +17,7 @@ import { useUser } from "@/firebase";
 import { fnoAffiliateHref, fnoLoginHref } from "@/lib/fnoninja/paths";
 import { formatInr } from "@/lib/fnoninja/pricing";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
-import type { AffiliateLadderTier } from "@/lib/fnoninja/affiliate";
+import type { AffiliateLadderTier } from "@/lib/fnoninja/affiliate-shared";
 
 const FNO_BORDER = "rgba(90,140,220,0.2)";
 

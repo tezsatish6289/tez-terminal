@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, Loader2 } from "lucide-react";
+import { Bell, Crown, Loader2 } from "lucide-react";
 import { useScoreAlerts } from "@/components/fnoninja/alerts/ScoreAlertsContext";
 import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
+import { useUpgradePrompt } from "@/components/fnoninja/FnoNinjaUpgradePrompt";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   SCORE_ALERT_DIRECTIONS,
+  SCORE_ALERT_GOLD_MIN_SCORE,
   SCORE_ALERT_MIN_SCORES,
   SCORE_ALERT_SEGMENTS,
+  SCORE_ALERT_STANDARD_MAX_MIN_SCORE,
 } from "@/lib/alerts/constants";
 import type {
   ScoreAlertDirection,
@@ -17,6 +20,7 @@ import type {
   ScoreAlertSegment,
   ScoreAlertSide,
 } from "@/lib/alerts/types";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import { formatChatUnreadCount } from "@/lib/chat/unread-badge";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
@@ -84,6 +88,9 @@ function ChoiceRow<T extends string | number>({
   disabled,
   format,
   onChange,
+  isLocked,
+  onLockedClick,
+  lockedHint,
 }: {
   label: string;
   options: readonly T[];
@@ -91,6 +98,9 @@ function ChoiceRow<T extends string | number>({
   disabled?: boolean;
   format: (v: T) => string;
   onChange: (v: T) => void;
+  isLocked?: (v: T) => boolean;
+  onLockedClick?: (v: T) => void;
+  lockedHint?: string;
 }) {
   return (
     <div className="py-2">
@@ -109,23 +119,42 @@ function ChoiceRow<T extends string | number>({
       >
         {options.map((opt) => {
           const active = value === opt;
+          const locked = Boolean(isLocked?.(opt));
           return (
             <button
               key={String(opt)}
               type="button"
-              disabled={disabled}
-              onClick={() => onChange(opt)}
-              className="min-w-0 flex-1 rounded-lg px-1 py-2 text-[12px] font-semibold transition-colors disabled:pointer-events-none"
-              style={{
-                color: active ? "#fff" : "#94a3b8",
-                backgroundColor: active ? ACTIVE_BLUE_SOFT : "transparent",
+              disabled={disabled && !locked}
+              onClick={() => {
+                if (locked) {
+                  onLockedClick?.(opt);
+                  return;
+                }
+                if (disabled) return;
+                onChange(opt);
               }}
+              className="relative min-w-0 flex-1 rounded-lg px-1 py-2 text-[12px] font-semibold transition-colors"
+              style={{
+                color: locked ? "#fbbf24" : active ? "#fff" : "#94a3b8",
+                backgroundColor: active && !locked ? ACTIVE_BLUE_SOFT : "transparent",
+                opacity: locked ? 0.9 : 1,
+              }}
+              title={locked ? lockedHint : undefined}
+              aria-label={locked ? `${format(opt)}, Gold` : format(opt)}
             >
-              {format(opt)}
+              <span className="inline-flex items-center justify-center gap-0.5">
+                {locked ? <Crown className="h-3 w-3 shrink-0" /> : null}
+                {format(opt)}
+              </span>
             </button>
           );
         })}
       </div>
+      {lockedHint && options.some((o) => isLocked?.(o)) ? (
+        <p className="mt-1.5 text-[10px] leading-snug" style={{ color: FNO_MUTED }}>
+          {lockedHint}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -193,6 +222,9 @@ export function ScoreAlertsDrawer() {
     enableBrowserNotifications,
     markAllRead,
   } = useScoreAlerts();
+  const { has: hasFeature, isLoading: entitlementsLoading } = useEntitlements();
+  const { promptUpgrade } = useUpgradePrompt();
+  const canUseGoldFloor = hasFeature("score_alerts_80");
 
   const [tab, setTab] = useState<AlertsTab>("log");
   const browserDenied = notificationPermission === "denied";
@@ -208,6 +240,19 @@ export function ScoreAlertsDrawer() {
       void markAllRead();
     }
   }, [drawerOpen, tab, markAllRead]);
+
+  // Persist clamp if a non-Gold tier still has ≥80 stored from an older session.
+  useEffect(() => {
+    if (prefsLoading || entitlementsLoading || canUseGoldFloor) return;
+    if (prefs.minScore < SCORE_ALERT_GOLD_MIN_SCORE) return;
+    void savePrefs({ minScore: SCORE_ALERT_STANDARD_MAX_MIN_SCORE });
+  }, [
+    prefsLoading,
+    entitlementsLoading,
+    canUseGoldFloor,
+    prefs.minScore,
+    savePrefs,
+  ]);
 
   const selectTab = (next: AlertsTab) => {
     trackCtaClick("score_alerts_tab", { tab: next });
@@ -321,9 +366,19 @@ export function ScoreAlertsDrawer() {
                 <ChoiceRow
                   label="Score floor"
                   options={SCORE_ALERT_MIN_SCORES}
-                  value={prefs.minScore}
+                  value={
+                    canUseGoldFloor
+                      ? prefs.minScore
+                      : Math.min(prefs.minScore, SCORE_ALERT_STANDARD_MAX_MIN_SCORE) as ScoreAlertMinScore
+                  }
                   disabled={!prefs.enabled}
                   format={(n: ScoreAlertMinScore) => `≥${n}`}
+                  isLocked={(n) => n >= SCORE_ALERT_GOLD_MIN_SCORE && !canUseGoldFloor}
+                  lockedHint="≥80 score alerts are a Gold feature"
+                  onLockedClick={() => {
+                    trackCtaClick("score_alerts_min_score_locked", { minScore: 80 });
+                    promptUpgrade("score_alerts_80");
+                  }}
                   onChange={(minScore) => {
                     trackCtaClick("score_alerts_min_score", { minScore });
                     void savePrefs({ minScore });

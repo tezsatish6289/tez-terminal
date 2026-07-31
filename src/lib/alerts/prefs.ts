@@ -1,8 +1,10 @@
 import {
   DEFAULT_SCORE_ALERT_PREFERENCES,
   SCORE_ALERT_DIRECTIONS,
+  SCORE_ALERT_GOLD_MIN_SCORE,
   SCORE_ALERT_MIN_SCORES,
   SCORE_ALERT_SEGMENTS,
+  SCORE_ALERT_STANDARD_MAX_MIN_SCORE,
 } from "@/lib/alerts/constants";
 import type {
   ScoreAlertDirection,
@@ -10,6 +12,26 @@ import type {
   ScoreAlertPreferences,
   ScoreAlertSegment,
 } from "@/lib/alerts/types";
+
+/** Clamp ≥80 down when the tier lacks `score_alerts_80`. */
+export function clampScoreAlertMinScore(
+  minScore: ScoreAlertMinScore,
+  canUseGoldFloor: boolean,
+): ScoreAlertMinScore {
+  if (minScore >= SCORE_ALERT_GOLD_MIN_SCORE && !canUseGoldFloor) {
+    return SCORE_ALERT_STANDARD_MAX_MIN_SCORE;
+  }
+  return minScore;
+}
+
+export function withClampedScoreAlertMinScore(
+  prefs: ScoreAlertPreferences,
+  canUseGoldFloor: boolean,
+): ScoreAlertPreferences {
+  const minScore = clampScoreAlertMinScore(prefs.minScore, canUseGoldFloor);
+  if (minScore === prefs.minScore) return prefs;
+  return { ...prefs, minScore };
+}
 
 export function isScoreAlertMinScore(v: unknown): v is ScoreAlertMinScore {
   return (

@@ -15,21 +15,21 @@ const PERSONAS = [
     title: "Intraday Trader",
     subtitle: "Same-day · index & momentum",
     body: "Live NIFTY, BANKNIFTY, and FINNIFTY zones with a Livelist that auto-plays the heavy hitters.",
-    tags: ["Livelist Autoplay", "Zone dashboard", "Index views"],
+    tags: ["Livelist Autoplay", "Score alerts", "↑/↓ probabilities"],
   },
   {
     icon: BarChart3,
     title: "F&O Trader",
     subtitle: "Options & futures · stock-specific",
     body: "OI-based zones across 200+ NSE F&O symbols. See where price sits relative to heavy open interest.",
-    tags: ["Market map", "Symbol analytics", "Zone overlay"],
+    tags: ["Market map", "Score alerts", "Zone overlay"],
   },
   {
     icon: Target,
     title: "Swing Trader",
     subtitle: "Positional · 3–10 day horizon",
     body: "Put and call clusters that tend to act as support and resistance, without scanning hundreds of chains.",
-    tags: ["Market map", "Zone dashboard", "In-zone screener"],
+    tags: ["Market map", "↑/↓ probabilities", "In-zone screener"],
   },
 ] as const;
 

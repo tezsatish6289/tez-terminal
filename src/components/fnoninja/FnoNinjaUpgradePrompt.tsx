@@ -21,6 +21,12 @@ const FEATURE_LABEL: Partial<Record<Feature, string>> = {
   atlas_ai: "Atlas AI",
   favslide: "Watchlist Autoplay",
   liveslide: "Livelist Autoplay",
+  score_alerts_80: "80+ score alerts",
+};
+
+const FEATURE_BLURB: Partial<Record<Feature, string>> = {
+  score_alerts_80:
+    "Gold unlocks the sharpest alert floor (≥80) so you only get the highest-conviction setup pings. Trial and Silver keep ≥60 and ≥70.",
 };
 
 interface UpgradePromptContextValue {
@@ -100,8 +106,9 @@ export function FnoNinjaUpgradePromptProvider({ children }: { children: ReactNod
 
             <p className="mt-4 text-base font-bold text-white">{label} is a Gold feature</p>
             <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
-              Atlas AI, plus hands-free Livelist &amp; Watchlist autoplay, are included with Gold and
-              the Day Pass. Upgrade to unlock {label} — you keep everything you already have.
+              {feature && FEATURE_BLURB[feature]
+                ? FEATURE_BLURB[feature]
+                : `Atlas AI, plus hands-free Livelist & Watchlist autoplay, are included with Gold and the Day Pass. Upgrade to unlock ${label} — you keep everything you already have.`}
             </p>
 
             <Link

@@ -21,12 +21,12 @@ const FEATURE_LABEL: Partial<Record<Feature, string>> = {
   atlas_ai: "Atlas AI",
   favslide: "Watchlist Autoplay",
   liveslide: "Livelist Autoplay",
-  score_alerts_80: "80+ score alerts",
+  score_alerts_80: "A+ setup alerts",
 };
 
 const FEATURE_BLURB: Partial<Record<Feature, string>> = {
   score_alerts_80:
-    "Gold unlocks the sharpest alert floor (≥80) so you only get the highest-conviction setup pings. Trial and Silver keep ≥60 and ≥70.",
+    "Gold unlocks A+ setup alerts — the sharpest floor (≥80) for fewer, higher-confidence pings. Trial and Silver keep setup alerts at ≥60 and ≥70.",
 };
 
 interface UpgradePromptContextValue {

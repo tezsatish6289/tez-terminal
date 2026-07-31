@@ -19,14 +19,14 @@ const COMMON_FEATURES = [
   "Bubble market map",
   "Trend, Intraday, Outlook & History charts",
   "Atlas ↑/↓ probabilities on charts",
-  "Score alerts (≥60 / ≥70)",
+  "Setup alerts",
   "Sentiment & News",
   "Watchlist & Livelist",
   "Community chat",
 ];
 
 const PREMIUM_FEATURES = [
-  "80+ score alerts (highest conviction)",
+  "A+ setup alerts",
   "Atlas AI setup coach",
   "Watchlist & Livelist Autoplay",
 ];
@@ -63,7 +63,7 @@ const PRIMARY_CARDS: PrimaryCard[] = [
     badge: "Start here",
     features: [
       "Full toolkit for 7 days — including alerts & probabilities",
-      "Score alerts at ≥60 / ≥70",
+      "Setup alerts (same floor as Silver)",
       "No credit card required",
       "Cancel anytime",
     ],
@@ -76,7 +76,7 @@ const PRIMARY_CARDS: PrimaryCard[] = [
     periodLabel: "6 months",
     tagline: "Core analytics for focused swing traders.",
     features: COMMON_FEATURES,
-    note: "Watchlist & Livelist are manual. Autoplay, Atlas AI, and ≥80 score alerts are Gold.",
+    note: "Setup alerts notify at solid confidence (≥60 / ≥70). Watchlist & Livelist are manual. Autoplay, Atlas AI, and A+ setup alerts (≥80) are Gold.",
   },
   {
     kind: "checkout",
@@ -88,6 +88,7 @@ const PRIMARY_CARDS: PrimaryCard[] = [
     badge: "Best value",
     highlight: true,
     features: [...COMMON_FEATURES, ...PREMIUM_FEATURES],
+    note: "A+ setup alerts use the sharpest floor (≥80) — fewer pings, higher confidence. Includes everything in Silver.",
   },
 ];
 

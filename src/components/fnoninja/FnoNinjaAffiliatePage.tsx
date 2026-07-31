@@ -310,7 +310,10 @@ function Overview({
             <span>
               Friends get {FNONINJA_TRIAL_WITH_REFERRAL_DAYS} trial days when they sign in with Google
               via your link (or enter code{" "}
-              <span className="font-mono text-slate-300">{data.referralCode}</span>).
+              <span className="font-mono font-semibold tracking-wide text-slate-200">
+                {data.referralCode.toUpperCase()}
+              </span>
+              ).
             </span>
           </li>
           <li className="flex gap-2">

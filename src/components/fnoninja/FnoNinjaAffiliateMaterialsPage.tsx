@@ -25,36 +25,37 @@ type MaterialItem = {
 
 function buildMaterials(code: string, link: string): MaterialItem[] {
   const trial = FNONINJA_TRIAL_WITH_REFERRAL_DAYS;
+  const codeLine = code.trim().toUpperCase();
   return [
     {
       id: "whatsapp",
       label: "WhatsApp / friends",
       channel: "Chat",
-      body: `Hey — I've been using FNO Ninja for Nifty/Bank Nifty levels and market maps. You get ${trial} days free if you sign up with my link:\n\n${link}\n\nOr after Google sign-in, enter code ${code}.`,
+      body: `Hey — I've been using FNO Ninja for Nifty/Bank Nifty levels and market maps. You get ${trial} days free if you sign up with my link:\n\n${link}\n\nOr after Google sign-in, enter this code:\n\n${codeLine}`,
     },
     {
       id: "short",
       label: "Short share",
       channel: "Any",
-      body: `Try FNO Ninja free for ${trial} days → ${link}`,
+      body: `Try FNO Ninja free for ${trial} days → ${link}\n\nCode:\n\n${codeLine}`,
     },
     {
       id: "twitter",
       label: "X / Twitter",
       channel: "Social",
-      body: `Live option levels + market maps for F&O traders.\n\nGet ${trial} days free with my invite:\n${link}`,
+      body: `Live option levels + market maps for F&O traders.\n\nGet ${trial} days free with my invite:\n${link}\n\nCode:\n\n${codeLine}`,
     },
     {
       id: "linkedin",
       label: "LinkedIn / Instagram",
       channel: "Caption",
-      body: `If you trade Indian F&O, FNO Ninja is worth a look — live levels, zone maps, and a clean workflow for Nifty/Bank Nifty.\n\nUse my invite for ${trial} free trial days:\n${link}\n\nCode (after Google sign-in): ${code}`,
+      body: `If you trade Indian F&O, FNO Ninja is worth a look — live levels, zone maps, and a clean workflow for Nifty/Bank Nifty.\n\nUse my invite for ${trial} free trial days:\n${link}\n\nAfter Google sign-in, enter this code:\n\n${codeLine}`,
     },
     {
       id: "code",
       label: "Code only",
       channel: "In-person",
-      body: `After you sign in to FNO Ninja with Google, enter referral code ${code} for ${trial} trial days.`,
+      body: `After you sign in to FNO Ninja with Google, enter this referral code for ${trial} trial days:\n\n${codeLine}`,
     },
   ];
 }
@@ -166,7 +167,10 @@ export function FnoNinjaAffiliateMaterialsPage() {
             Your link:{" "}
             <span className="font-mono text-[#93c5fd]">{data.referralLink}</span>
             <span className="mx-2 text-slate-600">·</span>
-            Code: <span className="font-mono text-slate-300">{data.referralCode}</span>
+            Code:{" "}
+            <span className="font-mono font-semibold tracking-wide text-slate-200">
+              {data.referralCode.toUpperCase()}
+            </span>
           </div>
 
           {items.map((item) => {

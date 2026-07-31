@@ -29,7 +29,7 @@ export const FNONINJA_PRICING_TIERS: FnoNinjaPricingTier[] = [
     features: [
       "Full access to charts & symbol analytics",
       "Atlas ↑/↓ probabilities on charts",
-      "Score alerts (≥60 / ≥70)",
+      "Setup alerts",
       "No credit card required",
     ],
   },
@@ -42,7 +42,7 @@ export const FNONINJA_PRICING_TIERS: FnoNinjaPricingTier[] = [
     badge: "Popular",
     features: [
       "Bubble map + charts + probabilities",
-      "Score alerts (≥60 / ≥70)",
+      "Setup alerts",
       "Watchlist & Livelist (manual)",
       "Best for active swing traders",
     ],
@@ -55,9 +55,9 @@ export const FNONINJA_PRICING_TIERS: FnoNinjaPricingTier[] = [
     periodLabel: "12 months",
     badge: "Best value",
     features: [
-      "Everything in Silver, plus Gold alerts (≥80)",
+      "Everything in Silver, plus A+ setup alerts",
       "Watchlist & Livelist Autoplay + Atlas AI",
-      "Highest-conviction score alerts",
+      "A+ setup alerts (highest confidence)",
       "Full-year market structure access",
     ],
   },

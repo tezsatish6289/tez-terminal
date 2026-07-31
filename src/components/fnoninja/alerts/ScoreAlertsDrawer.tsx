@@ -374,7 +374,7 @@ export function ScoreAlertsDrawer() {
                   disabled={!prefs.enabled}
                   format={(n: ScoreAlertMinScore) => `≥${n}`}
                   isLocked={(n) => n >= SCORE_ALERT_GOLD_MIN_SCORE && !canUseGoldFloor}
-                  lockedHint="≥80 score alerts are a Gold feature"
+                  lockedHint="A+ setup alerts (≥80) are a Gold feature"
                   onLockedClick={() => {
                     trackCtaClick("score_alerts_min_score_locked", { minScore: 80 });
                     promptUpgrade("score_alerts_80");

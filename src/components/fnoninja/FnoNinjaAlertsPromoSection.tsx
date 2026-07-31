@@ -16,16 +16,14 @@ const CARDS = [
   {
     icon: Percent,
     eyebrow: "On every chart",
-    title: "Atlas ↑ / ↓ probabilities",
-    body: "See calibrated upside and downside probabilities next to the Atlas score — grounded in historical zone outcomes, not guesswork.",
-    tags: ["Trial", "Silver", "Gold"],
+    title: "↑ / ↓ probabilities",
+    body: "Upside and downside probabilities right on the chart. Higher number = stronger historical lean. It’s an indicator with context — not a guarantee and not advice.",
   },
   {
     icon: Bell,
-    eyebrow: "Hands-free watch",
-    title: "Score alerts",
-    body: "Get pinged when a setup crosses your Atlas floor. Trial and Silver use ≥60 / ≥70. Gold unlocks ≥80 for the sharpest conviction filter.",
-    tags: ["≥60 / ≥70 all plans", "≥80 Gold"],
+    eyebrow: null,
+    title: "High-probability alerts",
+    body: "Define the confidence level you want. The system watches and notifies you when a setup clears it. You remain the decision-maker.",
   },
 ] as const;
 
@@ -46,18 +44,19 @@ export function FnoNinjaAlertsPromoSection() {
       />
 
       <Reveal className="relative mb-10 sm:mb-12 max-w-2xl">
-        <SectionEyebrow>Decision aids</SectionEyebrow>
+        <SectionEyebrow>Less scanning</SectionEyebrow>
         <h2 className="mt-4 text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
-          Probabilities on the chart. <GradientText>Alerts when it matters.</GradientText>
+          See the probability. <GradientText>Get alerted when it’s high.</GradientText>
         </h2>
         <p className="mt-4 text-sm sm:text-base leading-relaxed text-slate-400">
-          Stop staring at 200 names. Use calibrated probabilities to judge a setup, then let score
-          alerts bring the next one to you.
+          Every chart shows the probability of the stock or index going up versus down. Higher
+          probability means higher confidence. Set your own bar and the system finds those
+          higher-probability setups and alerts you.
         </p>
       </Reveal>
 
       <Stagger className="relative grid gap-4 md:grid-cols-2">
-        {CARDS.map(({ icon: Icon, eyebrow, title, body, tags }) => (
+        {CARDS.map(({ icon: Icon, eyebrow, title, body }) => (
           <StaggerItem key={title}>
             <article
               className="h-full rounded-2xl border p-6 sm:p-7 transition hover:-translate-y-1 hover:border-[#60a5fa]/30"
@@ -66,25 +65,17 @@ export function FnoNinjaAlertsPromoSection() {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#3b82f6]/15 text-[#60a5fa]">
                 <Icon className="h-5 w-5" strokeWidth={1.8} />
               </div>
-              <p className="mt-5 text-[11px] font-semibold uppercase tracking-widest text-[#60a5fa]">
-                {eyebrow}
-              </p>
-              <h3 className="mt-2 text-xl font-bold tracking-tight text-white">{title}</h3>
+              {eyebrow ? (
+                <p className="mt-5 text-[11px] font-semibold uppercase tracking-widest text-[#60a5fa]">
+                  {eyebrow}
+                </p>
+              ) : null}
+              <h3
+                className={`${eyebrow ? "mt-2" : "mt-5"} text-xl font-bold tracking-tight text-white`}
+              >
+                {title}
+              </h3>
               <p className="mt-3 text-[14px] leading-relaxed text-slate-400">{body}</p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full border px-2.5 py-1 text-[11px] text-slate-400"
-                    style={{
-                      borderColor: "rgba(90,140,220,0.14)",
-                      backgroundColor: "rgba(148,163,184,0.05)",
-                    }}
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
             </article>
           </StaggerItem>
         ))}
@@ -95,9 +86,9 @@ export function FnoNinjaAlertsPromoSection() {
           className={LANDING_PRIMARY_CTA}
           src="landing"
           cta="alerts_promo"
-          onClick={() => trackCtaClick("alerts_promo_cta", { label: "Try alerts free" })}
+          onClick={() => trackCtaClick("alerts_promo_cta", { label: "Try it free" })}
         >
-          Try alerts free
+          Try it free
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
             <path d="M5 12h14M13 6l6 6-6 6" />
           </svg>

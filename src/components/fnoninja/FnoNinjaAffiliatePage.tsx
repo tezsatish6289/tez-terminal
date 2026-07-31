@@ -16,14 +16,15 @@ import {
   Hourglass,
   Loader2,
   LogIn,
+  Megaphone,
   Shield,
   Ticket,
   TrendingUp,
   Users,
 } from "lucide-react";
 import { useUser } from "@/firebase";
-import { fnoAffiliateHref, fnoLoginHref } from "@/lib/fnoninja/paths";
-import { formatInr } from "@/lib/fnoninja/pricing";
+import { fnoAffiliateHref, fnoAffiliateMaterialsHref, fnoLoginHref } from "@/lib/fnoninja/paths";
+import { formatInr, FNONINJA_TRIAL_WITH_REFERRAL_DAYS } from "@/lib/fnoninja/pricing";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_GRADIENT_TEXT_STYLE } from "@/lib/fnoninja/theme";
 import type { AffiliateLadderTier } from "@/lib/fnoninja/affiliate-shared";
 
@@ -243,6 +244,7 @@ export function FnoNinjaAffiliatePage() {
                   onRequestPayout={requestPayout}
                   payoutBusy={payoutBusy}
                   onGoToKyc={() => setTab("kyc")}
+                  materialsHref={fnoAffiliateMaterialsHref(pathname)}
                 />
               ) : null}
               {tab === "kyc" ? <KycForm user={user} kycComplete={data.kyc.complete} onSaved={load} /> : null}
@@ -264,6 +266,7 @@ function Overview({
   onRequestPayout,
   payoutBusy,
   onGoToKyc,
+  materialsHref,
 }: {
   data: Dashboard;
   copied: boolean;
@@ -271,6 +274,7 @@ function Overview({
   onRequestPayout: () => void;
   payoutBusy: boolean;
   onGoToKyc: () => void;
+  materialsHref: string;
 }) {
   const canPayout =
     data.kyc.complete && data.stats.availableInr >= data.minPayoutInr && !payoutBusy;
@@ -299,12 +303,42 @@ function Overview({
             {copied ? "Copied" : "Copy"}
           </button>
         </div>
-        <p className="mt-2 text-[12px] text-slate-500">
-          Friends can use code{" "}
-          <span className="font-mono text-slate-300">{data.referralCode}</span> after Google
-          sign-in for +3 trial days (10 total). Commission on net paid · {data.holdDays}-day hold ·
-          TDS 194H {(data.tdsRate * 100).toFixed(0)}% above {formatInr(data.tdsThresholdInr)}/FY
-        </p>
+
+        <ul className="mt-3 space-y-1.5 text-[12px] leading-relaxed text-slate-400">
+          <li className="flex gap-2">
+            <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-500" />
+            <span>
+              Friends get {FNONINJA_TRIAL_WITH_REFERRAL_DAYS} trial days when they sign in with Google
+              via your link (or enter code{" "}
+              <span className="font-mono text-slate-300">{data.referralCode}</span>).
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-500" />
+            <span>You earn commission on what they actually pay (net of taxes).</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-500" />
+            <span>Earnings clear after a {data.holdDays}-day hold.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-500" />
+            <span>
+              TDS 194H {(data.tdsRate * 100).toFixed(0)}% applies above{" "}
+              {formatInr(data.tdsThresholdInr)}/FY before payout.
+            </span>
+          </li>
+        </ul>
+
+        <Link
+          href={materialsHref}
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white sm:w-auto"
+          style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
+        >
+          <Megaphone className="h-3.5 w-3.5" />
+          Get promotional material
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </Card>
 
       <Card>

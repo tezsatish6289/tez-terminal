@@ -163,6 +163,11 @@ export function fnoAffiliateHref(pathname: string): string {
   return "/fnoninja/affiliate";
 }
 
+/** Affiliate promotional materials / copy kit. */
+export function fnoAffiliateMaterialsHref(pathname: string): string {
+  return `${fnoAffiliateHref(pathname)}/materials`;
+}
+
 /** Webinar page path for current host/env. */
 export function fnoWebinarHref(pathname: string): string {
   if (typeof window !== "undefined") {

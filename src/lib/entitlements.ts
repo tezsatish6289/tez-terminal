@@ -23,7 +23,9 @@ export type Feature =
   | "community"
   | "atlas_ai"
   | "favslide"
-  | "liveslide";
+  | "liveslide"
+  /** Score-alert floor ≥80 — Gold / Day Pass only (trial + Silver cap at 70). */
+  | "score_alerts_80";
 
 /** Paid/entitled tiers. `null` = logged-in but no active subscription (expired). */
 export type Tier = "free" | "silver" | "gold" | "daypass";
@@ -52,17 +54,22 @@ const ALL_FEATURES: readonly Feature[] = [
   "atlas_ai",
   "favslide",
   "liveslide",
+  "score_alerts_80",
 ];
 
-/** Features Silver deliberately excludes (Gold/Free/Day Pass keep them). */
+/** Free trial excludes Gold-only alert floor (≥80). */
+const FREE_EXCLUDED: ReadonlySet<Feature> = new Set<Feature>(["score_alerts_80"]);
+
+/** Features Silver deliberately excludes. */
 const SILVER_EXCLUDED: ReadonlySet<Feature> = new Set<Feature>([
   "atlas_ai",
   "favslide",
   "liveslide",
+  "score_alerts_80",
 ]);
 
 export const PLAN_FEATURES: Record<Tier, ReadonlySet<Feature>> = {
-  free: new Set(ALL_FEATURES),
+  free: new Set(ALL_FEATURES.filter((f) => !FREE_EXCLUDED.has(f))),
   gold: new Set(ALL_FEATURES),
   daypass: new Set(ALL_FEATURES),
   silver: new Set(ALL_FEATURES.filter((f) => !SILVER_EXCLUDED.has(f))),

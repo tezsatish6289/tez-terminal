@@ -34,8 +34,9 @@ export function FnoNinjaPricingSection() {
 
       <Reveal>
         <p className="mt-8 text-center text-[11px] leading-relaxed max-w-lg mx-auto text-slate-500">
-          All plans include market map access. Charts &amp; Sentiment are free to explore; paid plans
-          unlock the full toolkit. Informational data only — not investment advice.
+          All plans include market map access, chart probabilities, and score alerts (≥60 / ≥70).
+          Gold adds ≥80 alerts, Atlas AI, and Livelist autoplay. Informational data only — not
+          investment advice.
         </p>
       </Reveal>
     </section>

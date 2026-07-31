@@ -9,6 +9,7 @@ import { FnoNinjaReviewsSection } from "@/components/fnoninja/FnoNinjaReviewsSec
 import { FnoNinjaWhoItsForSection } from "@/components/fnoninja/FnoNinjaWhoItsForSection";
 import { FnoNinjaCommunitySection } from "@/components/fnoninja/FnoNinjaCommunitySection";
 import { FnoNinjaAtlasSection } from "@/components/fnoninja/FnoNinjaAtlasSection";
+import { FnoNinjaAlertsPromoSection } from "@/components/fnoninja/FnoNinjaAlertsPromoSection";
 import { FnoNinjaWebinarLandingSection } from "@/components/fnoninja/FnoNinjaWebinarLandingSection";
 import { FnoNinjaSocialSection } from "@/components/fnoninja/FnoNinjaSocialSection";
 
@@ -26,6 +27,8 @@ function FnoNinjaLandingPageContent() {
       <FnoNinjaCommunitySection />
 
       <FnoNinjaAtlasSection />
+
+      <FnoNinjaAlertsPromoSection />
 
       <FnoNinjaWebinarLandingSection />
 

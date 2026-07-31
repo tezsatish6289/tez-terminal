@@ -18,12 +18,18 @@ type CheckoutTier = "silver" | "gold" | "daypass";
 const COMMON_FEATURES = [
   "Bubble market map",
   "Trend, Intraday, Outlook & History charts",
+  "Atlas ↑/↓ probabilities on charts",
+  "Score alerts (≥60 / ≥70)",
   "Sentiment & News",
   "Watchlist & Livelist",
   "Community chat",
 ];
 
-const PREMIUM_FEATURES = ["Atlas AI setup coach", "Watchlist & Livelist Autoplay"];
+const PREMIUM_FEATURES = [
+  "80+ score alerts (highest conviction)",
+  "Atlas AI setup coach",
+  "Watchlist & Livelist Autoplay",
+];
 
 type PrimaryCard =
   | {
@@ -55,7 +61,12 @@ const PRIMARY_CARDS: PrimaryCard[] = [
     periodLabel: "7 days",
     tagline: "Try everything, free for a week.",
     badge: "Start here",
-    features: ["Full access to every feature", "No credit card required", "Cancel anytime"],
+    features: [
+      "Full toolkit for 7 days — including alerts & probabilities",
+      "Score alerts at ≥60 / ≥70",
+      "No credit card required",
+      "Cancel anytime",
+    ],
   },
   {
     kind: "checkout",
@@ -65,7 +76,7 @@ const PRIMARY_CARDS: PrimaryCard[] = [
     periodLabel: "6 months",
     tagline: "Core analytics for focused swing traders.",
     features: COMMON_FEATURES,
-    note: "Watchlist & Livelist are manual. Autoplay and Atlas AI are Gold features.",
+    note: "Watchlist & Livelist are manual. Autoplay, Atlas AI, and ≥80 score alerts are Gold.",
   },
   {
     kind: "checkout",

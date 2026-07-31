@@ -11,13 +11,19 @@ import {
   zoneDocPath,
 } from "@/lib/alerts/levels-from-doc";
 import { loadLiveslideEntries } from "@/lib/alerts/liveslide-universe";
-import { parseScoreAlertPreferences, sideMatchesDirection } from "@/lib/alerts/prefs";
+import {
+  parseScoreAlertPreferences,
+  sideMatchesDirection,
+  withClampedScoreAlertMinScore,
+} from "@/lib/alerts/prefs";
 import { publishScoreAlert } from "@/lib/alerts/publish-score-alert";
 import type {
   ScoreAlertPreferences,
   ScoreAlertSide,
   ScoreAlertSymbolState,
 } from "@/lib/alerts/types";
+import { hasFeature } from "@/lib/entitlements";
+import { loadEntitlementContext } from "@/lib/entitlements-server";
 import {
   FNONINJA_FAVSLIDE_FIELD,
   favslideEntryKey,
@@ -73,8 +79,14 @@ async function loadEnabledPrefs(db: Firestore): Promise<PrefRow[]> {
 
   const rows: PrefRow[] = [];
   for (const doc of snap.docs) {
-    const prefs = parseScoreAlertPreferences(doc.data());
-    if (!prefs.enabled) continue;
+    const rawPrefs = parseScoreAlertPreferences(doc.data());
+    if (!rawPrefs.enabled) continue;
+    const ctx = await loadEntitlementContext(doc.id);
+    if (!ctx.isActive || !ctx.tier) continue;
+    const prefs = withClampedScoreAlertMinScore(
+      rawPrefs,
+      hasFeature("score_alerts_80", ctx),
+    );
     rows.push({ uid: doc.id, prefs, favslide: [] });
   }
   if (rows.length === 0) return rows;

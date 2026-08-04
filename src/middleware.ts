@@ -93,6 +93,15 @@ export function middleware(request: NextRequest) {
   if (tezFnoRedirect) return tezFnoRedirect;
 
   if (isFnoNinja(request)) {
+    // Prefer apex — www is a duplicate host for SEO; keep path + query.
+    if (hostCandidates(request).includes("www.fnoninja.com")) {
+      const dest = new URL(
+        `${pathname}${request.nextUrl.search}`,
+        FNONINJA_PUBLIC_ORIGIN,
+      );
+      return NextResponse.redirect(dest, 301);
+    }
+
     if (pathname === "/favicon.ico") {
       return NextResponse.rewrite(new URL("/fnoninja/icon.svg", request.url));
     }

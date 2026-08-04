@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
 import { SrStoryReplayCanvas } from "@/components/sr-audit/SrStoryReplayCanvas";
 import type { StoryReplayData } from "@/lib/sr-audit/story-replay-types";
 import type { SrReplaySummary } from "@/lib/fnoninja/sr-replay-types";
+import { fnoReplayHref } from "@/lib/fnoninja/paths";
 import { FNO_CARD_BORDER, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaSrReplayCard({
@@ -67,6 +70,9 @@ export function FnoNinjaSrReplayCard({
     };
   }, [summary.id, data, error]);
 
+  const pathname = usePathname();
+  const replayHref = fnoReplayHref(pathname, summary.id);
+
   return (
     <article
       className={`flex flex-col min-w-0 ${className}`.trim()}
@@ -108,6 +114,13 @@ export function FnoNinjaSrReplayCard({
           <div className="absolute inset-0 bg-white/[0.03]" aria-hidden />
         )}
       </div>
+      <Link
+        href={replayHref}
+        className="mt-2 text-[11px] font-semibold truncate hover:text-white transition-colors"
+        style={{ color: "#93c5fd" }}
+      >
+        Open story →
+      </Link>
     </article>
   );
 }

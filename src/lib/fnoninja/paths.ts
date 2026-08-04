@@ -177,3 +177,24 @@ export function fnoWebinarHref(pathname: string): string {
   if (pathname.startsWith("/fnoninja")) return "/fnoninja/webinar";
   return "/webinar";
 }
+
+/** Public daily levels board — fnoninja.com uses /today; local dev uses /fnoninja/today. */
+export function fnoTodayHref(pathname: string): string {
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/today";
+  }
+  if (pathname.startsWith("/fnoninja")) return "/fnoninja/today";
+  return "/fnoninja/today";
+}
+
+/** Public SR win-story replay permalink. */
+export function fnoReplayHref(pathname: string, id: string): string {
+  const enc = encodeURIComponent(id);
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") return `/replay/${enc}`;
+  }
+  if (pathname.startsWith("/fnoninja")) return `/fnoninja/replay/${enc}`;
+  return `/fnoninja/replay/${enc}`;
+}

@@ -28,7 +28,12 @@ export interface StoryCaptionPayload {
   clusterStrike: string; // dominant wall strike, formatted
   enteredOn: string; // "20 Jun 2026"
   hitOn: string; // "24 Jun 2026"
+  /** Public replay permalink (preferred CTA). */
   website: string;
+}
+
+export function fnoReplayPermalink(storyId: string): string {
+  return `${WEBSITE}/replay/${encodeURIComponent(storyId)}`;
 }
 
 function fmtPrice(n: number | null | undefined): string {
@@ -56,7 +61,7 @@ export function buildStoryCaptionPayload(c: SuccessStoryCandidate): StoryCaption
     clusterStrike: fmtPrice(c.clusterStrike ?? (c.side === "support" ? c.putClusterStrike : c.callClusterStrike)),
     enteredOn: fmtDate(c.eventAt),
     hitOn: fmtDate(c.pocHitAt),
-    website: WEBSITE,
+    website: c.id ? fnoReplayPermalink(c.id) : WEBSITE,
   };
 }
 
@@ -70,7 +75,7 @@ ${dataJson}
 
 Story: ${p.label} (${p.symbol}) had a ${p.setup}. After entering near ${p.entrySpot}, price ${dir} and reached the max-pain target around ${p.maxPain} — a +${p.movePct}% move. Entered ${p.enteredOn}, target hit ${p.hitOn}.
 
-Rules: informational / educational recap only — NO buy/sell advice, NO "you should". Past tense. PLAIN TEXT — no markdown, no asterisks (social shows ** literally). Mention the +${p.movePct}% move and that price ran to max pain. CTA → ${p.website}.
+Rules: informational / educational recap only — NO buy/sell advice, NO "you should". Past tense. PLAIN TEXT — no markdown, no asterisks (social shows ** literally). Mention the +${p.movePct}% move and that price ran to max pain. CTA link must be exactly ${p.website} (replay page).
 
 Return valid JSON only. Use \\n for line breaks inside string values (never raw unescaped newlines).`;
 }
@@ -85,7 +90,7 @@ export function buildStoryTemplateCaptions(p: StoryCaptionPayload): VideoCaption
     "",
     `${p.label} ${dir} near ${p.entrySpot} and ran +${p.movePct}% to max pain (${p.maxPain}).`,
     "",
-    `Live zones → ${p.website}`,
+    `Full replay → ${p.website}`,
     "",
     `${tag} #FNONinja #StockMarket`,
   ].join("\n");
@@ -99,7 +104,7 @@ export function buildStoryTemplateCaptions(p: StoryCaptionPayload): VideoCaption
     "",
     `Educational recap only — not investment advice.`,
     "",
-    `See live wall + max-pain zones 👇`,
+    `Watch the replay 👇`,
     p.website,
     "",
     `#FNONinja #StockMarketIndia #Trading`,
@@ -114,7 +119,7 @@ export function buildStoryTemplateCaptions(p: StoryCaptionPayload): VideoCaption
     "",
     `A clean example of how option-wall + max-pain levels framed the move. Shared for educational purposes — not investment advice.`,
     "",
-    `Explore live zones: ${p.website}`,
+    `Replay: ${p.website}`,
     "",
     `#StockMarket #OptionsData #IndianStocks #FNONinja`,
   ].join("\n");
@@ -129,7 +134,7 @@ export function buildStoryTemplateCaptions(p: StoryCaptionPayload): VideoCaption
     "",
     `Educational recap only.`,
     "",
-    `Live zones → link in bio`,
+    `Full replay →`,
     p.website,
     "",
     `#FNONinja #StockMarket #OptionsTrading #IndianStocks #MaxPain #PriceAction`,
@@ -143,7 +148,7 @@ export function buildStoryTemplateCaptions(p: StoryCaptionPayload): VideoCaption
     "",
     `Educational recap of how the wall + max-pain levels framed the move. Not investment advice.`,
     "",
-    `Live zones: ${p.website}`,
+    `Replay: ${p.website}`,
     "",
     `#FNONinja #StockMarket #MaxPain #shorts`,
   ].join("\n");

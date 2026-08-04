@@ -9,10 +9,16 @@ Not: NinjaTrader, a brokerage, a signal service, or FreedomBot.ai (crypto — se
 ## About
 
 - [Homepage](https://fnoninja.com/): Product overview, features, pricing, and disclaimer
+- [Levels today](https://fnoninja.com/today): Public Nifty & Bank Nifty put/call walls and max pain board (shareable)
 - [NSE F&O market map](https://fnoninja.com/levels): Interactive bubble map of the full F&O universe
+- [Webinar](https://fnoninja.com/webinar): Free educational webinar on reading option walls
 - [Learn](https://fnoninja.com/learn): Educational guides to option-chain zones and market structure
 - [Index History guide](https://fnoninja.com/learn/history): Six-month put/call walls, max pain, OI momentum (thickness), and dominance (glow)
 - [Option zones science](https://fnoninja.com/learn/science): Put/call clusters, max pain, and expiry mechanics
+- [Index Outlook](https://fnoninja.com/learn/outlook): Support, resistance, and max pain across expiries
+- [OI Delta](https://fnoninja.com/learn/oi-delta): Reading open-interest change
+- [Atlas](https://fnoninja.com/learn/atlas): AI coach overview
+- [Community](https://fnoninja.com/community): Subscriber community overview
 
 ## How it works
 

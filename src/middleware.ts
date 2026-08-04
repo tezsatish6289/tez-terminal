@@ -132,6 +132,10 @@ export function middleware(request: NextRequest) {
       pathname.startsWith("/learn/") ||
       pathname === "/webinar" ||
       pathname.startsWith("/webinar/") ||
+      pathname === "/today" ||
+      pathname.startsWith("/today/") ||
+      pathname === "/replay" ||
+      pathname.startsWith("/replay/") ||
       pathname === "/community" ||
       pathname.startsWith("/community/") ||
       pathname === "/subscribe" ||

@@ -4,6 +4,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { loadStoryReplayPayload } from "@/lib/sr-audit/load-story-replay";
 import type { StoryReplayData } from "@/lib/sr-audit/story-replay-types";
 import {
+  buildSrReplayTitle,
   parseSrReplaySort,
   type SrReplaySort,
   type SrReplaySummary,
@@ -11,6 +12,7 @@ import {
 import { findSuccessStories } from "@/lib/videos/success-story";
 
 export type SrReplayWithStory = SrReplaySummary & { replay: StoryReplayData };
+export { buildSrReplayTitle };
 
 function buildTitle(candidate: {
   symbol: string;
@@ -18,11 +20,7 @@ function buildTitle(candidate: {
   side: "support" | "resistance";
   movePct: number;
 }): string {
-  const moveStr = `+${candidate.movePct.toFixed(1)}%`;
-  if (candidate.side === "resistance") {
-    return `${candidate.symbol} Call-Wall Rejection: ${moveStr} Move to Max Pain`;
-  }
-  return `${candidate.symbol} Put-Wall Bounce: ${moveStr} Move to Max Pain`;
+  return buildSrReplayTitle(candidate);
 }
 
 function sortSummaries(items: SrReplaySummary[], sort: SrReplaySort): SrReplaySummary[] {

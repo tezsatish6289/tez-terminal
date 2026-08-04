@@ -64,6 +64,10 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/learn/") ||
     pathname === "/webinar" ||
     pathname.startsWith("/webinar/") ||
+    pathname === "/today" ||
+    pathname.startsWith("/today/") ||
+    pathname === "/replay" ||
+    pathname.startsWith("/replay/") ||
     pathname === "/levels" ||
     pathname.startsWith("/levels/")
   ) {

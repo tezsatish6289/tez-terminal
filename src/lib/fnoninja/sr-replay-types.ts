@@ -30,3 +30,17 @@ export function parseSrReplaySort(raw: string | null | undefined): SrReplaySort 
   if (raw === "latest" || raw === "oldest") return raw;
   return "best";
 }
+
+export function buildSrReplayTitle(candidate: {
+  symbol: string;
+  label?: string;
+  side: "support" | "resistance";
+  movePct: number;
+}): string {
+  const moveStr = `+${candidate.movePct.toFixed(1)}%`;
+  const name = (candidate.label || candidate.symbol).trim() || candidate.symbol;
+  if (candidate.side === "resistance") {
+    return `${name} Call-Wall Rejection: ${moveStr} Move to Max Pain`;
+  }
+  return `${name} Put-Wall Bounce: ${moveStr} Move to Max Pain`;
+}

@@ -10,7 +10,7 @@ import { normalizeCaption } from "@/lib/social/platforms";
 
 export { captionsForUi, type VideoCaptionsForUi };
 
-const WEBSITE = "https://fnoninja.com";
+const WEBSITE = "https://fnoninja.com/today";
 const MODEL = "gemini-2.5-flash";
 
 /** Rank → wall strength label (rank 1 = strongest wall in the video). */

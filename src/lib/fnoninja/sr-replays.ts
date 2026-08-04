@@ -73,10 +73,20 @@ export async function listSrReplaysWithStories(
   const loaded = await Promise.all(
     summaries.map(async (summary) => {
       const replay = await loadStoryReplayPayload(summary.id);
-      return replay ? { ...summary, replay } : null;
+      if (!replay) return null;
+      // Prefer chart-accurate MFE from the replay payload over stored sticky score.
+      const movePct = replay.movePct;
+      return {
+        ...summary,
+        movePct,
+        title: buildTitle({ ...summary, movePct }),
+        replay,
+      };
     }),
   );
-  return loaded.filter((x): x is SrReplayWithStory => x != null);
+  const rows = loaded.filter((x): x is SrReplayWithStory => x != null);
+  // sortSummaries preserves object identity (incl. replay payload).
+  return sortSummaries(rows, opts.sort ?? "best") as SrReplayWithStory[];
 }
 
 export { parseSrReplaySort };

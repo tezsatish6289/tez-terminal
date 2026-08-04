@@ -2,6 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireUser } from "@/lib/chat/require-user";
+import { loadStoryReplayPayload } from "@/lib/sr-audit/load-story-replay";
 import { SR_ZONE_EVENTS_COLLECTION } from "@/lib/sr-audit/constants";
 import type { SrZoneEvent } from "@/lib/sr-audit/types";
 
@@ -21,17 +22,21 @@ export async function GET(request: NextRequest) {
   }
 
   const db = getAdminFirestore();
-  const [countSnap, eventSnap] = await Promise.all([
+  const [countSnap, replay] = await Promise.all([
     db.collection(COUNTS_COLLECTION).doc(storyId).get(),
-    db.collection(SR_ZONE_EVENTS_COLLECTION).doc(storyId).get(),
+    loadStoryReplayPayload(storyId),
   ]);
   const count = Number((countSnap.data() as { count?: number } | undefined)?.count ?? 0);
 
-  let movePct: number | null = null;
-  if (eventSnap.exists) {
-    const event = eventSnap.data() as SrZoneEvent;
-    if (typeof event.maxFavorablePct === "number" && Number.isFinite(event.maxFavorablePct)) {
-      movePct = event.maxFavorablePct;
+  let movePct: number | null =
+    replay && Number.isFinite(replay.movePct) ? replay.movePct : null;
+  if (movePct == null) {
+    const eventSnap = await db.collection(SR_ZONE_EVENTS_COLLECTION).doc(storyId).get();
+    if (eventSnap.exists) {
+      const event = eventSnap.data() as SrZoneEvent;
+      if (typeof event.maxFavorablePct === "number" && Number.isFinite(event.maxFavorablePct)) {
+        movePct = event.maxFavorablePct;
+      }
     }
   }
 

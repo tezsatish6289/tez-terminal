@@ -95,6 +95,10 @@ export interface ChatMemberDoc {
   banReason: string | null;
   /** ISO timestamp the user accepted the chat terms, or null. */
   acceptedTermsAt: string | null;
+  /** ISO timestamp Atlas posted the once-per-user welcome intro ask, if any. */
+  welcomeSentAt?: string | null;
+  /** Id of Atlas's welcome message in General, when posted. */
+  welcomeMessageId?: string | null;
   displayName: string | null;
   photoURL: string | null;
   /** Recent post epoch-ms timestamps for sliding-window rate limiting. */

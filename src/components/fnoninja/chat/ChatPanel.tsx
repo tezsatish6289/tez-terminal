@@ -16,7 +16,14 @@ import {
   toggleChatReaction,
   uploadChatImage,
 } from "@/lib/chat/client";
-import { CHAT_REPLY_SNIPPET_LENGTH, SUCCESS_STORIES_ROOM_ID, canUserPostInRoom, getChatRoom } from "@/lib/chat/constants";
+import {
+  CHAT_REPLY_SNIPPET_LENGTH,
+  GENERAL_ROOM_ID,
+  SUCCESS_STORIES_ROOM_ID,
+  canUserPostInRoom,
+  getChatRoom,
+} from "@/lib/chat/constants";
+import { isAtlasSystemAuthor } from "@/lib/chat/atlas-welcome";
 import { isAdminEmail } from "@/lib/admin-emails-client";
 import type { ChatAttachment, ChatMessage, ChatReplyRef } from "@/lib/chat/types";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
@@ -82,11 +89,12 @@ export function ChatPanel() {
     return [...messages, ...outgoing].sort((a, b) => a.createdAt - b.createdAt);
   }, [messages, outgoing]);
 
-  // Mention candidates: people who've posted in the room (excluding yourself).
+  // Mention candidates: people who've posted in the room (excluding yourself / system bots).
   const participants = useMemo<ChatParticipant[]>(() => {
     const map = new Map<string, ChatParticipant>();
     for (const m of allMessages) {
       if (!m.authorId || m.authorId === user?.uid || map.has(m.authorId)) continue;
+      if (m.authorId.startsWith("system:") || isAtlasSystemAuthor(m.authorId)) continue;
       map.set(m.authorId, {
         id: m.authorId,
         name: m.authorName || "Trader",
@@ -359,7 +367,12 @@ export function ChatPanel() {
             <ChatLockedState />
           )
         ) : !acceptedTerms ? (
-          <ChatTermsGate onAccepted={() => { /* member snapshot updates via onSnapshot */ }} />
+          <ChatTermsGate
+            onAccepted={() => {
+              // Land on General so Atlas's welcome intro ask is visible immediately.
+              setRoomId(GENERAL_ROOM_ID);
+            }}
+          />
         ) : (
           <div className="flex min-h-0 flex-1">
             <ChatRoomSidebar

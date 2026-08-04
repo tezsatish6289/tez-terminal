@@ -7,6 +7,10 @@ import { Check, Flag, ImageIcon, Loader2, Pencil, Reply, RotateCw, Trash2, User,
 import type { ChatAttachment } from "@/lib/chat/types";
 import { format } from "date-fns";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
+import {
+  ATLAS_AUTHOR_PHOTO_LOCAL,
+  isAtlasSystemAuthor,
+} from "@/lib/chat/atlas-welcome";
 import { CHAT_EDIT_WINDOW_MS, SUCCESS_STORIES_ROOM_ID } from "@/lib/chat/constants";
 import {
   isSuccessStorySystemAuthor,
@@ -234,6 +238,9 @@ export function MessageItem({
     (isSuccessStorySystemAuthor(message.authorId) || Boolean(parsedStory.storyId))
       ? parsedStory
       : null;
+  const isAtlas = isAtlasSystemAuthor(message.authorId);
+  const avatarSrc =
+    message.authorPhoto || (isAtlas ? ATLAS_AUTHOR_PHOTO_LOCAL : null);
 
   const clearLongPress = useCallback(() => {
     if (longPressTimer.current) {
@@ -346,8 +353,8 @@ export function MessageItem({
       }}
     >
       <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full" style={{ backgroundColor: "rgba(37,99,235,0.12)" }}>
-        {message.authorPhoto ? (
-          <Image src={message.authorPhoto} alt="" width={28} height={28} className="h-full w-full object-cover" unoptimized />
+        {avatarSrc ? (
+          <Image src={avatarSrc} alt="" width={28} height={28} className="h-full w-full object-cover" unoptimized />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <User className="h-3.5 w-3.5" style={{ color: "#60a5fa" }} />
@@ -368,6 +375,14 @@ export function MessageItem({
       >
         <div className="flex items-baseline gap-2">
           <span className="truncate text-xs font-semibold text-white">{message.authorName}</span>
+          {isAtlas ? (
+            <span
+              className="rounded px-1 py-px text-[9px] font-bold uppercase tracking-wide"
+              style={{ color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.2)" }}
+            >
+              AI
+            </span>
+          ) : null}
           <span className="text-[10px]" style={{ color: "#475569" }}>
             {format(new Date(message.createdAt), "HH:mm")}
             {message.editedAt ? " · edited" : ""}

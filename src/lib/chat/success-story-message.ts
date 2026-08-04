@@ -63,7 +63,7 @@ export function buildSuccessStoryChatText(input: {
       : "Call-wall rejection that held";
 
   return [
-    `$${input.symbol} +${moveStr}% to max pain`,
+    `$${input.symbol} +${moveStr}% peak move`,
     `${setup} · ${input.label}`,
     input.storyUrl,
   ].join("\n");

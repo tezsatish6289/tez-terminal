@@ -4,7 +4,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { getIndexCandles, getStockCandles } from "@/lib/dhan-candles";
 import { fetchDailyPvtPoints, PVT_ENTRY_WINDOW_SESSIONS } from "@/lib/levels/pvt-signal";
 import { pvtSlopeSince, pvtValueAt } from "@/lib/levels/pvt";
-import { snapshotEventCandles } from "@/lib/sr-audit/candle-snapshot";
+import { loadEventCandles, snapshotEventCandles } from "@/lib/sr-audit/candle-snapshot";
 import {
   SR_AUDIT_META_DOC,
   SR_SCORE_BATCH_SIZE,
@@ -19,6 +19,7 @@ import {
 import {
   analyzeCandlesForEvent,
   lastCandleCloseSinceEvent,
+  mfePctFromStoryBars,
 } from "@/lib/sr-audit/score-logic";
 import { publishLiveSuccessStory } from "@/lib/sr-audit/publish-live-success-story";
 import type { SrZoneEvent } from "@/lib/sr-audit/types";
@@ -227,13 +228,33 @@ export async function scoreOpenSrZoneEvents(
         if (bars != null) candlesSnapshotAt = now;
       }
 
+      // Headline MFE must match the chart snapshot bars (not sticky 5-min spikes).
+      let headlineMfe = cumMfe;
+      if (reachedTarget && candlesSnapshotAt) {
+        const snap = await loadEventCandles(db, doc.id);
+        if (snap?.bars?.length) {
+          const chartMfe = mfePctFromStoryBars(
+            {
+              side: event.side,
+              entrySpot: snap.entrySpot ?? event.entrySpot,
+              invalidation: snap.invalidation ?? event.invalidation ?? null,
+              maxPain: snap.maxPain ?? event.maxPain ?? null,
+              eventAt: event.eventAt,
+            },
+            snap.bars,
+          );
+          if (chartMfe != null && Number.isFinite(chartMfe)) {
+            headlineMfe = chartMfe;
+          }
+        }
+      }
+
       // In-app FOMO (toast + Success Stories chat). Idempotent; Buffer/email stay evening.
-      // Always publish MFE (maxFavorablePct) — same headline % as replay / captions.
       if (stickyHitPoc && candlesSnapshotAt) {
         void publishLiveSuccessStory({
           eventId: doc.id,
           event: { symbol: event.symbol, label: event.label, side: event.side },
-          movePct: cumMfe,
+          movePct: headlineMfe,
         }).catch((e) => {
           console.error(
             "[sr-audit] live success story publish failed",
@@ -245,7 +266,7 @@ export async function scoreOpenSrZoneEvents(
 
       const openPatch = {
         ...pvtOpenPatch,
-        maxFavorablePct: cumMfe,
+        maxFavorablePct: headlineMfe,
         maxAdversePct: cumMae,
         hitPoc: stickyHitPoc,
         pocHitAt,

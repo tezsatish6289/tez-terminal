@@ -156,7 +156,7 @@ export function drawStoryReplayFrame(
   ctx.fillText(`+${data.movePct.toFixed(1)}%`, REEL_W - CHART.left, 210);
   ctx.fillStyle = "#64748b";
   ctx.font = "700 26px ui-sans-serif, system-ui";
-  ctx.fillText("move to max pain", REEL_W - CHART.left, 250);
+  ctx.fillText("peak move (MFE)", REEL_W - CHART.left, 250);
   ctx.textAlign = "left";
 
   const CL = CHART.left;

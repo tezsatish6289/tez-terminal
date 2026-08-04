@@ -106,8 +106,8 @@ export function SuccessStoryViewerSheet({
           <div className="space-y-1.5 px-5 py-4 text-[13px] leading-relaxed text-slate-300">
             <p>
               Entered near ₹{fmt(data.entrySpot)}
-              {data.maxPain != null ? ` → max pain ₹${fmt(data.maxPain)}` : ""}
-              {` (+${data.movePct.toFixed(1)}%)`}.
+              {data.maxPain != null ? ` → max pain ₹${fmt(data.maxPain)}` : ""}.
+              Peak move (MFE) +{data.movePct.toFixed(1)}%.
             </p>
             <p className="text-[12px] text-slate-500">
               Educational recap only — not investment advice.

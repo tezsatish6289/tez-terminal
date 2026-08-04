@@ -103,7 +103,7 @@ export function SuccessStoriesLiveListener({
           <p className="truncate text-sm font-bold text-white">
             {label}{" "}
             <span className="text-emerald-400">+{move}%</span>
-            <span className="font-semibold text-slate-400"> to max pain</span>
+            <span className="font-semibold text-slate-400"> peak move</span>
           </p>
         </div>
         <button

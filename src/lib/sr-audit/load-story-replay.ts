@@ -3,6 +3,7 @@ import "server-only";
 import { getAdminFirestore } from "@/firebase/admin";
 import { loadEventCandles } from "@/lib/sr-audit/candle-snapshot";
 import { SR_ZONE_EVENTS_COLLECTION } from "@/lib/sr-audit/constants";
+import { mfePctFromStoryBars } from "@/lib/sr-audit/score-logic";
 import type { StoryReplayData } from "@/lib/sr-audit/story-replay-types";
 import type { SrZoneEvent } from "@/lib/sr-audit/types";
 import { qualifySuccessStory } from "@/lib/videos/success-story";
@@ -20,13 +21,29 @@ export async function loadStoryReplayPayload(eventId: string): Promise<StoryRepl
   const snapshot = await loadEventCandles(db, eventId);
   if (!snapshot?.bars?.length) return null;
 
+  const entrySpot = snapshot.entrySpot ?? candidate.entrySpot;
+  const maxPain = snapshot.maxPain ?? candidate.maxPain;
+  // Canonical headline % = MFE from the bars drawn on the chart (not sticky 5-min score).
+  const chartMfe = mfePctFromStoryBars(
+    {
+      side: candidate.side,
+      entrySpot,
+      invalidation: snapshot.invalidation ?? candidate.invalidation,
+      maxPain,
+      eventAt: candidate.eventAt,
+    },
+    snapshot.bars,
+  );
+  const movePct =
+    chartMfe != null && Number.isFinite(chartMfe) ? chartMfe : candidate.movePct;
+
   return {
     symbol: candidate.symbol,
     label: candidate.label,
     scope: candidate.scope,
     side: candidate.side,
-    entrySpot: snapshot.entrySpot ?? candidate.entrySpot,
-    maxPain: snapshot.maxPain ?? candidate.maxPain,
+    entrySpot,
+    maxPain,
     invalidation: snapshot.invalidation ?? candidate.invalidation,
     putClusterStrike: snapshot.putClusterStrike ?? candidate.putClusterStrike,
     putClusterSize: snapshot.putClusterSize ?? candidate.putClusterSize,
@@ -39,7 +56,7 @@ export async function loadStoryReplayPayload(eventId: string): Promise<StoryRepl
     zonesExpiry: candidate.zonesExpiry,
     atmIV: candidate.atmIV,
     entryRr: candidate.entryRr,
-    movePct: candidate.movePct,
+    movePct,
     maxPainDistancePct: candidate.maxPainDistancePct,
     eventAt: candidate.eventAt,
     pocHitAt: candidate.pocHitAt,

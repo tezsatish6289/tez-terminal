@@ -87,6 +87,30 @@ export function analyzeCandlesForEvent(
   return { maxFavorablePct, maxAdversePct, hitPoc, pocHitAt, invalidationHit };
 }
 
+/**
+ * Headline MFE from the same bars the success-story chart draws (15-min snapshot).
+ * Prefer this over sticky 5-min scoring MFE so the % always matches the replay.
+ */
+export function mfePctFromStoryBars(
+  event: Pick<
+    SrZoneEvent,
+    "side" | "entrySpot" | "invalidation" | "maxPain" | "eventAt"
+  >,
+  bars: Array<{ t: number; h: number; l: number; c?: number }>,
+): number | null {
+  if (!bars.length) return null;
+  const analysis = analyzeCandlesForEvent(
+    event,
+    bars.map((b) => ({
+      time: b.t,
+      high: b.h,
+      low: b.l,
+      close: b.c,
+    })),
+  );
+  return analysis ? analysis.maxFavorablePct : null;
+}
+
 /** Last candle close after event time — spot fallback when aggregate is stale. */
 export function lastCandleCloseSinceEvent(
   candles: SrScoreCandle[],

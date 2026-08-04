@@ -137,7 +137,7 @@ export function SuccessStoryChatCard({
           </p>
         ) : null}
 
-        <p className="mt-2 text-[11px] text-slate-500">To max pain · not advice</p>
+        <p className="mt-2 text-[11px] text-slate-500">Peak move (MFE) · not advice</p>
 
         <div className="mt-5 flex w-full items-stretch gap-2.5">
           <button

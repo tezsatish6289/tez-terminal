@@ -12,6 +12,10 @@ env:
     value: asia-southeast1
   - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
     value: G-9SSXWJTR1L
+  # Microsoft Clarity — FNONINJA session replay / heatmaps (client bundle).
+  - variable: NEXT_PUBLIC_CLARITY_PROJECT_ID
+    value: xwyycvqx0o
+
   # Realtime Database — community chat live stream + presence (Singapore).
   # NEXT_PUBLIC_ must be available at build time so it inlines into the client bundle.
   - variable: NEXT_PUBLIC_FIREBASE_DATABASE_URL

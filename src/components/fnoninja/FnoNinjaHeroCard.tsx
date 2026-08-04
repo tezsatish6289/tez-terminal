@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   buildLevelsBubbleItems,
   type LevelsBubbleItem,
@@ -12,6 +14,8 @@ import {
   bubbleShowcaseSteps,
   type BubbleShowcaseKey,
 } from "@/lib/levels/bubble-showcase-cycle";
+import { trackCtaClick } from "@/firebase/analytics";
+import { fnoAnalyticsHref, fnoLoginHref } from "@/lib/fnoninja/paths";
 import { FNO_MUTED } from "@/lib/fnoninja/theme";
 import { countBubbleMapFilters } from "@/lib/zones/bubble-map-filter";
 import type { BubbleTone } from "@/lib/zones/bubble-tone";
@@ -96,11 +100,15 @@ function StatChip({
   val,
   tone,
   active = false,
+  href,
+  cta,
 }: {
   label: string;
   val: string;
   tone: "up" | "down" | "near-up" | "near-down";
   active?: boolean;
+  href: string;
+  cta: string;
 }) {
   const num =
     tone === "up" || tone === "near-up"
@@ -113,8 +121,10 @@ function StatChip({
     : "";
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-xl border border-slate-700/50 bg-[#0c1220]/90 px-3 py-3 text-slate-300 transition-all duration-500 ${activeGlow}`}
+    <Link
+      href={href}
+      onClick={() => trackCtaClick("hero_stat_chip", { label, cta })}
+      className={`relative block overflow-hidden rounded-xl border border-slate-700/50 bg-[#0c1220]/90 px-3 py-3 text-slate-300 transition-all duration-500 hover:border-slate-500/70 hover:bg-[#101828] cursor-pointer ${activeGlow}`}
     >
       <div className={`text-[26px] font-black leading-none tabular-nums tracking-tight ${num}`}>
         {val}
@@ -122,7 +132,7 @@ function StatChip({
       <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
         {label}
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -352,8 +362,12 @@ export function FnoNinjaHeroCard({
   payload: LevelsPayload | null;
   activeFilter: FilterKey;
 }) {
+  const pathname = usePathname();
   const bubbleItems = useLevelsBubbleItems(payload);
   const counts = useMemo(() => countBubbleMapFilters(bubbleItems), [bubbleItems]);
+  const levelsHref = fnoAnalyticsHref(pathname);
+  const loginHrefFor = (cta: string) =>
+    fnoLoginHref(pathname, levelsHref, { src: "landing", cta });
 
   return (
     <div className="relative flex flex-col gap-3">
@@ -363,24 +377,32 @@ export function FnoNinjaHeroCard({
           val={String(counts.IN_BULL)}
           tone="up"
           active={activeFilter === "IN_BULL"}
+          cta="hero_at_support"
+          href={loginHrefFor("hero_at_support")}
         />
         <StatChip
           label="Near Support"
           val={String(counts.NEAR_BULL)}
           tone="near-up"
           active={activeFilter === "NEAR_BULL"}
+          cta="hero_near_support"
+          href={loginHrefFor("hero_near_support")}
         />
         <StatChip
           label="At Resistance"
           val={String(counts.IN_BEAR)}
           tone="down"
           active={activeFilter === "IN_BEAR"}
+          cta="hero_at_resistance"
+          href={loginHrefFor("hero_at_resistance")}
         />
         <StatChip
           label="Near Resistance"
           val={String(counts.NEAR_BEAR)}
           tone="near-down"
           active={activeFilter === "NEAR_BEAR"}
+          cta="hero_near_resistance"
+          href={loginHrefFor("hero_near_resistance")}
         />
       </div>
       <MarketMap

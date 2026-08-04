@@ -13,6 +13,7 @@ Not: NinjaTrader, a brokerage, a signal service, or FreedomBot.ai (crypto — se
 - [NSE F&O market map](https://fnoninja.com/levels): Interactive bubble map of the full F&O universe
 - [Webinar](https://fnoninja.com/webinar): Free educational webinar on reading option walls
 - [Learn](https://fnoninja.com/learn): Educational guides to option-chain zones and market structure
+- [Methodology](https://fnoninja.com/learn/methodology): Beginner guide — how put/call walls and max pain levels are derived from NSE option chains
 - [Index History guide](https://fnoninja.com/learn/history): Six-month put/call walls, max pain, OI momentum (thickness), and dominance (glow)
 - [Option zones science](https://fnoninja.com/learn/science): Put/call clusters, max pain, and expiry mechanics
 - [Index Outlook](https://fnoninja.com/learn/outlook): Support, resistance, and max pain across expiries

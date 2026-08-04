@@ -9,7 +9,7 @@ export const FNONINJA_ICONS = {
 
 const DEFAULT_TITLE = "FNONINJA — Option-chain analytics for NSE F&O";
 const DEFAULT_DESCRIPTION =
-  "View option-interest concentrations, derived support and resistance observations, and price positioning across NSE F&O stocks and indices. Informational market data visualization only.";
+  "Option-chain support & resistance mapping for NSE F&O. See where price sits vs open-interest clusters. Informational only.";
 
 const FNONINJA_OG_IMAGE = `${FNONINJA_SITE_URL}/opengraph-image`;
 

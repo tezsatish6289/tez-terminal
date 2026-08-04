@@ -1,7 +1,20 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowUpDown, BookOpen, CalendarRange, LineChart, Sparkles } from "lucide-react";
+import {
+  ArrowUpDown,
+  BookOpen,
+  CalendarRange,
+  FileText,
+  LineChart,
+  Sparkles,
+} from "lucide-react";
 
-export type LearnArticleSlug = "science" | "outlook" | "oi-delta" | "atlas" | "history";
+export type LearnArticleSlug =
+  | "methodology"
+  | "science"
+  | "outlook"
+  | "oi-delta"
+  | "atlas"
+  | "history";
 
 export type LearnThumbnailVariant =
   | "default"
@@ -27,6 +40,17 @@ export type LearnArticleMeta = {
 };
 
 export const LEARN_ARTICLES: LearnArticleMeta[] = [
+  {
+    slug: "methodology",
+    title: "How FNONINJA Levels Work — A Beginner's Guide",
+    excerpt:
+      "In plain English: how we turn option-chain open interest into support, resistance, and max pain levels — what the data is, how we pick the walls, and what this is not.",
+    readMinutes: 4,
+    readLabel: "4 min · beginner",
+    tag: "Methodology",
+    icon: FileText,
+    thumbnailAccent: "linear-gradient(135deg, rgba(59,130,246,0.3), rgba(34,197,94,0.22))",
+  },
   {
     slug: "history",
     title: "Index History: Validate Max Pain, OI Momentum & Dominance Over Time",

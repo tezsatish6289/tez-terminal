@@ -36,6 +36,7 @@ export function FnoNinjaFooter() {
               {[
                 { label: "Analytics dashboard", href: "/levels" },
                 { label: "Learn", href: "/learn" },
+                { label: "Methodology", href: "/learn/methodology" },
                 { label: "How it works", href: "/#how" },
                 { label: "Pricing", href: "/#pricing" },
                 { label: "Disclaimer", href: "/#disclaimer" },

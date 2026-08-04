@@ -551,10 +551,10 @@ export function LevelsChartSideToolbar({
         </ToolbarButton>
 
         <ToolbarButton
-          label="Watchlist"
+          label="W - Go to Watchlist"
           flat
           onClick={goToFavslide}
-          title="Watchlist"
+          title="W - Go to Watchlist"
           dataAttrs={{
             "data-favslide-tour": "fav-switch",
             "data-liveslide-tour": "fav-switch",
@@ -564,10 +564,10 @@ export function LevelsChartSideToolbar({
         </ToolbarButton>
 
         <ToolbarButton
-          label="Livelist"
+          label="L - Go to Livelist"
           flat
           onClick={goToLiveslide}
-          title="Livelist"
+          title="L - Go to Livelist"
           dataAttrs={{
             "data-liveslide-tour": "live-switch",
             "data-favslide-tour": "live-switch",

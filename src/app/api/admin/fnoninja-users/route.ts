@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SCORE_ALERT_PREFS_COLLECTION } from "@/lib/alerts/constants";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import { readStoredPhone } from "@/lib/phone";
@@ -19,6 +20,8 @@ export interface FnoAdminUserRow {
   tier: string | null;
   status: "trial" | "active" | "expired" | "none";
   isActive: boolean;
+  /** Score alerts toggle currently on (`score_alert_preferences.enabled`). */
+  alertsEnabled: boolean;
   expiryDate: string | null;
   autoRenew: boolean | null;
   manualOverride: boolean;
@@ -55,13 +58,16 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getAdminFirestore();
-    const [usersSnap, subsSnap] = await Promise.all([
+    const [usersSnap, subsSnap, alertPrefsSnap] = await Promise.all([
       db.collection("users").get(),
       db.collection("subscriptions").get(),
+      db.collection(SCORE_ALERT_PREFS_COLLECTION).where("enabled", "==", true).get(),
     ]);
 
     const subsMap = new Map<string, SubscriptionDoc & Record<string, unknown>>();
     subsSnap.docs.forEach((d) => subsMap.set(d.id, d.data() as SubscriptionDoc & Record<string, unknown>));
+
+    const alertsEnabledUids = new Set(alertPrefsSnap.docs.map((d) => d.id));
 
     const rows: FnoAdminUserRow[] = [];
     usersSnap.docs.forEach((d) => {
@@ -87,6 +93,7 @@ export async function GET(request: NextRequest) {
         tier: sub?.tier ?? (sub?.status === "trial" ? "free" : null),
         status: effectiveStatus(sub),
         isActive: active,
+        alertsEnabled: alertsEnabledUids.has(d.id),
         expiryDate,
         autoRenew: sub?.autoRenew ?? null,
         manualOverride: Boolean((sub as Record<string, unknown> | null)?.manualOverride),
@@ -110,7 +117,19 @@ export async function GET(request: NextRequest) {
       return bt - at;
     });
 
-    return NextResponse.json({ users: rows, total: rows.length });
+    const activeCount = rows.filter((r) => r.isActive).length;
+    const activeWithAlerts = rows.filter((r) => r.isActive && r.alertsEnabled).length;
+
+    return NextResponse.json({
+      users: rows,
+      total: rows.length,
+      alertStats: {
+        activeWithAlerts,
+        activeCount,
+        activeWithAlertsPct:
+          activeCount > 0 ? Math.round((activeWithAlerts / activeCount) * 100) : 0,
+      },
+    });
   } catch (error: any) {
     console.error("[Admin FnoNinja Users]", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });

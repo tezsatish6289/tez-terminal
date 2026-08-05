@@ -30,6 +30,7 @@ interface FnoUserRow {
   tier: string | null;
   status: "trial" | "active" | "expired" | "none";
   isActive: boolean;
+  alertsEnabled: boolean;
   expiryDate: string | null;
   autoRenew: boolean | null;
   manualOverride: boolean;
@@ -123,7 +124,12 @@ export default function AdminFnoNinjaUsersPage() {
       const res = await authedFetch("/api/admin/fnoninja-users");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load");
-      setUsers((data.users || []) as FnoUserRow[]);
+      setUsers(
+        ((data.users || []) as FnoUserRow[]).map((u) => ({
+          ...u,
+          alertsEnabled: u.alertsEnabled === true,
+        })),
+      );
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -172,11 +178,15 @@ export default function AdminFnoNinjaUsersPage() {
 
   const counts = useMemo(() => {
     const today = startOfToday();
+    const active = users.filter((u) => u.isActive).length;
+    const activeWithAlerts = users.filter((u) => u.isActive && u.alertsEnabled).length;
     return {
       total: users.length,
       today: users.filter((u) => u.lastSeenAt && new Date(u.lastSeenAt).getTime() >= today).length,
-      active: users.filter((u) => u.isActive).length,
+      active,
       expired: users.filter((u) => !u.isActive).length,
+      activeWithAlerts,
+      activeWithAlertsPct: active > 0 ? Math.round((activeWithAlerts / active) * 100) : 0,
     };
   }, [users]);
 
@@ -281,12 +291,18 @@ export default function AdminFnoNinjaUsersPage() {
         </header>
 
         {/* Counts */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {[
-            { label: "Total users", value: counts.total, color: "text-white" },
-            { label: "Logged in today", value: counts.today, color: "text-blue-400" },
-            { label: "Active", value: counts.active, color: "text-emerald-400" },
-            { label: "Expired", value: counts.expired, color: "text-rose-400" },
+            { label: "Total users", value: String(counts.total), color: "text-white" },
+            { label: "Logged in today", value: String(counts.today), color: "text-blue-400" },
+            { label: "Active", value: String(counts.active), color: "text-emerald-400" },
+            { label: "Expired", value: String(counts.expired), color: "text-rose-400" },
+            {
+              label: "Active w/ alerts",
+              value: `${counts.activeWithAlertsPct}%`,
+              sub: `${counts.activeWithAlerts} / ${counts.active}`,
+              color: "text-amber-400",
+            },
           ].map((c) => (
             <div
               key={c.label}
@@ -296,9 +312,15 @@ export default function AdminFnoNinjaUsersPage() {
                 {c.label}
               </span>
               <span className={`text-2xl font-black font-mono ${c.color}`}>{c.value}</span>
+              {"sub" in c && c.sub ? (
+                <span className="mt-0.5 block text-[10px] font-mono text-muted-foreground/60">{c.sub}</span>
+              ) : null}
             </div>
           ))}
         </div>
+        <p className="text-[11px] text-muted-foreground/60 -mt-3">
+          Alerts default off for everyone. Expired users keep their toggle, but the cron skips them until they are active again.
+        </p>
 
         {/* Filters */}
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">

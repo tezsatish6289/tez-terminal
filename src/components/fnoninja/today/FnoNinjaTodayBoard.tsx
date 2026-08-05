@@ -14,6 +14,8 @@ import {
 import type { TodayBoardSnapshot, TodayIndexBoard } from "@/lib/fnoninja/today-board-shared";
 import { formatBoardAsOf, formatBoardPrice } from "@/lib/fnoninja/today-board-shared";
 import type { SrReplaySummary } from "@/lib/fnoninja/sr-replay-types";
+import { FNO_TODAY_TRIAL_CTA } from "@/lib/fnoninja/login-copy";
+import { FNONINJA_FREE_TRIAL_DAYS } from "@/lib/fnoninja/pricing";
 import {
   FNO_ACCENT,
   FNO_CARD_BG,
@@ -143,7 +145,7 @@ export function FnoNinjaTodayBoard({
           className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold text-white transition-transform hover:scale-[1.02]"
           style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
         >
-          Open full map free
+          {FNO_TODAY_TRIAL_CTA}
           <ArrowRight className="h-4 w-4" />
         </Link>
         <button
@@ -198,7 +200,8 @@ export function FnoNinjaTodayBoard({
       ) : null}
 
       <p className="text-xs leading-relaxed" style={{ color: FNO_MUTED }}>
-        Full F&amp;O stock map, alerts, and Atlas stay behind a free trial.{" "}
+        Full F&amp;O stock map, alerts, and Atlas unlock with a {FNONINJA_FREE_TRIAL_DAYS}-day free
+        trial.{" "}
         <Link href={levelsHref} className="underline underline-offset-2" style={{ color: "#93c5fd" }}>
           Preview the market map
         </Link>

@@ -2,6 +2,7 @@
 
 import { Sparkles } from "lucide-react";
 import { FnoNinjaPlanCards } from "@/components/fnoninja/FnoNinjaPlanCards";
+import { FNONINJA_FREE_TRIAL_DAYS } from "@/lib/fnoninja/pricing";
 
 const FNO_BORDER = "rgba(90,140,220,0.2)";
 
@@ -20,8 +21,8 @@ export function FnoNinjaSubscribePage() {
           Choose your plan
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-slate-400">
-          Charts and Sentiment are free to explore. Sign in for your 7-day free trial, then pick a
-          plan to keep full access.
+          Charts and Sentiment are free to explore. Sign in for your {FNONINJA_FREE_TRIAL_DAYS}-day
+          free trial, then pick a plan to keep full access.
         </p>
       </div>
 

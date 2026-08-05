@@ -10,6 +10,7 @@ import {
 } from "@/components/fnoninja/landing-motion";
 import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_LANDING_ATLAS_HINT } from "@/lib/fnoninja/login-copy";
 import {
   FNO_LANDING_BORDER,
   GradientText,
@@ -80,7 +81,7 @@ export function FnoNinjaAtlasSection() {
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
               </FnoNinjaLoginLink>
-              <span className="text-xs text-slate-500">Sign in to access Atlas on any chart</span>
+              <span className="text-xs text-slate-500">{FNO_LANDING_ATLAS_HINT}</span>
             </div>
           </Reveal>
 

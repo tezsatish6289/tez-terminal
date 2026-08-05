@@ -11,6 +11,7 @@ import { trackCtaClick } from "@/firebase/analytics";
 import {
   FNO_LOGIN_DISCLAIMER,
   FNO_LOGIN_PAGE_SUBTITLE,
+  FNO_LOGIN_TRIAL_NOTE,
 } from "@/lib/fnoninja/login-copy";
 import {
   fnoAnalyticsHref,
@@ -90,7 +91,11 @@ function FnoNinjaLoginPageInner() {
           />
         </div>
 
-        <p className="mt-6 text-[11px] leading-relaxed" style={{ color: "#475569" }}>
+        <p className="mt-4 text-sm font-medium" style={{ color: "#93c5fd" }}>
+          {FNO_LOGIN_TRIAL_NOTE}
+        </p>
+
+        <p className="mt-4 text-[11px] leading-relaxed" style={{ color: "#475569" }}>
           {FNO_LOGIN_DISCLAIMER}
         </p>
       </div>

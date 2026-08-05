@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Check, Crown, Lock } from "lucide-react";
 import type { LockReason } from "@/lib/entitlements";
+import { FNO_FEATURE_LOGIN_BODY } from "@/lib/fnoninja/login-copy";
 import { fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_MUTED } from "@/lib/fnoninja/theme";
@@ -37,7 +38,7 @@ const COPY: Record<
   login_required: {
     badge: "Members only",
     title: "Sign in to continue",
-    body: "Sign in to start your free trial and unlock the full terminal.",
+    body: FNO_FEATURE_LOGIN_BODY,
     icon: Lock,
   },
 };

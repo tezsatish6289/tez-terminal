@@ -16,6 +16,7 @@ import {
   MountReveal,
 } from "@/components/fnoninja/landing-motion";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_LANDING_HERO_TRIAL_HINT } from "@/lib/fnoninja/login-copy";
 
 type TickerItem = { label: string; price: number | null; changePct: number | null };
 
@@ -88,7 +89,7 @@ export function FnoNinjaHero() {
           <HeroItem>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <FnoNinjaCtaLink className="w-full sm:w-auto">Explore market map</FnoNinjaCtaLink>
-              <span className="text-xs text-slate-500">Informational only · Not investment advice</span>
+              <span className="text-xs text-slate-500">{FNO_LANDING_HERO_TRIAL_HINT}</span>
             </div>
           </HeroItem>
         </HeroStagger>

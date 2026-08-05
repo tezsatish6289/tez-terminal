@@ -26,6 +26,7 @@ import {
 } from "@/components/levels/LevelsChartCornerStatusBlobs";
 import {
   applyClusterSummaryPriceLines,
+  candlesInLogicalRange,
   mergedPriceRange,
 } from "@/components/levels/native-chart-level-overlays";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
@@ -255,7 +256,7 @@ export function PvtChart({
   const [levelsLoading, setLevelsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [chartReady, setChartReady] = useState(false);
-  const [range, setRange] = useState<PvtHistoryRange>("6M");
+  const [range, setRange] = useState<PvtHistoryRange>("1M");
 
   const effectiveLevels = useMemo(() => {
     const propBands = levelsHaveBands(levelsProp);
@@ -286,7 +287,7 @@ export function PvtChart({
   const liveBarRetryRef = useRef<number | null>(null);
 
   useEffect(() => {
-    setRange("6M");
+    setRange("1M");
     setFetchedLevels(null);
     if (liveBarRetryRef.current != null) {
       window.clearTimeout(liveBarRetryRef.current);
@@ -478,8 +479,16 @@ export function PvtChart({
 
     candlesSeries.applyOptions({
       autoscaleInfoProvider: () => {
-        const range = mergedPriceRange(candleChartDataRef.current, levelsRef.current);
-        return range ? { priceRange: range } : null;
+        const candles = candleChartDataRef.current;
+        const vr = candleChartRef.current?.timeScale().getVisibleLogicalRange();
+        const slice =
+          vr && candles.length >= 2
+            ? candlesInLogicalRange(candles, vr.from, vr.to)
+            : candles;
+        const priceRange = mergedPriceRange(slice, levelsRef.current);
+        return priceRange
+          ? { priceRange: { minValue: priceRange.minValue, maxValue: priceRange.maxValue } }
+          : null;
       },
     });
 
@@ -593,11 +602,17 @@ export function PvtChart({
     showClusterBandLabels && chartReady && candlesReady && zonesReady;
 
   return (
-    <div className={className} style={COMPACT_SHELL_STYLE}>
+    <div
+      className={`${className} max-md:min-h-[min(58dvh,520px)]`.trim()}
+      style={COMPACT_SHELL_STYLE}
+    >
       <PvtRangeToggle value={range} onChange={setRange} />
-      <div className="relative flex flex-col flex-1 min-h-0 gap-2">
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          <div ref={overlayRootRef} className="relative min-h-0 flex-1 overflow-hidden">
+      <div className="relative flex flex-col flex-1 min-h-0 gap-2 max-md:min-h-[min(50dvh,460px)]">
+        <div className="relative flex min-h-0 flex-1 flex-col max-md:min-h-[min(32dvh,300px)]">
+          <div
+            ref={overlayRootRef}
+            className="relative min-h-0 flex-1 overflow-hidden max-md:min-h-[min(30dvh,280px)]"
+          >
             <div ref={candleContainerRef} className="absolute inset-0" />
             {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candles" /> : null}
             {candlesReady && statusOverlay ? (

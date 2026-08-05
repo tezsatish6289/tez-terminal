@@ -224,6 +224,8 @@ export function PvtChart({
   className,
   showAttribution = true,
   statusOverlay,
+  /** Left Support/Resistance pills — off by default so price action stays readable. */
+  showClusterBandLabels = false,
 }: {
   scope: LevelsTvScope;
   symbol: string;
@@ -233,6 +235,7 @@ export function PvtChart({
   className?: string;
   showAttribution?: boolean;
   statusOverlay?: LevelsChartStatusOverlayProps | null;
+  showClusterBandLabels?: boolean;
 }) {
   const overlayRootRef = useRef<HTMLDivElement>(null);
   const candleContainerRef = useRef<HTMLDivElement>(null);
@@ -586,7 +589,8 @@ export function PvtChart({
     : levelsLoading
       ? "Loading option levels…"
       : error ?? "Not enough daily data for PVT.";
-  const showClusterLabels = chartReady && candlesReady && zonesReady;
+  const showClusterLabels =
+    showClusterBandLabels && chartReady && candlesReady && zonesReady;
 
   return (
     <div className={className} style={COMPACT_SHELL_STYLE}>

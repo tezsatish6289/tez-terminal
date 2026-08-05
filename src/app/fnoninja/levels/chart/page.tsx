@@ -8,7 +8,10 @@ import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandles
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { NiftyOutlookChart } from "@/components/levels/NiftyOutlookChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import type { LevelsChartStatusOverlayProps } from "@/components/levels/LevelsChartCornerStatusBlobs";
+import {
+  LevelsChartCornerStatusBlobs,
+  type LevelsChartStatusOverlayProps,
+} from "@/components/levels/LevelsChartCornerStatusBlobs";
 import { isSlideshowZoneStale, SLIDESHOW_ZONE_TICK_MS } from "@/lib/levels/slideshow-zones";
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
@@ -246,15 +249,19 @@ function ChartContent() {
 
         <LevelsChartDeepDiveLayout
           chrome={
-            <LevelsChartChrome
-              symbol={symbol}
-              subtitle={subtitleLine}
-              config={config}
-              nativeChartRef={nativeChartRef}
-              chartFullHistory={chartFullHistory}
-              hideToolbar
-              highConfidence={scope === "index" || isHighConfidenceLevels(levels)}
-            />
+            <div className="flex flex-col gap-1.5 min-w-0">
+              <LevelsChartChrome
+                symbol={symbol}
+                subtitle={subtitleLine}
+                config={config}
+                nativeChartRef={nativeChartRef}
+                chartFullHistory={chartFullHistory}
+                hideToolbar
+                highConfidence={scope === "index" || isHighConfidenceLevels(levels)}
+              />
+              {/* Status lives in chrome (TradingView-style) so candles stay readable. */}
+              <LevelsChartCornerStatusBlobs {...chartStatusOverlay} layout="row" />
+            </div>
           }
           viewToggle={
             <LevelsOutlookViewToggle
@@ -294,7 +301,6 @@ function ChartContent() {
               levels={chartLevels}
               webChartUrl={config.webChartUrl}
               showAttribution
-              statusOverlay={chartStatusOverlay}
             />
           ) : showPvt && scope ? (
             <PvtChart
@@ -303,7 +309,6 @@ function ChartContent() {
               symbol={symbol}
               levels={chartLevels}
               webChartUrl={config.dailyWebChartUrl}
-              statusOverlay={chartStatusOverlay}
             />
           ) : showOutlook ? (
             <NiftyOutlookChart
@@ -312,7 +317,6 @@ function ChartContent() {
               spot={levels?.spot ?? null}
               webChartUrl={config.webChartUrl}
               showAttribution
-              statusOverlay={chartStatusOverlay}
             />
           ) : (
             <LevelsTradingViewChart
@@ -326,7 +330,6 @@ function ChartContent() {
               showHeader={false}
               nativeChartRef={nativeChartRef}
               onFullHistoryZoomChange={setChartFullHistory}
-              statusOverlay={chartStatusOverlay}
             />
           )}
         </LevelsChartDeepDiveLayout>

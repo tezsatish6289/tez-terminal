@@ -23,8 +23,9 @@ export type LevelsChartStatusOverlayProps = {
 const DEFAULT_RIGHT_INSET_PX = 100;
 
 /**
- * Zone status + Atlas (score + ↑/↓) + IV regime blobs anchored to the
- * top-right of the chart grid, just left of the right price scale.
+ * Zone status + Atlas (score + ↑/↓) + IV regime.
+ * `stack` — top-right of the chart (desktop / slideshow).
+ * `row` — chrome strip above the plot (mobile-friendly; keeps candles clear).
  */
 export function LevelsChartCornerStatusBlobs({
   statusTone,
@@ -36,9 +37,13 @@ export function LevelsChartCornerStatusBlobs({
   atlasSetup,
   rightInsetPx = DEFAULT_RIGHT_INSET_PX,
   visible = true,
+  layout = "stack",
+  className = "",
 }: LevelsChartStatusOverlayProps & {
   rightInsetPx?: number;
   visible?: boolean;
+  layout?: "stack" | "row";
+  className?: string;
 }) {
   if (!visible) return null;
 
@@ -47,14 +52,17 @@ export function LevelsChartCornerStatusBlobs({
   const showVol = volRegime != null && volRegime !== "UNKNOWN";
   if (!showStatus && !showAtlas && !showVol) return null;
 
-  return (
-    <div
-      className="pointer-events-none absolute top-2 sm:top-2.5 z-[16] flex flex-col items-end gap-1.5"
-      style={{ right: rightInsetPx + 6 }}
-    >
-      {showStatus ? <LevelsSymbolStatusBadge tone={statusTone} size="chart" /> : null}
+  const badgeSize = layout === "row" ? "header" : "chart";
+
+  const chips = (
+    <>
+      {showStatus ? <LevelsSymbolStatusBadge tone={statusTone} size={badgeSize} /> : null}
       {showAtlas ? (
-        <AtlasSetupScoreBadge setup={atlasSetup ?? null} score={atlasScore ?? undefined} size="chart" />
+        <AtlasSetupScoreBadge
+          setup={atlasSetup ?? null}
+          score={atlasScore ?? undefined}
+          size={badgeSize}
+        />
       ) : null}
       {showVol ? (
         <VolRegimeBadge
@@ -62,9 +70,29 @@ export function LevelsChartCornerStatusBlobs({
           reason={volRegimeReason}
           atmIV={atmIV}
           daysToEarnings={daysToEarnings}
-          size="chart"
+          size={badgeSize}
         />
       ) : null}
+    </>
+  );
+
+  if (layout === "row") {
+    return (
+      <div
+        className={`flex flex-wrap items-center gap-1.5 min-w-0 ${className}`.trim()}
+        aria-label="Symbol status"
+      >
+        {chips}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`pointer-events-none absolute top-2 sm:top-2.5 z-[16] flex flex-col items-end gap-1.5 ${className}`.trim()}
+      style={{ right: rightInsetPx + 6 }}
+    >
+      {chips}
     </div>
   );
 }

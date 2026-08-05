@@ -28,9 +28,9 @@ export function LevelsChartDeepDiveLayout({
 }) {
   const chartPane = (
     <>
-      <div className="flex flex-1 min-h-0 min-w-0 mt-1 max-md:min-h-[min(52dvh,480px)]">
+      <div className="flex flex-1 min-h-0 min-w-0 mt-1 max-md:flex-none max-md:min-h-0">
         {toolbar}
-        <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden max-md:overflow-visible">
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden max-md:overflow-visible max-md:flex-none">
           {children}
         </div>
       </div>

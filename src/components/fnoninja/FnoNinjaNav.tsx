@@ -28,7 +28,11 @@ import {
 } from "@/lib/fnoninja/paths";
 import { FNO_NAV_SPACER_CLASS } from "@/lib/fnoninja/responsive";
 import { FB_CONTENT_SHELL, FB_LEVELS_SHELL, FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_LANDING_NAV_LOGIN_LABEL, FNO_LOGIN_NAV_HINT } from "@/lib/fnoninja/login-copy";
+import {
+  FNO_LANDING_NAV_LOGIN_LABEL,
+  FNO_LANDING_NAV_TRIAL_LABEL,
+  FNO_LOGIN_NAV_HINT,
+} from "@/lib/fnoninja/login-copy";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 import { useOwnPhoneDisplay } from "@/hooks/use-own-phone";
 
@@ -68,7 +72,7 @@ const MENU_BTN_STYLE = {
   backgroundColor: "rgba(37,99,235,0.06)",
 } as const;
 
-/** Landing header CTA — log in → dedicated page; signed-in users go straight to the map. */
+/** Landing header CTAs — Free Trial + Log in; signed-in users go straight to the map. */
 function FnoNinjaLandingNavCta({
   className = "",
   onAction,
@@ -79,6 +83,7 @@ function FnoNinjaLandingNavCta({
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
   const bubblesHref = fnoAnalyticsHref(pathname);
+  const trialHref = fnoLoginHref(pathname, bubblesHref, { src: "landing", cta: "free_trial" });
   const loginHref = fnoLoginHref(pathname, bubblesHref, { src: "landing", cta: "login" });
 
   if (isUserLoading) return null;
@@ -101,20 +106,41 @@ function FnoNinjaLandingNavCta({
     );
   }
 
+  const fullWidth = className.includes("w-full");
+
   return (
-    <Link
-      href={loginHref}
-      onClick={() => {
-        trackCtaClick("nav_login", { label: FNO_LANDING_NAV_LOGIN_LABEL });
-        onAction?.();
-      }}
-      className={`inline-flex items-center justify-center font-bold transition-all hover:scale-105 hover:bg-[#2563eb] gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${className}`}
-      style={{
-        backgroundColor: "#3b82f6",
-      }}
+    <div
+      className={`flex items-center gap-2 ${fullWidth ? "w-full flex-col sm:flex-row" : className}`}
     >
-      {FNO_LANDING_NAV_LOGIN_LABEL}
-    </Link>
+      <Link
+        href={trialHref}
+        onClick={() => {
+          trackCtaClick("nav_free_trial", { label: FNO_LANDING_NAV_TRIAL_LABEL });
+          onAction?.();
+        }}
+        className={`inline-flex items-center justify-center font-bold transition-all hover:scale-105 hover:bg-[#2563eb] gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${fullWidth ? "w-full" : ""}`}
+        style={{
+          backgroundColor: "#3b82f6",
+        }}
+      >
+        {FNO_LANDING_NAV_TRIAL_LABEL}
+      </Link>
+      <Link
+        href={loginHref}
+        onClick={() => {
+          trackCtaClick("nav_login", { label: FNO_LANDING_NAV_LOGIN_LABEL });
+          onAction?.();
+        }}
+        className={`inline-flex items-center justify-center font-semibold transition-colors hover:text-white gap-1.5 rounded-lg px-3 py-2 text-xs sm:text-sm ${fullWidth ? "w-full" : ""}`}
+        style={{
+          color: "#94a3b8",
+          border: "1px solid rgba(90,140,220,0.28)",
+          backgroundColor: "rgba(37,99,235,0.06)",
+        }}
+      >
+        {FNO_LANDING_NAV_LOGIN_LABEL}
+      </Link>
+    </div>
   );
 }
 

@@ -29,6 +29,7 @@ import {
   applyLevelPriceLines,
   bandFillForFocus,
   bandLineData,
+  candlesInLogicalRange,
   mergedPriceRange,
   type LevelVisualFocus,
   zoneSlAnchors,
@@ -251,15 +252,28 @@ export const NativeCandlesChart = forwardRef<
     chartRef.current?.priceScale("right").applyOptions({
       minimumWidth: priceScaleMinWidth(),
     });
-    // Re-apply after layout so fitPriceScale does not collapse the gap.
+    // Keep logical viewport on the bars. Do NOT scrollToRealTime — candle times
+    // are IST-shifted for display, so "real time" lands in empty whitespace and
+    // blanks the intraday plot after levels refresh.
     requestAnimationFrame(() => {
       const n = candlesRef.current.length;
+      if (n < 2) return;
       const off = rightOffsetBars(n);
-      chartRef.current?.timeScale().applyOptions({ rightOffset: off });
+      const scale = chartRef.current?.timeScale();
+      if (!scale) return;
+      scale.applyOptions({ rightOffset: off });
       chartRef.current?.priceScale("right").applyOptions({
         minimumWidth: priceScaleMinWidth(),
       });
-      chartRef.current?.timeScale().scrollToRealTime();
+      if (fullHistoryZoomRef.current || intradayLookbackDaysRef.current != null) {
+        scale.setVisibleLogicalRange({ from: 0, to: n - 1 + off });
+      } else {
+        const visibleBars = defaultVisibleBars(n);
+        scale.setVisibleLogicalRange({
+          from: Math.max(0, n - visibleBars),
+          to: n - 1 + off,
+        });
+      }
     });
   }
 
@@ -345,13 +359,21 @@ export const NativeCandlesChart = forwardRef<
     captureShareImage,
   ]);
 
+  function visibleCandlesForScale(): CandlestickData[] {
+    const candles = candlesRef.current;
+    const vr = chartRef.current?.timeScale().getVisibleLogicalRange();
+    if (!vr || candles.length < 2) return candles;
+    return candlesInLogicalRange(candles, vr.from, vr.to);
+  }
+
   function fitPriceScale() {
     const series = seriesRef.current;
     if (!series) return;
-    const range = mergedPriceRange(candlesRef.current, levelsRef.current);
+    const range = mergedPriceRange(visibleCandlesForScale(), levelsRef.current);
     if (!range) return;
-    // IPriceScaleApi.setVisibleRange uses { from, to } — minValue/maxValue blanked the chart.
-    series.priceScale().setAutoScale(false);
+    // Prefer autoscale so zooming recent bars re-fits price (locked full-history
+    // range was squashing candles into unreadable slivers).
+    series.priceScale().setAutoScale(true);
     series.priceScale().setVisibleRange({ from: range.from, to: range.to });
   }
 
@@ -470,8 +492,16 @@ export const NativeCandlesChart = forwardRef<
 
     series.applyOptions({
       autoscaleInfoProvider: () => {
-        const range = mergedPriceRange(candlesRef.current, levelsRef.current);
-        return range ? { priceRange: range } : null;
+        const candles = candlesRef.current;
+        const vr = chartRef.current?.timeScale().getVisibleLogicalRange();
+        const slice =
+          vr && candles.length >= 2
+            ? candlesInLogicalRange(candles, vr.from, vr.to)
+            : candles;
+        const range = mergedPriceRange(slice, levelsRef.current);
+        return range
+          ? { priceRange: { minValue: range.minValue, maxValue: range.maxValue } }
+          : null;
       },
     });
 
@@ -747,9 +777,9 @@ export const NativeCandlesChart = forwardRef<
   return (
     <div
       ref={shareRootRef}
-      className="relative flex h-full min-h-0 w-full flex-1 flex-col max-md:touch-pan-y"
+      className="relative flex h-full min-h-0 w-full flex-1 flex-col max-md:min-h-[min(48dvh,420px)] max-md:touch-pan-y"
     >
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1 max-md:min-h-[min(42dvh,380px)]">
         <div
           ref={containerRef}
           className="absolute inset-0"

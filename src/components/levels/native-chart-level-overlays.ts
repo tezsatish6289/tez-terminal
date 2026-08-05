@@ -59,21 +59,58 @@ export function mergedPriceRange(
   candles: CandlestickData[],
   levels: PublicLevels | null | undefined,
   padRatio = 0.06,
+  /**
+   * When set, only pull the scale out to levels within this multiple of the
+   * candle span (keeps recent candles readable when history has huge swings).
+   */
+  levelExpandMaxRatio = 1.25,
 ): { minValue: number; maxValue: number; from: number; to: number } | null {
-  const prices: number[] = [];
+  const candlePrices: number[] = [];
   for (const c of candles) {
-    prices.push(c.high, c.low);
+    candlePrices.push(c.high, c.low);
   }
-  if (levels) {
-    prices.push(...collectOverlayPrices(levels, zoneSlAnchors(levels)));
+  if (candlePrices.length === 0 && !levels) return null;
+
+  let min: number;
+  let max: number;
+  if (candlePrices.length > 0) {
+    min = Math.min(...candlePrices);
+    max = Math.max(...candlePrices);
+    const candleSpan = Math.max(max - min, 1e-6);
+    if (levels) {
+      const bandLo = min - candleSpan * levelExpandMaxRatio;
+      const bandHi = max + candleSpan * levelExpandMaxRatio;
+      for (const p of collectOverlayPrices(levels, zoneSlAnchors(levels))) {
+        if (p >= bandLo && p <= bandHi) {
+          if (p < min) min = p;
+          if (p > max) max = p;
+        }
+      }
+    }
+  } else {
+    const levelPrices = collectOverlayPrices(levels!, zoneSlAnchors(levels!));
+    if (levelPrices.length === 0) return null;
+    min = Math.min(...levelPrices);
+    max = Math.max(...levelPrices);
   }
-  if (prices.length === 0) return null;
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
+
   const pad = Math.max((max - min) * padRatio, 0.5);
   const from = min - pad;
   const to = max + pad;
   return { minValue: from, maxValue: to, from, to };
+}
+
+/** Slice candles to the chart's current logical viewport (for readable autoscale). */
+export function candlesInLogicalRange(
+  candles: CandlestickData[],
+  from: number,
+  to: number,
+): CandlestickData[] {
+  if (!candles.length) return candles;
+  const start = Math.max(0, Math.floor(from));
+  const end = Math.min(candles.length - 1, Math.ceil(to));
+  if (start > end) return candles;
+  return candles.slice(start, end + 1);
 }
 
 export type LevelVisualFocus = "put" | "call" | "maxPain" | "expiry";

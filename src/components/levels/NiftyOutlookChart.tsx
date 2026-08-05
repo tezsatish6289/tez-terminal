@@ -114,12 +114,21 @@ export function NiftyOutlookChart({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const sync = () =>
-      setSize({ w: el.clientWidth || 800, h: el.clientHeight || 420 });
+    const sync = () => {
+      const rect = el.getBoundingClientRect();
+      setSize({
+        w: Math.max(Math.round(rect.width), 280),
+        h: Math.max(Math.round(rect.height), 280),
+      });
+    };
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
-    return () => ro.disconnect();
+    const raf = requestAnimationFrame(sync);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
   }, []);
 
   const series = useMemo(
@@ -283,11 +292,15 @@ export function NiftyOutlookChart({
   }
 
   return (
-    <div ref={containerRef} className={className} style={{ position: "relative" }}>
+    <div
+      ref={containerRef}
+      className={`${className} max-md:min-h-[min(48dvh,420px)]`.trim()}
+      style={{ position: "relative" }}
+    >
       {statusOverlay && series ? (
         <LevelsChartCornerStatusBlobs {...statusOverlay} rightInsetPx={PAD.right + 8} visible />
       ) : null}
-      <svg width={w} height={h} role="img" aria-label="Nifty Outlook ladder">
+      <svg width={w} height={h} role="img" aria-label="Nifty Outlook ladder" className="block max-w-full">
         <defs>
           <linearGradient id="outlook-fade" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#000" stopOpacity="0" />
@@ -593,16 +606,21 @@ export function NiftyOutlookChart({
         ) : null}
       </svg>
 
-      {/* Legend */}
+      {/* Legend — Outlook is an OI ladder (not candlesticks). */}
       {!compact ? (
         <div
-          className="absolute top-2 left-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] max-w-[min(55%,16rem)]"
+          className="absolute top-2 left-3 flex flex-col gap-1 max-w-[min(70%,18rem)]"
           style={{ color: "#94a3b8" }}
         >
-          <LegendChip color={bull.line} label="Support" />
-          <LegendChip color={bear.line} label="Resistance" />
-          <LegendChip color={maxPainColor} label="Max pain" dashed />
-          <LegendChip color={SPOT_ACCENT} label="Spot" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px]">
+            <LegendChip color={bull.line} label="Support" />
+            <LegendChip color={bear.line} label="Resistance" />
+            <LegendChip color={maxPainColor} label="Max pain" dashed />
+            <LegendChip color={SPOT_ACCENT} label="Spot" />
+          </div>
+          <p className="text-[9px] font-medium leading-tight" style={{ color: "#64748b" }}>
+            OI levels by expiry — not a candle chart
+          </p>
         </div>
       ) : null}
       {showAttribution ? (

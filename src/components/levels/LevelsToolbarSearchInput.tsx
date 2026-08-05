@@ -31,21 +31,22 @@ export function LevelsToolbarSearchInput({
   onFocus?: FocusEventHandler<HTMLInputElement>;
   onBlur?: FocusEventHandler<HTMLInputElement>;
   ariaLabel?: string;
-  /** Nav bar: full-width pill; compact: fixed-width toolbar chip. */
-  layout?: "compact" | "bar";
+  /** Nav bar / mobile sheet / compact toolbar chip. */
+  layout?: "compact" | "bar" | "sheet";
 }) {
   const isBar = layout === "bar";
+  const isSheet = layout === "sheet";
   return (
     <div
       className={
-        isBar
+        isBar || isSheet
           ? `relative shrink-0 w-full min-w-0 ${className}`.trim()
           : `relative shrink-0 w-[10.5rem] sm:w-[12rem] min-w-[9rem] ${className}`.trim()
       }
     >
       <Search
         className={`absolute top-1/2 -translate-y-1/2 pointer-events-none ${
-          isBar ? "left-2.5 h-3.5 w-3.5" : "left-2.5 h-3.5 w-3.5"
+          isSheet ? "left-3.5 h-5 w-5" : "left-2.5 h-3.5 w-3.5"
         }`}
         style={{ color: BLACKBOARD_CHALK_DIM }}
       />
@@ -58,14 +59,22 @@ export function LevelsToolbarSearchInput({
         onBlur={onBlur}
         placeholder={placeholder}
         aria-label={ariaLabel}
+        enterKeyHint="search"
+        autoCapitalize="characters"
+        autoCorrect="off"
+        spellCheck={false}
         className={`w-full outline-none placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-slate-400/25 ${
-          isBar
-            ? "h-8 pl-8 pr-2.5 rounded-full text-[11px] font-normal tracking-normal placeholder:font-normal placeholder:text-slate-500"
-            : `pl-8 pr-2.5 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full text-[9px] font-bold uppercase tracking-wide placeholder:font-semibold placeholder:normal-case placeholder:tracking-normal`
+          isSheet
+            ? "h-12 pl-11 pr-3 rounded-xl text-base font-medium tracking-normal placeholder:font-normal"
+            : isBar
+              ? "h-8 pl-8 pr-2.5 rounded-full text-[11px] font-normal tracking-normal placeholder:font-normal placeholder:text-slate-500"
+              : `pl-8 pr-2.5 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full text-[9px] font-bold uppercase tracking-wide placeholder:font-semibold placeholder:normal-case placeholder:tracking-normal`
         }`}
         style={{
-          backgroundColor: isBar ? "rgba(255,255,255,0.03)" : BLACKBOARD_FIELD_BG,
-          border: isBar ? "1px solid rgba(255,255,255,0.08)" : BLACKBOARD_FIELD_BORDER,
+          backgroundColor:
+            isSheet || isBar ? "rgba(255,255,255,0.03)" : BLACKBOARD_FIELD_BG,
+          border:
+            isSheet || isBar ? "1px solid rgba(255,255,255,0.12)" : BLACKBOARD_FIELD_BORDER,
           color: BLACKBOARD_CHALK,
         }}
       />

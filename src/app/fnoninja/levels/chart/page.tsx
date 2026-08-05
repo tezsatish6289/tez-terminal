@@ -295,7 +295,7 @@ function ChartContent() {
         >
           {showHistory && scope ? (
             <OiHistoryChart
-              className="flex-1 min-h-0 h-full w-full"
+              className="w-full max-md:h-auto md:flex-1 md:min-h-0 md:h-full"
               scope={scope}
               symbol={symbol}
               levels={chartLevels}

@@ -43,7 +43,10 @@ import { useChartOutlookKeyboardShortcuts } from "@/lib/levels/use-chart-outlook
 import { useTradingViewChartShortcut } from "@/lib/levels/use-tradingview-chart-shortcut";
 import { useIndexExpirySelection } from "@/lib/levels/use-index-expiry-selection";
 import { LevelsSymbolStatusBadge } from "@/components/levels/LevelsSymbolStatusBadge";
-import type { LevelsChartStatusOverlayProps } from "@/components/levels/LevelsChartCornerStatusBlobs";
+import {
+  LevelsChartCornerStatusBlobs,
+  type LevelsChartStatusOverlayProps,
+} from "@/components/levels/LevelsChartCornerStatusBlobs";
 import { useAtlasSetupScore } from "@/lib/levels/use-atlas-setup-score";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
@@ -1174,13 +1177,12 @@ export default function LevelsPage() {
     activeTv != null ? (
       showSlideshowHistory && inZoneActive ? (
         <OiHistoryChart
-          className="flex-1 min-h-0 h-full w-full"
+          className="w-full max-md:h-auto md:flex-1 md:min-h-0 md:h-full"
           scope={inZoneActive.scope}
           symbol={inZoneActive.symbol}
           levels={chartLevelsForView}
           webChartUrl={activeTv.webChartUrl}
           showAttribution
-          statusOverlay={slideshowStatusOverlay}
         />
       ) : showSlideshowPvt && inZoneActive ? (
         <PvtChart
@@ -1189,7 +1191,6 @@ export default function LevelsPage() {
           symbol={inZoneActive.symbol}
           levels={chartLevelsForView}
           webChartUrl={activeTv.dailyWebChartUrl}
-          statusOverlay={slideshowStatusOverlay}
         />
       ) : showSlideshowOutlook ? (
         <NiftyOutlookChart
@@ -1198,7 +1199,6 @@ export default function LevelsPage() {
           spot={chartLevelsForView?.spot ?? activeChartLevels?.spot ?? null}
           webChartUrl={activeTv.webChartUrl}
           showAttribution
-          statusOverlay={slideshowStatusOverlay}
         />
       ) : (
         <LevelsTradingViewChart
@@ -1214,7 +1214,6 @@ export default function LevelsPage() {
           nativeChartRef={nativeChartRef}
           onFullHistoryZoomChange={setChartFullHistory}
           onLastCloseChange={activeTv?.nativeCandles ? handleChartLastClose : undefined}
-          statusOverlay={slideshowStatusOverlay}
         />
       )
     ) : (
@@ -1274,15 +1273,19 @@ export default function LevelsPage() {
 
   const slideshowChartChrome =
     activeTv != null && activeTicker ? (
-      <LevelsChartChrome
-        symbol={activeTicker}
-        subtitle={slideshowSubtitleLine}
-        config={activeTv}
-        nativeChartRef={nativeChartRef}
-        chartFullHistory={chartFullHistory}
-        hideToolbar
-        highConfidence={chartHighConfidence}
-      />
+      <div className="flex flex-col gap-1.5 min-w-0">
+        <LevelsChartChrome
+          symbol={activeTicker}
+          subtitle={slideshowSubtitleLine}
+          config={activeTv}
+          nativeChartRef={nativeChartRef}
+          chartFullHistory={chartFullHistory}
+          hideToolbar
+          highConfidence={chartHighConfidence}
+        />
+        {/* Match chart deep-dive: status in chrome, not over the plot. */}
+        <LevelsChartCornerStatusBlobs {...slideshowStatusOverlay} layout="row" />
+      </div>
     ) : null;
 
   const slideshowStripAccent = viewMode === "favslide" ? "favslide" : "liveslide";

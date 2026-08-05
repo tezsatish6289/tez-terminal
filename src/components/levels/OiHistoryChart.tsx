@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
@@ -58,24 +58,17 @@ const CANDLE_COLOR = "#f8fafc";
 const GUIDE_FOOTER_CLASS =
   "shrink-0 min-h-[7.5rem] border-t border-white/10 bg-[#070d1a] px-0.5 py-2.5 relative z-10";
 
-const CHART_SHELL_STYLE: CSSProperties = {
-  display: "grid",
-  gridTemplateRows: "auto minmax(0, 1fr) auto",
-  minHeight: 0,
-};
+/**
+ * Explicit plot height on mobile — flex/grid `1fr` collapses when the page
+ * scrolls (no definite parent height), which was clipping History to a blank strip.
+ */
+const PLOT_PANE_CLASS =
+  "relative w-full overflow-hidden " +
+  "h-[min(55dvh,440px)] shrink-0 " +
+  "md:h-auto md:min-h-0 md:flex-1 md:shrink";
 
-const COMPACT_SHELL_STYLE: CSSProperties = {
-  display: "grid",
-  gridTemplateRows: "auto minmax(0, 1fr)",
-  minHeight: 0,
-};
-
-/** Chart pane + below-chart attribution (keeps x-axis dates visible). */
-const ATTRIBUTION_SHELL_STYLE: CSSProperties = {
-  display: "grid",
-  gridTemplateRows: "auto minmax(0, 1fr)",
-  minHeight: 0,
-};
+const SHELL_CLASS =
+  "flex flex-col min-h-0 w-full max-md:h-auto md:h-full";
 
 export type OiHistoryRange = "1M" | "3M" | "6M";
 
@@ -177,16 +170,21 @@ export function OiHistoryChart({
     const el = containerRef.current;
     if (!el) return;
     const sync = () => {
-      const w = Math.max(el.clientWidth || 0, 280);
-      // Mobile flex chains often report ~0 height; keep a usable plot floor.
-      const h = Math.max(el.clientHeight || 0, 240);
+      const rect = el.getBoundingClientRect();
+      const w = Math.max(Math.round(rect.width), 280);
+      const h = Math.max(Math.round(rect.height), 240);
       setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
     };
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+    // Remeasure after paint — mobile chrome height settles after first layout.
+    const raf = requestAnimationFrame(sync);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [range, loading, symbol, scope]);
 
   useEffect(() => {
     let cancelled = false;
@@ -319,28 +317,20 @@ export function OiHistoryChart({
   const guide = <HistoryChartGuide bullLine={bull.line} bearLine={bear.line} maxPainColor={mp} />;
 
   const useBelowAttribution = showAttribution;
-  const shellStyle = useBelowAttribution
-    ? ATTRIBUTION_SHELL_STYLE
-    : hideGuide
-      ? COMPACT_SHELL_STYLE
-      : CHART_SHELL_STYLE;
   const guideFooter =
     hideGuide || useBelowAttribution ? null : (
       <div className={GUIDE_FOOTER_CLASS}>{guide}</div>
     );
 
-  const chartPaneClass =
-    "relative min-h-0 flex-1 overflow-hidden max-md:min-h-[min(48dvh,420px)]";
+  const shellClass = `${SHELL_CLASS} ${className}`.trim();
 
-  const historyLoading = loading || (!error && !rows.length);
-
-  if (historyLoading) {
+  if (loading) {
     return (
-      <div className={className} style={shellStyle}>
+      <div className={shellClass}>
         <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
         <div
           ref={containerRef}
-          className={`${chartPaneClass} flex flex-col items-center justify-center gap-2.5`}
+          className={`${PLOT_PANE_CLASS} flex flex-col items-center justify-center gap-2.5`}
         >
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
           <p className="text-sm" style={{ color: "#94a3b8" }}>
@@ -354,15 +344,18 @@ export function OiHistoryChart({
 
   if (error || !displayRows.length || !model) {
     return (
-      <div className={className} style={shellStyle}>
+      <div className={shellClass}>
         {rows.length > 0 ? (
           <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
         ) : (
           <div />
         )}
-        <div ref={containerRef} className={`${chartPaneClass} flex items-center justify-center`}>
+        <div ref={containerRef} className={`${PLOT_PANE_CLASS} flex items-center justify-center`}>
           <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
-            {error ?? "Could not load OI history for this symbol."}
+            {error ??
+              (!rows.length
+                ? "No OI history for this symbol yet."
+                : "Could not load OI history for this symbol.")}
           </p>
         </div>
         {guideFooter}
@@ -378,7 +371,8 @@ export function OiHistoryChart({
 
   function onMove(e: React.PointerEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
+    const scaleX = w / Math.max(rect.width, 1);
+    const x = (e.clientX - rect.left) * scaleX;
     const n = displayRows.length;
     const t = (x - PAD.left) / Math.max(w - PAD.left - PAD.right, 1);
     const idx = Math.round(t * (n - 1));
@@ -386,16 +380,19 @@ export function OiHistoryChart({
   }
 
   return (
-    <div className={className} style={shellStyle}>
+    <div className={shellClass}>
       <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
-      <div className="min-h-0 flex flex-col overflow-hidden max-md:min-h-0">
-        <div ref={containerRef} className={chartPaneClass}>
+      <div className="min-h-0 flex flex-col md:flex-1 md:min-h-0 md:overflow-hidden">
+        <div ref={containerRef} className={PLOT_PANE_CLASS}>
         {statusOverlay ? (
           <LevelsChartCornerStatusBlobs {...statusOverlay} rightInsetPx={14} visible />
         ) : null}
         <svg
           width={w}
           height={h}
+          viewBox={`0 0 ${w} ${h}`}
+          preserveAspectRatio="none"
+          className="absolute inset-0 h-full w-full"
           role="img"
           aria-label="OI wall history"
           onPointerMove={onMove}

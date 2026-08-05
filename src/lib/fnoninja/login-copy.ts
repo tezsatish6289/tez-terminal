@@ -1,38 +1,55 @@
-/** Shared sign-in copy — no trial/pricing language (shown to all visitors, including subscribers). */
+import { FNONINJA_FREE_TRIAL_DAYS } from "@/lib/fnoninja/pricing";
+
+/**
+ * Shared sign-in copy for FNONINJA.
+ *
+ * High-intent surfaces (login page, hard gates, landing CTAs) mention the free
+ * trial. Tiny toolbar / account utilities stay feature-focused and can reuse
+ * {@link FNO_LOGIN_TRIAL_NOTE} as a one-line footnote under the Google button.
+ */
+
+/** Soft line safe for returners + first-timers. */
+export const FNO_LOGIN_TRIAL_NOTE = `New here? ${FNONINJA_FREE_TRIAL_DAYS}-day free trial · no credit card`;
 
 export const FNO_LOGIN_PAGE_SUBTITLE =
-  "Sign in with Google to access symbol charts, livelist, and deep-dive analytics for your account.";
+  "Sign in with Google for charts, livelist, and deep-dive analytics.";
 
-export const FNO_LOGIN_GATE_DESCRIPTION =
-  "Sign in with Google to access option-chain zones, charts, and symbol analytics. Market Map is open to all.";
+export const FNO_LOGIN_GATE_DESCRIPTION = `Sign in with Google to unlock option-chain zones, charts, and symbol analytics. New here? Start with a ${FNONINJA_FREE_TRIAL_DAYS}-day free trial — no credit card.`;
 
-export const FNO_LOGIN_PAGE_META_DESCRIPTION =
-  "Sign in to FNONINJA with Google — access NSE F&O analytics, charts, and option-chain zones.";
+export const FNO_LOGIN_PAGE_META_DESCRIPTION = `Sign in to FNONINJA — ${FNONINJA_FREE_TRIAL_DAYS}-day free trial, then NSE F&O charts and option-chain zones.`;
 
-export const FNO_LOGIN_NAV_HINT =
-  "Sign in with Google to access symbol charts and deep-dive analytics.";
+export const FNO_LOGIN_NAV_HINT = `Sign in with Google for charts and analytics. New here? ${FNONINJA_FREE_TRIAL_DAYS}-day free trial.`;
 
 export const FNO_LOGIN_DISCLAIMER =
   "Informational market data only · Not investment advice";
 
 /** Signed-out market map preview — map visible; compact sign-in card floats over bubbles. */
 export const FNO_MARKET_MAP_GUEST_HEADLINE = "See full market map";
-export const FNO_MARKET_MAP_GUEST_DESCRIPTION =
-  "Sign in with Google to explore 200+ NSE F&O symbols — filter by support, resistance, and OI clusters.";
+export const FNO_MARKET_MAP_GUEST_DESCRIPTION = `Sign in to explore 200+ NSE F&O symbols — support, resistance, and OI clusters. Includes a ${FNONINJA_FREE_TRIAL_DAYS}-day free trial.`;
 
-/** /community guest page — left column headline + benefits. */
+/** /community guest page — left column. */
 export const FNO_COMMUNITY_PAGE_HEADLINE = "Join the F&O trader community";
-export const FNO_COMMUNITY_PAGE_SUBTITLE =
-  "A private room for subscribers — same market data, real conversations with serious traders.";
+export const FNO_COMMUNITY_PAGE_SUBTITLE = `A private room for members — same market data, real conversations. Included with your ${FNONINJA_FREE_TRIAL_DAYS}-day free trial.`;
 export const FNO_COMMUNITY_PAGE_BENEFITS = [
   "Real traders discussing structure, not tips",
   "No buy/sell signals — observations only",
   "Share charts and P&L screenshots instantly",
   "General, Charts, PNL, Offers & Announcements",
-  "Included with your free trial — all channels",
+  `Included with your ${FNONINJA_FREE_TRIAL_DAYS}-day free trial — all channels`,
 ] as const;
 
-/** Contextual copy when a signed-out user clicks a gated toolbar action on the public chart page. */
+/** Landing / funnel soft CTAs. */
+export const FNO_LANDING_NAV_LOGIN_LABEL = "Try free";
+export const FNO_LANDING_HERO_TRIAL_HINT = `${FNONINJA_FREE_TRIAL_DAYS}-day free trial · no credit card`;
+export const FNO_LANDING_ATLAS_HINT = `Sign in for Atlas — ${FNONINJA_FREE_TRIAL_DAYS}-day free trial`;
+export const FNO_LANDING_ALERTS_CTA = `Try ${FNONINJA_FREE_TRIAL_DAYS} days free`;
+export const FNO_TODAY_TRIAL_CTA = `Start ${FNONINJA_FREE_TRIAL_DAYS}-day free trial`;
+export const FNO_REPLAY_TRIAL_CTA = `Start ${FNONINJA_FREE_TRIAL_DAYS}-day free trial`;
+
+/** Feature-lock / paywall login branch. */
+export const FNO_FEATURE_LOGIN_BODY = `Sign in with Google to unlock this feature. New here? ${FNONINJA_FREE_TRIAL_DAYS}-day free trial — no credit card.`;
+
+/** Contextual copy when a signed-out user clicks a gated toolbar action. Feature-first. */
 export const FNO_TOOLBAR_SIGN_IN_COPY = {
   news: {
     title: "News & sentiment",
@@ -56,8 +73,7 @@ export const FNO_TOOLBAR_SIGN_IN_COPY = {
   },
   favorite: {
     title: "Add to watchlist",
-    description:
-      "Sign in to save symbols to your watchlist.",
+    description: "Sign in to save symbols to your watchlist.",
   },
   bubbles: {
     title: "View Bubble Chart",

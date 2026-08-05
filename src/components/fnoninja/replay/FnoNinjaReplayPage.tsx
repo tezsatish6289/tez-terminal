@@ -14,6 +14,7 @@ import {
   fnoTodayHref,
 } from "@/lib/fnoninja/paths";
 import type { SrReplaySummary } from "@/lib/fnoninja/sr-replay-types";
+import { FNO_REPLAY_TRIAL_CTA } from "@/lib/fnoninja/login-copy";
 import {
   FNO_CARD_BORDER,
   FNO_CTA_GRADIENT,
@@ -110,7 +111,7 @@ export function FnoNinjaReplayPage({
           className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold text-white"
           style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
         >
-          See live map free
+          {FNO_REPLAY_TRIAL_CTA}
           <ArrowRight className="h-4 w-4" />
         </Link>
         <button

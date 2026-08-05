@@ -7,13 +7,14 @@ import { Crown, Loader2, Lock } from "lucide-react";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import type { Feature, LockReason } from "@/lib/entitlements";
+import { FNO_FEATURE_LOGIN_BODY } from "@/lib/fnoninja/login-copy";
 import { fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const LOCK_COPY: Record<LockReason, { title: string; body: string; cta: string }> = {
   login_required: {
     title: "Sign in to continue",
-    body: "Sign in with Google to unlock this feature and start your 7-day free trial.",
+    body: FNO_FEATURE_LOGIN_BODY,
     cta: "sign_in",
   },
   subscription_required: {

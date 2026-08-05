@@ -10,6 +10,7 @@ import {
   FNO_COMMUNITY_PAGE_BENEFITS,
   FNO_COMMUNITY_PAGE_SUBTITLE,
   FNO_LOGIN_DISCLAIMER,
+  FNO_LOGIN_TRIAL_NOTE,
 } from "@/lib/fnoninja/login-copy";
 import { fnoCommunityChatHref } from "@/lib/fnoninja/paths";
 import { FNO_CONTENT_SHELL } from "@/lib/fnoninja/responsive";
@@ -79,7 +80,10 @@ function FnoNinjaCommunityPageInner() {
                 postSignInHref={postSignInHref}
               />
             </Suspense>
-            <p className="mt-3 text-[11px] leading-relaxed" style={{ color: "#64748b" }}>
+            <p className="mt-3 text-[12px] font-medium" style={{ color: "#93c5fd" }}>
+              {FNO_LOGIN_TRIAL_NOTE}
+            </p>
+            <p className="mt-2 text-[11px] leading-relaxed" style={{ color: "#64748b" }}>
               {FNO_LOGIN_DISCLAIMER}
             </p>
             <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: "#64748b" }}>

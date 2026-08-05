@@ -2,6 +2,7 @@
 
 import { Bell, Percent } from "lucide-react";
 import { FnoNinjaLoginLink } from "@/components/fnoninja/FnoNinjaLoginPage";
+import { FNO_LANDING_ALERTS_CTA } from "@/lib/fnoninja/login-copy";
 import { Reveal, Stagger, StaggerItem } from "@/components/fnoninja/landing-motion";
 import { trackCtaClick } from "@/firebase/analytics";
 import { FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
@@ -86,9 +87,9 @@ export function FnoNinjaAlertsPromoSection() {
           className={LANDING_PRIMARY_CTA}
           src="landing"
           cta="alerts_promo"
-          onClick={() => trackCtaClick("alerts_promo_cta", { label: "Try it free" })}
+          onClick={() => trackCtaClick("alerts_promo_cta", { label: FNO_LANDING_ALERTS_CTA })}
         >
-          Try it free
+          {FNO_LANDING_ALERTS_CTA}
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
             <path d="M5 12h14M13 6l6 6-6 6" />
           </svg>

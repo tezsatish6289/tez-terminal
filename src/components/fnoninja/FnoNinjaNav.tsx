@@ -28,7 +28,7 @@ import {
 } from "@/lib/fnoninja/paths";
 import { FNO_NAV_SPACER_CLASS } from "@/lib/fnoninja/responsive";
 import { FB_CONTENT_SHELL, FB_LEVELS_SHELL, FNO_LANDING_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_LOGIN_NAV_HINT } from "@/lib/fnoninja/login-copy";
+import { FNO_LANDING_NAV_LOGIN_LABEL, FNO_LOGIN_NAV_HINT } from "@/lib/fnoninja/login-copy";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 import { useOwnPhoneDisplay } from "@/hooks/use-own-phone";
 
@@ -105,7 +105,7 @@ function FnoNinjaLandingNavCta({
     <Link
       href={loginHref}
       onClick={() => {
-        trackCtaClick("nav_login", { label: "Log in" });
+        trackCtaClick("nav_login", { label: FNO_LANDING_NAV_LOGIN_LABEL });
         onAction?.();
       }}
       className={`inline-flex items-center justify-center font-bold transition-all hover:scale-105 hover:bg-[#2563eb] gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white ${className}`}
@@ -113,7 +113,7 @@ function FnoNinjaLandingNavCta({
         backgroundColor: "#3b82f6",
       }}
     >
-      Log in
+      {FNO_LANDING_NAV_LOGIN_LABEL}
     </Link>
   );
 }

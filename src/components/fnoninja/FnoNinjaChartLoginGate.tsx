@@ -11,6 +11,7 @@ import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
 import {
   FNO_LOGIN_DISCLAIMER,
   FNO_LOGIN_GATE_DESCRIPTION,
+  FNO_LOGIN_TRIAL_NOTE,
   FNO_MARKET_MAP_GUEST_DESCRIPTION,
   FNO_MARKET_MAP_GUEST_HEADLINE,
   FNO_TOOLBAR_SIGN_IN_COPY,
@@ -102,10 +103,13 @@ function FnoNinjaLoginShimmerOverlay({
         />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center gap-4 px-6 pointer-events-auto">
+      <div className="relative z-10 flex flex-col items-center gap-3 px-6 pointer-events-auto">
         <Suspense fallback={<Loader2 className="h-6 w-6 animate-spin" style={{ color: FNO_MUTED }} />}>
           <FnoNinjaLoginCta />
         </Suspense>
+        <p className="text-center text-[11px] font-medium" style={{ color: "#93c5fd" }}>
+          {FNO_LOGIN_TRIAL_NOTE}
+        </p>
         {backAction ? (
           <button
             type="button"
@@ -289,7 +293,10 @@ export function FnoNinjaToolbarSignInPrompt({
             />
           </Suspense>
         </div>
-        <p className="mt-2.5 text-[9px] leading-relaxed text-center" style={{ color: "#475569" }}>
+        <p className="mt-2 text-[10px] font-medium text-center" style={{ color: "#93c5fd" }}>
+          {FNO_LOGIN_TRIAL_NOTE}
+        </p>
+        <p className="mt-1.5 text-[9px] leading-relaxed text-center" style={{ color: "#475569" }}>
           {FNO_LOGIN_DISCLAIMER}
         </p>
       </div>
@@ -395,6 +402,9 @@ export function FnoNinjaChartLoginGate({
       <Suspense fallback={<Loader2 className="h-6 w-6 animate-spin" style={{ color: FNO_MUTED }} />}>
         <FnoNinjaLoginCta />
       </Suspense>
+      <p className="text-sm font-medium" style={{ color: "#93c5fd" }}>
+        {FNO_LOGIN_TRIAL_NOTE}
+      </p>
       {backAction ? (
         <button
           type="button"

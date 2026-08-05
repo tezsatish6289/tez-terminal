@@ -25,7 +25,7 @@ const DEFAULT_RIGHT_INSET_PX = 100;
 /**
  * Zone status + Atlas (score + ↑/↓) + IV regime.
  * `stack` — top-right of the chart (desktop / slideshow).
- * `row` — chrome strip above the plot (mobile-friendly; keeps candles clear).
+ * `row` — chrome strip: zone + IV on row 1, Atlas ↑/↓ on row 2.
  */
 export function LevelsChartCornerStatusBlobs({
   statusTone,
@@ -54,35 +54,46 @@ export function LevelsChartCornerStatusBlobs({
 
   const badgeSize = layout === "row" ? "header" : "chart";
 
-  const chips = (
-    <>
-      {showStatus ? <LevelsSymbolStatusBadge tone={statusTone} size={badgeSize} /> : null}
-      {showAtlas ? (
-        <AtlasSetupScoreBadge
-          setup={atlasSetup ?? null}
-          score={atlasScore ?? undefined}
-          size={badgeSize}
-        />
-      ) : null}
-      {showVol ? (
-        <VolRegimeBadge
-          flag={volRegime}
-          reason={volRegimeReason}
-          atmIV={atmIV}
-          daysToEarnings={daysToEarnings}
-          size={badgeSize}
-        />
-      ) : null}
-    </>
-  );
+  const statusChip = showStatus ? (
+    <LevelsSymbolStatusBadge tone={statusTone} size={badgeSize} />
+  ) : null;
+
+  const atlasChip = showAtlas ? (
+    <AtlasSetupScoreBadge
+      setup={atlasSetup ?? null}
+      score={atlasScore ?? undefined}
+      size={badgeSize}
+      orientation={layout === "row" ? "inline" : "stack"}
+    />
+  ) : null;
+
+  const volChip = showVol ? (
+    <VolRegimeBadge
+      flag={volRegime}
+      reason={volRegimeReason}
+      atmIV={atmIV}
+      daysToEarnings={daysToEarnings}
+      size={badgeSize}
+    />
+  ) : null;
 
   if (layout === "row") {
     return (
       <div
-        className={`flex flex-wrap items-center gap-1.5 min-w-0 ${className}`.trim()}
+        className={`flex flex-col gap-1.5 min-w-0 ${className}`.trim()}
         aria-label="Symbol status"
       >
-        {chips}
+        {showStatus || showVol ? (
+          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+            {statusChip}
+            {volChip}
+          </div>
+        ) : null}
+        {atlasChip ? (
+          <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {atlasChip}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -92,7 +103,9 @@ export function LevelsChartCornerStatusBlobs({
       className={`pointer-events-none absolute top-2 sm:top-2.5 z-[16] flex flex-col items-end gap-1.5 ${className}`.trim()}
       style={{ right: rightInsetPx + 6 }}
     >
-      {chips}
+      {statusChip}
+      {atlasChip}
+      {volChip}
     </div>
   );
 }

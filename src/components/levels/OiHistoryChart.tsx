@@ -166,10 +166,10 @@ export function OiHistoryChart({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  const [range, setRange] = useState<OiHistoryRange>("6M");
+  const [range, setRange] = useState<OiHistoryRange>("1M");
 
   useEffect(() => {
-    setRange("6M");
+    setRange("1M");
     setHoverIdx(null);
   }, [scope, symbol]);
 
@@ -177,8 +177,9 @@ export function OiHistoryChart({
     const el = containerRef.current;
     if (!el) return;
     const sync = () => {
-      const w = el.clientWidth || 320;
-      const h = el.clientHeight || 240;
+      const w = Math.max(el.clientWidth || 0, 280);
+      // Mobile flex chains often report ~0 height; keep a usable plot floor.
+      const h = Math.max(el.clientHeight || 0, 240);
       setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
     };
     sync();
@@ -318,15 +319,18 @@ export function OiHistoryChart({
   const guide = <HistoryChartGuide bullLine={bull.line} bearLine={bear.line} maxPainColor={mp} />;
 
   const useBelowAttribution = showAttribution;
-  const shellStyle = hideGuide
-    ? useBelowAttribution
-      ? ATTRIBUTION_SHELL_STYLE
-      : COMPACT_SHELL_STYLE
-    : CHART_SHELL_STYLE;
+  const shellStyle = useBelowAttribution
+    ? ATTRIBUTION_SHELL_STYLE
+    : hideGuide
+      ? COMPACT_SHELL_STYLE
+      : CHART_SHELL_STYLE;
   const guideFooter =
     hideGuide || useBelowAttribution ? null : (
       <div className={GUIDE_FOOTER_CLASS}>{guide}</div>
     );
+
+  const chartPaneClass =
+    "relative min-h-0 flex-1 overflow-hidden max-md:min-h-[min(48dvh,420px)]";
 
   const historyLoading = loading || (!error && !rows.length);
 
@@ -336,7 +340,7 @@ export function OiHistoryChart({
         <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
         <div
           ref={containerRef}
-          className="min-h-0 overflow-hidden relative flex flex-col items-center justify-center gap-2.5"
+          className={`${chartPaneClass} flex flex-col items-center justify-center gap-2.5`}
         >
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
           <p className="text-sm" style={{ color: "#94a3b8" }}>
@@ -356,7 +360,7 @@ export function OiHistoryChart({
         ) : (
           <div />
         )}
-        <div ref={containerRef} className="min-h-0 overflow-hidden relative flex items-center justify-center">
+        <div ref={containerRef} className={`${chartPaneClass} flex items-center justify-center`}>
           <p className="text-sm px-6 text-center" style={{ color: "#64748b" }}>
             {error ?? "Could not load OI history for this symbol."}
           </p>
@@ -384,8 +388,8 @@ export function OiHistoryChart({
   return (
     <div className={className} style={shellStyle}>
       <HistoryRangeToggle value={range} onChange={(r) => { setRange(r); setHoverIdx(null); }} />
-      <div className="min-h-0 flex flex-col overflow-hidden">
-        <div ref={containerRef} className="relative min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex flex-col overflow-hidden max-md:min-h-0">
+        <div ref={containerRef} className={chartPaneClass}>
         {statusOverlay ? (
           <LevelsChartCornerStatusBlobs {...statusOverlay} rightInsetPx={14} visible />
         ) : null}

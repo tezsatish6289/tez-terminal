@@ -16,7 +16,8 @@ const FILTER_SCROLL_CLASS =
   "min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
 /**
- * Bubble map chrome: zone filters scroll; Watchlist / Livelist stay pinned as modes.
+ * Bubble map chrome: zone filters on row 1 (scroll); Watchlist / Livelist on row 2 (mobile).
+ * Desktop keeps filters + modes on one row.
  */
 export function LevelsBubblesToolbar({
   bubbleMapFilter,
@@ -88,9 +89,34 @@ export function LevelsBubblesToolbar({
 
   const showModes = !hideSlideshowCtas;
 
+  const modeCtas = showModes ? (
+    <div className="shrink-0 flex items-center gap-1.5 pb-0.5">
+      {favslideToggle ? (
+        <LevelsSlideshowCta
+          label={favslideToggle.label}
+          shortLabel={favslideToggle.shortLabel}
+          onClick={favslideToggle.onClick}
+          title={favslideToggle.title}
+          variant={favslideToggle.variant}
+          kbd={favslideToggle.kbd}
+          active={favslideToggle.active}
+        />
+      ) : null}
+      <LevelsSlideshowCta
+        label={viewToggle.label}
+        shortLabel={viewToggle.shortLabel}
+        onClick={viewToggle.onClick}
+        title={viewToggle.title}
+        variant={viewToggle.variant}
+        kbd={viewToggle.kbd}
+        active={viewToggle.active}
+      />
+    </div>
+  ) : null;
+
   return (
-    <div className="shrink-0 mb-2 flex items-center gap-1.5 min-w-0 px-0.5">
-      <div className="relative min-w-0 flex-1">
+    <div className="shrink-0 mb-2 flex flex-col gap-1.5 min-w-0 px-0.5 md:flex-row md:items-center md:gap-1.5">
+      <div className="relative min-w-0 w-full md:flex-1">
         <div ref={scrollRef} className={FILTER_SCROLL_CLASS}>
           <div className="flex items-center gap-1.5 flex-nowrap w-max max-w-none pb-0.5 pr-3">
             <LevelsBubbleMapFilters
@@ -111,32 +137,12 @@ export function LevelsBubblesToolbar({
         ) : null}
       </div>
 
-      {showModes ? (
-        <div className="shrink-0 flex items-center gap-1.5 pb-0.5">
-          {favslideToggle ? (
-            <LevelsSlideshowCta
-              label={favslideToggle.label}
-              shortLabel={favslideToggle.shortLabel}
-              onClick={favslideToggle.onClick}
-              title={favslideToggle.title}
-              variant={favslideToggle.variant}
-              kbd={favslideToggle.kbd}
-              active={favslideToggle.active}
-            />
-          ) : null}
-          <LevelsSlideshowCta
-            label={viewToggle.label}
-            shortLabel={viewToggle.shortLabel}
-            onClick={viewToggle.onClick}
-            title={viewToggle.title}
-            variant={viewToggle.variant}
-            kbd={viewToggle.kbd}
-            active={viewToggle.active}
-          />
+      {showModes || shareTrailing ? (
+        <div className="flex items-center gap-1.5 min-w-0 md:shrink-0">
+          {modeCtas}
+          {shareTrailing ? <div className="shrink-0 pb-0.5">{shareTrailing}</div> : null}
         </div>
       ) : null}
-
-      {shareTrailing ? <div className="shrink-0 pb-0.5">{shareTrailing}</div> : null}
     </div>
   );
 }

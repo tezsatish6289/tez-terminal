@@ -121,14 +121,18 @@ export function AtlasSetupScoreBadge({
   /** @deprecated Prefer `setup` — kept for single-score call sites. */
   score,
   size = "chart",
+  /** `stack` = score above ↑/↓ (chart corner). `inline` = one horizontal group (chrome). */
+  orientation,
   className = "",
 }: {
   setup?: AtlasChartSetup | null;
   score?: number;
   size?: "chart" | "header";
+  orientation?: "stack" | "inline";
   className?: string;
 }) {
   const chart = size === "chart";
+  const inline = (orientation ?? (size === "header" ? "inline" : "stack")) === "inline";
 
   // Legacy: score-only badge
   if (!setup) {
@@ -186,7 +190,11 @@ export function AtlasSetupScoreBadge({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className={`flex flex-col items-end gap-1 ${className}`.trim()}>
+      <div
+        className={`flex shrink-0 gap-1 ${
+          inline ? "flex-row items-center" : "flex-col items-end"
+        } ${className}`.trim()}
+      >
         <Tooltip>
           <TooltipTrigger asChild>
             <span
@@ -218,7 +226,7 @@ export function AtlasSetupScoreBadge({
             </p>
             <p className="mt-1 text-[10px] text-slate-400">
               Bucket {bucket.label} · historical win rate {bucket.winRatePct}% for similar
-              resolved zone entries. ↑ / ↓ below map each side’s score to that rate.
+              resolved zone entries. ↑ / ↓ map each side’s score to that rate.
             </p>
             {setup.lowerConfidence ? (
               <p className="mt-1 text-[10px] text-amber-200/80">
@@ -228,7 +236,7 @@ export function AtlasSetupScoreBadge({
           </TooltipContent>
         </Tooltip>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <ProbChip
             kind="up"
             thesis={setup.up}

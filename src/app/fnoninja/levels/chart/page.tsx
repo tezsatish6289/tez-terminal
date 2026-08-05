@@ -239,8 +239,8 @@ function ChartContent() {
   return (
     <main className={`${FNO_LEVELS_MAIN} min-w-0 relative`} style={FNO_APP_SURFACE_STYLE}>
       {showPaywall ? <FnoNinjaAccessPaywall reason="subscription_required" /> : null}
-      <div className={`${FNO_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
-        <div className={`${CHART_PAGE_SHELL} py-2 sm:py-2.5 overflow-hidden min-w-0`}>
+      <div className={`${FNO_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden max-md:overflow-visible`}>
+        <div className={`${CHART_PAGE_SHELL} py-2 sm:py-2.5 overflow-hidden max-md:overflow-visible min-w-0`}>
         {error ? (
           <p className="text-xs text-center shrink-0 mt-1" style={{ color: "#f87171" }}>
             {error}

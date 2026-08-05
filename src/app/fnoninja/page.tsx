@@ -23,8 +23,6 @@ function FnoNinjaLandingPageContent() {
 
       <FnoNinjaSrReplaysSection />
 
-      <FnoNinjaHeroFaqSection />
-
       <FnoNinjaHowItWorksSection />
 
       <FnoNinjaCommunitySection />
@@ -42,6 +40,8 @@ function FnoNinjaLandingPageContent() {
       <FnoNinjaPricingSection />
 
       <FnoNinjaDisclaimerSection />
+
+      <FnoNinjaHeroFaqSection />
 
       <FnoNinjaSocialSection />
     </div>

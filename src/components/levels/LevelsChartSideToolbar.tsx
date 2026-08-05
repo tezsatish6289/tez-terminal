@@ -172,7 +172,7 @@ function AtlasAiToolbarMark({ open }: { open: boolean }) {
           />
         </svg>
       </span>
-      <span className="atlas-ai-cta-label">AI</span>
+      <span className="atlas-ai-cta-label hidden md:inline">AI</span>
     </span>
   );
 }
@@ -180,9 +180,16 @@ function AtlasAiToolbarMark({ open }: { open: boolean }) {
 function NewsSentimentTag({ sentiment }: { sentiment: NewsSentiment | null }) {
   if (!sentiment) {
     return (
-      <span className={LEVELS_CHART_TOOLBAR_TAG_CLASS} style={{ color: FNO_MUTED }}>
-        ···
-      </span>
+      <>
+        <span
+          className="md:hidden h-1.5 w-1.5 rounded-full shrink-0"
+          style={{ backgroundColor: FNO_MUTED }}
+          aria-hidden
+        />
+        <span className={`hidden md:block ${LEVELS_CHART_TOOLBAR_TAG_CLASS}`} style={{ color: FNO_MUTED }}>
+          ···
+        </span>
+      </>
     );
   }
   const tone =
@@ -193,13 +200,21 @@ function NewsSentimentTag({ sentiment }: { sentiment: NewsSentiment | null }) {
         : "#94a3b8";
   const label = sentimentToolbarLabel(sentiment.label);
   return (
-    <span
-      className={LEVELS_CHART_TOOLBAR_TAG_CLASS}
-      style={{ color: tone }}
-      title={`${label} · score ${sentiment.score}`}
-    >
-      {label}
-    </span>
+    <>
+      <span
+        className="md:hidden h-1.5 w-1.5 rounded-full shrink-0"
+        style={{ backgroundColor: tone }}
+        title={`${label} · score ${sentiment.score}`}
+        aria-hidden
+      />
+      <span
+        className={`hidden md:block ${LEVELS_CHART_TOOLBAR_TAG_CLASS}`}
+        style={{ color: tone }}
+        title={`${label} · score ${sentiment.score}`}
+      >
+        {label}
+      </span>
+    </>
   );
 }
 

@@ -90,6 +90,7 @@ export function FnoNinjaScienceLiveVisual({
             webChartUrl={NIFTY_TV.webChartUrl}
             hideShortcuts
             visualFocus={focus}
+            showClusterBandLabels
             externalCandles={candles ?? null}
             externalCandlesLoading={candlesLoading}
           />

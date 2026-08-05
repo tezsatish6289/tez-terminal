@@ -61,7 +61,7 @@ const RIGHT_OFFSET_SLIDESHOW_MAX = 110;
 /** Extra width for longer right-axis level titles (Support H/L/Break, Resistance…). */
 const RIGHT_PRICE_SCALE_MIN_WIDTH = 108;
 const RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH = 152;
-/** Mobile: cluster pills on-chart; axis uses compact titles (Put OI, MP). */
+/** Mobile: compact axis titles (Put OI, MP); band pills stay off the plot. */
 const RIGHT_OFFSET_MOBILE = 6;
 const RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN = 8;
 const RIGHT_OFFSET_SLIDESHOW_MOBILE_MAX = 18;
@@ -151,7 +151,7 @@ export const NativeCandlesChart = forwardRef<
     externalCandlesLoading?: boolean;
     /** Top-left badge, e.g. "15M Candles" on the intraday tab. */
     candleTypeLabel?: string;
-    /** Intraday: keep left OI pills; omit duplicate OI/max-pain tags on the right axis. */
+    /** Left Support/Resistance pills over candles (off by default — axis + bands carry levels). */
     showClusterBandLabels?: boolean;
     showClusterPeaksOnAxis?: boolean;
     /** Intraday deep-dive: load and fit only the most recent N calendar days. */
@@ -182,7 +182,7 @@ export const NativeCandlesChart = forwardRef<
     externalCandles,
     externalCandlesLoading = false,
     candleTypeLabel,
-    showClusterBandLabels = true,
+    showClusterBandLabels = false,
     showClusterPeaksOnAxis = true,
     intradayLookbackDays,
     compactMaxPainLabel = false,

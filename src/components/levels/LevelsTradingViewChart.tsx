@@ -30,6 +30,8 @@ export function LevelsTradingViewChart({
   showBrandWatermark = true,
   className = "",
   statusOverlay,
+  /** Left Support/Resistance pills over candles — off by default for a clearer plot. */
+  showClusterBandLabels = false,
 }: {
   config: LevelsTvConfig;
   /** NSE ticker / symbol (e.g. BANKINDIA, NIFTY). */
@@ -54,6 +56,7 @@ export function LevelsTradingViewChart({
   showBrandWatermark?: boolean;
   className?: string;
   statusOverlay?: LevelsChartStatusOverlayProps | null;
+  showClusterBandLabels?: boolean;
 }) {
   const [mounted, setMounted] = useState(false);
   const symbolTicker = ticker.trim() || config.symbol;
@@ -119,6 +122,7 @@ export function LevelsTradingViewChart({
             onFullHistoryZoomChange={onFullHistoryZoomChange}
             onLastCloseChange={onLastCloseChange}
             candleTypeLabel="15M Candles"
+            showClusterBandLabels={showClusterBandLabels}
             showClusterPeaksOnAxis={false}
             compactMaxPainLabel
             intradayLookbackDays={7}

@@ -40,7 +40,7 @@ export function FnoNinjaHeroFaqSection() {
             Three terms. <GradientText>Plain English.</GradientText>
           </h2>
           <p className="mt-4 sm:mt-5 text-sm sm:text-base leading-relaxed text-slate-400">
-            The same ideas behind the examples above — so you can read the map without jargon.
+            The same ideas behind the market map — so you can read the levels without jargon.
           </p>
         </Reveal>
 

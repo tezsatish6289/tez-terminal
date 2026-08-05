@@ -39,7 +39,8 @@ export const FNO_COMMUNITY_PAGE_BENEFITS = [
 ] as const;
 
 /** Landing / funnel soft CTAs. */
-export const FNO_LANDING_NAV_LOGIN_LABEL = "Try free";
+export const FNO_LANDING_NAV_TRIAL_LABEL = "Free Trial";
+export const FNO_LANDING_NAV_LOGIN_LABEL = "Log in";
 export const FNO_LANDING_HERO_TRIAL_HINT = `${FNONINJA_FREE_TRIAL_DAYS}-day free trial · no credit card`;
 export const FNO_LANDING_ATLAS_HINT = `Sign in for Atlas — ${FNONINJA_FREE_TRIAL_DAYS}-day free trial`;
 export const FNO_LANDING_ALERTS_CTA = `Try ${FNONINJA_FREE_TRIAL_DAYS} days free`;

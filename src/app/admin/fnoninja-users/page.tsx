@@ -93,6 +93,7 @@ export default function AdminFnoNinjaUsersPage() {
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"last_seen" | "name_az" | "name_za">("last_seen");
   const [joinFrom, setJoinFrom] = useState("");
   const [joinTo, setJoinTo] = useState("");
   const [usedFrom, setUsedFrom] = useState("");
@@ -149,7 +150,7 @@ export default function AdminFnoNinjaUsersPage() {
     const uf = usedFrom ? new Date(usedFrom).getTime() : null;
     const ut = usedTo ? new Date(usedTo).getTime() + 86_400_000 : null;
 
-    return users.filter((u) => {
+    const rows = users.filter((u) => {
       if (q) {
         const hay = `${u.displayName ?? ""} ${u.email ?? ""} ${u.phone ?? ""} ${u.uid}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -174,7 +175,19 @@ export default function AdminFnoNinjaUsersPage() {
       }
       return true;
     });
-  }, [users, search, planFilter, statusFilter, joinFrom, joinTo, usedFrom, usedTo]);
+
+    const nameKey = (u: FnoUserRow) =>
+      (u.displayName || u.email || u.uid).trim().toLocaleLowerCase();
+
+    if (sortBy === "name_az") {
+      return [...rows].sort((a, b) => nameKey(a).localeCompare(nameKey(b)));
+    }
+    if (sortBy === "name_za") {
+      return [...rows].sort((a, b) => nameKey(b).localeCompare(nameKey(a)));
+    }
+    // Default API order is last-seen desc; keep stable after filters.
+    return rows;
+  }, [users, search, planFilter, statusFilter, sortBy, joinFrom, joinTo, usedFrom, usedTo]);
 
   const counts = useMemo(() => {
     const today = startOfToday();
@@ -356,6 +369,16 @@ export default function AdminFnoNinjaUsersPage() {
               <option value="active">Active</option>
               <option value="expired">Expired</option>
               <option value="trial">On trial</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "last_seen" | "name_az" | "name_za")}
+              className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white focus:outline-none focus:border-accent/30"
+              aria-label="Sort users"
+            >
+              <option value="last_seen">Sort: Last login</option>
+              <option value="name_az">Sort: Name A–Z</option>
+              <option value="name_za">Sort: Name Z–A</option>
             </select>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">

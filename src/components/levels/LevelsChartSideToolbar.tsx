@@ -146,6 +146,19 @@ function ToolbarCircleLetter({ letter }: { letter: string }) {
 }
 
 /** Gemini-style AI mark — gradient sparkle + soft pulse; stands apart from B/W/L nav. */
+/** Soft amber ping when the user has not enabled score alerts. */
+function ScoreAlertsToolbarMark({ nudge }: { nudge: boolean }) {
+  if (!nudge) {
+    return <Bell className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />;
+  }
+  return (
+    <span className="score-alerts-toolbar-nudge" aria-hidden>
+      <span className="score-alerts-toolbar-nudge-ring" />
+      <Bell className={`${TOOLBAR_ICON_CLASS} score-alerts-toolbar-nudge-bell`} strokeWidth={1.5} />
+    </span>
+  );
+}
+
 function AtlasAiToolbarMark({ open }: { open: boolean }) {
   const gradId = useId().replace(/:/g, "");
   return (
@@ -512,17 +525,30 @@ export function LevelsChartSideToolbar({
             unreadCount={scoreAlerts.unreadCount}
             onClick={() => {
               runIfSignedIn("alerts", () => {
-                trackCtaClick("toolbar_score_alerts", { label: "Score alerts", symbol, scope });
+                trackCtaClick("toolbar_score_alerts", {
+                  label: "Score alerts",
+                  symbol,
+                  scope,
+                  nudged: !scoreAlerts.prefs.enabled,
+                });
                 scoreAlerts.setDrawerOpen(true);
               });
             }}
             title={
               scoreAlerts.unreadCount > 0
                 ? `Score alerts — ${scoreAlerts.unreadCount} unread`
-                : "Score alerts"
+                : scoreAlerts.prefs.enabled
+                  ? "Score alerts"
+                  : "Score alerts — turn on to get setup pings"
             }
           >
-            <Bell className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
+            <ScoreAlertsToolbarMark
+              nudge={
+                !scoreAlerts.prefsLoading &&
+                !scoreAlerts.prefs.enabled &&
+                scoreAlerts.unreadCount === 0
+              }
+            />
           </ToolbarButton>
         ) : null}
 

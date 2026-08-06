@@ -1,48 +1,44 @@
 /**
- * Automate the morning FNO Ninja "levels today" Buffer post (image + /today link).
+ * Automate the morning FNO Ninja bubbles-map Buffer post (image + /levels link).
  *
- * Same cron also queues the bubbles-map post (~15m later) via
- * `runBubblesBoardBufferAuto` — see /api/cron/today-board-buffer.
- *
- * Recommended cron-job.org (IST):
- *   08:00 IST (02:30 UTC) Mon–Fri
+ * Runs from the same cron as today-board-buffer:
  *   GET /api/cron/today-board-buffer?key=CRON_SECRET
  *
- * Idempotent: at most one auto post per IST calendar day (source=today-board).
- * Skips weekends. YouTube omitted (needs video; this is an image card).
+ * Idempotent: at most one auto post per IST calendar day (source=bubbles-board).
+ * Publishes ~15 minutes after the levels-today card so feeds aren’t a double-hit.
  */
 
 import "server-only";
 
 import { getAdminFirestore } from "@/firebase/admin";
+import {
+  bubblesBoardHasSignal,
+  loadBubblesBoard,
+} from "@/lib/fnoninja/bubbles-board";
+import { buildBubblesBoardCaptions } from "@/lib/fnoninja/bubbles-board-captions";
 import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
-import { buildTodayBoardCaptions } from "@/lib/fnoninja/today-board-captions";
-import { loadTodayBoard } from "@/lib/fnoninja/today-board";
+import {
+  istDayKey,
+  istHour,
+  isIstWeekday,
+  TODAY_BUFFER_HOUR_WINDOW,
+  TODAY_BUFFER_PLATFORMS,
+} from "@/lib/fnoninja/today-board-buffer";
 import {
   getPostedContentMap,
   scheduleToBuffer,
   type ChannelResult,
   type ScheduleResult,
 } from "@/lib/social/schedule";
-import type { SocialPlatformId } from "@/lib/social/platforms";
 
-export const TODAY_BUFFER_SOURCE = "today-board";
-export const TODAY_BUFFER_CREATED_BY = "cron:today-board-buffer";
-/** Target publish hour in Asia/Kolkata. */
-export const TODAY_BUFFER_HOUR_IST = 8;
-/** Accept cron ticks in this IST hour window (inclusive) unless force=1. */
-export const TODAY_BUFFER_HOUR_WINDOW = { from: 7, to: 10 } as const;
+export const BUBBLES_BUFFER_SOURCE = "bubbles-board";
+export const BUBBLES_BUFFER_CREATED_BY = "cron:today-board-buffer";
+/** Minutes after cron tick to publish via Buffer schedule. */
+export const BUBBLES_BUFFER_DELAY_MINUTES = 15;
 
-export const TODAY_BUFFER_PLATFORMS: SocialPlatformId[] = [
-  "twitter",
-  "facebook",
-  "linkedin",
-  "instagram",
-];
+const DAY_LOCK_COLLECTION = "bubbles_board_buffer_days";
 
-const DAY_LOCK_COLLECTION = "today_board_buffer_days";
-
-export type TodayBoardBufferSummary = {
+export type BubblesBoardBufferSummary = {
   dayKey: string;
   skipped: string | null;
   status: ScheduleResult["status"] | "skipped";
@@ -52,41 +48,12 @@ export type TodayBoardBufferSummary = {
   results: ChannelResult[];
 };
 
-/** Calendar day key in Asia/Kolkata (YYYY-MM-DD). */
-export function istDayKey(now = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-}
-
-export function istHour(now = new Date()): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Kolkata",
-    hour: "numeric",
-    hour12: false,
-  }).formatToParts(now);
-  const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
-  return h === 24 ? 0 : h;
-}
-
-/** Mon–Fri in Asia/Kolkata. */
-export function isIstWeekday(now = new Date()): boolean {
-  const day = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Kolkata",
-    weekday: "short",
-  }).format(now);
-  return day !== "Sat" && day !== "Sun";
-}
-
 function ogImageUrl(dayKey: string): string {
-  return `${FNONINJA_SITE_URL}/today/opengraph-image?d=${encodeURIComponent(dayKey)}`;
+  return `${FNONINJA_SITE_URL}/levels/opengraph-image?d=${encodeURIComponent(dayKey)}`;
 }
 
 function contentIdForDay(dayKey: string): string {
-  return `today-board-${dayKey}`;
+  return `bubbles-board-${dayKey}`;
 }
 
 async function claimDayLock(dayKey: string): Promise<{ ok: true } | { ok: false; reason: string }> {
@@ -104,7 +71,7 @@ async function claimDayLock(dayKey: string): Promise<{ ok: true } | { ok: false;
         {
           status: "posting",
           claimedAt: new Date().toISOString(),
-          claimedBy: TODAY_BUFFER_CREATED_BY,
+          claimedBy: BUBBLES_BUFFER_CREATED_BY,
         },
         { merge: true },
       );
@@ -133,21 +100,21 @@ async function finishDayLock(
 }
 
 /**
- * Publish today's levels board to Buffer (idempotent, weekday morning).
+ * Publish today's bubbles map summary to Buffer (idempotent, weekday morning).
  * @param force skip weekday + hour window checks (still idempotent per day)
  */
-export async function runTodayBoardBufferAuto(opts?: {
+export async function runBubblesBoardBufferAuto(opts?: {
   force?: boolean;
   dayKey?: string;
   now?: Date;
-}): Promise<TodayBoardBufferSummary> {
+}): Promise<BubblesBoardBufferSummary> {
   const now = opts?.now ?? new Date();
   const dayKey = opts?.dayKey?.trim() || istDayKey(now);
   const contentId = contentIdForDay(dayKey);
   const imageUrl = ogImageUrl(dayKey);
   const force = opts?.force === true;
 
-  const empty = (skipped: string): TodayBoardBufferSummary => ({
+  const empty = (skipped: string): BubblesBoardBufferSummary => ({
     dayKey,
     skipped,
     status: "skipped",
@@ -175,7 +142,7 @@ export async function runTodayBoardBufferAuto(opts?: {
     return empty("BUFFER_API_KEY not configured");
   }
 
-  const posted = await getPostedContentMap(TODAY_BUFFER_SOURCE);
+  const posted = await getPostedContentMap(BUBBLES_BUFFER_SOURCE);
   if (posted[contentId]) {
     return empty(`Already posted today (${contentId})`);
   }
@@ -184,38 +151,39 @@ export async function runTodayBoardBufferAuto(opts?: {
   if (!claim.ok) return empty(claim.reason);
 
   try {
-    const board = await loadTodayBoard();
-    const hasNumbers = board.indices.some(
-      (i) => i.spot != null || i.putWall != null || i.callWall != null,
-    );
-    if (!hasNumbers) {
-      await finishDayLock(dayKey, { status: "failed", error: "no_levels" });
-      return empty("No Nifty/BankNifty levels available yet");
+    const board = await loadBubblesBoard();
+    if (!bubblesBoardHasSignal(board)) {
+      await finishDayLock(dayKey, { status: "failed", error: "no_signal" });
+      return empty("No bubbles map signal (S/R counts or MMI) yet");
     }
 
-    // Warm OG so Buffer's fetch is less likely to hit a cold generate.
     try {
       const og = await fetch(imageUrl, { cache: "no-store" });
       if (!og.ok) {
-        console.warn("[today-board-buffer] OG warm HTTP", og.status);
+        console.warn("[bubbles-board-buffer] OG warm HTTP", og.status);
       }
     } catch (e) {
       console.warn(
-        "[today-board-buffer] OG warm failed:",
+        "[bubbles-board-buffer] OG warm failed:",
         e instanceof Error ? e.message : e,
       );
     }
 
-    const captions = buildTodayBoardCaptions(board);
+    const captions = buildBubblesBoardCaptions(board);
+    const due = new Date(now.getTime() + BUBBLES_BUFFER_DELAY_MINUTES * 60_000);
     const result = await scheduleToBuffer({
-      source: TODAY_BUFFER_SOURCE,
+      source: BUBBLES_BUFFER_SOURCE,
       contentId,
-      contentLabel: `Levels today ${dayKey}`,
+      contentLabel: `Bubbles map ${dayKey}`,
       imageUrl,
       captions,
       platforms: TODAY_BUFFER_PLATFORMS,
-      timing: { mode: "now" },
-      createdBy: TODAY_BUFFER_CREATED_BY,
+      timing: {
+        mode: "scheduled",
+        baseIso: due.toISOString(),
+        jitterMinutes: 0,
+      },
+      createdBy: BUBBLES_BUFFER_CREATED_BY,
     });
 
     const ok = result.status === "ok" || result.status === "partial";

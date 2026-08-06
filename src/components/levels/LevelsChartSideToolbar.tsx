@@ -145,15 +145,47 @@ function ToolbarCircleLetter({ letter }: { letter: string }) {
   );
 }
 
-/** Gemini-style AI mark — gradient sparkle + soft pulse; stands apart from B/W/L nav. */
-/** Soft amber ping when the user has not enabled score alerts. */
+const SCORE_ALERTS_NUDGE_SESSION_KEY = "fno_score_alerts_toolbar_nudge_v1";
+/** One ping — also used as a fallback if animationend never fires. */
+const SCORE_ALERTS_NUDGE_MS = 2800;
+
+/** Soft amber ping (once) when alerts are off — once per browser session. */
 function ScoreAlertsToolbarMark({ nudge }: { nudge: boolean }) {
-  if (!nudge) {
+  const [play, setPlay] = useState(false);
+
+  const finish = useCallback(() => {
+    setPlay(false);
+    try {
+      sessionStorage.setItem(SCORE_ALERTS_NUDGE_SESSION_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!nudge) {
+      setPlay(false);
+      return;
+    }
+    try {
+      if (sessionStorage.getItem(SCORE_ALERTS_NUDGE_SESSION_KEY) === "1") {
+        setPlay(false);
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+    setPlay(true);
+    const t = window.setTimeout(finish, SCORE_ALERTS_NUDGE_MS + 200);
+    return () => window.clearTimeout(t);
+  }, [nudge, finish]);
+
+  if (!play) {
     return <Bell className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />;
   }
   return (
     <span className="score-alerts-toolbar-nudge" aria-hidden>
-      <span className="score-alerts-toolbar-nudge-ring" />
+      <span className="score-alerts-toolbar-nudge-ring" onAnimationEnd={finish} />
       <Bell className={`${TOOLBAR_ICON_CLASS} score-alerts-toolbar-nudge-bell`} strokeWidth={1.5} />
     </span>
   );

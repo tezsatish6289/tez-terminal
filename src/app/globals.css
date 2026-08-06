@@ -214,7 +214,7 @@
   border-radius: 9999px;
   border: 1.5px solid rgba(251, 191, 36, 0.55);
   background: rgba(251, 191, 36, 0.12);
-  animation: score-alerts-nudge-ping 2.8s ease-out infinite;
+  animation: score-alerts-nudge-ping 2.8s ease-out 1;
   pointer-events: none;
 }
 

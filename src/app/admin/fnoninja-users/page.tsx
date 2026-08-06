@@ -5,6 +5,9 @@ import { useUser } from "@/firebase";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   CalendarClock,
   Loader2,
   Map,
@@ -39,6 +42,76 @@ interface FnoUserRow {
   paymentCount: number | null;
   lastPaymentAt: string | null;
   paymentsSyncedAt: string | null;
+}
+
+type SortKey = "user" | "joined" | "last_login" | "plan" | "expiry" | "payments";
+type SortDir = "asc" | "desc";
+
+function ts(iso: string | null): number {
+  if (!iso) return 0;
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function compareUsers(a: FnoUserRow, b: FnoUserRow, key: SortKey, dir: SortDir): number {
+  const mul = dir === "asc" ? 1 : -1;
+  let cmp = 0;
+  switch (key) {
+    case "user": {
+      const an = (a.displayName || a.email || a.uid).trim().toLocaleLowerCase();
+      const bn = (b.displayName || b.email || b.uid).trim().toLocaleLowerCase();
+      cmp = an.localeCompare(bn);
+      break;
+    }
+    case "joined":
+      cmp = ts(a.joinedAt) - ts(b.joinedAt);
+      break;
+    case "last_login":
+      cmp = ts(a.lastSeenAt) - ts(b.lastSeenAt);
+      break;
+    case "plan":
+      cmp = a.planName.localeCompare(b.planName);
+      break;
+    case "expiry":
+      cmp = ts(a.expiryDate) - ts(b.expiryDate);
+      break;
+    case "payments":
+      cmp = (a.totalPaidInr ?? -1) - (b.totalPaidInr ?? -1);
+      break;
+  }
+  return cmp * mul;
+}
+
+function SortableTh({
+  label,
+  column,
+  sortKey,
+  sortDir,
+  onSort,
+  className = "",
+}: {
+  label: string;
+  column: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (column: SortKey) => void;
+  className?: string;
+}) {
+  const active = sortKey === column;
+  const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(column)}
+      className={`inline-flex items-center gap-1 hover:text-white transition-colors ${
+        active ? "text-white" : ""
+      } ${className}`}
+      aria-label={`Sort by ${label}${active ? `, ${sortDir === "asc" ? "A to Z" : "Z to A"}` : ""}`}
+    >
+      <span>{label}</span>
+      <Icon className={`h-3 w-3 ${active ? "opacity-90" : "opacity-35"}`} />
+    </button>
+  );
 }
 
 type AdminTier = "none" | "free" | "silver" | "gold" | "daypass";
@@ -93,11 +166,24 @@ export default function AdminFnoNinjaUsersPage() {
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<"last_seen" | "name_az" | "name_za">("last_seen");
+  const [sortKey, setSortKey] = useState<SortKey>("last_login");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [joinFrom, setJoinFrom] = useState("");
   const [joinTo, setJoinTo] = useState("");
   const [usedFrom, setUsedFrom] = useState("");
   const [usedTo, setUsedTo] = useState("");
+
+  const toggleSort = useCallback((column: SortKey) => {
+    setSortKey((prev) => {
+      if (prev === column) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      // Dates/money default newest/highest first; names/plans A→Z.
+      setSortDir(column === "user" || column === "plan" ? "asc" : "desc");
+      return column;
+    });
+  }, []);
 
   // Row action state
   const [syncingUid, setSyncingUid] = useState<string | null>(null);
@@ -176,18 +262,8 @@ export default function AdminFnoNinjaUsersPage() {
       return true;
     });
 
-    const nameKey = (u: FnoUserRow) =>
-      (u.displayName || u.email || u.uid).trim().toLocaleLowerCase();
-
-    if (sortBy === "name_az") {
-      return [...rows].sort((a, b) => nameKey(a).localeCompare(nameKey(b)));
-    }
-    if (sortBy === "name_za") {
-      return [...rows].sort((a, b) => nameKey(b).localeCompare(nameKey(a)));
-    }
-    // Default API order is last-seen desc; keep stable after filters.
-    return rows;
-  }, [users, search, planFilter, statusFilter, sortBy, joinFrom, joinTo, usedFrom, usedTo]);
+    return [...rows].sort((a, b) => compareUsers(a, b, sortKey, sortDir));
+  }, [users, search, planFilter, statusFilter, sortKey, sortDir, joinFrom, joinTo, usedFrom, usedTo]);
 
   const counts = useMemo(() => {
     const today = startOfToday();
@@ -370,16 +446,6 @@ export default function AdminFnoNinjaUsersPage() {
               <option value="expired">Expired</option>
               <option value="trial">On trial</option>
             </select>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as "last_seen" | "name_az" | "name_za")}
-              className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white focus:outline-none focus:border-accent/30"
-              aria-label="Sort users"
-            >
-              <option value="last_seen">Sort: Last login</option>
-              <option value="name_az">Sort: Name A–Z</option>
-              <option value="name_za">Sort: Name Z–A</option>
-            </select>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">
             <label className="flex items-center gap-1.5">
@@ -427,12 +493,12 @@ export default function AdminFnoNinjaUsersPage() {
           <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-x-auto">
             <div className="min-w-[1000px]">
               <div className="grid grid-cols-[1.6fr_110px_120px_110px_130px_150px_110px] gap-2 px-6 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
-                <span>User</span>
-                <span>Joined</span>
-                <span>Last login</span>
-                <span>Plan</span>
-                <span>Expiry</span>
-                <span>Payments (₹)</span>
+                <SortableTh label="User" column="user" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Joined" column="joined" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Last login" column="last_login" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Plan" column="plan" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Expiry" column="expiry" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Payments (₹)" column="payments" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <span className="text-right">Actions</span>
               </div>
 

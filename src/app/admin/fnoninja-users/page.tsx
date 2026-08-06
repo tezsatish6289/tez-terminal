@@ -34,6 +34,7 @@ interface FnoUserRow {
   status: "trial" | "active" | "expired" | "none";
   isActive: boolean;
   alertsEnabled: boolean;
+  trialActivated: boolean;
   expiryDate: string | null;
   autoRenew: boolean | null;
   manualOverride: boolean;
@@ -215,6 +216,7 @@ export default function AdminFnoNinjaUsersPage() {
         ((data.users || []) as FnoUserRow[]).map((u) => ({
           ...u,
           alertsEnabled: u.alertsEnabled === true,
+          trialActivated: u.trialActivated === true,
         })),
       );
     } catch (e: any) {
@@ -547,6 +549,11 @@ export default function AdminFnoNinjaUsersPage() {
                       {u.manualOverride && (
                         <span className="text-[8px] font-bold uppercase tracking-wide text-amber-400/70">
                           manual
+                        </span>
+                      )}
+                      {u.trialActivated && (
+                        <span className="text-[8px] font-bold uppercase tracking-wide text-emerald-400/80">
+                          activated
                         </span>
                       )}
                     </div>

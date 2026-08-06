@@ -14,7 +14,9 @@ import { Crown, X } from "lucide-react";
 import type { Feature } from "@/lib/entitlements";
 import { fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import { trackCtaClick } from "@/firebase/analytics";
+import { useUser } from "@/firebase";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW, FNO_MUTED } from "@/lib/fnoninja/theme";
+import { postTrialActivity } from "@/lib/fnoninja/trial-activity-client";
 
 /** Human labels for the tier-gated (Gold) features. */
 const FEATURE_LABEL: Partial<Record<Feature, string>> = {
@@ -50,14 +52,31 @@ export function useUpgradePrompt(): UpgradePromptContextValue {
 
 export function FnoNinjaUpgradePromptProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { user } = useUser();
   const [feature, setFeature] = useState<Feature | null>(null);
 
-  const promptUpgrade = useCallback((f: Feature) => {
-    setFeature(f);
-    trackCtaClick("upgrade_prompt_open", { feature: f });
-  }, []);
+  const promptUpgrade = useCallback(
+    (f: Feature) => {
+      setFeature(f);
+      trackCtaClick("upgrade_prompt_open", { feature: f });
+      void postTrialActivity(user, "upgrade_prompt_open", { feature: f }, { oncePerSession: false });
+    },
+    [user],
+  );
 
-  const close = useCallback(() => setFeature(null), []);
+  const close = useCallback(() => {
+    setFeature((prev) => {
+      if (prev) {
+        void postTrialActivity(
+          user,
+          "upgrade_prompt_dismiss",
+          { feature: prev },
+          { oncePerSession: false },
+        );
+      }
+      return null;
+    });
+  }, [user]);
 
   const value = useMemo<UpgradePromptContextValue>(() => ({ promptUpgrade }), [promptUpgrade]);
 
@@ -115,7 +134,13 @@ export function FnoNinjaUpgradePromptProvider({ children }: { children: ReactNod
               href={fnoSubscribeHref(pathname)}
               onClick={() => {
                 trackCtaClick("upgrade_prompt_cta", { feature });
-                close();
+                void postTrialActivity(
+                  user,
+                  "upgrade_prompt_cta",
+                  { feature },
+                  { oncePerSession: false },
+                );
+                setFeature(null);
               }}
               className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl px-6 py-3 text-sm font-bold text-white transition-transform hover:scale-[1.02]"
               style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}

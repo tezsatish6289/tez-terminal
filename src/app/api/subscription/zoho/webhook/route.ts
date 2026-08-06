@@ -107,6 +107,10 @@ async function applyEntitlement(
   void syncChatAccess(uid, active).catch((e) =>
     console.error("[Zoho Webhook] chat access sync failed", e),
   );
+  if (active) {
+    const { trackTrialActivity } = await import("@/lib/fnoninja/trial-activity");
+    trackTrialActivity(db, uid, "payment_completed", { tier, planCode });
+  }
 }
 
 function resolveSubscriptionAmountInr(

@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { SCORE_ALERT_PREFS_COLLECTION } from "@/lib/alerts/constants";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
+import {
+  isTrialActivated,
+  parseTrialActivitySummary,
+  TRIAL_ACTIVITY_COLLECTION,
+} from "@/lib/fnoninja/trial-activity";
 import { readStoredPhone } from "@/lib/phone";
 import { isSubscriptionActive, type SubscriptionDoc } from "@/lib/subscription";
 
@@ -22,6 +27,8 @@ export interface FnoAdminUserRow {
   isActive: boolean;
   /** Score alerts toggle currently on (`score_alert_preferences.enabled`). */
   alertsEnabled: boolean;
+  /** Met activation aha: chart + (watchlist or alerts). */
+  trialActivated: boolean;
   expiryDate: string | null;
   autoRenew: boolean | null;
   manualOverride: boolean;
@@ -58,16 +65,24 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getAdminFirestore();
-    const [usersSnap, subsSnap, alertPrefsSnap] = await Promise.all([
+    const [usersSnap, subsSnap, alertPrefsSnap, activitySnap] = await Promise.all([
       db.collection("users").get(),
       db.collection("subscriptions").get(),
       db.collection(SCORE_ALERT_PREFS_COLLECTION).where("enabled", "==", true).get(),
+      db.collection(TRIAL_ACTIVITY_COLLECTION).get(),
     ]);
 
     const subsMap = new Map<string, SubscriptionDoc & Record<string, unknown>>();
     subsSnap.docs.forEach((d) => subsMap.set(d.id, d.data() as SubscriptionDoc & Record<string, unknown>));
 
     const alertsEnabledUids = new Set(alertPrefsSnap.docs.map((d) => d.id));
+    const activatedUids = new Set<string>();
+    for (const d of activitySnap.docs) {
+      const summary = parseTrialActivitySummary(d.id, d.data() as Record<string, unknown>);
+      if (summary.activatedAt || isTrialActivated(summary.milestones)) {
+        activatedUids.add(d.id);
+      }
+    }
 
     const rows: FnoAdminUserRow[] = [];
     usersSnap.docs.forEach((d) => {
@@ -94,6 +109,7 @@ export async function GET(request: NextRequest) {
         status: effectiveStatus(sub),
         isActive: active,
         alertsEnabled: alertsEnabledUids.has(d.id),
+        trialActivated: activatedUids.has(d.id),
         expiryDate,
         autoRenew: sub?.autoRenew ?? null,
         manualOverride: Boolean((sub as Record<string, unknown> | null)?.manualOverride),

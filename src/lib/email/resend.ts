@@ -155,3 +155,25 @@ export async function resendCreateAndSendBroadcast(input: {
   if (!result.ok) return { error: result.message };
   return { id: result.data.id };
 }
+
+/** Transactional one-to-one email (trial lifecycle, not marketing broadcasts). */
+export async function resendSendEmail(input: {
+  apiKey: string;
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<{ id?: string; error?: string }> {
+  const result = await resendFetch<{ id?: string }>(`/emails`, {
+    apiKey: input.apiKey,
+    method: "POST",
+    body: JSON.stringify({
+      from: input.from,
+      to: [input.to],
+      subject: input.subject,
+      html: input.html,
+    }),
+  });
+  if (!result.ok) return { error: result.message };
+  return { id: result.data.id };
+}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { sendAtlasWelcomeIfNeeded } from "@/lib/chat/send-atlas-welcome";
 import { requireUser } from "@/lib/chat/require-user";
+import { trackTrialActivity } from "@/lib/fnoninja/trial-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,8 @@ export async function POST(request: NextRequest) {
   const displayName = typeof name === "string" ? name : null;
   const userEmail = typeof email === "string" ? email : null;
 
-  await getAdminFirestore()
+  const db = getAdminFirestore();
+  await db
     .collection("chat_members")
     .doc(uid)
     .set(
@@ -29,6 +31,8 @@ export async function POST(request: NextRequest) {
       },
       { merge: true },
     );
+
+  trackTrialActivity(db, uid, "chat_joined");
 
   const welcome = await sendAtlasWelcomeIfNeeded({
     uid,

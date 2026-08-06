@@ -11,6 +11,7 @@ import { isFlashSaleBlockedForSubscriber } from "@/lib/fnoninja/flash-sale";
 import { fnoAnalyticsHref, fnoLoginHref, fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import { formatInr } from "@/lib/fnoninja/pricing";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
+import { postTrialActivity } from "@/lib/fnoninja/trial-activity-client";
 
 const FNO_BORDER = "rgba(90,140,220,0.2)";
 
@@ -171,6 +172,7 @@ function PlanCardsInner({
   async function handleSubscribe(tier: CheckoutTier, phone?: string) {
     if (!user) return;
     setLoadingTier(tier);
+    void postTrialActivity(user, "plan_selected", { tier }, { oncePerSession: false });
     try {
       const idToken = await user.getIdToken();
       const res = await fetch("/api/subscription/zoho/checkout", {
@@ -193,6 +195,7 @@ function PlanCardsInner({
       if (!res.ok || !data.url) throw new Error(data.error || "Could not start checkout");
       window.location.href = data.url;
     } catch (e: any) {
+      void postTrialActivity(user, "payment_failed", { tier, error: e.message }, { oncePerSession: false });
       toast({
         title: "Checkout failed",
         description: e.message || "Please try again in a moment.",

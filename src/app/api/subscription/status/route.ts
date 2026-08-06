@@ -14,6 +14,7 @@ import {
   phoneGraceEndsAt,
   shouldBlockTrialForPhone,
 } from "@/lib/fnoninja/phone-verify";
+import { trackTrialActivity } from "@/lib/fnoninja/trial-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,14 @@ export async function GET(request: NextRequest) {
         await subRef.set(newSub);
         subSnap = await subRef.get();
         trialJustActivated = true;
+
+        if (product === "fnoninja" || isFnoUser) {
+          trackTrialActivity(db, uid, "trial_started", {
+            trialDays,
+            trialEndDate: trialEnd.toISOString(),
+            source: product === "fnoninja" ? "fnoninja" : "inferred",
+          });
+        }
 
         // Bind verified phone → this trial so it can't unlock another account later.
         if (phoneVerified && phoneHash) {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bell, Crown, Loader2 } from "lucide-react";
 import { useScoreAlerts } from "@/components/fnoninja/alerts/ScoreAlertsContext";
 import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
+import { FnoNinjaIntentUpgradeNudge } from "@/components/fnoninja/FnoNinjaIntentUpgradeNudge";
 import { useUpgradePrompt } from "@/components/fnoninja/FnoNinjaUpgradePrompt";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -338,6 +339,12 @@ export function ScoreAlertsDrawer() {
                     void savePrefs({ enabled: next });
                   }}
                 />
+
+                {prefs.enabled ? (
+                  <div className="pb-3 pt-1">
+                    <FnoNinjaIntentUpgradeNudge reason="alerts_enabled" />
+                  </div>
+                ) : null}
 
                 <ChoiceRow
                   label="Segment"

@@ -13,6 +13,7 @@ import {
   PHONE_TRIAL_CLAIMS_COLLECTION,
 } from "@/lib/fnoninja/phone-verify";
 import type { SubscriptionDoc } from "@/lib/subscription";
+import { trackTrialActivity } from "@/lib/fnoninja/trial-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -143,6 +144,8 @@ export async function POST(request: NextRequest) {
         { merge: true },
       );
     });
+
+    trackTrialActivity(db, uid, "phone_verified");
 
     return NextResponse.json({
       ok: true,

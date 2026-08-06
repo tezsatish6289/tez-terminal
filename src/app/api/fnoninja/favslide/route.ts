@@ -10,6 +10,7 @@ import {
   type FavslideEntry,
 } from "@/lib/fnoninja/favslide";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
+import { trackTrialActivity } from "@/lib/fnoninja/trial-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
   const ref = db.collection("users").doc(uid);
 
   try {
+    let addedNew = false;
     const entries = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const current = parseFavslideEntries(snap.data()?.[FNONINJA_FAVSLIDE_FIELD]);
@@ -83,11 +85,19 @@ export async function POST(request: NextRequest) {
           throw new Error(`Favslide limit is ${MAX_FAVSLIDE_SYMBOLS} symbols`);
         }
         next = [...current, entry];
+        addedNew = true;
       }
 
       tx.set(ref, { [FNONINJA_FAVSLIDE_FIELD]: encodeFavslideStorage(next) }, { merge: true });
       return next;
     });
+
+    if (addedNew) {
+      trackTrialActivity(db, uid, "favslide_added", {
+        scope: entry.scope,
+        symbol: entry.symbol,
+      });
+    }
 
     return NextResponse.json({
       symbols: encodeFavslideStorage(entries),

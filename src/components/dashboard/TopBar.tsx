@@ -74,6 +74,7 @@ export function TopBar() {
     { name: "Settings", icon: Bell, href: "/settings" },
     { name: "Users", icon: Users, href: "/admin/users" },
     { name: "FNONINJA Users", icon: Map, href: "/admin/fnoninja-users" },
+    { name: "Trial Insights", icon: Target, href: "/admin/fnoninja-trial" },
     { name: "Bot users", icon: Bot, href: "/admin/bot-users" },
     { name: "Waitlist", icon: ClipboardList, href: "/admin/waitlist" },
     { name: "Webinars", icon: Video, href: "/admin/webinars" },

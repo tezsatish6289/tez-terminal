@@ -9,6 +9,7 @@ import {
 import { requireUser } from "@/lib/chat/require-user";
 import { hasFeature } from "@/lib/entitlements";
 import { loadEntitlementContext } from "@/lib/entitlements-server";
+import { trackTrialActivity } from "@/lib/fnoninja/trial-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -71,5 +72,11 @@ export async function PUT(request: NextRequest) {
 
   const clamped = withClampedScoreAlertMinScore(next, canUseGoldFloor);
   await ref.set(clamped, { merge: true });
+  if (clamped.enabled && !current.enabled) {
+    trackTrialActivity(db, auth.decoded.uid, "alerts_enabled", {
+      minScore: clamped.minScore,
+      segment: clamped.segment,
+    });
+  }
   return NextResponse.json({ preferences: clamped });
 }

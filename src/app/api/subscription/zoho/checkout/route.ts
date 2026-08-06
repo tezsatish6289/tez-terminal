@@ -14,6 +14,7 @@ import {
   ensureFlashSaleCoupons,
   getActiveFlashSaleCouponCode,
 } from "@/lib/fnoninja/flash-sale-server";
+import { trackTrialActivity } from "@/lib/fnoninja/trial-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -129,6 +130,7 @@ export async function POST(request: NextRequest) {
         customerId: customer.customer_id,
         uid,
       });
+      trackTrialActivity(getAdminFirestore(), uid, "payment_initiated", { tier });
       return NextResponse.json({ url: link.url, kind: "paymentlink" });
     }
 
@@ -150,6 +152,10 @@ export async function POST(request: NextRequest) {
     });
     // Codes look like FN_FLASH_G_1500_20260729 — capture the discount, not the date.
     const discountMatch = couponCode?.match(/FN_FLASH_[GS]_(\d+)_\d{8}$/);
+    trackTrialActivity(getAdminFirestore(), uid, "payment_initiated", {
+      tier,
+      flashSale: Boolean(couponCode),
+    });
     return NextResponse.json({
       url: hostedPage.url,
       kind: "subscription",

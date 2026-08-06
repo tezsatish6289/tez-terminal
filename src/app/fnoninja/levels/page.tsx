@@ -105,6 +105,7 @@ import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/livesl
 import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { useUser } from "@/firebase";
+import { postTrialActivity } from "@/lib/fnoninja/trial-activity-client";
 import { trackCtaClick } from "@/firebase/analytics";
 import { bypassFnoNinjaSlideAuthForLocalDev } from "@/lib/fnoninja/auth";
 import { useEntitlements } from "@/hooks/use-entitlements";
@@ -518,7 +519,10 @@ export default function LevelsPage() {
     // expired users enter and hit the paywall overlay.
     setViewMode("liveslide");
     setInZoneSlide(0);
-  }, []);
+    void postTrialActivity(slideAuthUser, "liveslide_opened");
+    // Slide view shows charts — counts toward activation aha.
+    void postTrialActivity(slideAuthUser, "chart_opened", { surface: "liveslide" });
+  }, [slideAuthUser]);
 
   const enterFavslide = useCallback(() => {
     if (!isFnoNinjaHost) return;
@@ -527,7 +531,8 @@ export default function LevelsPage() {
     void refreshFavslide();
     setViewMode("favslide");
     setInZoneSlide(0);
-  }, [isFnoNinjaHost, refreshFavslide]);
+    void postTrialActivity(slideAuthUser, "chart_opened", { surface: "favslide" });
+  }, [isFnoNinjaHost, refreshFavslide, slideAuthUser]);
 
   const enterBubbles = useCallback(() => {
     setViewMode("bubbles");

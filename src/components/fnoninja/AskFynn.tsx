@@ -26,6 +26,8 @@ import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { FNO_ACCENT, FNO_MUTED, FNO_TEXT, FNO_CARD_BG } from "@/lib/fnoninja/theme";
 import { trackCtaClick } from "@/firebase/analytics";
 import { useAuth } from "@/firebase";
+import { FnoNinjaIntentUpgradeNudge } from "@/components/fnoninja/FnoNinjaIntentUpgradeNudge";
+import { postTrialActivity } from "@/lib/fnoninja/trial-activity-client";
 import type {
   AtlasValidateResult,
   CheckStatus,
@@ -196,9 +198,10 @@ export function AskFynn({
       if (next) {
         setView("menu");
         setError(null);
+        void postTrialActivity(auth.currentUser, "atlas_opened", { symbol, scope });
       }
     },
-    [isControlled, onOpenChange],
+    [isControlled, onOpenChange, auth, symbol, scope],
   );
 
   const displayName = label || symbol;
@@ -421,12 +424,15 @@ export function AskFynn({
                     ) : null}
                   </div>
                 ) : result ? (
-                  <ValidateResultView
-                    result={result}
-                    onRefresh={() => {
-                      if (bias) void validate(bias, true);
-                    }}
-                  />
+                  <>
+                    <ValidateResultView
+                      result={result}
+                      onRefresh={() => {
+                        if (bias) void validate(bias, true);
+                      }}
+                    />
+                    <FnoNinjaIntentUpgradeNudge reason="atlas_result" className="mt-3" />
+                  </>
                 ) : null}
 
                 {disclaimer && result && !loading ? (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminAuth, getAdminFirestore } from "@/firebase/admin";
+import { trackTrialActivity } from "@/lib/fnoninja/trial-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     await ref.set(patch, { merge: true });
+    trackTrialActivity(db, uid, "session_seen");
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {

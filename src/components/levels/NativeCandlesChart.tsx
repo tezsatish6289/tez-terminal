@@ -62,15 +62,18 @@ const RIGHT_OFFSET_SLIDESHOW_MAX = 110;
 /** Extra width for longer right-axis level titles (Support H/L/Break, Resistance…). */
 const RIGHT_PRICE_SCALE_MIN_WIDTH = 108;
 const RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH = 152;
-/** Mobile: compact axis titles (Put OI, MP); band pills stay off the plot. */
-const RIGHT_OFFSET_MOBILE = 6;
-const RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN = 8;
-const RIGHT_OFFSET_SLIDESHOW_MOBILE_MAX = 18;
+/** Mobile: leave room so the latest candle isn’t clipped under the price scale. */
+const RIGHT_OFFSET_MOBILE = 22;
+const RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN = 18;
+const RIGHT_OFFSET_SLIDESHOW_MOBILE_MAX = 36;
 const RIGHT_PRICE_SCALE_MOBILE_MIN_WIDTH = 88;
 const RIGHT_PRICE_SCALE_MOBILE_SLIDESHOW_WIDTH = 96;
 const NARROW_CHART_MQ = "(max-width: 767px)";
 /** Default zoom: ~5 NSE sessions visible (15m ≈ 25 bars/day). */
 const DEFAULT_VISIBLE_BARS = 125;
+/** Intraday deep-dive: show ~2 sessions; older bars stay loaded for scroll-left. */
+const INTRADAY_VISIBLE_BARS_MOBILE = 55;
+const INTRADAY_VISIBLE_BARS_DESKTOP = 80;
 const DAY_SEC = 86_400;
 
 function trimApiCandlesToLookbackDays(candles: ApiCandle[], days: number): ApiCandle[] {
@@ -265,15 +268,9 @@ export const NativeCandlesChart = forwardRef<
       chartRef.current?.priceScale("right").applyOptions({
         minimumWidth: priceScaleMinWidth(),
       });
-      if (fullHistoryZoomRef.current || intradayLookbackDaysRef.current != null) {
-        scale.setVisibleLogicalRange({ from: 0, to: n - 1 + off });
-      } else {
-        const visibleBars = defaultVisibleBars(n);
-        scale.setVisibleLogicalRange({
-          from: Math.max(0, n - visibleBars),
-          to: n - 1 + off,
-        });
-      }
+      const visibleBars = defaultVisibleBars(n);
+      const from = fullHistoryZoomRef.current ? 0 : Math.max(0, n - visibleBars);
+      scale.setVisibleLogicalRange({ from, to: n - 1 + off });
     });
   }
 
@@ -288,7 +285,14 @@ export const NativeCandlesChart = forwardRef<
 
   function defaultVisibleBars(barCount: number): number {
     const lookbackDays = intradayLookbackDaysRef.current;
-    if (lookbackDays != null) return barCount;
+    if (lookbackDays != null) {
+      // Keep full lookback loaded; only zoom to recent sessions so the “now”
+      // candle is readable and reachable without pinching from day 1.
+      const recent = isNarrowChart()
+        ? INTRADAY_VISIBLE_BARS_MOBILE
+        : INTRADAY_VISIBLE_BARS_DESKTOP;
+      return Math.min(barCount, recent);
+    }
     return DEFAULT_VISIBLE_BARS;
   }
 
@@ -450,7 +454,8 @@ export const NativeCandlesChart = forwardRef<
             vertTouchDrag: false,
           }
         : true,
-      kineticScroll: narrow ? { touch: false, mouse: false } : { touch: true, mouse: false },
+      // Kinetic touch helps pan to the latest bars on phone.
+      kineticScroll: narrow ? { touch: true, mouse: false } : { touch: true, mouse: false },
       rightPriceScale: {
         borderColor: "rgba(255,255,255,0.08)",
         minimumWidth: narrow
@@ -537,7 +542,7 @@ export const NativeCandlesChart = forwardRef<
               vertTouchDrag: false,
             }
           : true,
-        kineticScroll: next ? { touch: false, mouse: false } : { touch: true, mouse: false },
+        kineticScroll: next ? { touch: true, mouse: false } : { touch: true, mouse: false },
       });
       refreshChartLayout();
     };
@@ -777,7 +782,7 @@ export const NativeCandlesChart = forwardRef<
   return (
     <div
       ref={shareRootRef}
-      className="relative flex h-full min-h-0 w-full flex-1 flex-col max-md:min-h-[min(48dvh,420px)] max-md:touch-pan-y"
+      className="relative flex h-full min-h-0 w-full flex-1 flex-col max-md:min-h-[min(48dvh,420px)] max-md:touch-none"
     >
       <div className="relative min-h-0 flex-1 max-md:min-h-[min(42dvh,380px)]">
         <div

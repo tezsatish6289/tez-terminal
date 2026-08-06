@@ -138,8 +138,16 @@ export function NiftyOutlookChart({
 
   const model = useMemo(() => {
     if (!series) return null;
-    const { w, h } = size;
-    const plotW = Math.max(w - PAD.left - PAD.right, 10);
+    const { h } = size;
+    const cps = series.checkpoints;
+    // Phone: give each expiry a real column width and scroll horizontally —
+    // fitting all expiries into ~300px made only the nearest one readable.
+    const minSlotPx = compact ? 100 : 152;
+    const contentW = Math.max(
+      size.w,
+      PAD.left + PAD.right + Math.max(cps.length, 1) * minSlotPx,
+    );
+    const plotW = Math.max(contentW - PAD.left - PAD.right, 10);
     const plotH = Math.max(h - PAD.top - PAD.bottom, 10);
     const { horizonDays, priceMin, priceMax } = series;
     const span = Math.max(priceMax - priceMin, 1);
@@ -149,15 +157,14 @@ export function NiftyOutlookChart({
     const yFor = (price: number) =>
       PAD.top + (1 - (price - priceMin) / span) * plotH;
 
-    const cps = series.checkpoints;
     const slots: Slot[] = cps.map((cp, i) => ({
       cp,
-      x0: i === 0 ? xFor(0) : xFor(cps[i - 1].daysFromToday),
+      x0: i === 0 ? xFor(0) : xFor(cps[i - 1]!.daysFromToday),
       x1: xFor(cp.daysFromToday),
     }));
 
-    return { plotW, plotH, xFor, yFor, slots };
-  }, [series, size, compact]);
+    return { plotW, plotH, xFor, yFor, slots, contentW };
+  }, [series, size, compact, PAD.left, PAD.right, PAD.top, PAD.bottom]);
 
   if (!series || !model) {
     return (
@@ -173,8 +180,8 @@ export function NiftyOutlookChart({
     );
   }
 
-  const { w, h } = size;
-  const { xFor, yFor, slots } = model;
+  const { h } = size;
+  const { xFor, yFor, slots, contentW: w } = model;
   const bull = LEVELS_ZONE_CHART.bull;
   const bear = LEVELS_ZONE_CHART.bear;
   const maxPainColor = LEVELS_ZONE_CHART.maxPain.line;
@@ -294,13 +301,20 @@ export function NiftyOutlookChart({
   return (
     <div
       ref={containerRef}
-      className={`${className} max-md:min-h-[min(48dvh,420px)]`.trim()}
+      className={`${className} max-md:min-h-[min(48dvh,420px)] max-md:overflow-x-auto max-md:overscroll-x-contain max-md:touch-pan-x`.trim()}
       style={{ position: "relative" }}
     >
       {statusOverlay && series ? (
         <LevelsChartCornerStatusBlobs {...statusOverlay} rightInsetPx={PAD.right + 8} visible />
       ) : null}
-      <svg width={w} height={h} role="img" aria-label="Nifty Outlook ladder" className="block max-w-full">
+      <svg
+        width={w}
+        height={h}
+        role="img"
+        aria-label="Nifty Outlook ladder"
+        className="block max-md:max-w-none"
+        style={{ minWidth: w }}
+      >
         <defs>
           <linearGradient id="outlook-fade" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#000" stopOpacity="0" />

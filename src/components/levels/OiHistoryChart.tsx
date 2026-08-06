@@ -52,6 +52,8 @@ interface Row {
 }
 
 const PAD = { top: 16, right: 16, bottom: 44, left: 56 };
+/** Phone: keep bars wide enough to pan across history instead of crushing into one screen. */
+const HISTORY_MIN_BAR_PX = 11;
 const CANDLE_COLOR = "#f8fafc";
 
 /** Dedicated footer row — chart SVG must never bleed into this zone. */
@@ -63,9 +65,9 @@ const GUIDE_FOOTER_CLASS =
  * scrolls (no definite parent height), which was clipping History to a blank strip.
  */
 const PLOT_PANE_CLASS =
-  "relative w-full overflow-hidden " +
+  "relative w-full overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x " +
   "h-[min(55dvh,440px)] shrink-0 " +
-  "md:h-auto md:min-h-0 md:flex-1 md:shrink";
+  "md:overflow-hidden md:h-auto md:min-h-0 md:flex-1 md:shrink md:touch-auto";
 
 const SHELL_CLASS =
   "flex flex-col min-h-0 w-full max-md:h-auto md:h-full";
@@ -186,6 +188,18 @@ export function OiHistoryChart({
     };
   }, [range, loading, symbol, scope]);
 
+  // Wide history canvas: land on the latest days (right edge) on first paint.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || loading) return;
+    const id = requestAnimationFrame(() => {
+      if (el.scrollWidth > el.clientWidth + 2) {
+        el.scrollLeft = el.scrollWidth;
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [loading, range, symbol, scope, size.w]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -248,8 +262,10 @@ export function OiHistoryChart({
 
   const model = useMemo(() => {
     if (!displayRows.length) return null;
-    const { w, h } = size;
-    const plotW = Math.max(w - PAD.left - PAD.right, 10);
+    const { h } = size;
+    const n = displayRows.length;
+    const contentW = Math.max(size.w, PAD.left + PAD.right + n * HISTORY_MIN_BAR_PX);
+    const plotW = Math.max(contentW - PAD.left - PAD.right, 10);
     const plotH = Math.max(h - PAD.top - PAD.bottom, 10);
 
     let lo = Infinity;
@@ -275,7 +291,6 @@ export function OiHistoryChart({
     hi += pad;
     const span = Math.max(hi - lo, 1);
 
-    const n = displayRows.length;
     const xFor = (i: number) => PAD.left + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
     const yFor = (price: number) => PAD.top + (1 - (price - lo) / span) * plotH;
     const colW = Math.max(1.5, Math.min(10, (plotW / Math.max(n, 1)) * 0.6));
@@ -296,6 +311,7 @@ export function OiHistoryChart({
     const callWidths = buildOiWallSegmentWidths(displayRows.map((r) => r.oi?.callOI));
 
     return {
+      contentW,
       plotW,
       plotH,
       xFor,
@@ -363,8 +379,8 @@ export function OiHistoryChart({
     );
   }
 
-  const { w, h } = size;
-  const { xFor, yFor, colW, yTicks, putWidths, callWidths, mpPts } = model;
+  const { h } = size;
+  const { contentW: w, xFor, yFor, colW, yTicks, putWidths, callWidths, mpPts } = model;
   const poly = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(" ");
 
   const hover = hoverIdx != null && hoverIdx >= 0 && hoverIdx < displayRows.length ? displayRows[hoverIdx] : null;
@@ -392,12 +408,12 @@ export function OiHistoryChart({
           height={h}
           viewBox={`0 0 ${w} ${h}`}
           preserveAspectRatio="none"
-          className="absolute inset-0 h-full w-full"
+          className="block h-full max-md:max-w-none md:absolute md:inset-0 md:w-full"
           role="img"
           aria-label="OI wall history"
           onPointerMove={onMove}
           onPointerLeave={() => setHoverIdx(null)}
-          style={{ touchAction: "none", display: "block" }}
+          style={{ touchAction: "pan-x pan-y", display: "block", minWidth: w }}
         >
         {/* price grid */}
         {yTicks.map((t, i) => (

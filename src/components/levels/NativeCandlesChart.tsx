@@ -54,26 +54,32 @@ interface ApiCandle {
 }
 
 const POLL_MS = 60_000;
-/** Empty bars on the right so candles sit left of zone price labels (Support/Resistance). */
-const RIGHT_OFFSET_BARS = 40;
+/**
+ * Empty bars on the right for axis labels. Keep modest — this is applied via
+ * `rightOffset` only. Do NOT also add it to setVisibleLogicalRange.to or the
+ * viewport scrolls into whitespace and blanks the plot (esp. mobile intraday).
+ */
+const RIGHT_OFFSET_BARS = 12;
 /** Slideshow / 30-day view: scale offset with bar count so labels stay clear when bars are dense. */
-const RIGHT_OFFSET_SLIDESHOW_MIN = 56;
-const RIGHT_OFFSET_SLIDESHOW_MAX = 110;
+const RIGHT_OFFSET_SLIDESHOW_MIN = 20;
+const RIGHT_OFFSET_SLIDESHOW_MAX = 48;
 /** Extra width for longer right-axis level titles (Support H/L/Break, Resistance…). */
 const RIGHT_PRICE_SCALE_MIN_WIDTH = 108;
 const RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH = 152;
 /** Mobile: leave room so the latest candle isn’t clipped under the price scale. */
-const RIGHT_OFFSET_MOBILE = 22;
-const RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN = 18;
-const RIGHT_OFFSET_SLIDESHOW_MOBILE_MAX = 36;
+const RIGHT_OFFSET_MOBILE = 8;
+const RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN = 10;
+const RIGHT_OFFSET_SLIDESHOW_MOBILE_MAX = 22;
 const RIGHT_PRICE_SCALE_MOBILE_MIN_WIDTH = 88;
 const RIGHT_PRICE_SCALE_MOBILE_SLIDESHOW_WIDTH = 96;
 const NARROW_CHART_MQ = "(max-width: 767px)";
 /** Default zoom: ~5 NSE sessions visible (15m ≈ 25 bars/day). */
 const DEFAULT_VISIBLE_BARS = 125;
 /** Intraday deep-dive: show ~2 sessions; older bars stay loaded for scroll-left. */
-const INTRADAY_VISIBLE_BARS_MOBILE = 55;
-const INTRADAY_VISIBLE_BARS_DESKTOP = 80;
+const INTRADAY_VISIBLE_BARS_MOBILE = 48;
+const INTRADAY_VISIBLE_BARS_DESKTOP = 90;
+/** Don’t pull the Y-scale out to far OI walls when zoomed on recent bars. */
+const LEVEL_EXPAND_MAX_RATIO = 0.45;
 const DAY_SEC = 86_400;
 
 function trimApiCandlesToLookbackDays(candles: ApiCandle[], days: number): ApiCandle[] {
@@ -255,9 +261,9 @@ export const NativeCandlesChart = forwardRef<
     chartRef.current?.priceScale("right").applyOptions({
       minimumWidth: priceScaleMinWidth(),
     });
-    // Keep logical viewport on the bars. Do NOT scrollToRealTime — candle times
-    // are IST-shifted for display, so "real time" lands in empty whitespace and
-    // blanks the intraday plot after levels refresh.
+    // Keep logical viewport on real bars. Do NOT scrollToRealTime (IST-shifted
+    // times land in empty space) and do NOT add rightOffset into `to` — that
+    // double-counts margin and blanks mobile intraday.
     requestAnimationFrame(() => {
       const n = candlesRef.current.length;
       if (n < 2) return;
@@ -268,9 +274,9 @@ export const NativeCandlesChart = forwardRef<
       chartRef.current?.priceScale("right").applyOptions({
         minimumWidth: priceScaleMinWidth(),
       });
-      const visibleBars = defaultVisibleBars(n);
-      const from = fullHistoryZoomRef.current ? 0 : Math.max(0, n - visibleBars);
-      scale.setVisibleLogicalRange({ from, to: n - 1 + off });
+      if (fullHistoryZoomRef.current) applyFullHistoryZoom(n);
+      else applyDefaultZoom(n);
+      fitPriceScale();
     });
   }
 
@@ -309,8 +315,6 @@ export const NativeCandlesChart = forwardRef<
       levelLineOpts(),
     );
     applyRightPadding(n);
-    if (fullHistoryZoomRef.current) applyFullHistoryZoom(n);
-    else applyDefaultZoom(n);
   }
 
   /** Show recent sessions by default; older history available on scroll-left. */
@@ -320,8 +324,9 @@ export const NativeCandlesChart = forwardRef<
     const offset = rightOffsetBars(barCount);
     const visibleBars = defaultVisibleBars(barCount);
     const from = Math.max(0, barCount - visibleBars);
-    ts.setVisibleLogicalRange({ from, to: barCount - 1 + offset });
+    // `to` stays on the last real bar; margin comes only from rightOffset.
     ts.applyOptions({ rightOffset: offset });
+    ts.setVisibleLogicalRange({ from, to: barCount - 1 });
     fullHistoryZoomRef.current = false;
     setFullHistoryZoom(false);
     onFullHistoryZoomChange?.(false);
@@ -332,8 +337,8 @@ export const NativeCandlesChart = forwardRef<
     const ts = chartRef.current?.timeScale();
     if (!ts || barCount < 2) return;
     const offset = rightOffsetBars(barCount);
-    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 + offset });
     ts.applyOptions({ rightOffset: offset });
+    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 });
     fullHistoryZoomRef.current = true;
     setFullHistoryZoom(true);
     onFullHistoryZoomChange?.(true);
@@ -373,11 +378,16 @@ export const NativeCandlesChart = forwardRef<
   function fitPriceScale() {
     const series = seriesRef.current;
     if (!series) return;
-    const range = mergedPriceRange(visibleCandlesForScale(), levelsRef.current);
+    const range = mergedPriceRange(
+      visibleCandlesForScale(),
+      levelsRef.current,
+      0.08,
+      LEVEL_EXPAND_MAX_RATIO,
+    );
     if (!range) return;
-    // Prefer autoscale so zooming recent bars re-fits price (locked full-history
-    // range was squashing candles into unreadable slivers).
-    series.priceScale().setAutoScale(true);
+    // Lock to our candle-first range. AutoScale(true) lets BaselineSeries bands
+    // yank the Y-axis out to far Support/Resistance and squash candles.
+    series.priceScale().setAutoScale(false);
     series.priceScale().setVisibleRange({ from: range.from, to: range.to });
   }
 
@@ -485,6 +495,12 @@ export const NativeCandlesChart = forwardRef<
 
     const bearBand = chart.addSeries(BaselineSeries, { ...BEAR_BAND_STYLE, visible: false });
     const bullBand = chart.addSeries(BaselineSeries, { ...BULL_BAND_STYLE, visible: false });
+    // Bands paint on the candle scale but must not drive Y-axis extents.
+    const ignoreBandAutoscale = {
+      autoscaleInfoProvider: () => ({ priceRange: null }),
+    };
+    bearBand.applyOptions(ignoreBandAutoscale);
+    bullBand.applyOptions(ignoreBandAutoscale);
     const series = chart.addSeries(CandlestickSeries, {
       upColor: "#16a34a",
       downColor: "#dc2626",
@@ -503,7 +519,12 @@ export const NativeCandlesChart = forwardRef<
           vr && candles.length >= 2
             ? candlesInLogicalRange(candles, vr.from, vr.to)
             : candles;
-        const range = mergedPriceRange(slice, levelsRef.current);
+        const range = mergedPriceRange(
+          slice,
+          levelsRef.current,
+          0.08,
+          LEVEL_EXPAND_MAX_RATIO,
+        );
         return range
           ? { priceRange: { minValue: range.minValue, maxValue: range.maxValue } }
           : null;
@@ -515,7 +536,23 @@ export const NativeCandlesChart = forwardRef<
     bullBandRef.current = bullBand;
     seriesRef.current = series;
 
+    let lastW = 0;
+    let lastH = 0;
+    const ro = new ResizeObserver(() => {
+      if (candlesRef.current.length < 2) return;
+      // Mobile tab mounts often start at 0×0; re-anchor once we have a real size.
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w < 40 || h < 40) return;
+      if (Math.abs(w - lastW) < 2 && Math.abs(h - lastH) < 2) return;
+      lastW = w;
+      lastH = h;
+      applyRightPadding(candlesRef.current.length);
+    });
+    ro.observe(el);
+
     return () => {
+      ro.disconnect();
       chart.remove();
       chartRef.current = null;
       bearBandRef.current = null;
@@ -567,10 +604,10 @@ export const NativeCandlesChart = forwardRef<
       isNarrowChart(),
       levelLineOpts(),
     );
-    fitPriceScale();
     if (!isPoll) {
       if (fullHistoryZoomRef.current) applyFullHistoryZoom(data.length);
       else applyDefaultZoom(data.length);
+      fitPriceScale();
     } else {
       applyRightPadding(data.length);
     }

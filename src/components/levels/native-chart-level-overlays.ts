@@ -109,7 +109,11 @@ export function candlesInLogicalRange(
   if (!candles.length) return candles;
   const start = Math.max(0, Math.floor(from));
   const end = Math.min(candles.length - 1, Math.ceil(to));
-  if (start > end) return candles;
+  if (start > end) {
+    // Viewport landed in whitespace past the series — scale the latest bars.
+    const n = candles.length;
+    return candles.slice(Math.max(0, n - 48), n);
+  }
   return candles.slice(start, end + 1);
 }
 

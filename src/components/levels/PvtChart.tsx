@@ -65,9 +65,9 @@ const COMPACT_SHELL_STYLE = {
 
 const PVT_SECTION_HEIGHT = 156;
 const PVT_SECTION_HEADER_HEIGHT = 24;
-/** Gap between the last candle and the right price-axis labels. */
-const PVT_CHART_RIGHT_OFFSET = 14;
-const PVT_CHART_RIGHT_OFFSET_MOBILE = 28;
+/** Gap between the last candle and the right price-axis labels (rightOffset only). */
+const PVT_CHART_RIGHT_OFFSET = 12;
+const PVT_CHART_RIGHT_OFFSET_MOBILE = 8;
 const PVT_NARROW_MQ = "(max-width: 767px)";
 
 function pvtRightOffset(): number {
@@ -189,8 +189,9 @@ function applyPvtRightPadding(
 ) {
   if (barCount < 1) return;
   const offset = pvtRightOffset();
-  const to = barCount - 1 + offset;
-  const range = { from: 0, to };
+  // Margin via rightOffset only — adding offset into `to` double-counts and
+  // can scroll the latest daily candle off-screen on phones.
+  const range = { from: 0, to: barCount - 1 };
   pauseRef.current = true;
   try {
     candleChart.timeScale().applyOptions({ rightOffset: offset });
@@ -208,8 +209,7 @@ function viewportShowsFullHistory(
 ): boolean {
   const visible = candleChart.timeScale().getVisibleLogicalRange();
   if (!visible) return false;
-  const expectedTo = barCount - 1 + pvtRightOffset();
-  return visible.from <= 1 && visible.to >= expectedTo - 2;
+  return visible.from <= 1 && visible.to >= barCount - 1 - 2;
 }
 
 function fmtPvt(v: number): string {
@@ -511,7 +511,7 @@ export function PvtChart({
           vr && candles.length >= 2
             ? candlesInLogicalRange(candles, vr.from, vr.to)
             : candles;
-        const priceRange = mergedPriceRange(slice, levelsRef.current);
+        const priceRange = mergedPriceRange(slice, levelsRef.current, 0.08, 0.45);
         return priceRange
           ? { priceRange: { minValue: priceRange.minValue, maxValue: priceRange.maxValue } }
           : null;

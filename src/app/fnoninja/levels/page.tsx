@@ -50,10 +50,8 @@ import {
 import { useAtlasSetupScore } from "@/lib/levels/use-atlas-setup-score";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
-import {
-  LevelsSlideshowSymbolRailDesktop,
-  LevelsSlideshowSymbolRailMobile,
-} from "@/components/levels/LevelsSlideshowSymbolRail";
+import { LevelsSlideshowSymbolRailDesktop } from "@/components/levels/LevelsSlideshowSymbolRail";
+import { LevelsSlideshowMobileChrome } from "@/components/levels/LevelsSlideshowMobileChrome";
 import { SlideshowAutoPauseBanner, isSlideshowOverlayPause } from "@/components/levels/SlideshowAutoPauseBanner";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
@@ -1338,6 +1336,7 @@ export default function LevelsPage() {
       <FnoNinjaFavslideAddButton
         api={favslideApi}
         needsSignIn={!favslideSignedIn}
+        variant="chip"
         count={slideListFiltered.length}
         onAdded={() => {
           setInZoneSlide(favslideEntries.length);
@@ -1379,31 +1378,37 @@ export default function LevelsPage() {
     />
   ) : null;
 
+  const mobileAutoplayControl = slideManual ? (
+    <FnoNinjaAutoplayLock
+      variant="chip"
+      onUpgrade={() => promptUpgrade(viewMode === "favslide" ? "favslide" : "liveslide")}
+    />
+  ) : slideshowEnabled ? (
+    <FnoNinjaAutoplayToggle
+      variant="chip"
+      playing={!slideshowPaused}
+      onToggle={toggleSlideshowPause}
+    />
+  ) : null;
+
   const slideshowSymbolRailMobile =
     isSlideView && inZoneCount > 0 ? (
-      <LevelsSlideshowSymbolRailMobile
+      <LevelsSlideshowMobileChrome
         tourAttrs={slideshowSymbolRailTourAttrs}
-        controls={
-          <>
-            {railAutoplayControl}
-            <LevelsSlideshowStripControls
-              {...slideshowStripControlProps}
-              orientation="horizontal"
-              stripTrailing={favslideAddTrailing}
-            />
-          </>
-        }
-        symbolList={
-          <LevelsSymbolList
-            entries={inZoneEntries}
-            activeIndex={inZoneCurrent}
-            onSelect={setInZoneSlide}
-            layout="horizontal"
-            runnerMode
-            stripAccent={slideshowStripAccent}
-            slideshowTimer={slideshowChipTimer}
+        entries={inZoneEntries}
+        activeIndex={inZoneCurrent}
+        onSelect={setInZoneSlide}
+        stripAccent={slideshowStripAccent}
+        filterSlot={
+          <LevelsSlideshowStripControls
+            {...slideshowStripControlProps}
+            orientation="horizontal"
+            density="compact"
+            stripTrailing={favslideAddTrailing}
           />
         }
+        autoplaySlot={mobileAutoplayControl}
+        timer={slideshowChipTimer}
       />
     ) : null;
 

@@ -3,7 +3,7 @@
 import { Lock, Pause, Play } from "lucide-react";
 import { FNO_FAVSLIDE_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
 
-type AutoplayVariant = "banner" | "rail";
+type AutoplayVariant = "banner" | "rail" | "chip";
 
 /**
  * Locked "Autoplay" control shown to Silver members inside Watchlist / Livelist.
@@ -21,12 +21,16 @@ export function FnoNinjaAutoplayLock({
   onUpgrade: () => void;
   variant?: AutoplayVariant;
 }) {
-  if (variant === "rail") {
+  if (variant === "rail" || variant === "chip") {
     return (
       <button
         type="button"
         onClick={onUpgrade}
-        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-colors"
+        className={
+          variant === "chip"
+            ? "inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-full border px-2.5 text-[11px] font-bold transition-colors"
+            : "inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-colors"
+        }
         style={{
           borderColor: "rgba(251,191,36,0.4)",
           background: "rgba(251,191,36,0.08)",
@@ -36,7 +40,7 @@ export function FnoNinjaAutoplayLock({
         title="Autoplay is a Gold feature — upgrade to unlock"
       >
         <Play className="h-3 w-3" fill={FNO_FAVSLIDE_ACCENT} strokeWidth={0} />
-        Autoplay
+        {variant === "chip" ? "Auto" : "Autoplay"}
         <Lock className="h-3 w-3" strokeWidth={2.5} />
       </button>
     );
@@ -91,19 +95,23 @@ export function FnoNinjaAutoplayToggle({
   const title = playing ? "Pause autoplay" : "Start autoplay";
   const Icon = playing ? Pause : Play;
 
-  if (variant === "rail") {
+  if (variant === "rail" || variant === "chip") {
     return (
       <button
         type="button"
         onClick={onToggle}
-        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-colors"
+        className={
+          variant === "chip"
+            ? "inline-flex h-10 max-w-[9.5rem] shrink-0 items-center justify-center gap-1 rounded-full border px-2.5 text-[11px] font-bold transition-colors"
+            : "inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-colors"
+        }
         style={{ borderColor, background, color: accent }}
         aria-pressed={playing}
         aria-label={ariaLabel}
         title={title}
       >
         <Icon className="h-3 w-3" fill={accent} strokeWidth={0} />
-        {label}
+        <span className="truncate">{variant === "chip" ? (playing ? "On" : "Off") : label}</span>
       </button>
     );
   }

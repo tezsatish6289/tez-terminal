@@ -32,15 +32,28 @@ export function FnoNinjaFavslideAddButton({
   api: FnoNinjaFavslideApi;
   onAdded?: (entry: { scope: LevelsTvScope; symbol: string }) => void;
   needsSignIn?: boolean;
-  variant?: "strip" | "rail";
+  variant?: "strip" | "rail" | "chip";
   /** Watchlist size — shown beside Add in one box. */
   count?: number;
 }) {
   const listLabel = "watchlist";
   const isRail = variant === "rail";
-  const boxClass = isRail ? LEVELS_RAIL_CONTROL_BOX_CLASS : LEVELS_STRIP_ICON_BOX_CLASS;
-  const innerClass = isRail ? LEVELS_RAIL_CONTROL_INNER_CLASS : LEVELS_STRIP_ICON_INNER_CLASS;
-  const labelClass = isRail ? LEVELS_RAIL_CONTROL_LABEL_CLASS : LEVELS_STRIP_BOX_LABEL_CLASS;
+  const isChip = variant === "chip";
+  const boxClass = isChip
+    ? "h-10 min-w-[2.75rem] px-2.5 shrink-0 rounded-full"
+    : isRail
+      ? LEVELS_RAIL_CONTROL_BOX_CLASS
+      : LEVELS_STRIP_ICON_BOX_CLASS;
+  const innerClass = isChip
+    ? "inline-flex flex-row items-center justify-center gap-1"
+    : isRail
+      ? LEVELS_RAIL_CONTROL_INNER_CLASS
+      : LEVELS_STRIP_ICON_INNER_CLASS;
+  const labelClass = isChip
+    ? "text-[10px] font-bold leading-none uppercase tracking-wide whitespace-nowrap"
+    : isRail
+      ? LEVELS_RAIL_CONTROL_LABEL_CLASS
+      : LEVELS_STRIP_BOX_LABEL_CLASS;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);

@@ -41,7 +41,7 @@ export function SlideshowChipTimer({
       className={
         footer
           ? "flex w-full items-center justify-center gap-2.5 min-h-[2.125rem] px-3 py-2 transition-colors hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed border-t"
-          : "inline-flex items-center gap-0.5 shrink-0 rounded px-1 py-0.5 transition-colors hover:bg-white/[0.06] disabled:opacity-70 disabled:cursor-not-allowed"
+          : "inline-flex h-10 items-center gap-1 shrink-0 rounded-full border border-white/10 px-2.5 py-0.5 transition-colors hover:bg-white/[0.06] disabled:opacity-70 disabled:cursor-not-allowed"
       }
       style={
         footer

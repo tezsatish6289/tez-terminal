@@ -530,6 +530,7 @@ export function LevelsSlideshowStripControls({
   stripTrailing,
   className = "",
   orientation = "horizontal",
+  density = "default",
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -579,17 +580,30 @@ export function LevelsSlideshowStripControls({
   className?: string;
   /** Stack control tiles vertically in the symbol rail. */
   orientation?: "horizontal" | "vertical";
+  /** Phone chrome: short pills instead of tall icon boxes. */
+  density?: "default" | "compact";
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const isVertical = orientation === "vertical";
+  const isCompact = density === "compact" && !isVertical;
   const stripMode = slideModePill?.mode ?? viewToggle?.viewMode;
   const iconBoxClass = isVertical
     ? LEVELS_RAIL_CONTROL_BOX_CLASS
-    : stripMode === "liveslide" || stripMode === "favslide"
-      ? LEVELS_STRIP_ICON_BOX_TIMER_CLASS
-      : LEVELS_STRIP_ICON_BOX_CLASS;
-  const iconInnerClass = isVertical ? LEVELS_RAIL_CONTROL_INNER_CLASS : LEVELS_STRIP_ICON_INNER_CLASS;
-  const labelClass = isVertical ? LEVELS_RAIL_CONTROL_LABEL_CLASS : LEVELS_STRIP_BOX_LABEL_CLASS;
+    : isCompact
+      ? "h-10 min-w-[2.75rem] px-2.5 shrink-0 rounded-full"
+      : stripMode === "liveslide" || stripMode === "favslide"
+        ? LEVELS_STRIP_ICON_BOX_TIMER_CLASS
+        : LEVELS_STRIP_ICON_BOX_CLASS;
+  const iconInnerClass = isVertical
+    ? LEVELS_RAIL_CONTROL_INNER_CLASS
+    : isCompact
+      ? "inline-flex flex-row items-center justify-center gap-1"
+      : LEVELS_STRIP_ICON_INNER_CLASS;
+  const labelClass = isVertical
+    ? LEVELS_RAIL_CONTROL_LABEL_CLASS
+    : isCompact
+      ? "text-[10px] font-bold leading-none uppercase tracking-wide whitespace-nowrap"
+      : LEVELS_STRIP_BOX_LABEL_CLASS;
   const activeMeta = FILTER_OPTIONS.find((o) => o.key === zoneFilter) ?? FILTER_OPTIONS[0];
   const slideAccent =
     stripMode === "liveslide"
@@ -634,8 +648,9 @@ export function LevelsSlideshowStripControls({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [slideshowControl, viewToggle, viewSwitchGroup]);
 
-  const stripRowHeightClass =
-    stripMode === "liveslide" || stripMode === "favslide"
+  const stripRowHeightClass = isCompact
+    ? "h-10"
+    : stripMode === "liveslide" || stripMode === "favslide"
       ? LEVELS_SYMBOL_STRIP_TIMER_ROW_HEIGHT_CLASS
       : LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS;
 
@@ -644,7 +659,7 @@ export function LevelsSlideshowStripControls({
       className={`flex gap-1.5 shrink-0 ${
         isVertical
           ? "flex-col w-full gap-1"
-          : `flex-row items-stretch ${stripRowHeightClass}`
+          : `flex-row items-center ${stripRowHeightClass}`
       } ${className}`.trim()}
     >
       {search ? (

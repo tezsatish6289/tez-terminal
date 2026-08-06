@@ -55,21 +55,21 @@ interface ApiCandle {
 
 const POLL_MS = 60_000;
 /**
- * Empty bars on the right for axis labels. Keep modest — this is applied via
- * `rightOffset` only. Do NOT also add it to setVisibleLogicalRange.to or the
- * viewport scrolls into whitespace and blanks the plot (esp. mobile intraday).
+ * Whitespace after the last bar inside the logical range so the current candle
+ * is on-screen on load (no scroll-right). Applied only via setVisibleLogicalRange.to
+ * — keep `rightOffset` at 0 to avoid double-counting into empty space.
  */
-const RIGHT_OFFSET_BARS = 12;
-/** Slideshow / 30-day view: scale offset with bar count so labels stay clear when bars are dense. */
-const RIGHT_OFFSET_SLIDESHOW_MIN = 20;
-const RIGHT_OFFSET_SLIDESHOW_MAX = 48;
+const RIGHT_PAD_BARS = 6;
+/** Slideshow / 30-day view: a bit more air when bars are dense. */
+const RIGHT_PAD_SLIDESHOW_MIN = 8;
+const RIGHT_PAD_SLIDESHOW_MAX = 18;
 /** Extra width for longer right-axis level titles (Support H/L/Break, Resistance…). */
 const RIGHT_PRICE_SCALE_MIN_WIDTH = 108;
 const RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH = 152;
-/** Mobile: leave room so the latest candle isn’t clipped under the price scale. */
-const RIGHT_OFFSET_MOBILE = 8;
-const RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN = 10;
-const RIGHT_OFFSET_SLIDESHOW_MOBILE_MAX = 22;
+/** Mobile: modest pad so the latest candle isn’t clipped under the price scale. */
+const RIGHT_PAD_MOBILE = 4;
+const RIGHT_PAD_SLIDESHOW_MOBILE_MIN = 5;
+const RIGHT_PAD_SLIDESHOW_MOBILE_MAX = 12;
 const RIGHT_PRICE_SCALE_MOBILE_MIN_WIDTH = 88;
 const RIGHT_PRICE_SCALE_MOBILE_SLIDESHOW_WIDTH = 96;
 const NARROW_CHART_MQ = "(max-width: 767px)";
@@ -240,43 +240,54 @@ export const NativeCandlesChart = forwardRef<
     return wideHistory ? RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH : RIGHT_PRICE_SCALE_MIN_WIDTH;
   }
 
-  function rightOffsetBars(barCount: number): number {
+  function rightPadBars(barCount: number): number {
     const wideHistory = defaultFullHistoryRef.current || fullHistoryZoomRef.current;
     const narrow = isNarrowChart();
-    if (!wideHistory) return narrow ? RIGHT_OFFSET_MOBILE : RIGHT_OFFSET_BARS;
-    const ratio = narrow ? 0.04 : 0.12;
-    const min = narrow ? RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN : RIGHT_OFFSET_SLIDESHOW_MIN;
-    const max = narrow ? RIGHT_OFFSET_SLIDESHOW_MOBILE_MAX : RIGHT_OFFSET_SLIDESHOW_MAX;
+    if (!wideHistory) return narrow ? RIGHT_PAD_MOBILE : RIGHT_PAD_BARS;
+    const ratio = narrow ? 0.03 : 0.06;
+    const min = narrow ? RIGHT_PAD_SLIDESHOW_MOBILE_MIN : RIGHT_PAD_SLIDESHOW_MIN;
+    const max = narrow ? RIGHT_PAD_SLIDESHOW_MOBILE_MAX : RIGHT_PAD_SLIDESHOW_MAX;
     const scaled = Math.round(barCount * ratio);
     return Math.min(max, Math.max(min, scaled));
   }
 
+  /** Pin viewport so the latest candle is visible — never require scroll-right. */
+  function snapToLatestCandle(barCount: number, visibleBars: number) {
+    const ts = chartRef.current?.timeScale();
+    if (!ts || barCount < 2) return;
+    const pad = rightPadBars(barCount);
+    const from = Math.max(0, barCount - visibleBars);
+    const to = barCount - 1 + pad;
+    // rightOffset stays 0; pad lives only in logical `to`.
+    ts.applyOptions({ rightOffset: 0 });
+    ts.setVisibleLogicalRange({ from, to });
+  }
+
   function applyRightPadding(barCount = candlesRef.current.length) {
-    const offset = rightOffsetBars(barCount);
     const ts = chartRef.current?.timeScale();
     if (!ts) return;
     const narrow = isNarrowChart();
     chartRef.current?.applyOptions({ layout: { fontSize: narrow ? 9 : 11 } });
-    ts.applyOptions({ rightOffset: offset });
     chartRef.current?.priceScale("right").applyOptions({
       minimumWidth: priceScaleMinWidth(),
     });
-    // Keep logical viewport on real bars. Do NOT scrollToRealTime (IST-shifted
-    // times land in empty space) and do NOT add rightOffset into `to` — that
-    // double-counts margin and blanks mobile intraday.
+    // Do NOT scrollToRealTime — IST-shifted times end left of the latest bar,
+    // so users would need to scroll right to see the current candle.
     requestAnimationFrame(() => {
       const n = candlesRef.current.length;
       if (n < 2) return;
-      const off = rightOffsetBars(n);
-      const scale = chartRef.current?.timeScale();
-      if (!scale) return;
-      scale.applyOptions({ rightOffset: off });
       chartRef.current?.priceScale("right").applyOptions({
         minimumWidth: priceScaleMinWidth(),
       });
       if (fullHistoryZoomRef.current) applyFullHistoryZoom(n);
       else applyDefaultZoom(n);
       fitPriceScale();
+      // Second pass after layout — catches 0×0 mobile mounts / late size.
+      requestAnimationFrame(() => {
+        if (fullHistoryZoomRef.current) applyFullHistoryZoom(n);
+        else applyDefaultZoom(n);
+        fitPriceScale();
+      });
     });
   }
 
@@ -319,14 +330,8 @@ export const NativeCandlesChart = forwardRef<
 
   /** Show recent sessions by default; older history available on scroll-left. */
   function applyDefaultZoom(barCount: number) {
-    const ts = chartRef.current?.timeScale();
-    if (!ts || barCount < 2) return;
-    const offset = rightOffsetBars(barCount);
-    const visibleBars = defaultVisibleBars(barCount);
-    const from = Math.max(0, barCount - visibleBars);
-    // `to` stays on the last real bar; margin comes only from rightOffset.
-    ts.applyOptions({ rightOffset: offset });
-    ts.setVisibleLogicalRange({ from, to: barCount - 1 });
+    if (barCount < 2) return;
+    snapToLatestCandle(barCount, defaultVisibleBars(barCount));
     fullHistoryZoomRef.current = false;
     setFullHistoryZoom(false);
     onFullHistoryZoomChange?.(false);
@@ -334,11 +339,8 @@ export const NativeCandlesChart = forwardRef<
 
   /** Fit all loaded bars (30d history); toggle back with S when already full. */
   function applyFullHistoryZoom(barCount: number) {
-    const ts = chartRef.current?.timeScale();
-    if (!ts || barCount < 2) return;
-    const offset = rightOffsetBars(barCount);
-    ts.applyOptions({ rightOffset: offset });
-    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 });
+    if (barCount < 2) return;
+    snapToLatestCandle(barCount, barCount);
     fullHistoryZoomRef.current = true;
     setFullHistoryZoom(true);
     onFullHistoryZoomChange?.(true);
@@ -480,13 +482,7 @@ export const NativeCandlesChart = forwardRef<
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: narrow
-          ? defaultFullHistory
-            ? RIGHT_OFFSET_SLIDESHOW_MOBILE_MIN
-            : RIGHT_OFFSET_MOBILE
-          : defaultFullHistory
-            ? RIGHT_OFFSET_SLIDESHOW_MIN
-            : RIGHT_OFFSET_BARS,
+        rightOffset: 0,
         fixRightEdge: false,
         minimumHeight: defaultFullHistory ? 30 : 28,
         ticksVisible: true,

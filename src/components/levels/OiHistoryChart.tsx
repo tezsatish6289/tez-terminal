@@ -188,18 +188,6 @@ export function OiHistoryChart({
     };
   }, [range, loading, symbol, scope]);
 
-  // Wide history canvas: land on the latest days (right edge) on first paint.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || loading) return;
-    const id = requestAnimationFrame(() => {
-      if (el.scrollWidth > el.clientWidth + 2) {
-        el.scrollLeft = el.scrollWidth;
-      }
-    });
-    return () => cancelAnimationFrame(id);
-  }, [loading, range, symbol, scope, size.w]);
-
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -325,6 +313,27 @@ export function OiHistoryChart({
       mpPts: line((r) => r.oi?.maxPain ?? null),
     };
   }, [displayRows, size]);
+
+  // Wide history canvas: land on the latest days (right edge) on load —
+  // no scroll-right needed. Re-run after SVG width (contentW) paints.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || loading || !model) return;
+    const snapRight = () => {
+      const max = Math.max(0, el.scrollWidth - el.clientWidth);
+      if (max > 2) el.scrollLeft = max;
+    };
+    snapRight();
+    const raf = requestAnimationFrame(() => {
+      snapRight();
+      requestAnimationFrame(snapRight);
+    });
+    const t = window.setTimeout(snapRight, 80);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+    };
+  }, [loading, range, symbol, scope, model?.contentW]);
 
   const bull = LEVELS_ZONE_CHART.bull;
   const bear = LEVELS_ZONE_CHART.bear;

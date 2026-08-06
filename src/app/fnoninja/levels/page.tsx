@@ -1228,7 +1228,7 @@ export default function LevelsPage() {
       <div
         data-liveslide-tour="chart"
         data-favslide-tour="chart"
-        className="flex flex-1 min-h-0 h-full w-full flex-col max-md:touch-pan-y"
+        className="flex flex-1 min-h-0 h-full w-full flex-col"
       >
         {isSlideView ? (
           <LevelsOutlookViewToggle
@@ -1445,7 +1445,7 @@ export default function LevelsPage() {
       <div
         data-liveslide-tour="chart"
         data-favslide-tour="chart"
-        className="flex flex-1 min-h-0 min-w-0 w-full flex-col max-md:touch-pan-y"
+        className="flex flex-1 min-h-0 min-w-0 w-full flex-col"
       >
         <LevelsChartDeepDiveLayout
           chrome={slideshowChartChrome}
@@ -1540,7 +1540,7 @@ export default function LevelsPage() {
           slideshowDeepDiveLayout && slideshowDeepDiveBody ? (
             slideshowDeepDiveBody
           ) : (
-            <div className="flex flex-col flex-1 min-h-0 min-w-0 w-full max-md:touch-pan-y">
+            <div className="flex flex-col flex-1 min-h-0 min-w-0 w-full">
               <div className="flex flex-1 min-h-0 min-w-0 w-full flex-col">{tvChartColumn}</div>
               {opts?.chartFooter ? (
                 <div className="shrink-0 min-w-0 max-md:pb-1">{opts.chartFooter}</div>

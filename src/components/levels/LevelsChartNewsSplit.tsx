@@ -37,7 +37,7 @@ export function LevelsChartNewsSplit({
       {/* Chart — mobile: fixed height in slide scrollport; md+: left 60% */}
       <div className="flex flex-col min-w-0 w-full shrink-0 h-[min(48dvh,460px)] md:h-full md:min-h-0 md:w-[60%] md:overflow-hidden">
         {chartHeader ? <div className="shrink-0 mb-1.5 sm:mb-2 min-w-0">{chartHeader}</div> : null}
-        <div className="flex flex-col flex-1 min-h-0 min-w-0 w-full max-md:touch-pan-y">
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 w-full">
           {chart}
         </div>
       </div>

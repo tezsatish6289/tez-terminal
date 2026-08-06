@@ -67,6 +67,15 @@ const PVT_SECTION_HEIGHT = 156;
 const PVT_SECTION_HEADER_HEIGHT = 24;
 /** Gap between the last candle and the right price-axis labels. */
 const PVT_CHART_RIGHT_OFFSET = 14;
+const PVT_CHART_RIGHT_OFFSET_MOBILE = 28;
+const PVT_NARROW_MQ = "(max-width: 767px)";
+
+function pvtRightOffset(): number {
+  if (typeof window === "undefined") return PVT_CHART_RIGHT_OFFSET;
+  return window.matchMedia(PVT_NARROW_MQ).matches
+    ? PVT_CHART_RIGHT_OFFSET_MOBILE
+    : PVT_CHART_RIGHT_OFFSET;
+}
 
 const PVT_SECTION_SHELL_CLASS =
   "shrink-0 mx-0.5 rounded-xl border border-amber-500/30 bg-[#0a101c] overflow-hidden " +
@@ -179,12 +188,13 @@ function applyPvtRightPadding(
   pauseRef: { current: boolean },
 ) {
   if (barCount < 1) return;
-  const to = barCount - 1 + PVT_CHART_RIGHT_OFFSET;
+  const offset = pvtRightOffset();
+  const to = barCount - 1 + offset;
   const range = { from: 0, to };
   pauseRef.current = true;
   try {
-    candleChart.timeScale().applyOptions({ rightOffset: PVT_CHART_RIGHT_OFFSET });
-    pvtChart.timeScale().applyOptions({ rightOffset: PVT_CHART_RIGHT_OFFSET });
+    candleChart.timeScale().applyOptions({ rightOffset: offset });
+    pvtChart.timeScale().applyOptions({ rightOffset: offset });
     candleChart.timeScale().setVisibleLogicalRange(range);
     pvtChart.timeScale().setVisibleLogicalRange(range);
   } finally {
@@ -198,7 +208,7 @@ function viewportShowsFullHistory(
 ): boolean {
   const visible = candleChart.timeScale().getVisibleLogicalRange();
   if (!visible) return false;
-  const expectedTo = barCount - 1 + PVT_CHART_RIGHT_OFFSET;
+  const expectedTo = barCount - 1 + pvtRightOffset();
   return visible.from <= 1 && visible.to >= expectedTo - 2;
 }
 
@@ -440,21 +450,37 @@ export function PvtChart({
     if (!candleEl || !pvtEl) return;
 
     setChartReady(false);
+    const narrow =
+      typeof window !== "undefined" && window.matchMedia(PVT_NARROW_MQ).matches;
+    const offset = pvtRightOffset();
+    const scrollOpts = narrow
+      ? {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: false,
+        }
+      : true;
+
     const candleChart = createChart(candleEl, {
       ...CHART_BASE_OPTIONS,
       autoSize: true,
+      handleScroll: scrollOpts,
+      kineticScroll: { touch: true, mouse: false },
       timeScale: {
         borderColor: "rgba(255,255,255,0.08)",
         visible: false,
         timeVisible: false,
         secondsVisible: false,
-        rightOffset: PVT_CHART_RIGHT_OFFSET,
+        rightOffset: offset,
       },
     });
 
     const pvtChart = createChart(pvtEl, {
       ...CHART_BASE_OPTIONS,
       autoSize: true,
+      handleScroll: scrollOpts,
+      kineticScroll: { touch: true, mouse: false },
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: { labelVisible: true },
@@ -464,7 +490,7 @@ export function PvtChart({
         timeVisible: true,
         secondsVisible: false,
         minimumHeight: 28,
-        rightOffset: PVT_CHART_RIGHT_OFFSET,
+        rightOffset: offset,
       },
     });
 
@@ -611,7 +637,7 @@ export function PvtChart({
         <div className="relative flex min-h-0 flex-1 flex-col max-md:min-h-[min(32dvh,300px)]">
           <div
             ref={overlayRootRef}
-            className="relative min-h-0 flex-1 overflow-hidden max-md:min-h-[min(30dvh,280px)]"
+            className="relative min-h-0 flex-1 overflow-hidden max-md:min-h-[min(30dvh,280px)] max-md:touch-none"
           >
             <div ref={candleContainerRef} className="absolute inset-0" />
             {candlesReady ? <LevelsChartCandleTypeBadge label="Daily Candles" /> : null}

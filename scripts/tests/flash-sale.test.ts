@@ -11,6 +11,7 @@ import {
   flashSaleIstDateKey,
   flashSaleLegacyCouponCodes,
   formatFlashSaleCountdown,
+  isFlashSaleBlockedForSubscriber,
   istWallTimeToUtcMs,
 } from "../../src/lib/fnoninja/flash-sale";
 
@@ -84,5 +85,11 @@ assert.equal(FLASH_SALE_DISCOUNT_STEPS.length, 5);
 
 assert.equal(formatFlashSaleCountdown(new Date(DAY_START + 90_000).toISOString(), DAY_START), "01:30");
 assert.equal(formatFlashSaleCountdown(null), "00:00");
+
+assert.equal(isFlashSaleBlockedForSubscriber({ status: "active", tier: "daypass" }), false);
+assert.equal(isFlashSaleBlockedForSubscriber({ status: "active", tier: "silver" }), true);
+assert.equal(isFlashSaleBlockedForSubscriber({ status: "active", tier: "gold" }), true);
+assert.equal(isFlashSaleBlockedForSubscriber({ status: "trial", tier: "free" }), false);
+assert.equal(isFlashSaleBlockedForSubscriber({ status: "expired", tier: "daypass" }), false);
 
 console.log("flash-sale.test.ts: ok");

@@ -19,7 +19,10 @@ import {
   LevelsBubblesView,
 } from "@/components/levels/LevelsBubblesView";
 import { MMI_TICKERTAPE_URL, type MmiSnapshot } from "@/lib/fnoninja/mmi";
-import type { FlashSalePublicState } from "@/lib/fnoninja/flash-sale";
+import {
+  isFlashSaleBlockedForSubscriber,
+  type FlashSalePublicState,
+} from "@/lib/fnoninja/flash-sale";
 import { fnoAffiliateHref, fnoLoginHref, fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
@@ -225,7 +228,11 @@ export default function LevelsPage() {
   const chartLevelsSymbolRef = useRef<string | null>(null);
   const isFnoNinjaHost = true;
 
-  const { subscription: entSubscription, isAuthenticated: entAuthenticated } = useEntitlements();
+  const {
+    subscription: entSubscription,
+    isAuthenticated: entAuthenticated,
+    isLoading: entitlementsLoading,
+  } = useEntitlements();
   const { promptUpgrade } = useUpgradePrompt();
   const entitlementCtx = useMemo(
     () => ({
@@ -590,9 +597,18 @@ export default function LevelsPage() {
     return m;
   }, [payload?.indices]);
 
-  /** Paid subscribers (Silver/Gold/Day Pass) never see the flash-sale bubble. */
-  const hideFlashSaleForSubscriber =
-    entSubscription.status === "active" && !entSubscription.isLoading;
+  /**
+   * Only add the flash-sale bubble after auth + subscription settle.
+   * Showing it while loading, then removing for Silver/Gold, remounts the
+   * physics pack and looks like a glitch.
+   */
+  const showFlashSaleBubble =
+    Boolean(flashSale?.active) &&
+    !entitlementsLoading &&
+    !isFlashSaleBlockedForSubscriber({
+      status: entSubscription.status,
+      tier: entSubscription.tier,
+    });
 
   /** Full F&O map — zone tones gated by 2:1 POC RR (bubble + slideshow). */
   const bubbleItems = useMemo(() => {
@@ -604,11 +620,11 @@ export default function LevelsPage() {
     );
     // MMI + Refer & Earn + optional flash-sale participate in the same physics pack.
     const head: LevelsBubbleItem[] = [buildAffiliateBubbleItem(), buildMmiBubbleItem(mmi)];
-    if (flashSale?.active && !hideFlashSaleForSubscriber) {
+    if (showFlashSaleBubble && flashSale) {
       head.unshift(buildFlashSaleBubbleItem(flashSale));
     }
     return [...head, ...items];
-  }, [payload, stockBySymbol, mmi, flashSale, hideFlashSaleForSubscriber]);
+  }, [payload, stockBySymbol, mmi, flashSale, showFlashSaleBubble]);
 
   /** Map view: optional light Atlas quality gate (default > 60). */
   const mapBubbleItems = useMemo(

@@ -7,6 +7,8 @@
  * Windows: from 09:15 IST, 15 min live → 45 min cooldown, cycling until the
  * daily quota is claimed.
  *
+ * Eligible: guests, trial, expired, and Day Pass. Silver/Gold monthly are excluded.
+ *
  * Discount ladder is pro-rated by plan price (Silver ₹4500 / Gold ₹7200):
  *   Gold ₹500→₹1500, Silver ₹300→₹1000.
  */
@@ -39,6 +41,18 @@ export const FLASH_SALE_DISCOUNT_STEPS_INR = FLASH_SALE_DISCOUNT_STEPS.map((s) =
 export const FLASH_SALE_BUBBLE_ID = "flash-sale";
 
 export type FlashSaleTier = "silver" | "gold";
+
+/**
+ * Silver/Gold monthly subscribers are excluded from flash sale (already paid).
+ * Guests, trial, expired, and Day Pass users can see and checkout with the offer.
+ */
+export function isFlashSaleBlockedForSubscriber(args: {
+  status: string | null | undefined;
+  tier: string | null | undefined;
+}): boolean {
+  if (args.status !== "active") return false;
+  return args.tier === "silver" || args.tier === "gold";
+}
 
 export type FlashSalePublicState = {
   active: boolean;

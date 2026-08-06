@@ -7,6 +7,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { useSubscription } from "@/hooks/use-subscription";
 import { toast } from "@/hooks/use-toast";
+import { isFlashSaleBlockedForSubscriber } from "@/lib/fnoninja/flash-sale";
 import { fnoAnalyticsHref, fnoLoginHref, fnoSubscribeHref } from "@/lib/fnoninja/paths";
 import { formatInr } from "@/lib/fnoninja/pricing";
 import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
@@ -118,11 +119,14 @@ function PlanCardsInner({
   const signedIn = !!user && !isUserLoading;
   const trialEnded = signedIn && sub.isExpired;
   const wantFlashSale = searchParams.get("flash") === "1";
+  // Wait for auth + sub so Silver/Gold never briefly see flash pricing.
   const applyFlashSale =
     wantFlashSale &&
     flashDiscounts != null &&
     flashDiscounts.gold > 0 &&
-    !(signedIn && sub.status === "active");
+    !isUserLoading &&
+    !sub.isLoading &&
+    !isFlashSaleBlockedForSubscriber({ status: sub.status, tier: sub.tier });
 
   useEffect(() => {
     if (!wantFlashSale) {

@@ -7,6 +7,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { FieldValue } from "firebase-admin/firestore";
+import { isSubscriptionActive, type SubscriptionDoc } from "@/lib/subscription";
 import {
   isTrialActivated,
   TRIAL_ACTIVATION_DEFINITION,
@@ -106,12 +107,40 @@ export function parseTrialActivitySummary(
 
 const SESSION_GAP_MS = 4 * 60 * 60 * 1000;
 
+/**
+ * Always persist conversion endpoints even after trial ends.
+ * Everything else (map/chart/sessions/…) only while on an active free trial —
+ * avoids years of writes for 6–12 month paid subscribers.
+ */
+const ALWAYS_RECORD = new Set<TrialActivityType>([
+  "trial_started",
+  "plan_selected",
+  "payment_initiated",
+  "payment_completed",
+  "payment_failed",
+]);
+
+async function shouldRecordActivity(
+  db: Firestore,
+  uid: string,
+  type: TrialActivityType,
+): Promise<boolean> {
+  if (ALWAYS_RECORD.has(type)) return true;
+  const snap = await db.collection("subscriptions").doc(uid).get();
+  const sub = snap.exists ? (snap.data() as SubscriptionDoc) : null;
+  return Boolean(sub?.status === "trial" && isSubscriptionActive(sub));
+}
+
 export async function recordTrialActivity(
   db: Firestore,
   uid: string,
   type: TrialActivityType,
   meta: Record<string, unknown> = {},
-): Promise<{ recorded: boolean; activatedNow: boolean }> {
+): Promise<{ recorded: boolean; activatedNow: boolean; skipped?: boolean }> {
+  if (!(await shouldRecordActivity(db, uid, type))) {
+    return { recorded: false, activatedNow: false, skipped: true };
+  }
+
   const now = new Date().toISOString();
   const nowMs = Date.now();
   const summaryRef = db.collection(TRIAL_ACTIVITY_COLLECTION).doc(uid);

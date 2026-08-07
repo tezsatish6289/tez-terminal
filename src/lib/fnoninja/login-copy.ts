@@ -91,6 +91,11 @@ export const FNO_TOOLBAR_SIGN_IN_COPY = {
     description:
       "Sign in to browse aligned market setups — symbols sitting near support or resistance, with live charts.",
   },
+  rewards: {
+    title: "Rewards",
+    description:
+      "Sign in to earn diamonds from simple quests and auto-extend your access.",
+  },
 } as const;
 
 export type FnoToolbarSignInAction = keyof typeof FNO_TOOLBAR_SIGN_IN_COPY;

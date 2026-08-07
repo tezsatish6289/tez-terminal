@@ -9,10 +9,19 @@ import {
   CHAT_MAX_ATTACHMENTS,
   CHAT_MAX_MESSAGE_LENGTH,
   CHAT_REPLY_SNIPPET_LENGTH,
+  PNL_SCREENSHOTS_ROOM_ID,
   canUserPostInRoom,
   isKnownRoom,
 } from "@/lib/chat/constants";
 import type { ChatAttachment, ChatReplyRef } from "@/lib/chat/types";
+import {
+  chatMessageQuestKey,
+  earnDiamonds,
+  findWelcomeeByMessageId,
+  pnlShareQuestKey,
+  welcomeQuestKey,
+  type EarnDiamondsResult,
+} from "@/lib/fnoninja/rewards";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -146,5 +155,61 @@ export async function POST(request: NextRequest) {
     replyTo,
   });
 
-  return NextResponse.json({ ok: true, message });
+  const rewards = await awardChatRewards({
+    uid,
+    roomId,
+    attachmentCount: attachments.length,
+    replyToId: replyTo?.id,
+  });
+
+  return NextResponse.json({ ok: true, message, rewards });
+}
+
+async function awardChatRewards(args: {
+  uid: string;
+  roomId: string;
+  attachmentCount: number;
+  replyToId?: string;
+}): Promise<EarnDiamondsResult | null> {
+  try {
+    // Welcome reply to Atlas's once-per-user intro (once per welcomee).
+    if (args.replyToId) {
+      const welcomee = await findWelcomeeByMessageId(args.replyToId);
+      if (welcomee && welcomee !== args.uid) {
+        const welcomeEarn = await earnDiamonds(
+          args.uid,
+          welcomeQuestKey(welcomee),
+          undefined,
+          { welcomee, roomId: args.roomId },
+        );
+        if (welcomeEarn.awarded) return welcomeEarn;
+      }
+    }
+
+    // PnL screenshot share (once per IST day) — image in the PnL room.
+    if (args.roomId === PNL_SCREENSHOTS_ROOM_ID && args.attachmentCount > 0) {
+      const pnlEarn = await earnDiamonds(
+        args.uid,
+        pnlShareQuestKey(),
+        undefined,
+        { roomId: args.roomId },
+      );
+      if (pnlEarn.awarded) return pnlEarn;
+    }
+
+    // Any chat message (once per IST day).
+    const chatEarn = await earnDiamonds(
+      args.uid,
+      chatMessageQuestKey(),
+      undefined,
+      { roomId: args.roomId },
+    );
+    return chatEarn.awarded ? chatEarn : null;
+  } catch (e) {
+    console.error(
+      "[rewards] chat award failed",
+      e instanceof Error ? e.message : e,
+    );
+    return null;
+  }
 }

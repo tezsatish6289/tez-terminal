@@ -53,20 +53,32 @@ export async function uploadChatImage(
   return data.attachment as ChatAttachment;
 }
 
+export type ChatSendRewards = {
+  awarded: boolean;
+  amount: number;
+  balance: number;
+  daysExtendedThisEarn: number;
+  totalDaysExtended: number;
+  questKey: string;
+};
+
 export async function sendChatMessage(
   user: User,
   roomId: string,
   text: string,
   attachmentPaths: string[] = [],
   replyToId?: string,
-): Promise<ChatMessage> {
+): Promise<{ message: ChatMessage; rewards: ChatSendRewards | null }> {
   const res = await authedFetch(user, "/api/chat/send", {
     method: "POST",
     body: JSON.stringify({ roomId, text, attachmentPaths, replyToId }),
   });
   if (!res.ok) throw new Error(await parseError(res));
   const data = await res.json();
-  return data.message as ChatMessage;
+  return {
+    message: data.message as ChatMessage,
+    rewards: (data.rewards as ChatSendRewards | null | undefined) ?? null,
+  };
 }
 
 export async function editChatMessage(

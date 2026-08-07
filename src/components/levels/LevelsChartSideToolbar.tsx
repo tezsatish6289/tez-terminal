@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
+  Gem,
   GraduationCap,
   Loader2,
   MessageCircle,
@@ -15,6 +16,7 @@ import { ChatUnreadBadge } from "@/components/fnoninja/chat/ChatUnreadBadge";
 import { useChatPanel } from "@/components/fnoninja/chat/ChatPanelContext";
 import { FnoNinjaToolbarSignInPrompt } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
+import { FnoNinjaPersonaQuest } from "@/components/fnoninja/FnoNinjaPersonaQuest";
 import type { FnoToolbarSignInAction } from "@/lib/fnoninja/login-copy";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSymbolShareButton } from "@/components/levels/LevelsSymbolShareButton";
@@ -42,6 +44,7 @@ import {
   fnoFavslideHref,
   fnoLearnHref,
   fnoLiveslideHref,
+  fnoRewardsHref,
 } from "@/lib/fnoninja/paths";
 import {
   FNO_BG_CANVAS,
@@ -53,6 +56,10 @@ import { isFnoNinjaAppContext, isFnoNinjaChartPath } from "@/lib/fnoninja/auth";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import { useUpgradePrompt } from "@/components/fnoninja/FnoNinjaUpgradePrompt";
 import type { Feature } from "@/lib/entitlements";
+import {
+  FNO_DIAMONDS_CHANGED_EVENT,
+  fetchRewardsSummary,
+} from "@/lib/fnoninja/rewards-client";
 
 const TOOLBAR_WIDTH_CLASS = LEVELS_CHART_TOOLBAR_WIDTH_CLASS;
 const TOOLBAR_ICON_CLASS = LEVELS_CHART_TOOLBAR_ICON_CLASS;
@@ -309,6 +316,7 @@ export function LevelsChartSideToolbar({
   const [signInAction, setSignInAction] = useState<FnoToolbarSignInAction | null>(null);
   const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
+  const [diamondBalance, setDiamondBalance] = useState(0);
   const pendingToolbarActionRef = useRef<(() => void) | null>(null);
   const wasSignedInRef = useRef(false);
 
@@ -482,8 +490,43 @@ export function LevelsChartSideToolbar({
     router.push(fnoLearnHref(pathname));
   }, [router, pathname, symbol, scope]);
 
+  const goToRewards = useCallback(() => {
+    runIfSignedIn("rewards", () => {
+      trackCtaClick("toolbar_rewards", { label: "Rewards", symbol, scope });
+      router.push(fnoRewardsHref(pathname));
+    });
+  }, [router, pathname, symbol, scope, runIfSignedIn]);
+
+  useEffect(() => {
+    if (!user) {
+      setDiamondBalance(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const summary = await fetchRewardsSummary(user);
+        if (!cancelled) setDiamondBalance(summary.diamonds);
+      } catch {
+        /* ignore */
+      }
+    })();
+
+    const onChanged = (e: Event) => {
+      const balance = (e as CustomEvent<{ balance?: number }>).detail?.balance;
+      if (typeof balance === "number") setDiamondBalance(balance);
+    };
+    window.addEventListener(FNO_DIAMONDS_CHANGED_EVENT, onChanged);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(FNO_DIAMONDS_CHANGED_EVENT, onChanged);
+    };
+  }, [user]);
+
   return (
     <>
+      <FnoNinjaPersonaQuest />
       <aside
         className={`flex flex-col items-center gap-1 shrink-0 py-2 px-1.5 border-r border-white/[0.06] ${TOOLBAR_WIDTH_CLASS} ${className}`.trim()}
         style={{ backgroundColor: FNO_BG_CANVAS }}
@@ -549,6 +592,40 @@ export function LevelsChartSideToolbar({
         >
           <MessageCircle className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
         </ToolbarButton>
+
+        <ToolbarHoverLabel label="Rewards">
+          <button
+            type="button"
+            onClick={goToRewards}
+            title={
+              diamondBalance > 0
+                ? `Rewards — ${diamondBalance} diamonds`
+                : "Rewards — earn diamonds for free days"
+            }
+            aria-label={
+              diamondBalance > 0
+                ? `Rewards, ${diamondBalance} diamonds`
+                : "Rewards"
+            }
+            className={`relative ${LEVELS_CHART_TOOLBAR_BTN_CLASS} ${TOOLBAR_WIDTH_CLASS} shrink-0`}
+            style={{ color: "#94a3b8" }}
+          >
+            <Gem className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
+            {diamondBalance > 0 ? (
+              <span
+                className="absolute right-0.5 top-0.5 inline-flex min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold tabular-nums leading-none text-white"
+                style={{
+                  backgroundColor: "#0ea5e9",
+                  boxShadow: "0 0 0 2px rgba(8,15,30,0.95)",
+                  height: 14,
+                }}
+                aria-hidden
+              >
+                {diamondBalance > 99 ? "99+" : diamondBalance}
+              </span>
+            ) : null}
+          </button>
+        </ToolbarHoverLabel>
 
         {scoreAlerts ? (
           <ToolbarButton

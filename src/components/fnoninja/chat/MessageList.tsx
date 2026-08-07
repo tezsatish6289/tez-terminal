@@ -24,6 +24,7 @@ interface MessageListProps {
   onDiscard: (id: string) => void;
   onReply: (message: ChatMessage) => void;
   onReact: (messageId: string, emoji: string) => void;
+  diamondAwards?: Record<string, { amount: number; daysExtendedThisEarn: number }>;
 }
 
 export function MessageList({
@@ -43,6 +44,7 @@ export function MessageList({
   onDiscard,
   onReply,
   onReact,
+  diamondAwards,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -154,6 +156,7 @@ export function MessageList({
             onReact={onReact}
             onJumpTo={jumpToMessage}
             highlight={m.id === highlightId}
+            diamondAward={diamondAwards?.[m.id] ?? null}
           />
         ))}
         <div ref={bottomRef} />

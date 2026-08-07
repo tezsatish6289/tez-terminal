@@ -36,6 +36,7 @@ import { ChatTermsGate } from "@/components/fnoninja/chat/ChatTermsGate";
 import { MessageComposer, type ChatParticipant } from "@/components/fnoninja/chat/MessageComposer";
 import { MessageList } from "@/components/fnoninja/chat/MessageList";
 import { trackCtaClick } from "@/firebase/analytics";
+import { notifyDiamondsChanged } from "@/lib/fnoninja/rewards-client";
 
 export function ChatPanel() {
   const { open, setOpen, roomId, setRoomId, unreadByRoom } = useChatPanel();
@@ -74,6 +75,9 @@ export function ChatPanel() {
   }, []);
   const [dragOver, setDragOver] = useState(false);
   const dragDepth = useRef(0);
+  const [diamondAwards, setDiamondAwards] = useState<
+    Record<string, { amount: number; daysExtendedThisEarn: number }>
+  >({});
 
   const room = getChatRoom(roomId);
   const isSuccessStories = roomId === SUCCESS_STORIES_ROOM_ID;
@@ -138,7 +142,23 @@ export function ChatPanel() {
       for (const file of meta.files) {
         attachments.push(await uploadChatImage(user, roomId, file));
       }
-      await sendChatMessage(user, roomId, text, attachments.map((a) => a.path), meta.replyToId);
+      const { message, rewards } = await sendChatMessage(
+        user,
+        roomId,
+        text,
+        attachments.map((a) => a.path),
+        meta.replyToId,
+      );
+      if (rewards?.awarded && rewards.amount > 0) {
+        setDiamondAwards((prev) => ({
+          ...prev,
+          [message.id]: {
+            amount: rewards.amount,
+            daysExtendedThisEarn: rewards.daysExtendedThisEarn,
+          },
+        }));
+        notifyDiamondsChanged(rewards.balance);
+      }
       setOutgoing((prev) => {
         revokePreviews(prev.find((m) => m.id === tempId));
         return prev.filter((m) => m.id !== tempId);
@@ -402,6 +422,7 @@ export function ChatPanel() {
                 onDiscard={handleDiscard}
                 onReply={handleReply}
                 onReact={handleReact}
+                diamondAwards={diamondAwards}
               />
               {showComposer ? (
                 <>

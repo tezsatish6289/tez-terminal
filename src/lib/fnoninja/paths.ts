@@ -163,6 +163,16 @@ export function fnoAffiliateHref(pathname: string): string {
   return "/fnoninja/affiliate";
 }
 
+/** Rewards hub — diamonds balance and quests. */
+export function fnoRewardsHref(pathname: string): string {
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/rewards";
+  }
+  if (pathname.startsWith("/fnoninja")) return "/fnoninja/rewards";
+  return "/fnoninja/rewards";
+}
+
 /** Affiliate promotional materials / copy kit. */
 export function fnoAffiliateMaterialsHref(pathname: string): string {
   return `${fnoAffiliateHref(pathname)}/materials`;

@@ -114,6 +114,8 @@ interface MessageItemProps {
   onReact: (messageId: string, emoji: string) => void;
   onJumpTo: (id: string) => void;
   highlight?: boolean;
+  /** In-context diamond award for this message (own messages only). */
+  diamondAward?: { amount: number; daysExtendedThisEarn: number } | null;
 }
 
 function AttachmentGrid({
@@ -207,6 +209,7 @@ export function MessageItem({
   onReact,
   onJumpTo,
   highlight,
+  diamondAward,
 }: MessageItemProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -453,6 +456,16 @@ export function MessageItem({
             ) : null}
             {message.attachments?.length ? (
               <AttachmentGrid attachments={message.attachments} onZoom={setZoom} status={pending} />
+            ) : null}
+            {isOwn && diamondAward && diamondAward.amount > 0 && !pending ? (
+              <p className="mt-1 text-[11px] font-semibold" style={{ color: "#38bdf8" }}>
+                +{diamondAward.amount} diamonds
+                {diamondAward.daysExtendedThisEarn > 0
+                  ? ` · +${diamondAward.daysExtendedThisEarn} day${
+                      diamondAward.daysExtendedThisEarn === 1 ? "" : "s"
+                    } access`
+                  : ""}
+              </p>
             ) : null}
             {pending === "sending" ? (
               <p className="mt-1 flex items-center gap-1 text-[10px]" style={{ color: "#64748b" }}>

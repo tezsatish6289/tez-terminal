@@ -36,6 +36,7 @@ const TOOLBAR_ACTION_CTA: Record<FnoToolbarSignInAction, string> = {
   bubbles: "bubble_chart",
   favslide: "watchlist",
   liveslide: "livelist",
+  rewards: "rewards",
 };
 
 /** Google OAuth in-place — no redirect to /login (avoids a redundant second sign-in screen). */

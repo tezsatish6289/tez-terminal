@@ -23,8 +23,26 @@ export interface TrialInsightUser {
   eventCount: number;
   alertsEnabled: boolean;
   favslideCount: number;
+  /** Current diamond balance (after auto-redeems). */
+  diamonds: number;
+  /** All-time diamonds earned. */
+  diamondsLifetimeEarned: number;
+  /** Access days granted via auto-redeem. */
+  rewardsDaysExtended: number;
+  /** F&O experience persona answered (quest complete). */
+  fnoExperience: string | null;
   hot: boolean;
   cold: boolean;
+}
+
+export interface TrialRewardsStats {
+  personaAnswered: number;
+  earnedAny: number;
+  totalLifetimeDiamonds: number;
+  totalDaysExtended: number;
+  /** Trials who earned any diamonds and later paid. */
+  earnedThenPaid: number;
+  earnedThenPaidRatePct: number;
 }
 
 export interface TrialFunnelStats {
@@ -50,6 +68,7 @@ export interface TrialInsightsPayload {
   activationDefinition: typeof TRIAL_ACTIVATION_DEFINITION;
   generatedAt: string;
   funnel: TrialFunnelStats;
+  rewards: TrialRewardsStats;
   drivers: MilestoneDriverRow[];
   hotTrials: TrialInsightUser[];
   coldTrials: TrialInsightUser[];

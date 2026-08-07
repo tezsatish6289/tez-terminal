@@ -20,6 +20,7 @@ import type {
   TrialFunnelStats,
   TrialInsightUser,
   TrialInsightsPayload,
+  TrialRewardsStats,
 } from "@/lib/fnoninja/trial-insights-types";
 
 export type {
@@ -28,6 +29,7 @@ export type {
   TrialFunnelStats,
   TrialInsightUser,
   TrialInsightsPayload,
+  TrialRewardsStats,
 } from "@/lib/fnoninja/trial-insights-types";
 export { TRIAL_ACTIVATION_DEFINITION };
 
@@ -132,6 +134,12 @@ export async function buildTrialInsights(db: Firestore): Promise<TrialInsightsPa
     const milestones = act?.milestones ?? {};
     const activated = Boolean(act?.activatedAt) || isTrialActivated(milestones);
     const favslideCount = parseFavslideEntries(u[FNONINJA_FAVSLIDE_FIELD]).length;
+    const diamonds = typeof u.diamonds === "number" ? u.diamonds : 0;
+    const diamondsLifetimeEarned =
+      typeof u.diamondsLifetimeEarned === "number" ? u.diamondsLifetimeEarned : 0;
+    const rewardsDaysExtended =
+      typeof u.rewardsDaysExtended === "number" ? u.rewardsDaysExtended : 0;
+    const fnoExperience = typeof u.fnoExperience === "string" ? u.fnoExperience : null;
 
     const row: TrialInsightUser = {
       uid: doc.id,
@@ -156,6 +164,10 @@ export async function buildTrialInsights(db: Firestore): Promise<TrialInsightsPa
       eventCount: act?.eventCount ?? 0,
       alertsEnabled: alertsOn.has(doc.id),
       favslideCount,
+      diamonds,
+      diamondsLifetimeEarned,
+      rewardsDaysExtended,
+      fnoExperience,
       hot: false,
       cold: false,
     };
@@ -215,6 +227,23 @@ export async function buildTrialInsights(db: Firestore): Promise<TrialInsightsPa
   const hotTrials = users.filter((u) => u.hot).slice(0, 40);
   const coldTrials = users.filter((u) => u.cold).slice(0, 40);
 
+  const trialPool = withStarted.length ? withStarted : users;
+  const earnedAnyUsers = trialPool.filter((u) => u.diamondsLifetimeEarned > 0);
+  const earnedThenPaid = earnedAnyUsers.filter(
+    (u) => u.cohort === "paid" || Boolean(u.milestones.payment_completed),
+  ).length;
+  const rewards: TrialRewardsStats = {
+    personaAnswered: trialPool.filter((u) => Boolean(u.fnoExperience)).length,
+    earnedAny: earnedAnyUsers.length,
+    totalLifetimeDiamonds: trialPool.reduce((s, u) => s + u.diamondsLifetimeEarned, 0),
+    totalDaysExtended: trialPool.reduce((s, u) => s + u.rewardsDaysExtended, 0),
+    earnedThenPaid,
+    earnedThenPaidRatePct:
+      earnedAnyUsers.length > 0
+        ? Math.round((earnedThenPaid / earnedAnyUsers.length) * 100)
+        : 0,
+  };
+
   users.sort((a, b) => {
     const at = a.lastSeenAt ? new Date(a.lastSeenAt).getTime() : 0;
     const bt = b.lastSeenAt ? new Date(b.lastSeenAt).getTime() : 0;
@@ -225,6 +254,7 @@ export async function buildTrialInsights(db: Firestore): Promise<TrialInsightsPa
     activationDefinition: TRIAL_ACTIVATION_DEFINITION,
     generatedAt: new Date().toISOString(),
     funnel,
+    rewards,
     drivers,
     hotTrials,
     coldTrials,

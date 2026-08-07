@@ -4,7 +4,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser } from "@/firebase";
 import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Flame, Loader2, Snowflake, Target, RefreshCw, ShieldAlert } from "lucide-react";
+import { Flame, Gem, Loader2, Snowflake, Target, RefreshCw, ShieldAlert } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { isAdminEmail } from "@/lib/admin-emails-client";
 import { TRIAL_ACTIVATION_DEFINITION } from "@/lib/fnoninja/trial-activity-types";
@@ -21,9 +21,21 @@ const MILESTONE_CHIPS: { key: keyof TrialInsightUser["milestones"]; label: strin
   { key: "payment_initiated", label: "Checkout" },
 ];
 
+const FNO_EXPERIENCE_SHORT: Record<string, string> = {
+  never: "never",
+  lt_1y: "<1y",
+  "1_3y": "1–3y",
+  "3_5y": "3–5y",
+  gt_5y: "5y+",
+};
+
 function UserRow({ u }: { u: TrialInsightUser }) {
+  const personaLabel = u.fnoExperience
+    ? FNO_EXPERIENCE_SHORT[u.fnoExperience] ?? u.fnoExperience
+    : null;
+
   return (
-    <div className="grid grid-cols-[1.4fr_90px_100px_1fr] gap-2 px-4 py-3 border-b border-white/[0.04] text-sm">
+    <div className="grid grid-cols-[1.4fr_90px_100px_90px_1fr] gap-2 px-4 py-3 border-b border-white/[0.04] text-sm">
       <div className="min-w-0">
         <div className="font-semibold text-white truncate">{u.displayName || "—"}</div>
         <div className="text-[11px] text-muted-foreground truncate">{u.email || u.uid}</div>
@@ -37,7 +49,29 @@ function UserRow({ u }: { u: TrialInsightUser }) {
         </span>
         <div className="text-muted-foreground/60">{u.sessionCount} sess</div>
       </div>
+      <div className="text-[11px] font-mono">
+        {u.diamondsLifetimeEarned > 0 ? (
+          <>
+            <div className="text-sky-300">{u.diamondsLifetimeEarned}◆</div>
+            <div className="text-muted-foreground/60">
+              {u.rewardsDaysExtended > 0 ? `+${u.rewardsDaysExtended}d` : `${u.diamonds} bal`}
+            </div>
+          </>
+        ) : (
+          <span className="text-muted-foreground/40">—</span>
+        )}
+      </div>
       <div className="flex flex-wrap gap-1 content-start">
+        <span
+          className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${
+            personaLabel
+              ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
+              : "border-white/5 bg-white/[0.02] text-muted-foreground/40"
+          }`}
+          title={u.fnoExperience ? `F&O experience: ${u.fnoExperience}` : "Persona not answered"}
+        >
+          {personaLabel ? `FO ${personaLabel}` : "Persona"}
+        </span>
         {MILESTONE_CHIPS.map(({ key, label }) => {
           const on = Boolean(u.milestones[key]);
           return (
@@ -112,6 +146,7 @@ export default function AdminFnoNinjaTrialPage() {
   }
 
   const funnel = data?.funnel;
+  const rewards = data?.rewards;
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
@@ -178,6 +213,40 @@ export default function AdminFnoNinjaTrialPage() {
               ))}
             </div>
 
+            {rewards ? (
+              <section className="rounded-xl border border-sky-500/20 bg-gradient-to-b from-[#141416] to-[#0f0f11] overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] text-[10px] font-black uppercase tracking-wider text-sky-400/80">
+                  <Gem className="h-3.5 w-3.5" />
+                  Rewards (trials)
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-4">
+                  {[
+                    { label: "Persona answered", value: rewards.personaAnswered },
+                    { label: "Earned any diamonds", value: rewards.earnedAny },
+                    { label: "Lifetime diamonds", value: rewards.totalLifetimeDiamonds },
+                    { label: "Days extended", value: rewards.totalDaysExtended },
+                    {
+                      label: "Earned → paid",
+                      value: rewards.earnedThenPaid,
+                      sub: `${rewards.earnedThenPaidRatePct}% of earners`,
+                    },
+                  ].map((c) => (
+                    <div key={c.label}>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">
+                        {c.label}
+                      </span>
+                      <span className="text-xl font-black font-mono text-white">{c.value}</span>
+                      {"sub" in c && c.sub ? (
+                        <span className="mt-0.5 block text-[10px] font-mono text-muted-foreground/60">
+                          {c.sub}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             <section className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] overflow-hidden">
               <div className="px-4 py-3 border-b border-white/[0.06] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
                 Conversion drivers (milestone → paid rate)
@@ -231,10 +300,11 @@ export default function AdminFnoNinjaTrialPage() {
               <div className="px-4 py-3 border-b border-white/[0.06] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
                 All FNONINJA users — milestones ({data?.users.length ?? 0})
               </div>
-              <div className="grid grid-cols-[1.4fr_90px_100px_1fr] gap-2 px-4 py-2 border-b border-white/[0.06] text-[10px] font-black uppercase tracking-wider text-muted-foreground/40">
+              <div className="grid grid-cols-[1.4fr_90px_100px_90px_1fr] gap-2 px-4 py-2 border-b border-white/[0.06] text-[10px] font-black uppercase tracking-wider text-muted-foreground/40">
                 <span>User</span>
                 <span>Last seen</span>
                 <span>Activation</span>
+                <span>Rewards</span>
                 <span>Milestones</span>
               </div>
               {(data?.users ?? []).slice(0, 100).map((u) => (

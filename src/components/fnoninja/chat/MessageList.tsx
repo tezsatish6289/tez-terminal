@@ -7,6 +7,25 @@ import type { ChatMessage } from "@/lib/chat/types";
 
 const NEAR_BOTTOM_PX = 160;
 
+function readStoredDiamondAward(
+  messageId: string,
+): { amount: number; daysExtendedThisEarn: number } | null {
+  try {
+    const raw = sessionStorage.getItem(`fno_diamond_msg_${messageId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { amount?: number; daysExtendedThisEarn?: number };
+    if (typeof parsed.amount !== "number" || parsed.amount <= 0) return null;
+    return {
+      amount: parsed.amount,
+      daysExtendedThisEarn:
+        typeof parsed.daysExtendedThisEarn === "number" ? parsed.daysExtendedThisEarn : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+
 interface MessageListProps {
   messages: ChatMessage[];
   roomId: string;
@@ -156,7 +175,11 @@ export function MessageList({
             onReact={onReact}
             onJumpTo={jumpToMessage}
             highlight={m.id === highlightId}
-            diamondAward={diamondAwards?.[m.id] ?? null}
+            diamondAward={
+              diamondAwards?.[m.id] ??
+              m.clientDiamondAward ??
+              (m.authorId === currentUid ? readStoredDiamondAward(m.id) : null)
+            }
           />
         ))}
         <div ref={bottomRef} />

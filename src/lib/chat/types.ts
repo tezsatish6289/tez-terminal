@@ -81,6 +81,11 @@ export interface ChatMessage {
    * local blob previews and the message is rendered with sending/retry UI.
    */
   clientStatus?: "sending" | "failed";
+  /**
+   * Client-only: diamonds awarded for this send (in-moment feedback).
+   * Never written to RTDB/Firestore.
+   */
+  clientDiamondAward?: { amount: number; daysExtendedThisEarn: number };
 }
 
 /**

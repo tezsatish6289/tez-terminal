@@ -457,13 +457,27 @@ export function MessageItem({
             {message.attachments?.length ? (
               <AttachmentGrid attachments={message.attachments} onZoom={setZoom} status={pending} />
             ) : null}
-            {isOwn && diamondAward && diamondAward.amount > 0 && !pending ? (
-              <p className="mt-1 text-[11px] font-semibold" style={{ color: "#38bdf8" }}>
-                +{diamondAward.amount} diamonds
-                {diamondAward.daysExtendedThisEarn > 0
-                  ? ` · +${diamondAward.daysExtendedThisEarn} day${
-                      diamondAward.daysExtendedThisEarn === 1 ? "" : "s"
-                    } access`
+            {isOwn &&
+            !pending &&
+            (diamondAward?.amount ?? message.clientDiamondAward?.amount ?? 0) > 0 ? (
+              <p
+                className="mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                style={{
+                  color: "#e0f2fe",
+                  backgroundColor: "rgba(14,165,233,0.18)",
+                  border: "1px solid rgba(56,189,248,0.35)",
+                }}
+              >
+                +
+                {diamondAward?.amount ?? message.clientDiamondAward?.amount}
+                {" diamonds"}
+                {(diamondAward?.daysExtendedThisEarn ??
+                  message.clientDiamondAward?.daysExtendedThisEarn ??
+                  0) > 0
+                  ? ` · +${
+                      diamondAward?.daysExtendedThisEarn ??
+                      message.clientDiamondAward?.daysExtendedThisEarn
+                    }d access`
                   : ""}
               </p>
             ) : null}

@@ -90,7 +90,11 @@ export function ChatPanel() {
 
   const allMessages = useMemo(() => {
     if (outgoing.length === 0) return messages;
-    return [...messages, ...outgoing].sort((a, b) => a.createdAt - b.createdAt);
+    // Drop optimistic rows once the live RTDB copy arrives (avoids duplicates).
+    const liveIds = new Set(messages.map((m) => m.id));
+    const pending = outgoing.filter((m) => !liveIds.has(m.id));
+    if (pending.length === 0) return messages;
+    return [...messages, ...pending].sort((a, b) => a.createdAt - b.createdAt);
   }, [messages, outgoing]);
 
   // Mention candidates: people who've posted in the room (excluding yourself / system bots).
@@ -149,19 +153,45 @@ export function ChatPanel() {
         attachments.map((a) => a.path),
         meta.replyToId,
       );
-      if (rewards?.awarded && rewards.amount > 0) {
+      const award =
+        rewards?.awarded && rewards.amount > 0
+          ? {
+              amount: rewards.amount,
+              daysExtendedThisEarn: rewards.daysExtendedThisEarn ?? 0,
+            }
+          : null;
+
+      if (award) {
         setDiamondAwards((prev) => ({
           ...prev,
-          [message.id]: {
-            amount: rewards.amount,
-            daysExtendedThisEarn: rewards.daysExtendedThisEarn,
-          },
+          [message.id]: award,
+          [tempId]: award,
         }));
-        notifyDiamondsChanged(rewards.balance);
+        notifyDiamondsChanged(rewards!.balance);
+        try {
+          sessionStorage.setItem(
+            `fno_diamond_msg_${message.id}`,
+            JSON.stringify(award),
+          );
+        } catch {
+          /* ignore */
+        }
       }
+
+      // Keep a local copy with the real id + award so +10 shows immediately;
+      // allMessages drops it once RTDB has the same id.
       setOutgoing((prev) => {
-        revokePreviews(prev.find((m) => m.id === tempId));
-        return prev.filter((m) => m.id !== tempId);
+        const old = prev.find((m) => m.id === tempId);
+        revokePreviews(old);
+        return prev.map((m) =>
+          m.id === tempId
+            ? {
+                ...message,
+                clientStatus: undefined,
+                clientDiamondAward: award ?? undefined,
+              }
+            : m,
+        );
       });
       outgoingMetaRef.current.delete(tempId);
     } catch {
